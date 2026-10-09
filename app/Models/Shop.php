@@ -12,8 +12,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class Shop extends Model
@@ -113,6 +115,27 @@ class Shop extends Model
     public function business(): BelongsTo
     {
         return $this->belongsTo(Business::class);
+    }
+
+    /**
+     * Whether the shop's business is closing: its webhooks, syncs and
+     * scheduled posts are ignored until it is purged or reopened.
+     */
+    public function businessIsClosing(): bool
+    {
+        return $this->business_id !== null
+            && Business::withTrashed()->whereKey($this->business_id)->whereNotNull('closing_requested_at')->exists();
+    }
+
+    /**
+     * Ids of the shops of closing businesses, as a subquery.
+     */
+    public static function closingShopIds(): QueryBuilder
+    {
+        return DB::table('shops')
+            ->join('businesses', 'businesses.id', '=', 'shops.business_id')
+            ->whereNotNull('businesses.closing_requested_at')
+            ->select('shops.id');
     }
 
     /**

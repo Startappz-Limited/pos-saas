@@ -4,6 +4,8 @@ namespace App\Providers;
 
 use App\Listeners\AuditAuthorizationChanges;
 use App\Models\BaileysSession;
+use App\Models\Business;
+use App\Models\BusinessExport;
 use App\Models\Campaign;
 use App\Models\Product;
 use App\Models\PurchaseReturn;
@@ -17,6 +19,8 @@ use App\Models\StockAdjustment;
 use App\Models\User;
 use App\Observers\ProductObserver;
 use App\Policies\BaileysSessionPolicy;
+use App\Policies\BusinessExportPolicy;
+use App\Policies\BusinessPolicy;
 use App\Policies\CampaignPolicy;
 use App\Policies\PurchaseReturnPolicy;
 use App\Policies\RefundPolicy;
@@ -78,6 +82,11 @@ class AppServiceProvider extends ServiceProvider
                 return false;
             }
 
+            // Exporting and closing a business are for its owner only
+            if (($arguments[0] ?? null) instanceof Business || ($arguments[0] ?? null) instanceof BusinessExport) {
+                return null;
+            }
+
             return true;
         });
 
@@ -96,6 +105,8 @@ class AppServiceProvider extends ServiceProvider
 
         // Register Policies
         Gate::policy(Role::class, RolePolicy::class);
+        Gate::policy(Business::class, BusinessPolicy::class);
+        Gate::policy(BusinessExport::class, BusinessExportPolicy::class);
         Gate::policy(Shop::class, ShopPolicy::class);
         Gate::policy(Sale::class, SalePolicy::class);
         Gate::policy(StockAdjustment::class, StockAdjustmentPolicy::class);

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Enums\UserStatus;
 use App\Http\Requests\ProfileUpdateRequest;
+use App\Support\BusinessClosureCode;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -17,8 +18,16 @@ class ProfileController extends Controller
      */
     public function edit(Request $request): View
     {
+        $user = $request->user();
+        $business = $user->isBusinessOwner() ? $user->business : null;
+
         return view('profile.edit', [
-            'user' => $request->user(),
+            'user' => $user,
+            'business' => $business,
+            'latestExport' => $business?->exports()->where('is_final', false)->latest('id')->first(),
+            'closingExport' => $business?->exportThatAllowsClosing(),
+            'recordCounts' => $business?->recordCounts() ?? [],
+            'closureCodePending' => $business !== null && BusinessClosureCode::pending($business),
         ]);
     }
 

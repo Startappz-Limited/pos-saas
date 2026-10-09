@@ -30,3 +30,11 @@ Schedule::command('baileys:prune-media --orphans')
     ->dailyAt('03:15')
     ->name('prune-baileys-media')
     ->withoutOverlapping();
+
+/**
+ * Delete expired business data exports: each holds every customer's details.
+ */
+Schedule::command('business-exports:prune')
+    ->dailyAt('03:30')
+    ->name('prune-business-exports')
+    ->withoutOverlapping();

@@ -7,6 +7,7 @@ use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\Baileys\BroadcastController;
 use App\Http\Controllers\Baileys\InboxController;
 use App\Http\Controllers\Baileys\SessionController;
+use App\Http\Controllers\BusinessClosureController;
 use App\Http\Controllers\CalendarController;
 use App\Http\Controllers\CampaignController;
 use App\Http\Controllers\CashRegisterController;
@@ -51,7 +52,7 @@ Route::get('/', function () {
 
 Route::get('/dashboard', function () {
     return view('dashboard');
-})->middleware(['auth', 'active', 'verified', 'shop.linked'])->name('dashboard');
+})->middleware(['auth', 'active', 'business.open', 'verified', 'shop.linked'])->name('dashboard');
 
 // Shown to staff who are not linked to a shop yet (see EnsureUserIsLinkedToShop).
 Route::get('/no-shop', function () {
@@ -62,7 +63,7 @@ Route::get('/no-shop', function () {
     }
 
     return view('auth.no-shop');
-})->middleware(['auth', 'active'])->name('no-shop');
+})->middleware(['auth', 'active', 'business.open'])->name('no-shop');
 
 // Public signed routes (no auth required)
 Route::get('orders/{order:uuid}/invoice', [EcommerceOrderController::class, 'invoicePdf'])
@@ -79,13 +80,33 @@ Route::get('credit-accounts/{creditAccount:uuid}/statement-pdf', [CreditAccountC
     ->name('credit-accounts.statement-pdf')
     ->middleware('signed');
 
-Route::middleware(['auth', 'active', 'shop.linked'])->group(function () {
+// Closing a business (owner only, see BusinessPolicy). While it is closing,
+// business.open lets the owner reach only these routes.
+Route::middleware(['auth', 'active', 'business.open'])->group(function () {
+    Route::get('/business/closing', [BusinessClosureController::class, 'closing'])->name('business.closing');
+    Route::post('/business/closing/cancel', [BusinessClosureController::class, 'cancel'])->name('business.closing.cancel');
+    Route::get('/business/exports/{export:uuid}/download', [BusinessClosureController::class, 'download'])
+        ->name('business.exports.download');
+});
+
+Route::middleware(['auth', 'active', 'business.open', 'shop.linked'])->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     // No self-deletion: staff deactivate themselves, the business owner deletes accounts
     Route::post('/profile/deactivate', [ProfileController::class, 'deactivate'])
         ->middleware(ProtectAgainstSpam::class)
         ->name('profile.deactivate');
+    Route::post('/business/exports', [BusinessClosureController::class, 'requestExport'])->name('business.exports.store');
+    // Closing is confirmed by email + password, then a code emailed to the owner.
+    // BusinessClosureCode limits guesses per code; this caps requests overall.
+    Route::middleware('throttle:10,1')->group(function () {
+        Route::post('/business/close/code', [BusinessClosureController::class, 'sendClosureCode'])
+            ->middleware(ProtectAgainstSpam::class)
+            ->name('business.close.code');
+        Route::post('/business/close/code/resend', [BusinessClosureController::class, 'resendClosureCode'])->name('business.close.resend');
+        Route::post('/business/close/code/restart', [BusinessClosureController::class, 'restartClosureCode'])->name('business.close.restart');
+        Route::post('/business/close', [BusinessClosureController::class, 'close'])->name('business.close');
+    });
 
     // User Management Routes
     Route::resource('users', UserController::class);

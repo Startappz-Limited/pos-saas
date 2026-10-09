@@ -17,6 +17,13 @@ class WebhookController extends Controller
      */
     public function woocommerce(Request $request, Shop $shop): Response
     {
+        // A closing business takes no new orders. 200 so the platform stops retrying.
+        if ($shop->businessIsClosing()) {
+            Log::info('Webhook ignored: the shop\'s business is closing', ['shop_id' => $shop->id]);
+
+            return response('OK', 200);
+        }
+
         $topic = $request->header('X-WC-Webhook-Topic');
 
         Log::info('WooCommerce webhook received', [
@@ -115,6 +122,13 @@ class WebhookController extends Controller
      */
     public function shopify(Request $request, Shop $shop): Response
     {
+        // A closing business takes no new orders. 200 so the platform stops retrying.
+        if ($shop->businessIsClosing()) {
+            Log::info('Webhook ignored: the shop\'s business is closing', ['shop_id' => $shop->id]);
+
+            return response('OK', 200);
+        }
+
         $signature = $request->header('X-Shopify-Hmac-Sha256');
         $topic = $request->header('X-Shopify-Topic');
 

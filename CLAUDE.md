@@ -132,6 +132,15 @@ silently mixing patterns (see the skill's `CONFLICT:` protocol).
   themselves from the profile page (there is no self-delete), and a super-admin can never delete a user.
   `UserService::delete` erases the person's data: photo, sessions, tokens, reset tokens, and their name/
   email/IP in the audit trail (`AuditErasure`, the one sanctioned write to audit rows).
+  **Closing a business (owner only, `BusinessClosureController`):** the owner first downloads an export
+  (`BusinessExporter` → a ZIP of CSVs built by `BuildBusinessExportJob`, link emailed, files on the private
+  `local` disk, pruned daily by `business-exports:prune`), then closes, confirming with their email + password
+  and a 6-digit code emailed to them (`BusinessClosureCode`: hashed in the cache, 10 min, 5 tries). `businesses.closing_requested_at`/
+  `purge_after` freeze it for `Business::GRACE_DAYS`: the `business.open` middleware lets only the owner in,
+  to `business.closing` (final export + cancel); staff are signed out, the API returns `403 business_closing`,
+  and shop webhooks and scheduled posts are skipped. Nothing is deleted while closing. **The purge itself is
+  not built yet** (phase 2c). `BusinessExporter` runs with no user, so it filters by business explicitly —
+  a new table holding business data must be added to `BusinessExporter::datasets()`.
   ⚠️ **A new foreign key from a business record to `users` must be `nullOnDelete()`** (and nullable), so
   deleting a person keeps the record; only data that belongs to the person (preferences, widgets) may
   cascade. Views/resources must cope with a missing user (`?->name ?? __('Deleted user')`).

@@ -118,7 +118,9 @@ class CampaignPost extends Model
     {
         return $query->where('status', PostStatus::SCHEDULED)
             ->whereNotNull('scheduled_at')
-            ->where('scheduled_at', '<=', now());
+            ->where('scheduled_at', '<=', now())
+            // Nothing is published for a business that is closing
+            ->where(fn (Builder $query) => $query->whereNull('shop_id')->orWhereNotIn('shop_id', Shop::closingShopIds()));
     }
 
     public function scopeForCampaign(Builder $query, int $campaignId): Builder

@@ -50,7 +50,11 @@
         <div class="col-xl-8">
             @include('profile.partials.update-profile-information-form')
             @include('profile.partials.update-password-form')
-            @include('profile.partials.deactivate-account-form')
+            @if ($business)
+                @include('profile.partials.close-business-form')
+            @else
+                @include('profile.partials.deactivate-account-form')
+            @endif
         </div>
     </div>
 @endsection

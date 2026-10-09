@@ -1,17 +1,13 @@
 {{--
     Staff and co-admins can deactivate their own account; only the business
-    owner deletes accounts (from Users), and the owner's own account can only go
-    by closing the business. A super-admin's account is managed by another
-    super-admin.
+    owner deletes accounts (from Users). The owner sees close-business-form
+    instead: their account goes when the business is closed. A super-admin's
+    account is managed by another super-admin.
 --}}
 <x-ui-card :title="__('Deactivate account')" class="mb-3">
     @if ($user->isSuperAdmin())
         <p class="text-muted mb-0">
             {{ __('Platform administrator accounts cannot be deactivated from here. Another super-admin can deactivate this account.') }}
-        </p>
-    @elseif ($user->isBusinessOwner())
-        <p class="text-muted mb-0">
-            {{ __('You own :business, so your account cannot be deactivated or deleted on its own: the business depends on it. Closing the business, which permanently deletes all of its data, will be offered here.', ['business' => $user->business?->name]) }}
         </p>
     @else
         <p class="text-muted">

@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\EnsureBusinessIsOpen;
 use App\Http\Middleware\EnsureUserIsActive;
 use App\Http\Middleware\EnsureUserIsLinkedToShop;
 use App\Http\Middleware\SecurityHeaders;
@@ -29,10 +30,12 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
 
         // Staff without a shop see the "contact your administrator" page
-        // (web) or a 403 (api). Applied to the authenticated route groups.
+        // (web) or a 403 (api). While a business is closing, only its owner
+        // gets in (business.open). Applied to the authenticated route groups.
         $middleware->alias([
             'active' => EnsureUserIsActive::class,
             'shop.linked' => EnsureUserIsLinkedToShop::class,
+            'business.open' => EnsureBusinessIsOpen::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

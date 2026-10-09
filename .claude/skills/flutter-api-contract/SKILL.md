@@ -92,7 +92,10 @@ that's 403.
 **Shop linking.** A non-admin user who is not linked to any shop gets
 `403 {"success": false, "code": "shop_not_linked", "message": "…contact your administrator…"}` from every
 authenticated endpoint except `GET /api/user` and `POST /api/logout`; the app should show that message
-rather than a generic error. Records of a shop (or business) the user cannot access return **404**, not
+rather than a generic error. Likewise `403 {"code": "account_inactive"}` (deactivated/suspended; the
+token is revoked) and `403 {"code": "business_closing"}` (the owner is closing the business: everyone,
+owner included, is refused except `GET /api/user` and `POST /api/logout`; the owner manages it on the web).
+⚠️ The Flutter app does not handle these codes yet. Records of a shop (or business) the user cannot access return **404**, not
 403 — they are filtered out by global scopes before any policy runs.
 
 ## Money is a string. Do not "fix" this.
