@@ -4,9 +4,7 @@
     by closing the business. A super-admin's account is managed by another
     super-admin.
 --}}
-<section>
-    <h2 class="fs-18 fw-semibold mb-1">{{ __('Deactivate account') }}</h2>
-
+<x-ui-card :title="__('Deactivate account')" class="mb-3">
     @if ($user->isSuperAdmin())
         <p class="text-muted mb-0">
             {{ __('Platform administrator accounts cannot be deactivated from here. Another super-admin can deactivate this account.') }}
@@ -20,39 +18,36 @@
             {{ __('Deactivating signs you out everywhere and stops you signing in. Your sales and other work stay with the business. Only an administrator can reactivate your account, and only the business owner can delete it.') }}
         </p>
 
-        <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deactivateAccountModal">
-            {{ __('Deactivate my account') }}
-        </button>
+        <div class="text-end">
+            <x-ui-button variant="outline-danger" icon="solar:user-block-broken" data-bs-toggle="modal"
+                data-bs-target="#deactivateAccountModal">
+                {{ __('Deactivate my account') }}
+            </x-ui-button>
+        </div>
 
-        <div class="modal fade" id="deactivateAccountModal" tabindex="-1" aria-labelledby="deactivateAccountTitle" aria-hidden="true">
-            <div class="modal-dialog">
-                <form method="POST" action="{{ route('profile.deactivate') }}" class="modal-content">
+        @push('modals')
+            <x-ui-modal id="deactivateAccountModal" :title="__('Deactivate your account?')" centered>
+                <form id="deactivateAccountForm" method="POST" action="{{ route('profile.deactivate') }}">
                     @csrf
                     @honeypot
 
-                    <div class="modal-header">
-                        <h5 class="modal-title" id="deactivateAccountTitle">{{ __('Deactivate your account?') }}</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ __('Close') }}"></button>
-                    </div>
+                    <x-ui-alert variant="warning" icon="solar:danger-triangle-broken">
+                        {{ __('You will be signed out straight away and will not be able to sign in again until an administrator reactivates you.') }}
+                    </x-ui-alert>
 
-                    <div class="modal-body">
-                        <p>{{ __('You will be signed out straight away and will not be able to sign in again until an administrator reactivates you.') }}</p>
-
-                        <label for="deactivate_password" class="form-label">{{ __('Enter your password to confirm') }}</label>
-                        <input type="password" id="deactivate_password" name="password" autocomplete="current-password"
-                            class="form-control @error('password', 'userDeactivation') is-invalid @enderror" required>
-                        @error('password', 'userDeactivation')
-                            <div class="invalid-feedback">{{ $message }}</div>
-                        @enderror
-                    </div>
-
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">{{ __('Cancel') }}</button>
-                        <button type="submit" class="btn btn-danger">{{ __('Deactivate my account') }}</button>
-                    </div>
+                    <x-ui-form-input name="password" id="deactivate_password" type="password"
+                        :label="__('Enter your password to confirm')" error-bag="userDeactivation" groupClass="mb-0"
+                        autocomplete="current-password" required />
                 </form>
-            </div>
-        </div>
+
+                <x-slot:footer>
+                    <x-ui-button variant="light" data-bs-dismiss="modal">{{ __('Cancel') }}</x-ui-button>
+                    <x-ui-button type="submit" variant="danger" form="deactivateAccountForm">
+                        {{ __('Deactivate my account') }}
+                    </x-ui-button>
+                </x-slot:footer>
+            </x-ui-modal>
+        @endpush
 
         @if ($errors->userDeactivation->isNotEmpty())
             @push('scripts')
@@ -64,4 +59,4 @@
             @endpush
         @endif
     @endif
-</section>
+</x-ui-card>
