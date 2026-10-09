@@ -1,0 +1,2583 @@
+{
+    "info": {
+        "_postman_id": "fitness-center-flutter-api",
+        "name": "Fitness Center - Flutter POS API",
+        "description": "Complete API collection for the Fitness Center Flutter POS mobile app.\n\n## Setup\n1. Set the `base_url` variable to your app URL (e.g. `https://fitness-center.test`).\n2. Run the **Login** request first — it auto-saves the token.\n3. All authenticated requests use `{{token}}` from the collection variables.\n\n## Variables\n- `base_url` — Your app base URL\n- `token` — Sanctum bearer token (auto-set on login)\n- `uuid` — Reusable UUID placeholder",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    },
+    "variable": [
+        {
+            "key": "base_url",
+            "value": "https://fitness-center.test",
+            "type": "string"
+        },
+        {
+            "key": "token",
+            "value": "",
+            "type": "string"
+        },
+        {
+            "key": "uuid",
+            "value": "",
+            "type": "string"
+        }
+    ],
+    "auth": {
+        "type": "bearer",
+        "bearer": [
+            {
+                "key": "token",
+                "value": "{{token}}",
+                "type": "string"
+            }
+        ]
+    },
+    "item": [
+        {
+            "name": "1. Authentication",
+            "item": [
+                {
+                    "name": "Login",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "if (pm.response.code === 200) {",
+                                    "    var json = pm.response.json();",
+                                    "    if (json.data && json.data.token) {",
+                                    "        pm.collectionVariables.set('token', json.data.token);",
+                                    "        console.log('Token saved: ' + json.data.token.substring(0, 20) + '...');",
+                                    "    }",
+                                    "}",
+                                    "",
+                                    "pm.test('Login successful', function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.success).to.be.true;",
+                                    "    pm.expect(json.data.token).to.be.a('string');",
+                                    "    pm.expect(json.data.user).to.have.property('id');",
+                                    "    pm.expect(json.data.user).to.have.property('roles');",
+                                    "    pm.expect(json.data.user).to.have.property('permissions');",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "auth": {
+                            "type": "noauth"
+                        },
+                        "method": "POST",
+                        "header": [
+                            { "key": "Accept", "value": "application/json" },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"email\": \"admin@example.com\",\n    \"password\": \"password\",\n    \"device_name\": \"Postman\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/login",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "login"]
+                        }
+                    }
+                },
+                {
+                    "name": "Get Current User",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('User profile returned', function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json).to.have.property('id');",
+                                    "    pm.expect(json).to.have.property('email');",
+                                    "    pm.expect(json).to.have.property('roles');",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            { "key": "Accept", "value": "application/json" }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/user",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "user"]
+                        }
+                    }
+                },
+                {
+                    "name": "Logout",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Logout successful', function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.success).to.be.true;",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            { "key": "Accept", "value": "application/json" }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/logout",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "logout"]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "2. Cash Registers",
+            "item": [
+                {
+                    "name": "Get Register Status",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Status returned', function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.success).to.be.true;",
+                                    "    pm.expect(json.data).to.have.property('has_active_register');",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            { "key": "Accept", "value": "application/json" }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/cash-registers/status",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "cash-registers", "status"]
+                        }
+                    }
+                },
+                {
+                    "name": "List Registers",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Registers listed', function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.success).to.be.true;",
+                                    "    pm.expect(json.data).to.be.an('array');",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            { "key": "Accept", "value": "application/json" }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/cash-registers?per_page=20",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "cash-registers"],
+                            "query": [
+                                { "key": "per_page", "value": "20" },
+                                {
+                                    "key": "date",
+                                    "value": "",
+                                    "disabled": true
+                                },
+                                {
+                                    "key": "status",
+                                    "value": "",
+                                    "disabled": true
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Open Register",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Register opened', function () {",
+                                    "    pm.response.to.have.status(201);",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.success).to.be.true;",
+                                    "    pm.expect(json.data).to.have.property('uuid');",
+                                    "    pm.collectionVariables.set('uuid', json.data.uuid);",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            { "key": "Accept", "value": "application/json" },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"opening_balance\": 500.00,\n    \"opening_notes\": \"Starting balance counted and verified\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/cash-registers/open",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "cash-registers", "open"]
+                        }
+                    }
+                },
+                {
+                    "name": "Show Register",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Register details returned', function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.success).to.be.true;",
+                                    "    pm.expect(json.data).to.have.property('uuid');",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            { "key": "Accept", "value": "application/json" }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/cash-registers/{{uuid}}",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "cash-registers", "{{uuid}}"]
+                        }
+                    }
+                },
+                {
+                    "name": "Close Register",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Register closed', function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.success).to.be.true;",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            { "key": "Accept", "value": "application/json" },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"closing_balance\": 1700.00,\n    \"closing_notes\": \"All counted, no variance\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/cash-registers/{{uuid}}/close",
+                            "host": ["{{base_url}}"],
+                            "path": [
+                                "api",
+                                "cash-registers",
+                                "{{uuid}}",
+                                "close"
+                            ]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "3. Sales",
+            "item": [
+                {
+                    "name": "List Sales",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Sales listed', function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.success).to.be.true;",
+                                    "    pm.expect(json.data).to.be.an('array');",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            { "key": "Accept", "value": "application/json" }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/sales",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "sales"],
+                            "query": [
+                                {
+                                    "key": "search",
+                                    "value": "",
+                                    "disabled": true
+                                },
+                                {
+                                    "key": "status",
+                                    "value": "",
+                                    "disabled": true
+                                },
+                                {
+                                    "key": "payment_status",
+                                    "value": "",
+                                    "disabled": true
+                                },
+                                {
+                                    "key": "per_page",
+                                    "value": "20",
+                                    "disabled": true
+                                },
+                                {
+                                    "key": "page",
+                                    "value": "1",
+                                    "disabled": true
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Create Sale",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Sale created', function () {",
+                                    "    var status = pm.response.code;",
+                                    "    pm.expect(status).to.equal(201);",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.success).to.be.true;",
+                                    "    pm.expect(json.data).to.have.property('uuid');",
+                                    "    pm.collectionVariables.set('uuid', json.data.uuid);",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            { "key": "Accept", "value": "application/json" },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"customer_id\": 1,\n    \"source_id\": 1,\n    \"delivery_location\": \"123 Main Street, City\",\n    \"walk_in_customer_name\": null,\n    \"walk_in_customer_email\": null,\n    \"walk_in_customer_phone\": null,\n    \"delivery_company_id\": null,\n    \"items\": [\n        {\n            \"product_id\": 1,\n            \"variation_id\": null,\n            \"quantity\": 2,\n            \"price\": 45.00\n        }\n    ],\n    \"discount_amount\": 0,\n    \"tax_amount\": 0,\n    \"delivery_fee\": 0,\n    \"packaging_fee\": 0,\n    \"other_expenses\": 0,\n    \"expense_notes\": null,\n    \"payment_method\": \"cash\",\n    \"is_cod\": false,\n    \"notes\": \"Test sale from Postman\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/sales",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "sales"]
+                        }
+                    }
+                },
+                {
+                    "name": "Show Sale",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Sale details returned', function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.success).to.be.true;",
+                                    "    pm.expect(json.data).to.have.property('invoice_number');",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            { "key": "Accept", "value": "application/json" }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/sales/{{uuid}}",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "sales", "{{uuid}}"]
+                        }
+                    }
+                },
+                {
+                    "name": "Complete Sale",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Sale completed', function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.success).to.be.true;",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            { "key": "Accept", "value": "application/json" }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/sales/{{uuid}}/complete",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "sales", "{{uuid}}", "complete"]
+                        }
+                    }
+                },
+                {
+                    "name": "Void Sale",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Sale voided', function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.success).to.be.true;",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            { "key": "Accept", "value": "application/json" },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"void_reason\": \"Customer changed mind\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/sales/{{uuid}}/void",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "sales", "{{uuid}}", "void"]
+                        }
+                    }
+                },
+                {
+                    "name": "Collect Payment",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Payment collected', function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.success).to.be.true;",
+                                    "    pm.expect(json.data).to.have.property('paid_amount');",
+                                    "    pm.expect(json.data).to.have.property('balance_due');",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            { "key": "Accept", "value": "application/json" },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"payments\": [\n        {\n            \"amount\": 150.00,\n            \"payment_method\": \"cash\",\n            \"reference\": null,\n            \"notes\": null\n        }\n    ]\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/sales/{{uuid}}/collect-payment",
+                            "host": ["{{base_url}}"],
+                            "path": [
+                                "api",
+                                "sales",
+                                "{{uuid}}",
+                                "collect-payment"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Get Sale Payments",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Payments listed', function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.data).to.be.an('array');",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            { "key": "Accept", "value": "application/json" }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/sales/{{uuid}}/payments",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "sales", "{{uuid}}", "payments"]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "4. E-commerce Orders",
+            "item": [
+                {
+                    "name": "List Orders",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Orders listed', function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.success).to.be.true;",
+                                    "    pm.expect(json.data).to.be.an('object');",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            { "key": "Accept", "value": "application/json" }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/ecommerce-orders",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "ecommerce-orders"],
+                            "query": [
+                                {
+                                    "key": "search",
+                                    "value": "",
+                                    "disabled": true
+                                },
+                                {
+                                    "key": "shop_id",
+                                    "value": "",
+                                    "disabled": true
+                                },
+                                {
+                                    "key": "platform",
+                                    "value": "",
+                                    "disabled": true
+                                },
+                                {
+                                    "key": "status",
+                                    "value": "",
+                                    "disabled": true
+                                },
+                                {
+                                    "key": "conversion",
+                                    "value": "",
+                                    "disabled": true
+                                },
+                                {
+                                    "key": "per_page",
+                                    "value": "20",
+                                    "disabled": true
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Show Order",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Order details returned', function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.success).to.be.true;",
+                                    "    pm.expect(json.data).to.have.property('order_number');",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            { "key": "Accept", "value": "application/json" }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/ecommerce-orders/{{uuid}}",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "ecommerce-orders", "{{uuid}}"]
+                        }
+                    }
+                },
+                {
+                    "name": "Refresh Orders",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Refresh queued', function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.success).to.be.true;",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            { "key": "Accept", "value": "application/json" },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"shop_id\": 1\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/ecommerce-orders/refresh",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "ecommerce-orders", "refresh"]
+                        }
+                    }
+                },
+                {
+                    "name": "Update Order Status",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Status updated', function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.success).to.be.true;",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            { "key": "Accept", "value": "application/json" },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"status\": \"completed\",\n    \"note\": \"Delivered and payment collected\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/ecommerce-orders/{{uuid}}/update-status",
+                            "host": ["{{base_url}}"],
+                            "path": [
+                                "api",
+                                "ecommerce-orders",
+                                "{{uuid}}",
+                                "update-status"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Convert Order to Sale",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Order converted', function () {",
+                                    "    var status = pm.response.code;",
+                                    "    pm.expect(status).to.equal(201);",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.success).to.be.true;",
+                                    "    pm.expect(json.data).to.have.property('sale_uuid');",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            { "key": "Accept", "value": "application/json" },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"register_id\": 5,\n    \"source_id\": 3,\n    \"customer_id\": null,\n    \"payment_method\": \"cash\",\n    \"delivery_company_id\": 1,\n    \"delivery_location\": \"123 Main St, Dubai\",\n    \"delivery_fee\": 15.00,\n    \"notes\": \"Converted from website order\",\n    \"items\": [\n        {\n            \"product_id\": 1,\n            \"variation_id\": null,\n            \"quantity\": 2,\n            \"unit_price\": 45.00\n        }\n    ]\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/ecommerce-orders/{{uuid}}/convert",
+                            "host": ["{{base_url}}"],
+                            "path": [
+                                "api",
+                                "ecommerce-orders",
+                                "{{uuid}}",
+                                "convert"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Add Note",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Note added', function () {",
+                                    "    pm.response.to.have.status(201);",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.success).to.be.true;",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            { "key": "Accept", "value": "application/json" },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"message\": \"Customer called to change delivery address\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/ecommerce-orders/{{uuid}}/notes",
+                            "host": ["{{base_url}}"],
+                            "path": [
+                                "api",
+                                "ecommerce-orders",
+                                "{{uuid}}",
+                                "notes"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Add Reminder",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Reminder added', function () {",
+                                    "    pm.response.to.have.status(201);",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.success).to.be.true;",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            { "key": "Accept", "value": "application/json" },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"title\": \"Follow up delivery\",\n    \"message\": \"Call customer to confirm address\",\n    \"scheduled_at\": \"2026-03-25T10:00:00.000000Z\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/ecommerce-orders/{{uuid}}/reminders",
+                            "host": ["{{base_url}}"],
+                            "path": [
+                                "api",
+                                "ecommerce-orders",
+                                "{{uuid}}",
+                                "reminders"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Resolve Reminder",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Reminder resolved', function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.success).to.be.true;",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            { "key": "Accept", "value": "application/json" }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/ecommerce-orders/{{uuid}}/reminders/{{uuid}}/resolve",
+                            "host": ["{{base_url}}"],
+                            "path": [
+                                "api",
+                                "ecommerce-orders",
+                                "{{uuid}}",
+                                "reminders",
+                                "{{uuid}}",
+                                "resolve"
+                            ],
+                            "variable": []
+                        },
+                        "description": "Replace the second {{uuid}} with the alert UUID."
+                    }
+                }
+            ]
+        },
+        {
+            "name": "5. Calendar",
+            "item": [
+                {
+                    "name": "Get Events",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Events returned', function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.success).to.be.true;",
+                                    "    pm.expect(json.data).to.be.an('array');",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            { "key": "Accept", "value": "application/json" }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/calendar/events",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "calendar", "events"],
+                            "query": [
+                                {
+                                    "key": "start",
+                                    "value": "2026-03-01T00:00:00",
+                                    "disabled": true
+                                },
+                                {
+                                    "key": "end",
+                                    "value": "2026-03-31T23:59:59",
+                                    "disabled": true
+                                }
+                            ]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "6. Reports",
+            "item": [
+                {
+                    "name": "Daily Sales Report",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Daily sales returned', function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.success).to.be.true;",
+                                    "    pm.expect(json.data).to.have.property('statistics');",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            { "key": "Accept", "value": "application/json" }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/reports/daily-sales",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "reports", "daily-sales"],
+                            "query": [
+                                { "key": "date", "value": "", "disabled": true }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Daily Register Report",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Register report returned', function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.success).to.be.true;",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            { "key": "Accept", "value": "application/json" }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/reports/daily-register",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "reports", "daily-register"],
+                            "query": [
+                                { "key": "date", "value": "", "disabled": true }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Top Products Report",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Top products returned', function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.success).to.be.true;",
+                                    "    pm.expect(json.data).to.have.property('products');",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            { "key": "Accept", "value": "application/json" }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/reports/top-products",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "reports", "top-products"],
+                            "query": [
+                                {
+                                    "key": "date",
+                                    "value": "",
+                                    "disabled": true
+                                },
+                                {
+                                    "key": "limit",
+                                    "value": "10",
+                                    "disabled": true
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Pending Payments Report",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Pending payments returned', function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.success).to.be.true;",
+                                    "    pm.expect(json.data).to.have.property('total_pending');",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            { "key": "Accept", "value": "application/json" }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/reports/pending-payments",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "reports", "pending-payments"]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "7. Delivery Companies",
+            "item": [
+                {
+                    "name": "List Delivery Companies",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Companies listed', function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.success).to.be.true;",
+                                    "    pm.expect(json.data).to.be.an('array');",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            { "key": "Accept", "value": "application/json" }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/delivery-companies",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "delivery-companies"],
+                            "query": [
+                                {
+                                    "key": "search",
+                                    "value": "",
+                                    "disabled": true
+                                },
+                                {
+                                    "key": "is_active",
+                                    "value": "1",
+                                    "disabled": true
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Create Delivery Company",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Company created', function () {",
+                                    "    pm.response.to.have.status(201);",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.success).to.be.true;",
+                                    "    pm.expect(json.data).to.have.property('uuid');",
+                                    "    pm.collectionVariables.set('uuid', json.data.uuid);",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            { "key": "Accept", "value": "application/json" },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"name\": \"Quick Courier\",\n    \"contact_person\": \"Mohammed\",\n    \"phone\": \"+971509876543\",\n    \"email\": \"info@quickcourier.com\",\n    \"address\": \"Unit 12, Logistics Park\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/delivery-companies",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "delivery-companies"]
+                        }
+                    }
+                },
+                {
+                    "name": "Show Delivery Company",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Company returned', function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.success).to.be.true;",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            { "key": "Accept", "value": "application/json" }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/delivery-companies/{{uuid}}",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "delivery-companies", "{{uuid}}"]
+                        }
+                    }
+                },
+                {
+                    "name": "Update Delivery Company",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Company updated', function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.success).to.be.true;",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            { "key": "Accept", "value": "application/json" },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"name\": \"Quick Courier Updated\",\n    \"phone\": \"+971509876543\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/delivery-companies/{{uuid}}",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "delivery-companies", "{{uuid}}"]
+                        }
+                    }
+                },
+                {
+                    "name": "Toggle Active",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Active toggled', function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.success).to.be.true;",
+                                    "    pm.expect(json.data).to.have.property('is_active');",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            { "key": "Accept", "value": "application/json" }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/delivery-companies/{{uuid}}/toggle-active",
+                            "host": ["{{base_url}}"],
+                            "path": [
+                                "api",
+                                "delivery-companies",
+                                "{{uuid}}",
+                                "toggle-active"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Delete Delivery Company",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Company deleted', function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.success).to.be.true;",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "DELETE",
+                        "header": [
+                            { "key": "Accept", "value": "application/json" }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/delivery-companies/{{uuid}}",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "delivery-companies", "{{uuid}}"]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "8. Purchase Orders",
+            "item": [
+                {
+                    "name": "List Purchase Orders",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('POs listed', function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.success).to.be.true;",
+                                    "    pm.expect(json.data).to.be.an('array');",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            { "key": "Accept", "value": "application/json" }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/purchase-orders",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "purchase-orders"],
+                            "query": [
+                                {
+                                    "key": "search",
+                                    "value": "",
+                                    "disabled": true
+                                },
+                                {
+                                    "key": "status",
+                                    "value": "",
+                                    "disabled": true
+                                },
+                                {
+                                    "key": "supplier_id",
+                                    "value": "",
+                                    "disabled": true
+                                },
+                                {
+                                    "key": "shop_id",
+                                    "value": "",
+                                    "disabled": true
+                                },
+                                {
+                                    "key": "per_page",
+                                    "value": "15",
+                                    "disabled": true
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Create Purchase Order",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('PO created', function () {",
+                                    "    pm.response.to.have.status(201);",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.success).to.be.true;",
+                                    "    pm.expect(json.data).to.have.property('uuid');",
+                                    "    pm.collectionVariables.set('uuid', json.data.uuid);",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            { "key": "Accept", "value": "application/json" },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"supplier_id\": 1,\n    \"shop_id\": 1,\n    \"order_date\": \"2026-03-19\",\n    \"expected_delivery_date\": \"2026-03-26\",\n    \"payment_terms\": \"Net 30\",\n    \"payment_due_date\": \"2026-04-18\",\n    \"shipping_cost\": 50.00,\n    \"discount_amount\": 0,\n    \"tax_amount\": 125.00,\n    \"notes\": \"Urgent order for restocking\",\n    \"items\": [\n        {\n            \"product_id\": 1,\n            \"product_variation_id\": null,\n            \"quantity_ordered\": 50,\n            \"unit_cost\": 25.00,\n            \"tax_rate\": 5.00,\n            \"discount_percent\": 0,\n            \"notes\": null\n        }\n    ]\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/purchase-orders",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "purchase-orders"]
+                        }
+                    }
+                },
+                {
+                    "name": "Show Purchase Order",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('PO returned', function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.success).to.be.true;",
+                                    "    pm.expect(json.data).to.have.property('order_number');",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            { "key": "Accept", "value": "application/json" }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/purchase-orders/{{uuid}}",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "purchase-orders", "{{uuid}}"]
+                        }
+                    }
+                },
+                {
+                    "name": "Update Purchase Order",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('PO updated', function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.success).to.be.true;",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            { "key": "Accept", "value": "application/json" },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"supplier_id\": 1,\n    \"shop_id\": 1,\n    \"order_date\": \"2026-03-19\",\n    \"expected_delivery_date\": \"2026-03-28\",\n    \"notes\": \"Updated delivery date\",\n    \"items\": [\n        {\n            \"product_id\": 1,\n            \"product_variation_id\": null,\n            \"quantity_ordered\": 60,\n            \"unit_cost\": 25.00,\n            \"tax_rate\": 5.00,\n            \"discount_percent\": 0,\n            \"notes\": null\n        }\n    ]\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/purchase-orders/{{uuid}}",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "purchase-orders", "{{uuid}}"]
+                        }
+                    }
+                },
+                {
+                    "name": "Approve Purchase Order",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('PO approved', function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.success).to.be.true;",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            { "key": "Accept", "value": "application/json" }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/purchase-orders/{{uuid}}/approve",
+                            "host": ["{{base_url}}"],
+                            "path": [
+                                "api",
+                                "purchase-orders",
+                                "{{uuid}}",
+                                "approve"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Mark as Ordered",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('PO marked ordered', function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.success).to.be.true;",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            { "key": "Accept", "value": "application/json" }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/purchase-orders/{{uuid}}/mark-ordered",
+                            "host": ["{{base_url}}"],
+                            "path": [
+                                "api",
+                                "purchase-orders",
+                                "{{uuid}}",
+                                "mark-ordered"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Cancel Purchase Order",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('PO cancelled', function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.success).to.be.true;",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            { "key": "Accept", "value": "application/json" }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/purchase-orders/{{uuid}}/cancel",
+                            "host": ["{{base_url}}"],
+                            "path": [
+                                "api",
+                                "purchase-orders",
+                                "{{uuid}}",
+                                "cancel"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Delete Purchase Order",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('PO deleted', function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.success).to.be.true;",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "DELETE",
+                        "header": [
+                            { "key": "Accept", "value": "application/json" }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/purchase-orders/{{uuid}}",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "purchase-orders", "{{uuid}}"]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "9. Products",
+            "item": [
+                {
+                    "name": "List Products",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Products listed', function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.success).to.be.true;",
+                                    "    pm.expect(json.data).to.be.an('array');",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            { "key": "Accept", "value": "application/json" }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/products",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "products"],
+                            "query": [
+                                {
+                                    "key": "search",
+                                    "value": "",
+                                    "disabled": true
+                                },
+                                {
+                                    "key": "status",
+                                    "value": "active",
+                                    "disabled": true
+                                },
+                                {
+                                    "key": "category_id",
+                                    "value": "",
+                                    "disabled": true
+                                },
+                                {
+                                    "key": "shop_id",
+                                    "value": "",
+                                    "disabled": true
+                                },
+                                {
+                                    "key": "per_page",
+                                    "value": "15",
+                                    "disabled": true
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Show Product",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Product returned', function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.success).to.be.true;",
+                                    "    pm.expect(json.data).to.have.property('name');",
+                                    "    pm.expect(json.data).to.have.property('sku');",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            { "key": "Accept", "value": "application/json" }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/products/{{uuid}}",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "products", "{{uuid}}"]
+                        }
+                    }
+                },
+                {
+                    "name": "Create Product",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Product created', function () {",
+                                    "    pm.response.to.have.status(201);",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.success).to.be.true;",
+                                    "    pm.expect(json.data).to.have.property('uuid');",
+                                    "    pm.collectionVariables.set('uuid', json.data.uuid);",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            { "key": "Accept", "value": "application/json" },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"name\": \"Resistance Bands Set\",\n    \"sku\": \"RB-001\",\n    \"barcode\": \"9876543210123\",\n    \"description\": \"Set of 5 resistance bands\",\n    \"category_id\": 1,\n    \"supplier_id\": 1,\n    \"cost_price\": 15.00,\n    \"selling_price\": 35.00,\n    \"wholesale_price\": 25.00,\n    \"stock_quantity\": 100,\n    \"reorder_level\": 20,\n    \"track_stock\": true,\n    \"has_variations\": false,\n    \"unit\": \"set\",\n    \"status\": \"active\",\n    \"notes\": null,\n    \"variations\": []\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/products",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "products"]
+                        }
+                    }
+                },
+                {
+                    "name": "Update Product",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Product updated', function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.success).to.be.true;",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            { "key": "Accept", "value": "application/json" },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"name\": \"Resistance Bands Set (Updated)\",\n    \"selling_price\": 39.99\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/products/{{uuid}}",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "products", "{{uuid}}"]
+                        }
+                    }
+                },
+                {
+                    "name": "Activate Product",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Product activated', function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.success).to.be.true;",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            { "key": "Accept", "value": "application/json" }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/products/{{uuid}}/activate",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "products", "{{uuid}}", "activate"]
+                        }
+                    }
+                },
+                {
+                    "name": "Deactivate Product",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Product deactivated', function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.success).to.be.true;",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            { "key": "Accept", "value": "application/json" }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/products/{{uuid}}/deactivate",
+                            "host": ["{{base_url}}"],
+                            "path": [
+                                "api",
+                                "products",
+                                "{{uuid}}",
+                                "deactivate"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Delete Product",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Product deleted', function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.success).to.be.true;",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "DELETE",
+                        "header": [
+                            { "key": "Accept", "value": "application/json" }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/products/{{uuid}}",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "products", "{{uuid}}"]
+                        }
+                    }
+                },
+                {
+                    "name": "Low Stock Products",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Low stock returned', function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.success).to.be.true;",
+                                    "    pm.expect(json.data).to.be.an('array');",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            { "key": "Accept", "value": "application/json" }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/products/low-stock",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "products", "low-stock"],
+                            "query": [
+                                {
+                                    "key": "per_page",
+                                    "value": "15",
+                                    "disabled": true
+                                }
+                            ]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "10. Categories",
+            "item": [
+                {
+                    "name": "List Categories",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Categories listed', function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.success).to.be.true;",
+                                    "    pm.expect(json.data).to.be.an('array');",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            { "key": "Accept", "value": "application/json" }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/categories",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "categories"],
+                            "query": [
+                                {
+                                    "key": "search",
+                                    "value": "",
+                                    "disabled": true
+                                },
+                                {
+                                    "key": "status",
+                                    "value": "active",
+                                    "disabled": true
+                                },
+                                {
+                                    "key": "root_only",
+                                    "value": "1",
+                                    "disabled": true
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Create Category",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Category created', function () {",
+                                    "    pm.response.to.have.status(201);",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.success).to.be.true;",
+                                    "    pm.expect(json.data).to.have.property('uuid');",
+                                    "    pm.collectionVariables.set('uuid', json.data.uuid);",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            { "key": "Accept", "value": "application/json" },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"name\": \"Supplements\",\n    \"parent_id\": null,\n    \"status\": \"active\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/categories",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "categories"]
+                        }
+                    }
+                },
+                {
+                    "name": "Show Category",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            { "key": "Accept", "value": "application/json" }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/categories/{{uuid}}",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "categories", "{{uuid}}"]
+                        }
+                    }
+                },
+                {
+                    "name": "Update Category",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            { "key": "Accept", "value": "application/json" },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"name\": \"Supplements Updated\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/categories/{{uuid}}",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "categories", "{{uuid}}"]
+                        }
+                    }
+                },
+                {
+                    "name": "Delete Category",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [
+                            { "key": "Accept", "value": "application/json" }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/categories/{{uuid}}",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "categories", "{{uuid}}"]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "11. Customers",
+            "item": [
+                {
+                    "name": "List Customers",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Customers listed', function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.success).to.be.true;",
+                                    "    pm.expect(json.data).to.be.an('array');",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            { "key": "Accept", "value": "application/json" }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/customers",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "customers"],
+                            "query": [
+                                {
+                                    "key": "search",
+                                    "value": "",
+                                    "disabled": true
+                                },
+                                {
+                                    "key": "status",
+                                    "value": "active",
+                                    "disabled": true
+                                },
+                                {
+                                    "key": "customer_type",
+                                    "value": "",
+                                    "disabled": true
+                                },
+                                {
+                                    "key": "per_page",
+                                    "value": "15",
+                                    "disabled": true
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Create Customer",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Customer created', function () {",
+                                    "    pm.response.to.have.status(201);",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.success).to.be.true;",
+                                    "    pm.expect(json.data).to.have.property('uuid');",
+                                    "    pm.collectionVariables.set('uuid', json.data.uuid);",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            { "key": "Accept", "value": "application/json" },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"name\": \"Jane Smith\",\n    \"email\": \"jane@example.com\",\n    \"phone\": \"+1234567890\",\n    \"customer_type\": \"retail\",\n    \"allow_credit\": false,\n    \"credit_limit\": 0,\n    \"address\": \"123 Main St\",\n    \"notes\": null\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/customers",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "customers"]
+                        }
+                    }
+                },
+                {
+                    "name": "Show Customer",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            { "key": "Accept", "value": "application/json" }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/customers/{{uuid}}",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "customers", "{{uuid}}"]
+                        }
+                    }
+                },
+                {
+                    "name": "Update Customer",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            { "key": "Accept", "value": "application/json" },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"name\": \"Jane Smith Updated\",\n    \"phone\": \"+1234567891\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/customers/{{uuid}}",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "customers", "{{uuid}}"]
+                        }
+                    }
+                },
+                {
+                    "name": "Delete Customer",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [
+                            { "key": "Accept", "value": "application/json" }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/customers/{{uuid}}",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "customers", "{{uuid}}"]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "12. Shops",
+            "item": [
+                {
+                    "name": "List Shops",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Shops listed', function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.success).to.be.true;",
+                                    "    pm.expect(json.data).to.be.an('array');",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            { "key": "Accept", "value": "application/json" }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/shops",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "shops"],
+                            "query": [
+                                {
+                                    "key": "status",
+                                    "value": "active",
+                                    "disabled": true
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Create Shop",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Shop created', function () {",
+                                    "    pm.response.to.have.status(201);",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.success).to.be.true;",
+                                    "    pm.expect(json.data).to.have.property('uuid');",
+                                    "    pm.collectionVariables.set('uuid', json.data.uuid);",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            { "key": "Accept", "value": "application/json" },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"name\": \"Downtown Branch\",\n    \"address\": \"456 Downtown Ave\",\n    \"phone\": \"+1234567890\",\n    \"email\": \"downtown@fitness.com\",\n    \"status\": \"active\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/shops",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "shops"]
+                        }
+                    }
+                },
+                {
+                    "name": "Show Shop",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            { "key": "Accept", "value": "application/json" }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/shops/{{uuid}}",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "shops", "{{uuid}}"]
+                        }
+                    }
+                },
+                {
+                    "name": "Update Shop",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            { "key": "Accept", "value": "application/json" },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"name\": \"Downtown Branch Updated\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/shops/{{uuid}}",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "shops", "{{uuid}}"]
+                        }
+                    }
+                },
+                {
+                    "name": "Delete Shop",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [
+                            { "key": "Accept", "value": "application/json" }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/shops/{{uuid}}",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "shops", "{{uuid}}"]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "13. Suppliers",
+            "item": [
+                {
+                    "name": "List Suppliers",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Suppliers listed', function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.success).to.be.true;",
+                                    "    pm.expect(json.data).to.be.an('array');",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            { "key": "Accept", "value": "application/json" }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/suppliers",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "suppliers"],
+                            "query": [
+                                {
+                                    "key": "search",
+                                    "value": "",
+                                    "disabled": true
+                                },
+                                {
+                                    "key": "status",
+                                    "value": "active",
+                                    "disabled": true
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Create Supplier",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Supplier created', function () {",
+                                    "    pm.response.to.have.status(201);",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.success).to.be.true;",
+                                    "    pm.expect(json.data).to.have.property('uuid');",
+                                    "    pm.collectionVariables.set('uuid', json.data.uuid);",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            { "key": "Accept", "value": "application/json" },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"name\": \"Wholesale Supplements Ltd\",\n    \"contact_person\": \"Sarah\",\n    \"phone\": \"+1234567890\",\n    \"email\": \"orders@wholesale.com\",\n    \"address\": \"Industrial Area, Unit 5\",\n    \"status\": \"active\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/suppliers",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "suppliers"]
+                        }
+                    }
+                },
+                {
+                    "name": "Show Supplier",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            { "key": "Accept", "value": "application/json" }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/suppliers/{{uuid}}",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "suppliers", "{{uuid}}"]
+                        }
+                    }
+                },
+                {
+                    "name": "Update Supplier",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            { "key": "Accept", "value": "application/json" },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"name\": \"Wholesale Supplements Ltd Updated\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/suppliers/{{uuid}}",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "suppliers", "{{uuid}}"]
+                        }
+                    }
+                },
+                {
+                    "name": "Delete Supplier",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [
+                            { "key": "Accept", "value": "application/json" }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/suppliers/{{uuid}}",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "suppliers", "{{uuid}}"]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "14. Sale Sources",
+            "item": [
+                {
+                    "name": "List Sale Sources",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Sources listed', function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.data).to.be.an('array');",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            { "key": "Accept", "value": "application/json" }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/sale-sources",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "sale-sources"]
+                        }
+                    }
+                },
+                {
+                    "name": "Create Sale Source",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Source created', function () {",
+                                    "    pm.response.to.have.status(201);",
+                                    "    var json = pm.response.json();",
+                                    "    pm.expect(json.success).to.be.true;",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            { "key": "Accept", "value": "application/json" },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"name\": \"Instagram\",\n    \"description\": \"Orders from Instagram DMs\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/sale-sources",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "sale-sources"]
+                        }
+                    }
+                }
+            ]
+        }
+    ]
+}

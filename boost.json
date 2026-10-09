@@ -1,0 +1,13 @@
+{
+    "agents": [
+        "copilot"
+    ],
+    "guidelines": true,
+    "herd_mcp": true,
+    "mcp": true,
+    "sail": false,
+    "skills": [
+        "laravel-best-practices",
+        "pest-testing"
+    ]
+}

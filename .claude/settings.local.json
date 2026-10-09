@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(composer config *)",
+      "Bash(php -r '$j=json_decode\\(file_get_contents\\(\"composer.json\"\\),true\\); var_export\\($j[\"config\"][\"audit\"] ?? \"none\"\\);')"
+    ]
+  }
+}
