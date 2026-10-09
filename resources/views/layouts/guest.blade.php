@@ -9,13 +9,13 @@
     <title>{{ $title ?? config('app.name') }}</title>
 
     <!-- Vendor css (Bootstrap & Vendors) -->
-    <link href="{{ asset('assets/css/vendor.min.css') }}" rel="stylesheet" type="text/css" />
+    <link href="{{ theme_asset('assets/css/vendor.min.css') }}" rel="stylesheet" type="text/css" />
 
     <!-- Icons css (Iconify & Boxicons) -->
-    <link href="{{ asset('assets/css/icons.min.css') }}" rel="stylesheet" type="text/css" />
+    <link href="{{ theme_asset('assets/css/icons.min.css') }}" rel="stylesheet" type="text/css" />
 
     <!-- App css (Theme Styles) -->
-    <link href="{{ asset('assets/css/app.min.css') }}" rel="stylesheet" type="text/css" />
+    <link href="{{ theme_asset('assets/css/app.min.css') }}" rel="stylesheet" type="text/css" />
 
     @stack('styles')
 </head>
@@ -60,10 +60,10 @@
     </div>
 
     <!-- Vendor Javascript -->
-    <script src="{{ asset('assets/js/vendor.js') }}"></script>
+    <script src="{{ theme_asset('assets/js/vendor.js') }}"></script>
 
     <!-- App Javascript -->
-    <script src="{{ asset('assets/js/app.js') }}"></script>
+    <script src="{{ theme_asset('assets/js/app.js') }}"></script>
 
     @stack('scripts')
 </body>

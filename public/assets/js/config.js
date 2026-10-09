@@ -20,7 +20,8 @@
 
           menu: {
                size: "sm-hover-active",   // [ 'default', 'sm-hover-active', 'sm-hover-active', 'condensed', 'full']
-               color: "dark",            // ['light', 'dark']
+               // 'light' follows the theme: light in light mode, dark in dark mode (as the topbar does)
+               color: "light",           // ['light', 'dark']
           },
      };
 
@@ -37,6 +38,8 @@
 
      if (savedConfig !== null) {
           config = JSON.parse(savedConfig);
+          // There is no menu colour switch; drop a colour saved by an older default
+          config.menu.color = window.defaultConfig.menu.color;
      }
 
      window.config = config;

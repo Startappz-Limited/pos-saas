@@ -29,3 +29,17 @@ if (! function_exists('format_currency')) {
         return currency_symbol() . number_format($amount ?? 0, $decimals);
     }
 }
+
+if (! function_exists('theme_asset')) {
+    /**
+     * URL of a file in public/ with its modified time appended, so browsers
+     * fetch the new copy as soon as the file changes instead of reusing a
+     * cached one (the static theme files are served with no cache rules).
+     */
+    function theme_asset(string $path): string
+    {
+        $file = public_path($path);
+
+        return asset($path).(is_file($file) ? '?v='.filemtime($file) : '');
+    }
+}

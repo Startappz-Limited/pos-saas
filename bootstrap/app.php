@@ -6,6 +6,8 @@ use App\Http\Middleware\SecurityHeaders;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Request;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -34,5 +36,20 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        //
+        // An expired page (419: the form's CSRF token no longer matches the
+        // session) is usually a session that changed after the page loaded:
+        // signing in as someone else in another tab of the same browser,
+        // signing out, or a session older than SESSION_LIFETIME. Send people
+        // back with an explanation and what they typed, instead of an error
+        // page. The API keeps its 419 JSON.
+        $exceptions->render(function (HttpException $e, Request $request) {
+            if ($e->getStatusCode() !== 419 || $request->expectsJson() || $request->is('api/*')) {
+                return null;
+            }
+
+            return redirect()
+                ->back(fallback: route('login'))
+                ->withInput($request->except(['_token', 'password', 'password_confirmation', 'current_password']))
+                ->with('error', __('This page had expired: you signed in or out, or were away too long, since it was opened. It has been reloaded; please try again.'));
+        });
     })->create();
