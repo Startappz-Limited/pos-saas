@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Actions\Baileys\NotifyCustomerOfEcommerceOrder;
 use App\Models\EcommerceOrder;
+use App\Models\Role;
 use App\Models\Shop;
 use App\Notifications\NewEcommerceOrderNotification;
 use App\Services\Integration\AbandonedCartSyncService;
@@ -16,7 +17,6 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
-use Spatie\Permission\Exceptions\RoleDoesNotExist;
 
 class ProcessOrderWebhookJob implements ShouldQueue
 {
@@ -159,15 +159,13 @@ class ProcessOrderWebhookJob implements ShouldQueue
                 ]);
             }
 
-            // 2. Notify other manager/super-admin users assigned to this shop
-            try {
-                $additionalUsers = $this->shop->users()
-                    ->role(['manager', 'super-admin'])
-                    ->where('users.id', '!=', $manager?->id)
-                    ->get();
-            } catch (RoleDoesNotExist $e) {
-                $additionalUsers = collect();
-            }
+            // 2. Notify other manager/admin/super-admin users assigned to this shop
+            // whereHas rather than ->role(): role() throws if any listed role is
+            // missing, which would silently skip every recipient.
+            $additionalUsers = $this->shop->users()
+                ->whereHas('roles', fn ($q) => $q->whereIn('name', ['manager', Role::ADMIN, Role::SUPER_ADMIN]))
+                ->where('users.id', '!=', $manager?->id)
+                ->get();
 
             foreach ($additionalUsers as $user) {
                 $user->notify($notification);

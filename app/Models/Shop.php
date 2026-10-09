@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\ShopStatus;
 use App\Models\Concerns\Auditable;
+use App\Models\Scopes\ShopAccessScope;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -11,6 +12,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 
@@ -21,6 +23,7 @@ class Shop extends Model
 
     protected $fillable = [
         'uuid',
+        'business_id',
         'name',
         'code',
         'description',
@@ -57,7 +60,19 @@ class Shop extends Model
     {
         parent::boot();
 
+        // A shop is visible only to its business's admin and the staff
+        // assigned to it (and to super-admins).
+        static::addGlobalScope(new ShopAccessScope('id'));
+
         static::creating(function (self $shop) {
+            if (empty($shop->invoice_code)) {
+                $shop->assignInvoiceCode();
+            }
+
+            if (empty($shop->business_id)) {
+                $shop->business_id = ShopAccessScope::currentUser()?->currentBusinessId()
+                    ?? User::query()->whereKey($shop->manager_id)->value('business_id');
+            }
             if (empty($shop->uuid)) {
                 $shop->uuid = (string) Str::uuid();
             }
@@ -67,15 +82,98 @@ class Shop extends Model
         });
 
         static::updating(function (self $shop) {
+            // On a code change the shop needs an invoice code that is free
+            // under its new code. (A shop from before invoice codes keeps its
+            // old format until then; the new code may match another
+            // business's shop.)
+            if ($shop->isDirty('code') && (empty($shop->invoice_code) || $shop->invoiceCodeIsTaken())) {
+                $shop->assignInvoiceCode();
+            }
+
             if (Auth::check()) {
                 $shop->updated_by = Auth::id();
             }
         });
     }
 
+    protected static function booted(): void
+    {
+        // Who-can-see-which-shop is memoised per request; a new or removed
+        // shop changes it.
+        static::created(fn () => User::forgetShopAccessCache());
+        static::deleted(fn () => User::forgetShopAccessCache());
+        static::restored(fn () => User::forgetShopAccessCache());
+    }
+
     public function getRouteKeyName(): string
     {
         return 'uuid';
+    }
+
+    public function business(): BelongsTo
+    {
+        return $this->belongsTo(Business::class);
+    }
+
+    /**
+     * Characters for invoice codes: no 0/O or 1/I, which are easy to misread on
+     * a printed receipt. 32^3 = 32,768 codes per shop code.
+     */
+    public const INVOICE_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+
+    /**
+     * The shop code as it appears in invoice numbers (InvoiceNumberService).
+     */
+    public static function normalizedCode(?string $code): string
+    {
+        return strtoupper(preg_replace('/[^A-Za-z0-9]/', '', (string) $code)) ?: 'SHOP';
+    }
+
+    /**
+     * Give the shop a random 3-character invoice code that no other shop with
+     * the same (normalised) shop code uses, in any business. Shop codes are
+     * typed in and only unique per business; together with this code they
+     * make every invoice number unique system-wide: INV-MAIN-7KQ-2026-000123.
+     */
+    public function assignInvoiceCode(): void
+    {
+        $taken = $this->invoiceCodesTakenForCode();
+
+        do {
+            $candidate = '';
+            for ($i = 0; $i < 3; $i++) {
+                $candidate .= self::INVOICE_CODE_ALPHABET[random_int(0, strlen(self::INVOICE_CODE_ALPHABET) - 1)];
+            }
+        } while ($taken->has($candidate));
+
+        $this->invoice_code = $candidate;
+    }
+
+    /**
+     * Whether another shop with the same (normalised) shop code already uses
+     * this shop's invoice code.
+     */
+    public function invoiceCodeIsTaken(): bool
+    {
+        return $this->invoiceCodesTakenForCode()->has((string) $this->invoice_code);
+    }
+
+    /**
+     * Invoice codes used by other shops with this shop's normalised code.
+     *
+     * @return Collection<string, int>
+     */
+    private function invoiceCodesTakenForCode(): Collection
+    {
+        $normalized = self::normalizedCode($this->code);
+
+        return self::withoutGlobalScopes()
+            ->whereNotNull('invoice_code')
+            ->when($this->exists, fn ($query) => $query->whereKeyNot($this->getKey()))
+            ->get(['code', 'invoice_code'])
+            ->filter(fn (self $shop): bool => self::normalizedCode($shop->code) === $normalized)
+            ->pluck('invoice_code')
+            ->flip();
     }
 
     // Relationships
@@ -149,7 +247,7 @@ class Shop extends Model
             return $query;
         }
 
-        return $query->whereIn($this->qualifyColumn('id'), $user->assignedShopIds());
+        return $query->whereIn($this->qualifyColumn('id'), $user->accessibleShopIds());
     }
 
     // Helper methods

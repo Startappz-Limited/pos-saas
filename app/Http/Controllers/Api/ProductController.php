@@ -3,7 +3,10 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Category;
 use App\Models\Product;
+use App\Models\Supplier;
+use App\Rules\ExistsForViewer;
 use App\Services\ProductService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -34,8 +37,8 @@ class ProductController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
             'sku' => ['nullable', 'string', 'max:100', 'unique:products,sku'],
-            'category_id' => ['nullable', 'exists:categories,id'],
-            'supplier_id' => ['nullable', 'exists:suppliers,id'],
+            'category_id' => ['nullable', new ExistsForViewer(Category::class)],
+            'supplier_id' => ['nullable', new ExistsForViewer(Supplier::class)],
             'barcode' => ['nullable', 'string', 'max:100'],
             'cost_price' => ['required', 'numeric', 'min:0'],
             'selling_price' => ['required', 'numeric', 'min:0'],
@@ -73,9 +76,9 @@ class ProductController extends Controller
         $validated = $request->validate([
             'name' => ['sometimes', 'required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
-            'sku' => ['nullable', 'string', 'max:100', 'unique:products,sku,' . $product->id],
-            'category_id' => ['nullable', 'exists:categories,id'],
-            'supplier_id' => ['nullable', 'exists:suppliers,id'],
+            'sku' => ['nullable', 'string', 'max:100', 'unique:products,sku,'.$product->id],
+            'category_id' => ['nullable', new ExistsForViewer(Category::class)],
+            'supplier_id' => ['nullable', new ExistsForViewer(Supplier::class)],
             'barcode' => ['nullable', 'string', 'max:100'],
             'cost_price' => ['sometimes', 'numeric', 'min:0'],
             'selling_price' => ['sometimes', 'numeric', 'min:0'],

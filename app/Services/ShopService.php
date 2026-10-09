@@ -7,6 +7,7 @@ use App\Actions\Shop\DeleteShopAction;
 use App\Actions\Shop\UpdateShopAction;
 use App\Enums\ShopStatus;
 use App\Models\Shop;
+use App\Models\User;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
@@ -112,6 +113,7 @@ class ShopService
     public function assignUsers(Shop $shop, array $userIds): Shop
     {
         $shop->users()->sync($userIds);
+        User::forgetShopAccessCache();
 
         return $shop->fresh(['users']);
     }

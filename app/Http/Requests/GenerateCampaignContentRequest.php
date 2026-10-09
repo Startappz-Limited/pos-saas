@@ -2,6 +2,8 @@
 
 namespace App\Http\Requests;
 
+use App\Models\Product;
+use App\Rules\ExistsForViewer;
 use Illuminate\Foundation\Http\FormRequest;
 
 class GenerateCampaignContentRequest extends FormRequest
@@ -17,7 +19,7 @@ class GenerateCampaignContentRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'product_id' => ['nullable', 'integer', 'exists:products,id'],
+            'product_id' => ['nullable', 'integer', new ExistsForViewer(Product::class)],
             'platform' => ['nullable', 'string', 'max:50'],
             'provider' => ['nullable', 'string', 'max:50'],
             'tone' => ['nullable', 'string', 'max:100'],

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Attribute;
+use App\Rules\UniqueInBusiness;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
@@ -10,6 +11,8 @@ class AttributeController extends Controller
 {
     public function index(Request $request)
     {
+        $this->authorize('viewAny', Attribute::class);
+
         $query = Attribute::query();
 
         // Search
@@ -56,14 +59,18 @@ class AttributeController extends Controller
 
     public function create()
     {
+        $this->authorize('create', Attribute::class);
+
         return view('attributes.create');
     }
 
     public function store(Request $request)
     {
+        $this->authorize('create', Attribute::class);
+
         $validated = $request->validate([
-            'name' => 'required|string|max:255|unique:attributes,name',
-            'slug' => 'nullable|string|max:255|unique:attributes,slug',
+            'name' => ['required', 'string', 'max:255', UniqueInBusiness::for('attributes', 'name')],
+            'slug' => ['nullable', 'string', 'max:255', UniqueInBusiness::for('attributes', 'slug')],
             'description' => 'nullable|string',
             'values' => 'nullable|string',
             'type' => 'required|in:dropdown,radio,checkbox,color,button',
@@ -95,6 +102,8 @@ class AttributeController extends Controller
 
     public function show(Attribute $attribute)
     {
+        $this->authorize('view', $attribute);
+
         $attribute->loadCount('products');
 
         return view('attributes.show', compact('attribute'));
@@ -102,14 +111,18 @@ class AttributeController extends Controller
 
     public function edit(Attribute $attribute)
     {
+        $this->authorize('update', $attribute);
+
         return view('attributes.edit', compact('attribute'));
     }
 
     public function update(Request $request, Attribute $attribute)
     {
+        $this->authorize('update', $attribute);
+
         $validated = $request->validate([
-            'name' => 'required|string|max:255|unique:attributes,name,' . $attribute->id,
-            'slug' => 'nullable|string|max:255|unique:attributes,slug,' . $attribute->id,
+            'name' => ['required', 'string', 'max:255', UniqueInBusiness::for('attributes', 'name')->ignore($attribute->id)],
+            'slug' => ['nullable', 'string', 'max:255', UniqueInBusiness::for('attributes', 'slug')->ignore($attribute->id)],
             'description' => 'nullable|string',
             'values' => 'nullable|string',
             'type' => 'required|in:dropdown,radio,checkbox,color,button',
@@ -141,6 +154,8 @@ class AttributeController extends Controller
 
     public function destroy(Attribute $attribute)
     {
+        $this->authorize('delete', $attribute);
+
         $attribute->delete();
 
         return redirect()->route('attributes.index')
@@ -149,6 +164,8 @@ class AttributeController extends Controller
 
     public function activate(Attribute $attribute)
     {
+        $this->authorize('update', $attribute);
+
         $attribute->update(['is_active' => true]);
 
         return back()->with('success', 'Attribute activated successfully.');
@@ -156,6 +173,8 @@ class AttributeController extends Controller
 
     public function deactivate(Attribute $attribute)
     {
+        $this->authorize('update', $attribute);
+
         $attribute->update(['is_active' => false]);
 
         return back()->with('success', 'Attribute deactivated successfully.');

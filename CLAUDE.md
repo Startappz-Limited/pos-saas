@@ -106,8 +106,41 @@ silently mixing patterns (see the skill's `CONFLICT:` protocol).
   pivot writes, so no model event fires.
   See the [laravel-audit](.claude/skills/laravel-audit/SKILL.md) skill.
 - **Models are flat** in [app/Models/](app/Models/); soft deletes + `created_by`/`updated_by` tracking are common.
-- **Multi-shop scoping** — most queries are scoped by shop, typically
-  `auth()->user()->shop_id ?? Shop::first()?->id`. Always scope shop-owned data; never leak cross-shop rows.
+- **Businesses and shop scoping (global scopes)** — a `Business` is the account a shop owner (`admin`)
+  runs; it owns `shops`, `users` and the shared lists (`suppliers`, `categories`, `attributes`,
+  `pricing_rules`, `expense_categories`, `delivery_companies`, `sale_sources`), which carry `business_id`.
+  Two global scopes enforce isolation for whoever is signed in: models with `use BelongsToAccessibleShop`
+  (every model with a `shop_id`) only return rows of `User::accessibleShopIds()` — all of the business's
+  shops for an `admin`, the `shop_user` shops for staff — and models with `use BelongsToBusiness` only
+  return the user's business (and stamp new rows with it). `Shop` is scoped on `id`. A **super-admin is
+  never scoped**, and neither is anything with **no signed-in user** (queued jobs, webhooks, signed invoice
+  links, console). `hasShopRestrictions()` is now `! isSuperAdmin()` — "no shop assigned" no longer means
+  "every shop". Raw `DB::table()` queries bypass the scopes, so pass the allowed shop ids explicitly (see
+  `ReportService`'s `allowed_shop_ids`, `VatReportService::summary()`). Validate referenced ids with
+  `new ExistsForViewer(Model::class)`, not `exists:table,id` (which accepts another business's ids), and
+  natural keys of the shared lists with `UniqueInBusiness::for($table, $column)`.
+- **Roles are per business** (Spatie teams with `team_foreign_key = business_id`): `super-admin` and
+  `admin` are global and hold every permission (new permissions are granted to them automatically);
+  manager/cashier/... are copied into each business from `App\Support\DefaultRoles`, so an admin
+  editing a role only affects their business. `{resource}.full-access` grants a resource's
+  permissions but **not** a way around policy rules (`HandlesFullAccess`); only super-admin bypasses.
+  See the laravel-authorization skill before touching roles.
+- **Account status and deletion.** Inactive/suspended users cannot sign in and are signed out on their
+  next request (`active` middleware, `EnsureUserIsActive`; API → `403 account_inactive`); changing a
+  user's status away from active revokes their sessions and tokens (`User::booted`). **Only the business
+  owner deletes accounts** (`UserPolicy`); co-admins/managers deactivate or suspend, users deactivate
+  themselves from the profile page (there is no self-delete), and a super-admin can never delete a user.
+  `UserService::delete` erases the person's data: photo, sessions, tokens, reset tokens, and their name/
+  email/IP in the audit trail (`AuditErasure`, the one sanctioned write to audit rows).
+  ⚠️ **A new foreign key from a business record to `users` must be `nullOnDelete()`** (and nullable), so
+  deleting a person keeps the record; only data that belongs to the person (preferences, widgets) may
+  cascade. Views/resources must cope with a missing user (`?->name ?? __('Deleted user')`).
+- **Staff must be linked to a shop.** The `shop.linked` middleware (`EnsureUserIsLinkedToShop`, on the
+  `auth` web group and the `auth:sanctum` API group) sends a non-admin with no shop to the `no-shop` page
+  ("contact your administrator"), or returns `403 {"success":false,"code":"shop_not_linked"}` on the API
+  (`/api/user` and `/api/logout` stay reachable). Admins are never blocked: one with no shop sees empty
+  lists, and gets a business created on first request (`User::ensureBusiness()`). A new business is seeded
+  with the default sale sources (`SaleSource::defaults()`), because a sale requires one.
 
 ## Coding standards to follow
 
@@ -264,9 +297,14 @@ per-policy super-admin bypasses. Treat `.claude/` as authoritative for Claude Co
 ## Things to always check before generating code
 
 - **Match the sibling module's pattern**, not the aspirational docs (see "Two-standard reality").
-- **Shop scope**: shop-owned queries must filter by the current user's shop.
+- **Shop scope**: a new model with a `shop_id` gets `use BelongsToAccessibleShop;`; a new business-wide
+  list gets a `business_id` column + `use BelongsToBusiness;` (and `[business_id, key]` unique indexes).
+  Raw `DB::table()` queries need the allowed shop ids applied by hand.
 - **New model** → does it need a `uuid` column + `getRouteKeyName()`, soft deletes, `created_by`/`updated_by`,
   a FormRequest, a Policy, and a factory? Check siblings.
+- **Tests**: factories put everything in one default business (`BusinessFactory::defaultId()`). A user
+  that should see all of it is `User::factory()->owner()`; a "logged in but lacks the permission" user is
+  `staffUser()` (from `tests/Pest.php`) — a bare factory user has no shop and is redirected to `no-shop`.
 - **VAT / tax**: never trust a client-supplied `tax_amount`. VAT is computed server-side by
   `TaxService` via the shared `CalculateSaleTotals` action, gated per shop on `shops.vat_registered`
   (default **false**, which preserves the legacy passthrough). Products carry a nullable `tax_class`

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\CreditTransactionType;
 use App\Models\Concerns\Auditable;
+use App\Models\Concerns\BelongsToAccessibleShop;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -14,6 +15,7 @@ use Illuminate\Support\Str;
 class CreditTransaction extends Model
 {
     use Auditable;
+    use BelongsToAccessibleShop;
     use HasFactory;
 
     protected $fillable = [
@@ -165,6 +167,6 @@ class CreditTransaction extends Model
             return $query;
         }
 
-        return $query->whereIn($this->qualifyColumn('shop_id'), $user->assignedShopIds());
+        return $query->whereIn($this->qualifyColumn('shop_id'), $user->accessibleShopIds());
     }
 }

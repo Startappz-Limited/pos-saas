@@ -9,9 +9,29 @@ class RolePolicy
 {
     /**
      * Allow users with full access to bypass all checks.
+     *
+     * Roles are per business. Another business's roles are off limits, and
+     * global roles (super-admin, admin) are shared by every business, so only
+     * a super-admin may change them; a super-admin passes Gate::before and
+     * never reaches this method. Both checks run before the full-access
+     * bypass, because the admin role holds roles.full-access.
      */
-    public function before(User $user, string $ability): ?bool
+    public function before(User $user, string $ability, mixed ...$arguments): ?bool
     {
+        $target = $arguments[0] ?? null;
+
+        if (! $target instanceof Role) {
+            return $user->can('roles.full-access') ? true : null;
+        }
+
+        if (! $target->isGlobal() && (int) $target->business_id !== $user->currentBusinessId()) {
+            return false;
+        }
+
+        if ($target->isGlobal() && in_array($ability, ['update', 'delete', 'restore', 'forceDelete'], true)) {
+            return false;
+        }
+
         if ($user->can('roles.full-access')) {
             return true;
         }
@@ -56,8 +76,8 @@ class RolePolicy
      */
     public function delete(User $user, Role $role): bool
     {
-        // Cannot delete super-admin role
-        if ($role->name === 'super-admin') {
+        // Cannot delete a role the code refers to by name
+        if ($role->isSystemRole()) {
             return false;
         }
 

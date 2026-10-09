@@ -11,8 +11,8 @@ use Spatie\Permission\Models\Permission;
 /**
  * AlertController was an empty stub with 8 registered routes, so every one of
  * them threw at runtime. These tests pin the implemented behaviour, with
- * particular attention to shop isolation: alerts carry a nullable shop_id, where
- * null means "system-wide" and must stay visible to everyone.
+ * particular attention to shop isolation: alerts carry a nullable shop_id. A
+ * shop-less alert belongs to no business, so only a super-admin sees it.
  */
 beforeEach(function () {
     foreach (['alerts.view', 'alerts.create', 'alerts.update'] as $name) {
@@ -54,12 +54,12 @@ it('lists alerts for the shops the user is assigned to', function () {
         ->and($ids)->not->toContain($theirs->id);
 });
 
-it('shows system-wide alerts to a shop-restricted user', function () {
+it('hides shop-less alerts from a shop-restricted user', function () {
     $global = alert(['shop_id' => null, 'title' => 'Scheduled maintenance']);
 
     $ids = $this->get(route('alerts.index'))->assertOk()->viewData('alerts')->pluck('id');
 
-    expect($ids)->toContain($global->id);
+    expect($ids)->not->toContain($global->id);
 });
 
 it('filters by severity and category', function () {

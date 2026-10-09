@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\StockMovementType;
+use App\Models\Concerns\BelongsToAccessibleShop;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -11,6 +12,7 @@ use Illuminate\Database\Eloquent\Relations\MorphTo;
 
 class StockMovement extends Model
 {
+    use BelongsToAccessibleShop;
     use HasFactory, HasUuids;
 
     protected $fillable = [

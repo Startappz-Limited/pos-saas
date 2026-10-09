@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Role;
+use Closure;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\Request;
 use Spatie\Permission\Models\Permission;
@@ -18,8 +19,12 @@ class RoleController extends Controller
     {
         $this->authorize('viewAny', Role::class);
 
-        $roles = Role::with('permissions')
+        // The global roles plus the viewer's own business's roles
+        $roles = Role::visibleTo(auth()->user())
+            ->with(['permissions', 'business:id,name'])
             ->withCount('users')
+            ->orderByRaw('business_id is not null')
+            ->orderBy('name')
             ->paginate(15);
 
         return view('roles.index', compact('roles'));
@@ -45,12 +50,16 @@ class RoleController extends Controller
         $this->authorize('create', Role::class);
 
         $validated = $request->validate([
-            'name' => ['required', 'string', 'max:255', 'unique:roles,name', 'regex:/^[a-z0-9-]+$/'],
+            'name' => ['required', 'string', 'max:255', 'regex:/^[a-z0-9-]+$/', $this->uniqueRoleName()],
             'permissions' => 'array',
             'permissions.*' => 'exists:permissions,id',
         ]);
 
-        $role = Role::create(['name' => $validated['name']]);
+        // An admin's role belongs to their business; a super-admin's is global
+        $role = Role::create([
+            'name' => $validated['name'],
+            'business_id' => $request->user()->isSuperAdmin() ? null : $request->user()->currentBusinessId(),
+        ]);
 
         if (isset($validated['permissions'])) {
             $permissions = Permission::whereIn('id', $validated['permissions'])->get();
@@ -69,7 +78,14 @@ class RoleController extends Controller
     {
         $this->authorize('view', $role);
 
-        $role->load(['permissions', 'users:id,name,email,avatar,is_active,created_at']);
+        // Only the users the viewer may see: a global role such as admin is
+        // held by users of every business. (The column list used to name
+        // avatar/is_active, which do not exist, so this page always failed.)
+        $role->load([
+            'permissions',
+            'users' => fn ($query) => $query->visibleTo(auth()->user())
+                ->select('users.id', 'users.name', 'users.email', 'users.profile_photo', 'users.status', 'users.created_at'),
+        ]);
 
         return view('roles.show', compact('role'));
     }
@@ -103,10 +119,17 @@ class RoleController extends Controller
         }
 
         $validated = $request->validate([
-            'name' => 'required|string|max:255|unique:roles,name,' . $role->id,
+            'name' => ['required', 'string', 'max:255', $this->uniqueRoleName($role)],
             'permissions' => 'array',
             'permissions.*' => 'exists:permissions,id',
         ]);
+
+        // System roles are looked up by name, so renaming one breaks them
+        if ($role->isSystemRole() && $validated['name'] !== $role->name) {
+            return redirect()
+                ->route('roles.index')
+                ->with('error', 'System roles cannot be renamed.');
+        }
 
         $role->update(['name' => $validated['name']]);
 
@@ -129,11 +152,11 @@ class RoleController extends Controller
     {
         $this->authorize('delete', $role);
 
-        // Prevent deleting super-admin role
-        if ($role->name === 'super-admin') {
+        // Prevent deleting a role the code refers to by name (super-admin, admin)
+        if ($role->isSystemRole()) {
             return redirect()
                 ->route('roles.index')
-                ->with('error', 'Super Admin role cannot be deleted.');
+                ->with('error', 'System roles cannot be deleted.');
         }
 
         // Check if role has users
@@ -190,5 +213,31 @@ class RoleController extends Controller
         return redirect()
             ->route('roles.index')
             ->with('success', 'Role permissions updated successfully.');
+    }
+
+    /**
+     * Role names only need to be unique within a business, but a business
+     * role may not share a name with a global role: names are resolved
+     * against both (Spatie teams), so the lookup would become ambiguous. A
+     * global role (created by a super-admin) must be unique everywhere.
+     */
+    private function uniqueRoleName(?Role $ignore = null): Closure
+    {
+        return function (string $attribute, mixed $value, Closure $fail) use ($ignore): void {
+            $user = auth()->user();
+            $businessId = $ignore !== null
+                ? $ignore->business_id
+                : ($user->isSuperAdmin() ? null : $user->currentBusinessId());
+
+            $taken = Role::query()
+                ->where('name', $value)
+                ->when($ignore, fn ($q) => $q->whereKeyNot($ignore->getKey()))
+                ->when($businessId !== null, fn ($q) => $q->where(fn ($q) => $q->whereNull('business_id')->orWhere('business_id', $businessId)))
+                ->exists();
+
+            if ($taken) {
+                $fail(__('A role with this name already exists.'));
+            }
+        };
     }
 }

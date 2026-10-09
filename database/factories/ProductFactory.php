@@ -5,6 +5,8 @@ namespace Database\Factories;
 use App\Enums\ProductStatus;
 use App\Models\Category;
 use App\Models\Product;
+use App\Models\Scopes\ShopAccessScope;
+use App\Models\Shop;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Str;
 
@@ -19,6 +21,11 @@ class ProductFactory extends Factory
         $sellingPrice = $costPrice * fake()->randomFloat(2, 1.2, 2.0);
 
         return [
+            // Products always belong to a shop; without one they are visible to
+            // no one but a super-admin. Reuses the first shop rather than
+            // creating one per product, so shop counts in tests stay stable.
+            'shop_id' => fn (): int => Shop::withoutGlobalScope(ShopAccessScope::class)->orderBy('id')->value('id')
+                ?? Shop::factory()->create()->id,
             'uuid' => (string) Str::uuid(),
             'name' => ucwords($name),
             'slug' => Str::slug($name),

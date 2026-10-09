@@ -369,7 +369,7 @@
                                     {{ $expense->status === \App\Enums\ExpenseStatus::REJECTED ? 'Rejected' : 'Approved' }}
                                     By</p>
                                 <p class="mb-0">
-                                    {{ $expense->approver->name }}
+                                    {{ $expense->approver?->name ?? __('Deleted user') }}
                                     <small
                                         class="text-muted d-block">{{ $expense->approved_at?->format('M d, Y H:i') }}</small>
                                 </p>

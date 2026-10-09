@@ -2,10 +2,12 @@
 
 namespace Database\Factories;
 
+use App\Models\Attribute;
 use Illuminate\Database\Eloquent\Factories\Factory;
+use Illuminate\Support\Str;
 
 /**
- * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\Attribute>
+ * @extends Factory<Attribute>
  */
 class AttributeFactory extends Factory
 {
@@ -29,8 +31,9 @@ class AttributeFactory extends Factory
         ];
 
         return [
+            'business_id' => fn (): int => BusinessFactory::defaultId(),
             'name' => $name,
-            'slug' => \Illuminate\Support\Str::slug($name),
+            'slug' => Str::slug($name),
             'description' => fake()->sentence(),
             'values' => $valuesByAttribute[$name] ?? ['Value 1', 'Value 2', 'Value 3'],
             'type' => fake()->randomElement(['dropdown', 'radio', 'checkbox', 'color', 'button']),

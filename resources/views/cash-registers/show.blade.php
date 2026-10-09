@@ -63,7 +63,7 @@
                                     </tr>
                                     <tr>
                                         <td class="fw-medium">Opened By:</td>
-                                        <td>{{ $cashRegister->user->name }}</td>
+                                        <td>{{ $cashRegister->user?->name ?? __('Deleted user') }}</td>
                                     </tr>
                                     <tr>
                                         <td class="fw-medium">Opened At:</td>

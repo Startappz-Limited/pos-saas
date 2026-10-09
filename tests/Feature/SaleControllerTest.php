@@ -6,12 +6,13 @@ use App\Models\Sale;
 use App\Models\SaleSource;
 use App\Models\Shop;
 use App\Models\User;
+use Database\Factories\BusinessFactory;
 use Illuminate\Support\Str;
 use Spatie\Permission\Models\Permission;
 
 beforeEach(function () {
     $this->shop = Shop::factory()->create();
-    $this->user = User::factory()->create();
+    $this->user = User::factory()->owner()->create();
     $this->actingAs($this->user);
 
     Permission::create(['name' => 'sales.view']);
@@ -143,6 +144,8 @@ test('index page filters by payment status', function () {
 });
 
 test('index page only includes assigned shop sales for allocated users', function () {
+    // A shop-allocated staff member, not the owner
+    $this->user->syncRoles([]);
     $this->user->shops()->sync([$this->shop->id]);
     $otherShop = Shop::factory()->create();
 
@@ -168,28 +171,32 @@ test('index page only includes assigned shop sales for allocated users', functio
 });
 
 test('allocated user cannot view sales from another shop', function () {
+    // A shop-allocated staff member, not the owner
+    $this->user->syncRoles([]);
     $this->user->shops()->sync([$this->shop->id]);
     $otherShop = Shop::factory()->create();
     $sale = Sale::factory()->create(['shop_id' => $otherShop->id]);
 
-    $this->get(route('sales.show', $sale))->assertForbidden();
+    $this->get(route('sales.show', $sale))->assertNotFound(); // another shop's sale is invisible
 });
 
 test('allocated user cannot complete sales from another shop', function () {
     Permission::create(['name' => 'sales.update']);
     $this->user->givePermissionTo('sales.update');
+    // A shop-allocated staff member, not the owner
+    $this->user->syncRoles([]);
     $this->user->shops()->sync([$this->shop->id]);
     $otherShop = Shop::factory()->create();
     $sale = Sale::factory()->create(['shop_id' => $otherShop->id]);
 
-    $this->post(route('sales.complete', $sale))->assertForbidden();
+    $this->post(route('sales.complete', $sale))->assertNotFound();
 });
 
 test('credit sale requires a wholesale customer', function () {
     Permission::create(['name' => 'sales.create']);
     $this->user->givePermissionTo('sales.create');
 
-    $source = SaleSource::create([
+    $source = SaleSource::create(['business_id' => BusinessFactory::defaultId(),
         'name' => 'Counter',
         'is_active' => true,
         'sort_order' => 1,

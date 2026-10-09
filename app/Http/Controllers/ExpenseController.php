@@ -8,6 +8,7 @@ use App\Models\Expense;
 use App\Models\ExpenseCategory;
 use App\Models\Shop;
 use App\Models\Supplier;
+use App\Rules\ExistsForViewer;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -79,8 +80,8 @@ class ExpenseController extends Controller
         $this->authorize('create', Expense::class);
 
         $validated = $request->validate([
-            'category_id' => ['required', 'exists:expense_categories,id'],
-            'vendor_id' => ['nullable', 'exists:suppliers,id'],
+            'category_id' => ['required', new ExistsForViewer(ExpenseCategory::class)],
+            'vendor_id' => ['nullable', new ExistsForViewer(Supplier::class)],
             'title' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:1000'],
             'amount' => ['required', 'numeric', 'min:0.01'],
@@ -168,8 +169,8 @@ class ExpenseController extends Controller
         }
 
         $validated = $request->validate([
-            'category_id' => ['required', 'exists:expense_categories,id'],
-            'vendor_id' => ['nullable', 'exists:suppliers,id'],
+            'category_id' => ['required', new ExistsForViewer(ExpenseCategory::class)],
+            'vendor_id' => ['nullable', new ExistsForViewer(Supplier::class)],
             'title' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:1000'],
             'amount' => ['required', 'numeric', 'min:0.01'],

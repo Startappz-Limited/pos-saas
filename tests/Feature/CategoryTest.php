@@ -29,7 +29,7 @@ test('authorized user can view categories', function () {
 });
 
 test('unauthorized user cannot view categories', function () {
-    $user = User::factory()->create();
+    $user = staffUser();
     $this->actingAs($user);
 
     $response = $this->get(route('categories.index'));
@@ -51,7 +51,7 @@ test('authorized user can create category', function () {
 });
 
 test('unauthorized user cannot create category', function () {
-    $user = User::factory()->create();
+    $user = staffUser();
     $this->actingAs($user);
 
     $response = $this->post(route('categories.store'), [

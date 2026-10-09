@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\BaileysMessageDirection;
 use App\Enums\BaileysMessageStatus;
 use App\Enums\BaileysMessageType;
+use App\Models\Concerns\BelongsToAccessibleShop;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -13,6 +14,7 @@ use Illuminate\Support\Str;
 
 class BaileysMessage extends Model
 {
+    use BelongsToAccessibleShop;
     use HasFactory;
 
     protected $fillable = [

@@ -12,7 +12,7 @@ use function Pest\Laravel\get;
 function actingAsCustomerViewer(): User
 {
     /** @var User $user */
-    $user = User::factory()->create();
+    $user = User::factory()->owner()->create();
     collect(['customers.view', 'customers.update', 'customers.delete', 'customers.activate', 'customers.deactivate'])
         ->each(fn (string $permission): Permission => Permission::findOrCreate($permission));
     $user->givePermissionTo('customers.view');

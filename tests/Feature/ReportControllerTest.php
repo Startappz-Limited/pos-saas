@@ -22,7 +22,7 @@ beforeEach(function () {
 
 test('reports index requires permission', function () {
     /** @var User $user */
-    $user = User::factory()->createOne();
+    $user = staffUser();
 
     actingAs($user);
 
@@ -32,7 +32,7 @@ test('reports index requires permission', function () {
 
 test('reports index returns shop filtered profitability with wholesale metrics', function () {
     /** @var User $user */
-    $user = User::factory()->createOne();
+    $user = User::factory()->owner()->createOne();
     $shopA = Shop::factory()->create(['name' => 'Central']);
     $shopB = Shop::factory()->create(['name' => 'West']);
 
@@ -164,7 +164,7 @@ test('reports index returns shop filtered profitability with wholesale metrics',
 
 test('reports index filters by customer segment wholesale', function () {
     /** @var User $user */
-    $user = User::factory()->createOne();
+    $user = User::factory()->owner()->createOne();
     $shop = Shop::factory()->create();
 
     $user->givePermissionTo(['reports.view', 'reports.full-access']);
@@ -188,7 +188,8 @@ test('reports index filters by customer segment wholesale', function () {
         'status' => 'active',
     ]);
 
-    Sale::factory()->create([
+    // Reports attribute a sale to the shop owning its items, so each sale needs one
+    $wholesaleSale = Sale::factory()->create([
         'shop_id' => $shop->id,
         'customer_id' => $wholesaleCustomer->id,
         'sale_type' => 'regular',
@@ -200,7 +201,9 @@ test('reports index filters by customer segment wholesale', function () {
         'created_at' => now()->subDay(),
     ]);
 
-    Sale::factory()->create([
+    SaleItem::factory()->forShop($shop)->withTotals(300, 220)->create(['sale_id' => $wholesaleSale->id]);
+
+    $retailSale = Sale::factory()->create([
         'shop_id' => $shop->id,
         'customer_id' => $retailCustomer->id,
         'sale_type' => 'regular',
@@ -211,6 +214,7 @@ test('reports index filters by customer segment wholesale', function () {
         'total_profit' => 200,
         'created_at' => now()->subDay(),
     ]);
+    SaleItem::factory()->forShop($shop)->withTotals(700, 500)->create(['sale_id' => $retailSale->id]);
 
     expect((float) Sale::query()->sum('total_amount'))->toBe(1000.0);
 
@@ -231,7 +235,7 @@ test('reports index filters by customer segment wholesale', function () {
 
 test('reports export csv downloads with current filters', function () {
     /** @var User $user */
-    $user = User::factory()->createOne();
+    $user = User::factory()->owner()->createOne();
     $shop = Shop::factory()->create();
 
     $user->givePermissionTo(['reports.view', 'reports.export', 'reports.full-access']);
@@ -263,7 +267,7 @@ test('reports export csv downloads with current filters', function () {
 
 test('reports export pdf downloads with current filters', function () {
     /** @var User $user */
-    $user = User::factory()->createOne();
+    $user = User::factory()->owner()->createOne();
 
     $user->givePermissionTo(['reports.view', 'reports.export', 'reports.full-access']);
     actingAs($user);

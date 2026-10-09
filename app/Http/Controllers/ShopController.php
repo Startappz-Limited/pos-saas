@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Enums\ShopStatus;
 use App\Http\Requests\StoreShopRequest;
 use App\Http\Requests\UpdateShopRequest;
+use App\Models\Role;
 use App\Models\Shop;
 use App\Models\User;
 use App\Services\Integration\ShopifyService;
@@ -14,6 +15,7 @@ use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class ShopController extends Controller
@@ -47,8 +49,8 @@ class ShopController extends Controller
     {
         $this->authorize('create', Shop::class);
 
-        $managers = User::select('id', 'name')->whereHas('roles', function ($query) {
-            $query->whereIn('name', ['super-admin', 'manager']);
+        $managers = User::visibleTo(auth()->user())->select('id', 'name')->whereHas('roles', function ($query) {
+            $query->whereIn('name', [Role::ADMIN, 'manager', Role::SUPER_ADMIN]);
         })->get();
 
         $statuses = ShopStatus::options();
@@ -91,8 +93,8 @@ class ShopController extends Controller
 
         $shop->load(['users']);
 
-        $managers = User::select('id', 'name')->whereHas('roles', function ($query) {
-            $query->whereIn('name', ['super-admin', 'manager']);
+        $managers = User::visibleTo(auth()->user())->select('id', 'name')->whereHas('roles', function ($query) {
+            $query->whereIn('name', [Role::ADMIN, 'manager', Role::SUPER_ADMIN]);
         })->get();
 
         $statuses = ShopStatus::options();
@@ -172,7 +174,7 @@ class ShopController extends Controller
         $this->authorize('update', $shop);
 
         $shop->load('users');
-        $availableUsers = User::whereDoesntHave('shops', function ($query) use ($shop) {
+        $availableUsers = User::visibleTo(auth()->user())->whereDoesntHave('shops', function ($query) use ($shop) {
             $query->where('shops.id', $shop->id);
         })->get();
 
@@ -188,7 +190,7 @@ class ShopController extends Controller
 
         $validated = $request->validate([
             'user_ids' => ['nullable', 'array'],
-            'user_ids.*' => ['exists:users,id'],
+            'user_ids.*' => [Rule::in(User::visibleTo($request->user())->pluck('id'))],
         ]);
 
         $this->shopService->assignUsers($shop, $validated['user_ids'] ?? []);

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\ExpenseCategory;
+use App\Rules\ExistsForViewer;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -60,7 +61,7 @@ class ExpenseCategoryController extends Controller
     public function store(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'parent_id' => ['nullable', 'exists:expense_categories,id'],
+            'parent_id' => ['nullable', new ExistsForViewer(ExpenseCategory::class)],
             'name' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:1000'],
             'type' => ['required', 'string'],
@@ -81,7 +82,7 @@ class ExpenseCategoryController extends Controller
         if (! empty($validated['parent_id'])) {
             $parent = ExpenseCategory::find($validated['parent_id']);
             $validated['depth'] = $parent->depth + 1;
-            $validated['path'] = $parent->path ? $parent->path . '/' . $parent->id : (string) $parent->id;
+            $validated['path'] = $parent->path ? $parent->path.'/'.$parent->id : (string) $parent->id;
         }
 
         $category = ExpenseCategory::create($validated);

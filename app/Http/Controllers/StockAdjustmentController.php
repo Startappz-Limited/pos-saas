@@ -7,6 +7,7 @@ use App\Enums\AdjustmentType;
 use App\Models\Product;
 use App\Models\Shop;
 use App\Models\StockAdjustment;
+use App\Rules\ExistsForViewer;
 use App\Services\StockAdjustmentService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -51,12 +52,12 @@ class StockAdjustmentController extends Controller
         $this->authorize('create', StockAdjustment::class);
 
         $validated = $request->validate([
-            'shop_id' => 'required|exists:shops,id',
+            'shop_id' => ['required', new ExistsForViewer(Shop::class)],
             'type' => 'required|string|in:increase,decrease',
             'reason' => 'required|string|in:'.implode(',', array_column(AdjustmentReason::cases(), 'value')),
             'notes' => 'nullable|string|max:1000',
             'items' => 'required|array|min:1',
-            'items.*.product_id' => 'required|exists:products,id',
+            'items.*.product_id' => ['required', new ExistsForViewer(Product::class)],
             'items.*.quantity_change' => 'required|integer|min:1',
             'items.*.item_notes' => 'nullable|string|max:500',
         ]);
@@ -108,7 +109,7 @@ class StockAdjustmentController extends Controller
             'reason' => 'required|string|in:'.implode(',', array_column(AdjustmentReason::cases(), 'value')),
             'notes' => 'nullable|string|max:1000',
             'items' => 'required|array|min:1',
-            'items.*.product_id' => 'required|exists:products,id',
+            'items.*.product_id' => ['required', new ExistsForViewer(Product::class)],
             'items.*.quantity_change' => 'required|integer|min:1',
             'items.*.item_notes' => 'nullable|string|max:500',
         ]);

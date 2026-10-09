@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\WhatsAppMessageDirection;
 use App\Enums\WhatsAppMessageStatus;
 use App\Enums\WhatsAppMessageType;
+use App\Models\Concerns\BelongsToAccessibleShop;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -12,6 +13,7 @@ use Illuminate\Support\Str;
 
 class WhatsAppMessage extends Model
 {
+    use BelongsToAccessibleShop;
     use HasFactory;
 
     protected $table = 'whatsapp_messages';

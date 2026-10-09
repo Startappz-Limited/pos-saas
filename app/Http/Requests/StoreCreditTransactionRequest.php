@@ -3,6 +3,8 @@
 namespace App\Http\Requests;
 
 use App\Enums\CreditTransactionType;
+use App\Models\CreditAccount;
+use App\Rules\ExistsForViewer;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -25,7 +27,7 @@ class StoreCreditTransactionRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'credit_account_id' => ['required', 'exists:credit_accounts,id'],
+            'credit_account_id' => ['required', new ExistsForViewer(CreditAccount::class)],
             'type' => ['required', Rule::enum(CreditTransactionType::class)],
             'amount' => ['required', 'numeric', 'gt:0'],
             'due_date' => ['nullable', 'date'],

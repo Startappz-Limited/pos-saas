@@ -4,16 +4,21 @@ namespace App\Policies;
 
 use App\Models\Alert;
 use App\Models\User;
+use App\Policies\Concerns\HandlesFullAccess;
 
 class AlertPolicy
 {
+    use HandlesFullAccess;
+
     /**
-     * Allow users with full access to bypass all checks.
+     * Full access grants every permission on the resource; the rules in the
+     * ability methods still apply (see HandlesFullAccess).
      */
-    public function before(User $user, string $ability): ?bool
+    public function before(User $user, string $ability, mixed ...$arguments): ?bool
     {
-        if ($user->can('alerts.full-access')) {
-            return true;
+        // Full access grants the permissions, not a way around the rules below
+        if (($decision = $this->decideWithFullAccess($user, 'alerts', $ability, $arguments)) !== null) {
+            return $decision;
         }
 
         return null;

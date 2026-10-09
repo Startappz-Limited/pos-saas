@@ -332,7 +332,7 @@ class DashboardController extends Controller
         }
 
         if ($user->hasShopRestrictions()) {
-            return $query->whereIn($column, $user->assignedShopIds());
+            return $query->whereIn($column, $user->accessibleShopIds());
         }
 
         return $query;

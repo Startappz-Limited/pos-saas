@@ -2,7 +2,15 @@
 
 namespace App\Http\Requests;
 
+use App\Models\Product;
+use App\Models\PurchaseOrder;
+use App\Models\PurchaseOrderItem;
+use App\Models\Shop;
+use App\Models\Supplier;
+use App\Rules\ExistsForViewer;
+use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Validator;
 
 class StoreStockIntakeRequest extends FormRequest
 {
@@ -17,17 +25,17 @@ class StoreStockIntakeRequest extends FormRequest
     /**
      * Get the validation rules that apply to the request.
      *
-     * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
+     * @return array<string, ValidationRule|array<mixed>|string>
      */
     public function rules(): array
     {
         return [
-            'purchase_order_id' => ['nullable', 'exists:purchase_orders,id'],
+            'purchase_order_id' => ['nullable', new ExistsForViewer(PurchaseOrder::class)],
             'purchase_order_item_id' => ['nullable', 'exists:purchase_order_items,id'],
-            'product_id' => ['required_without:purchase_order_item_id', 'nullable', 'exists:products,id'],
+            'product_id' => ['required_without:purchase_order_item_id', 'nullable', new ExistsForViewer(Product::class)],
             'product_variation_id' => ['nullable', 'exists:product_variations,id'],
-            'supplier_id' => ['nullable', 'exists:suppliers,id'],
-            'shop_id' => ['required_without:purchase_order_item_id', 'nullable', 'exists:shops,id'],
+            'supplier_id' => ['nullable', new ExistsForViewer(Supplier::class)],
+            'shop_id' => ['required_without:purchase_order_item_id', 'nullable', new ExistsForViewer(Shop::class)],
             'quantity_received' => ['required', 'numeric', 'min:0.01'],
             'quantity_accepted' => ['required', 'numeric', 'min:0'],
             'quantity_rejected' => ['required', 'numeric', 'min:0'],
@@ -42,11 +50,11 @@ class StoreStockIntakeRequest extends FormRequest
     /**
      * Configure the validator instance.
      */
-    public function withValidator(\Illuminate\Validation\Validator $validator): void
+    public function withValidator(Validator $validator): void
     {
         $validator->after(function ($validator) {
             if ($this->purchase_order_item_id) {
-                $item = \App\Models\PurchaseOrderItem::find($this->purchase_order_item_id);
+                $item = PurchaseOrderItem::find($this->purchase_order_item_id);
 
                 if ($item && $this->quantity_received > $item->quantity_remaining) {
                     $validator->errors()->add(

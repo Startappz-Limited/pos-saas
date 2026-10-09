@@ -4,6 +4,8 @@ namespace App\Http\Requests;
 
 use App\Enums\UserStatus;
 use App\Models\Role;
+use App\Models\Shop;
+use App\Rules\KeepsBusinessOwner;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -54,12 +56,13 @@ class UpdateUserRequest extends FormRequest
             'address' => ['nullable', 'string', 'max:500'],
             'date_of_birth' => ['nullable', 'date', 'before:today'],
             'profile_photo' => ['nullable', 'image', 'max:2048'],
-            'status' => ['required', Rule::enum(UserStatus::class)],
+            'status' => ['required', Rule::enum(UserStatus::class), KeepsBusinessOwner::status($user, $this->user())],
             'role_id' => ['nullable', 'exists:roles,id'],
-            'roles' => ['nullable', 'array'],
-            'roles.*' => ['exists:roles,name'],
+            'roles' => ['nullable', 'array', KeepsBusinessOwner::roles($user, $this->user())],
+            'roles.*' => [Rule::in(Role::assignableBy($this->user())->pluck('name'))],
             'shop_ids' => ['nullable', 'array'],
-            'shop_ids.*' => ['integer', 'exists:shops,id'],
+            // Shop is scoped, so this only accepts shops the current user can access
+            'shop_ids.*' => ['integer', Rule::in(Shop::query()->pluck('id'))],
         ];
     }
 

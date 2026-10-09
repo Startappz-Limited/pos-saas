@@ -3,6 +3,9 @@
 namespace App\Http\Requests;
 
 use App\Enums\PricingType;
+use App\Models\Product;
+use App\Rules\ExistsForViewer;
+use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -19,7 +22,7 @@ class UpdatePricingRuleRequest extends FormRequest
     /**
      * Get the validation rules that apply to the request.
      *
-     * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
+     * @return array<string, ValidationRule|array<mixed>|string>
      */
     public function rules(): array
     {
@@ -27,7 +30,7 @@ class UpdatePricingRuleRequest extends FormRequest
             'name' => ['sometimes', 'required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
             'type' => ['sometimes', 'required', Rule::enum(PricingType::class)],
-            'product_id' => ['sometimes', 'required', 'exists:products,id'],
+            'product_id' => ['sometimes', 'required', new ExistsForViewer(Product::class)],
             'price' => ['sometimes', 'required', 'numeric', 'min:0'],
             'discount_percentage' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'discount_amount' => ['nullable', 'numeric', 'min:0'],

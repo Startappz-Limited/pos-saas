@@ -126,7 +126,7 @@
                                     @if ($stockAdjustment->approver)
                                         <tr>
                                             <td class="text-muted">{{ $stockAdjustment->isRejected() ? 'Rejected' : 'Approved' }} By:</td>
-                                            <td>{{ $stockAdjustment->approver->name }}</td>
+                                            <td>{{ $stockAdjustment->approver?->name ?? __('Deleted user') }}</td>
                                         </tr>
                                         <tr>
                                             <td class="text-muted">{{ $stockAdjustment->isRejected() ? 'Rejected' : 'Approved' }} At:</td>

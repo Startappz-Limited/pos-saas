@@ -6,6 +6,7 @@ use App\Enums\AbandonedCartStatus;
 use App\Enums\AlertCategory;
 use App\Enums\AlertSeverity;
 use App\Enums\AlertType;
+use App\Models\Concerns\BelongsToAccessibleShop;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -26,6 +27,7 @@ use Illuminate\Support\Str;
  */
 class AbandonedCart extends Model
 {
+    use BelongsToAccessibleShop;
     use HasFactory, SoftDeletes;
 
     protected $fillable = [
@@ -223,7 +225,7 @@ class AbandonedCart extends Model
             return $query;
         }
 
-        return $query->whereIn($this->qualifyColumn('shop_id'), $user->assignedShopIds());
+        return $query->whereIn($this->qualifyColumn('shop_id'), $user->accessibleShopIds());
     }
 
     public function scopeSearch(Builder $query, ?string $term): Builder

@@ -5,6 +5,9 @@ namespace App\Http\Requests;
 use App\Enums\CampaignStatus;
 use App\Enums\CampaignType;
 use App\Enums\MarketingChannel;
+use App\Models\Product;
+use App\Models\Shop;
+use App\Rules\ExistsForViewer;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -21,7 +24,7 @@ class StoreCampaignRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'shop_id' => ['required', 'integer', 'exists:shops,id'],
+            'shop_id' => ['required', 'integer', new ExistsForViewer(Shop::class)],
             'name' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:2000'],
             'campaign_type' => ['required', Rule::enum(CampaignType::class)],
@@ -50,7 +53,7 @@ class StoreCampaignRequest extends FormRequest
             'ai_settings.language' => ['nullable', 'string', 'max:50'],
 
             'product_ids' => ['nullable', 'array'],
-            'product_ids.*' => ['integer', 'exists:products,id'],
+            'product_ids.*' => ['integer', new ExistsForViewer(Product::class)],
 
             'notes' => ['nullable', 'string', 'max:2000'],
         ];

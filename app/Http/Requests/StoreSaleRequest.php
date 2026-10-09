@@ -3,8 +3,12 @@
 namespace App\Http\Requests;
 
 use App\Models\Customer;
+use App\Models\DeliveryCompany;
 use App\Models\Product;
 use App\Models\ProductVariation;
+use App\Models\SaleSource;
+use App\Models\Shop;
+use App\Rules\ExistsForViewer;
 use App\Rules\KraPin;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Validator;
@@ -25,16 +29,16 @@ class StoreSaleRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'shop_id' => ['nullable', 'integer', 'exists:shops,id'],
-            'customer_id' => ['nullable', 'exists:customers,id'],
-            'source_id' => ['required', 'exists:sale_sources,id'],
+            'shop_id' => ['nullable', 'integer', new ExistsForViewer(Shop::class)],
+            'customer_id' => ['nullable', new ExistsForViewer(Customer::class)],
+            'source_id' => ['required', new ExistsForViewer(SaleSource::class)],
             'delivery_location' => ['required', 'string', 'max:1000'],
             'walk_in_customer_name' => ['required_without:customer_id', 'nullable', 'string', 'max:255'],
             'walk_in_customer_email' => ['nullable', 'email', 'max:255'],
             'walk_in_customer_phone' => ['required_without:customer_id', 'nullable', 'string', 'max:20'],
-            'delivery_company_id' => ['nullable', 'exists:delivery_companies,id'],
+            'delivery_company_id' => ['nullable', new ExistsForViewer(DeliveryCompany::class)],
             'items' => ['required', 'array', 'min:1'],
-            'items.*.product_id' => ['required', 'exists:products,id'],
+            'items.*.product_id' => ['required', new ExistsForViewer(Product::class)],
             'items.*.variation_id' => ['nullable', 'exists:product_variations,id'],
             'items.*.quantity' => ['required', 'integer', 'min:1', 'max:10000'],
             'items.*.price' => ['required', 'numeric', 'min:0', 'max:1000000'],

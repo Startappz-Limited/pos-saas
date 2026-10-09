@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\CampaignStatus;
 use App\Enums\CampaignType;
 use App\Enums\MarketingChannel;
+use App\Models\Concerns\BelongsToAccessibleShop;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -16,6 +17,7 @@ use Illuminate\Support\Str;
 
 class Campaign extends Model
 {
+    use BelongsToAccessibleShop;
     use HasFactory, SoftDeletes;
 
     protected $fillable = [
@@ -88,7 +90,7 @@ class Campaign extends Model
                 $campaign->uuid = (string) Str::uuid();
             }
             if (empty($campaign->code)) {
-                $campaign->code = 'CMP-' . strtoupper(Str::random(8));
+                $campaign->code = 'CMP-'.strtoupper(Str::random(8));
             }
             if (auth()->check() && empty($campaign->created_by)) {
                 $campaign->created_by = auth()->id();

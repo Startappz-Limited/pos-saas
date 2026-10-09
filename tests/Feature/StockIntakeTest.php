@@ -12,7 +12,7 @@ use App\Models\User;
 use Spatie\Permission\Models\Permission;
 
 beforeEach(function () {
-    $this->user = User::factory()->create();
+    $this->user = User::factory()->owner()->create();
     $this->actingAs($this->user);
 });
 
@@ -39,8 +39,11 @@ test('authorized user can create stock intake', function () {
     $this->user->givePermissionTo('stock_intakes.create');
 
     $purchaseOrder = PurchaseOrder::factory()->ordered()->create();
+    // Pinned: the factory orders a random 10-1000, and receiving more than
+    // was ordered is (rightly) rejected, so this failed whenever it drew < 50
     $item = PurchaseOrderItem::factory()->create([
         'purchase_order_id' => $purchaseOrder->id,
+        'quantity_ordered' => 100,
     ]);
 
     $data = [

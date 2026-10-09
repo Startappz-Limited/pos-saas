@@ -144,7 +144,7 @@
                                         <tr>
                                             <td class="text-muted">
                                                 {{ $saleReturn->isRejected() ? 'Rejected' : 'Approved' }} By:</td>
-                                            <td>{{ $saleReturn->approvedBy->name }}</td>
+                                            <td>{{ $saleReturn->approvedBy?->name ?? __('Deleted user') }}</td>
                                         </tr>
                                         <tr>
                                             <td class="text-muted">

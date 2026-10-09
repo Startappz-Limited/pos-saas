@@ -15,7 +15,7 @@ beforeEach(function () {
     config()->set('wa-gateway.token', 'test-token');
 
     $this->seed(PermissionSeeder::class);
-    $user = User::factory()->create();
+    $user = User::factory()->owner()->create();
     $user->givePermissionTo(['baileys.view', 'baileys.send', 'baileys.manage']);
     $this->actingAs($user);
 });

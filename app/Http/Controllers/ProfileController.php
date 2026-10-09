@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\UserStatus;
 use App\Http\Requests\ProfileUpdateRequest;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -38,23 +39,33 @@ class ProfileController extends Controller
     }
 
     /**
-     * Delete the user's account.
+     * Deactivate the signed-in user's own account. Accounts are not deleted
+     * from here: deletion erases a person's data and is reserved for the
+     * business owner (Users screen). The owner and super-admins cannot
+     * deactivate themselves: a business must not lose its owner this way,
+     * and a super-admin is managed by another super-admin.
      */
-    public function destroy(Request $request): RedirectResponse
+    public function deactivate(Request $request): RedirectResponse
     {
-        $request->validateWithBag('userDeletion', [
+        $request->validateWithBag('userDeactivation', [
             'password' => ['required', 'current_password'],
         ]);
 
         $user = $request->user();
 
-        Auth::logout();
+        if ($user->isSuperAdmin() || $user->isBusinessOwner()) {
+            return Redirect::route('profile.edit')
+                ->withErrors(['password' => __('This account cannot be deactivated from here.')], 'userDeactivation');
+        }
 
-        $user->delete();
+        // Saving the status also ends every session and app token (User::booted)
+        $user->update(['status' => UserStatus::INACTIVE]);
+
+        Auth::logout();
 
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
-        return Redirect::to('/');
+        return Redirect::route('login')->with('status', __('Your account has been deactivated.'));
     }
 }

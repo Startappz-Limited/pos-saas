@@ -3,6 +3,8 @@
 namespace App\Http\Requests;
 
 use App\Enums\ReturnReason;
+use App\Models\Sale;
+use App\Rules\ExistsForViewer;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 
@@ -22,7 +24,7 @@ class StoreReturnRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'sale_id' => ['required', 'exists:sales,id'],
+            'sale_id' => ['required', new ExistsForViewer(Sale::class)],
             'reason' => ['required', 'string', 'in:'.implode(',', array_column(ReturnReason::cases(), 'value'))],
             'notes' => ['nullable', 'string', 'max:1000'],
             'restocking_fee' => ['nullable', 'numeric', 'min:0'],

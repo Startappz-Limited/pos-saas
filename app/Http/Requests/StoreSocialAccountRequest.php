@@ -3,6 +3,8 @@
 namespace App\Http\Requests;
 
 use App\Enums\SocialPlatform;
+use App\Models\Shop;
+use App\Rules\ExistsForViewer;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -19,7 +21,7 @@ class StoreSocialAccountRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'shop_id' => ['required', 'integer', 'exists:shops,id'],
+            'shop_id' => ['required', 'integer', new ExistsForViewer(Shop::class)],
             'platform' => ['required', Rule::enum(SocialPlatform::class)],
             'account_name' => ['required', 'string', 'max:255'],
             'external_account_id' => ['nullable', 'string', 'max:100'],

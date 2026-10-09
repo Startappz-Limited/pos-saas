@@ -3,6 +3,7 @@
 namespace App\Actions\Shop;
 
 use App\Models\Shop;
+use Illuminate\Support\Arr;
 use App\Services\Integration\ShopifyService;
 use App\Services\Integration\WooCommerceService;
 use Illuminate\Support\Facades\DB;
@@ -27,6 +28,16 @@ class UpdateShopAction
             // resurrect an integration the user just removed.
             if (array_key_exists('settings', $data) && is_array($data['settings'])) {
                 $data['settings'] = array_replace_recursive($shop->settings ?? [], $data['settings']);
+            }
+
+            if (empty($data['code'])) {
+                do {
+                    $shopCode = 'SHOP-' . implode('',
+                        Arr::random(range(0, 9), 4)
+                    ); 
+                } while (Shop::where('code', $shopCode)->exists());
+
+                $data['code'] = $shopCode;
             }
 
             // Process integration configurations

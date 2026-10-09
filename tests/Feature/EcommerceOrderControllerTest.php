@@ -8,7 +8,7 @@ use App\Models\User;
 use Spatie\Permission\Models\Permission;
 
 beforeEach(function () {
-    $this->user = User::factory()->create();
+    $this->user = User::factory()->owner()->create();
     $this->actingAs($this->user);
 
     Permission::create(['name' => 'ecommerce-orders.view']);
@@ -147,6 +147,8 @@ test('index page filters by shop', function () {
 test('index page only includes assigned shop orders for allocated users', function () {
     $shop = Shop::factory()->create();
     $otherShop = Shop::factory()->create();
+    // A shop-allocated staff member, not the owner
+    $this->user->syncRoles([]);
     $this->user->shops()->sync([$shop->id]);
 
     EcommerceOrder::factory()->for($shop)->pending()->create();
@@ -169,15 +171,19 @@ test('index page only includes assigned shop orders for allocated users', functi
 test('allocated user cannot view orders from another shop', function () {
     $shop = Shop::factory()->create();
     $otherShop = Shop::factory()->create();
+    // A shop-allocated staff member, not the owner
+    $this->user->syncRoles([]);
     $this->user->shops()->sync([$shop->id]);
     $order = EcommerceOrder::factory()->for($otherShop)->create();
 
-    $this->get(route('ecommerce-orders.show', $order))->assertForbidden();
+    $this->get(route('ecommerce-orders.show', $order))->assertNotFound(); // another shop's order is invisible
 });
 
 test('allocated user cannot refresh orders for another shop', function () {
     $shop = Shop::factory()->create();
     $otherShop = Shop::factory()->create();
+    // A shop-allocated staff member, not the owner
+    $this->user->syncRoles([]);
     $this->user->shops()->sync([$shop->id]);
 
     $this->post(route('ecommerce-orders.refresh'), ['shop_id' => $otherShop->id])

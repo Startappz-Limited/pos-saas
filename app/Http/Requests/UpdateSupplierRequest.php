@@ -3,6 +3,8 @@
 namespace App\Http\Requests;
 
 use App\Enums\SupplierStatus;
+use App\Rules\UniqueInBusiness;
+use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -19,7 +21,7 @@ class UpdateSupplierRequest extends FormRequest
     /**
      * Get the validation rules that apply to the request.
      *
-     * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
+     * @return array<string, ValidationRule|array<mixed>|string>
      */
     public function rules(): array
     {
@@ -27,7 +29,7 @@ class UpdateSupplierRequest extends FormRequest
 
         return [
             'name' => ['sometimes', 'required', 'string', 'max:255'],
-            'code' => ['nullable', 'string', 'max:50', Rule::unique('suppliers', 'code')->ignore($supplierId)],
+            'code' => ['nullable', 'string', 'max:50', UniqueInBusiness::for('suppliers', 'code')->ignore($supplierId)],
             'email' => ['nullable', 'email', 'max:255'],
             'phone' => ['nullable', 'string', 'max:50'],
             'mobile' => ['nullable', 'string', 'max:50'],

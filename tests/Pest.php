@@ -1,5 +1,7 @@
 <?php
 
+use App\Models\Shop;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -69,4 +71,24 @@ expect()->extend('toBeOne', function () {
 function something()
 {
     // ..
+}
+
+/*
+|--------------------------------------------------------------------------
+| Shop access
+|--------------------------------------------------------------------------
+|
+| Staff only reach the app once they are linked to a shop; otherwise they get
+| the "contact your administrator" page (EnsureUserIsLinkedToShop). Use
+| staffUser() for "logged in but lacks the permission" tests, so the test
+| exercises the permission check rather than that redirect.
+|
+*/
+
+function staffUser(?Shop $shop = null, array $attributes = []): User
+{
+    $user = User::factory()->create($attributes);
+    $user->shops()->attach($shop ?? Shop::factory()->create());
+
+    return $user;
 }

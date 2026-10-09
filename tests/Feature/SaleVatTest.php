@@ -8,6 +8,7 @@ use App\Models\SaleItem;
 use App\Models\SaleSource;
 use App\Models\Shop;
 use App\Models\User;
+use Database\Factories\BusinessFactory;
 use Spatie\Permission\Models\Permission;
 
 /**
@@ -32,7 +33,7 @@ beforeEach(function () {
     $this->user = User::factory()->create();
     $this->user->shops()->attach($this->shop);
     $this->user->givePermissionTo('sales.full-access');
-    $this->source = SaleSource::create(['name' => 'Counter', 'is_active' => true, 'sort_order' => 1]);
+    $this->source = SaleSource::create(['business_id' => BusinessFactory::defaultId(), 'name' => 'Counter', 'is_active' => true, 'sort_order' => 1]);
 });
 
 function vatProduct(array $attributes = []): Product
@@ -233,11 +234,10 @@ describe('invoice numbering', function () {
 
         $numbers = Sale::orderBy('id')->pluck('invoice_number')->all();
 
-        expect($numbers)->toBe([
-            'INV-NRB-'.now()->format('Y').'-000001',
-            'INV-NRB-'.now()->format('Y').'-000002',
-            'INV-NRB-'.now()->format('Y').'-000003',
-        ]);
+        // Shop code, the shop's generated invoice code, year, sequence
+        $prefix = "INV-NRB-{$this->shop->invoice_code}-".now()->format('Y');
+
+        expect($numbers)->toBe(["{$prefix}-000001", "{$prefix}-000002", "{$prefix}-000003"]);
     });
 
     it('keeps each shop on its own series', function () {
@@ -265,7 +265,7 @@ describe('invoice numbering', function () {
         $year = now()->format('Y');
 
         expect(Sale::orderBy('id')->pluck('invoice_number')->all())
-            ->toBe(["INV-NRB-{$year}-000001", "INV-MSA-{$year}-000001"]);
+            ->toBe(["INV-NRB-{$this->shop->invoice_code}-{$year}-000001", "INV-MSA-{$other->invoice_code}-{$year}-000001"]);
     });
 });
 

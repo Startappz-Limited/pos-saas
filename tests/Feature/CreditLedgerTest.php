@@ -13,6 +13,7 @@ use App\Models\SaleSource;
 use App\Models\Shop;
 use App\Models\User;
 use App\Notifications\CreditBalanceNotification;
+use Database\Factories\BusinessFactory;
 use Illuminate\Support\Facades\Notification;
 use Spatie\Permission\Models\Permission;
 
@@ -30,7 +31,7 @@ beforeEach(function () {
     $this->user->shops()->attach($this->shop);
     // SaleSource has no factory.
     $this->saleSource = SaleSource::firstOrCreate(
-        ['name' => 'Walk-in'],
+        ['business_id' => BusinessFactory::defaultId(), 'name' => 'Walk-in'],
         ['is_active' => true, 'sort_order' => 1],
     );
 

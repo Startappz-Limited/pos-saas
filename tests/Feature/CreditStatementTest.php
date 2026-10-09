@@ -211,8 +211,9 @@ describe('sending from the mobile app', function () {
             'grace_period_days' => 7,
         ]);
 
+        // Another shop's customer is invisible to this user, so it is not found
         $this->postJson("/api/customers/{$otherCustomer->uuid}/send-statement")
-            ->assertForbidden();
+            ->assertNotFound();
 
         Queue::assertNothingPushed();
     });

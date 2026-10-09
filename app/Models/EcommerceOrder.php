@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\AlertType;
 use App\Enums\EcommerceOrderStatus;
+use App\Models\Concerns\BelongsToAccessibleShop;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -15,6 +16,7 @@ use Illuminate\Support\Str;
 
 class EcommerceOrder extends Model
 {
+    use BelongsToAccessibleShop;
     use HasFactory, SoftDeletes;
 
     protected $fillable = [
@@ -166,7 +168,7 @@ class EcommerceOrder extends Model
             return $query;
         }
 
-        return $query->whereIn($this->qualifyColumn('shop_id'), $user->assignedShopIds());
+        return $query->whereIn($this->qualifyColumn('shop_id'), $user->accessibleShopIds());
     }
 
     // Methods

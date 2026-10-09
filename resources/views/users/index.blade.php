@@ -78,7 +78,7 @@
                             </td>
                             <td>
                                 <div class="d-flex align-items-center gap-2">
-                                    <img src="{{ $user->avatar ?? asset('assets/images/users/avatar-1.jpg') }}"
+                                    <img src="{{ $user->profile_photo_url }}"
                                         alt="{{ $user->name }}" class="avatar-sm rounded-circle">
                                     <div>
                                         <a href="{{ route('users.show', $user) }}" class="text-dark fw-medium">
@@ -94,8 +94,8 @@
                                 @endforeach
                             </td>
                             <td>
-                                <x-ui-badge :variant="$user->is_active ? 'success' : 'danger'">
-                                    {{ $user->is_active ? 'Active' : 'Inactive' }}
+                                <x-ui-badge :variant="$user->isActive() ? 'success' : 'danger'">
+                                    {{ $user->status?->label() }}
                                 </x-ui-badge>
                             </td>
                             <td>{{ $user->created_at->format('M d, Y') }}</td>

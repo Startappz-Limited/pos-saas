@@ -38,9 +38,10 @@ class VatReportService
         ?Shop $shop,
         CarbonInterface $from,
         CarbonInterface $to,
+        ?array $allowedShopIds = null,
     ): array {
-        $bands = $this->outputTax($shop, $from, $to);
-        $creditNotes = $this->creditNoteTax($shop, $from, $to);
+        $bands = $this->outputTax($shop, $from, $to, $allowedShopIds);
+        $creditNotes = $this->creditNoteTax($shop, $from, $to, $allowedShopIds);
 
         $outputTax = array_sum(array_column($bands, 'tax_amount'));
         $creditedTax = array_sum(array_column($creditNotes, 'tax_amount'));
@@ -66,7 +67,7 @@ class VatReportService
                 'credited_tax' => round($creditedTax, 2),
                 'net_output_tax' => round($outputTax - $creditedTax, 2),
             ],
-            'unclassified' => $this->unclassified($shop, $from, $to),
+            'unclassified' => $this->unclassified($shop, $from, $to, $allowedShopIds),
         ];
     }
 
@@ -79,9 +80,9 @@ class VatReportService
      *
      * @return array<int, array<string, mixed>>
      */
-    private function outputTax(?Shop $shop, CarbonInterface $from, CarbonInterface $to): array
+    private function outputTax(?Shop $shop, CarbonInterface $from, CarbonInterface $to, ?array $allowedShopIds): array
     {
-        $rows = $this->saleItemQuery($shop, $from, $to)
+        $rows = $this->saleItemQuery($shop, $from, $to, $allowedShopIds)
             ->whereNotNull('sale_items.tax_class')
             ->groupBy('sale_items.tax_class', 'sale_items.tax_rate')
             ->selectRaw('sale_items.tax_class as tax_class')
@@ -115,9 +116,9 @@ class VatReportService
      *
      * @return array{invoices: int, amount: float}
      */
-    private function unclassified(?Shop $shop, CarbonInterface $from, CarbonInterface $to): array
+    private function unclassified(?Shop $shop, CarbonInterface $from, CarbonInterface $to, ?array $allowedShopIds): array
     {
-        $row = $this->saleItemQuery($shop, $from, $to)
+        $row = $this->saleItemQuery($shop, $from, $to, $allowedShopIds)
             ->whereNull('sale_items.tax_class')
             ->selectRaw('COUNT(DISTINCT sales.id) as invoices')
             ->selectRaw('COALESCE(SUM(sale_items.line_total), 0) as amount')
@@ -137,7 +138,7 @@ class VatReportService
      *
      * @return array<int, array<string, mixed>>
      */
-    private function creditNoteTax(?Shop $shop, CarbonInterface $from, CarbonInterface $to): array
+    private function creditNoteTax(?Shop $shop, CarbonInterface $from, CarbonInterface $to, ?array $allowedShopIds): array
     {
         $rows = DB::table('return_items')
             ->join('returns', 'returns.id', '=', 'return_items.return_id')
@@ -148,6 +149,7 @@ class VatReportService
             ->whereBetween('returns.updated_at', [$from, $to])
             ->whereNotNull('sale_items.tax_class')
             ->when($shop, fn ($query) => $query->where('returns.shop_id', $shop->id))
+            ->when($allowedShopIds !== null, fn ($query) => $query->whereIn('returns.shop_id', $allowedShopIds))
             ->groupBy('sale_items.tax_class', 'sale_items.tax_rate', 'sales.tax_inclusive')
             ->selectRaw('sale_items.tax_class as tax_class')
             ->selectRaw('sale_items.tax_rate as tax_rate')
@@ -188,9 +190,11 @@ class VatReportService
     }
 
     /**
-     * Completed, non-voided sale lines in the period.
+     * Completed, non-voided sale lines in the period. $allowedShopIds limits a
+     * report to the viewer's shops (null = every shop, for a super-admin);
+     * this is raw SQL, so the model-level shop scopes do not apply.
      */
-    private function saleItemQuery(?Shop $shop, CarbonInterface $from, CarbonInterface $to)
+    private function saleItemQuery(?Shop $shop, CarbonInterface $from, CarbonInterface $to, ?array $allowedShopIds)
     {
         return DB::table('sale_items')
             ->join('sales', 'sales.id', '=', 'sale_items.sale_id')
@@ -199,6 +203,7 @@ class VatReportService
             // Ranged rather than whereDate() so the ['shop_id','completed_at']
             // index stays usable.
             ->whereBetween('sales.completed_at', [$from, $to])
-            ->when($shop, fn ($query) => $query->where('sale_items.shop_id', $shop->id));
+            ->when($shop, fn ($query) => $query->where('sale_items.shop_id', $shop->id))
+            ->when($allowedShopIds !== null, fn ($query) => $query->whereIn('sale_items.shop_id', $allowedShopIds));
     }
 }

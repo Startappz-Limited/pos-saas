@@ -4,6 +4,7 @@ namespace App\Actions\Shop;
 
 use App\Enums\ShopStatus;
 use App\Models\Shop;
+use Illuminate\Support\Arr;
 use App\Services\Integration\ShopifyService;
 use App\Services\Integration\WooCommerceService;
 use Illuminate\Support\Facades\DB;
@@ -15,11 +16,22 @@ class CreateShopAction
         protected ShopifyService $shopifyService
     ) {}
 
-    public function execute(array $data): Shop
+  public function execute(array $data): Shop
     {
         return DB::transaction(function () use ($data) {
             // Ensure status defaults to active if not provided
             $data['status'] = $data['status'] ?? ShopStatus::ACTIVE;
+
+            // Generate a unique shop code if empty
+            if (empty($data['code'])) {
+                do {
+                    $shopCode = 'SHOP-' . implode('',
+                        Arr::random(range(0, 9), 4)
+                    ); 
+                } while (Shop::where('code', $shopCode)->exists());
+
+                $data['code'] = $shopCode;
+            }
 
             // Process integration configurations
             $data = $this->processIntegrations($data);
@@ -34,14 +46,17 @@ class CreateShopAction
 
             // Assign additional users if provided
             if (! empty($data['user_ids']) && is_array($data['user_ids'])) {
-                $userIds = array_diff($data['user_ids'], [$data['manager_id'] ?? null]);
+                $userIds = array_diff(
+                    $data['user_ids'],
+                    [$data['manager_id'] ?? null]
+                );
+
                 $shop->users()->attach($userIds);
             }
 
             return $shop->fresh(['manager', 'creator', 'updater', 'users']);
         });
     }
-
     /**
      * Process and encrypt integration configurations
      *

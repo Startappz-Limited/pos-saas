@@ -19,11 +19,16 @@
     - viewPermission: Permission name for view (optional)
     - editPermission: Permission name for edit (optional)
     - deletePermission: Permission name for delete (optional)
+
+    Without a permission name each button asks the model's policy (view /
+    update / delete), which also applies its shop, business and owner rules.
+    (The defaults used to be "{route}.show/.edit/.destroy": route names, not
+    permissions, so only a super-admin ever saw the buttons.)
 --}}
 
 <div class="d-flex gap-2">
     @if ($showView ?? true)
-        @can($viewPermission ?? "{$route}.show")
+        @can($viewPermission ?? 'view', $model)
             <a href="{{ route("{$route}.show", $model) }}" class="btn btn-light btn-sm" title="View">
                 <iconify-icon icon="solar:eye-broken" class="align-middle fs-18"></iconify-icon>
             </a>
@@ -31,7 +36,7 @@
     @endif
 
     @if ($showEdit ?? true)
-        @can($editPermission ?? "{$route}.edit")
+        @can($editPermission ?? 'update', $model)
             <a href="{{ route("{$route}.edit", $model) }}" class="btn btn-soft-primary btn-sm" title="Edit">
                 <iconify-icon icon="solar:pen-2-broken" class="align-middle fs-18"></iconify-icon>
             </a>
@@ -39,7 +44,7 @@
     @endif
 
     @if ($showDelete ?? true)
-        @can($deletePermission ?? "{$route}.destroy")
+        @can($deletePermission ?? 'delete', $model)
             <form action="{{ route("{$route}.destroy", $model) }}" method="POST" class="d-inline"
                 onsubmit="return confirm('Are you sure you want to delete this item?');">
                 @csrf

@@ -2,8 +2,13 @@
 
 namespace App\Http\Requests;
 
+use App\Models\CashRegister;
+use App\Models\Customer;
+use App\Models\DeliveryCompany;
 use App\Models\Product;
 use App\Models\ProductVariation;
+use App\Models\SaleSource;
+use App\Rules\ExistsForViewer;
 use Illuminate\Foundation\Http\FormRequest;
 
 class ConvertOrderToSaleRequest extends FormRequest
@@ -19,17 +24,17 @@ class ConvertOrderToSaleRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'register_id' => ['nullable', 'exists:cash_registers,id'],
-            'source_id' => ['required', 'exists:sale_sources,id'],
-            'customer_id' => ['nullable', 'exists:customers,id'],
+            'register_id' => ['nullable', new ExistsForViewer(CashRegister::class)],
+            'source_id' => ['required', new ExistsForViewer(SaleSource::class)],
+            'customer_id' => ['nullable', new ExistsForViewer(Customer::class)],
             'payment_method' => ['nullable', 'string', 'max:50'],
-            'delivery_company_id' => ['nullable', 'exists:delivery_companies,id'],
+            'delivery_company_id' => ['nullable', new ExistsForViewer(DeliveryCompany::class)],
             'delivery_location' => ['nullable', 'string', 'max:1000'],
             'delivery_fee' => ['nullable', 'numeric', 'min:0'],
             'notes' => ['nullable', 'string', 'max:2000'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.order_item_id' => ['nullable', 'exists:ecommerce_order_items,id'],
-            'items.*.product_id' => ['required', 'exists:products,id'],
+            'items.*.product_id' => ['required', new ExistsForViewer(Product::class)],
             'items.*.variation_id' => ['nullable', 'exists:product_variations,id'],
             'items.*.quantity' => ['required', 'integer', 'min:1', 'max:10000'],
             'items.*.unit_price' => ['required', 'numeric', 'min:0', 'max:1000000'],

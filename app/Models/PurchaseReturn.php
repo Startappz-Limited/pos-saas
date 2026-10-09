@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\PurchaseReturnReason;
 use App\Enums\PurchaseReturnStatus;
+use App\Models\Concerns\BelongsToAccessibleShop;
 use Database\Factories\PurchaseReturnFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -14,6 +15,8 @@ use Illuminate\Support\Str;
 
 class PurchaseReturn extends Model
 {
+    use BelongsToAccessibleShop;
+
     /** @use HasFactory<PurchaseReturnFactory> */
     use HasFactory, SoftDeletes;
 

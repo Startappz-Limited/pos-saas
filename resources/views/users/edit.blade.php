@@ -95,11 +95,11 @@
 
                 <!-- Profile Picture -->
                 <x-ui-card title="Profile Picture" class="mb-3">
-                    @if ($user->avatar)
+                    @if ($user->profile_photo)
                         <div class="mb-3">
                             <label class="form-label">Current Photo</label>
                             <div>
-                                <img src="{{ $user->avatar }}" alt="{{ $user->name }}" class="avatar-lg rounded">
+                                <img src="{{ $user->profile_photo_url }}" alt="{{ $user->name }}" class="avatar-lg rounded">
                             </div>
                         </div>
                     @endif
@@ -119,7 +119,7 @@
                     <x-ui-button variant="secondary" href="{{ route('users.index') }}">
                         Cancel
                     </x-ui-button>
-                    @can('users.destroy')
+                    @can('delete', $user)
                         <x-ui-button variant="danger" data-bs-toggle="modal" data-bs-target="#deleteUserModal"
                             class="float-end">
                             Delete User
@@ -130,7 +130,7 @@
         </div>
     </div>
 
-    @can('users.destroy')
+    @can('delete', $user)
         @push('modals')
             <!-- Delete Confirmation Modal -->
             <x-ui-modal id="deleteUserModal" title="Confirm Delete" centered>

@@ -3,6 +3,8 @@
 use App\Actions\CreateUserAction;
 use App\Actions\UpdateUserAction;
 use App\Enums\UserStatus;
+use App\Models\Business;
+use App\Models\Role;
 use App\Models\Shop;
 use App\Models\User;
 
@@ -109,12 +111,31 @@ test('user can have roles assigned', function () {
     expect(true)->toBeTrue();
 });
 
-test('user without shop allocations can access every shop', function () {
+test('staff without shop allocations can access no shop', function () {
     $shop = Shop::factory()->create();
     $user = User::factory()->create();
 
-    expect($user->hasShopRestrictions())->toBeFalse()
-        ->and($user->canAccessShop($shop->id))->toBeTrue();
+    expect($user->hasShopRestrictions())->toBeTrue()
+        ->and($user->canAccessShop($shop->id))->toBeFalse()
+        ->and($user->accessibleShopIds())->toBeEmpty();
+});
+
+test('a shop owner can access every shop of their business and no other', function () {
+    $ownShop = Shop::factory()->create();
+    $foreignShop = Shop::factory()->create(['business_id' => Business::factory()->create()->id]);
+    $owner = User::factory()->owner()->create();
+
+    expect($owner->canAccessShop($ownShop->id))->toBeTrue()
+        ->and($owner->canAccessShop($foreignShop->id))->toBeFalse();
+});
+
+test('a super-admin can access every shop', function () {
+    $foreignShop = Shop::factory()->create(['business_id' => Business::factory()->create()->id]);
+    $superAdmin = User::factory()->create();
+    $superAdmin->assignRole(Role::findOrCreate(Role::SUPER_ADMIN, 'web'));
+
+    expect($superAdmin->hasShopRestrictions())->toBeFalse()
+        ->and($superAdmin->canAccessShop($foreignShop->id))->toBeTrue();
 });
 
 test('user with shop allocations can access only assigned shops', function () {
@@ -141,11 +162,11 @@ test('create user action syncs multiple shop allocations', function () {
         'shop_ids' => $shops->pluck('id')->all(),
     ]);
 
-    expect($user->shops()->pluck('shops.id')->sort()->values()->all())
+    expect($user->assignedShopIds()->sort()->values()->all())
         ->toBe($shops->pluck('id')->sort()->values()->all());
 });
 
-test('update user action can clear shop allocations for all shop access', function () {
+test('update user action can clear shop allocations', function () {
     $shop = Shop::factory()->create();
     $user = User::factory()->create();
     $user->shops()->sync([$shop->id]);
@@ -157,5 +178,17 @@ test('update user action can clear shop allocations for all shop access', functi
         'shop_ids' => [],
     ]);
 
-    expect($user->fresh()->hasShopRestrictions())->toBeFalse();
+    // No shop now means no access (it used to mean every shop)
+    expect($user->fresh()->assignedShopIds())->toBeEmpty()
+        ->and($user->fresh()->canAccessShop($shop->id))->toBeFalse();
+});
+
+test('update user action leaves shop allocations alone when shop_ids is not sent', function () {
+    $shop = Shop::factory()->create();
+    $user = User::factory()->create();
+    $user->shops()->sync([$shop->id]);
+
+    app(UpdateUserAction::class)->execute($user, ['name' => 'Renamed']);
+
+    expect($user->fresh()->assignedShopIds()->all())->toBe([$shop->id]);
 });

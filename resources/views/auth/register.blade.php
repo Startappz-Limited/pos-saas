@@ -6,6 +6,7 @@
 
     <form method="POST" action="{{ route('register') }}">
         @csrf
+        @honeypot
 
         <x-ui-form-input name="name" label="Full Name" :value="old('name')" placeholder="Enter your full name" required
             autofocus />

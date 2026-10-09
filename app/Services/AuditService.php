@@ -148,8 +148,13 @@ class AuditService
     }
 
     /**
-     * Restrict to the shops the user may see. Rows with no shop context are
-     * system-wide and stay visible.
+     * Restrict to the shops the user may see. Rows with no shop context
+     * (user and role changes, business-level edits) are limited to those made
+     * by someone in the viewer's own business; they used to be visible to
+     * every auditor, which showed one business's activity to all the others.
+     *
+     * The audit trail is on its own connection, so the business's user ids
+     * are passed in rather than joined.
      *
      * @param  Builder<AuditLog>  $query
      */
@@ -159,10 +164,12 @@ class AuditService
             return;
         }
 
-        $shopIds = $user->assignedShopIds()->all();
+        $shopIds = $user->accessibleShopIds()->all();
+        $businessUserIds = User::query()->visibleTo($user)->pluck('id')->all();
 
-        $query->where(function (Builder $q) use ($shopIds): void {
-            $q->whereNull('shop_id')->orWhereIn('shop_id', $shopIds);
+        $query->where(function (Builder $q) use ($shopIds, $businessUserIds): void {
+            $q->whereIn('shop_id', $shopIds)
+                ->orWhere(fn (Builder $q) => $q->whereNull('shop_id')->whereIn('user_id', $businessUserIds));
         });
     }
 }

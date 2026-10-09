@@ -25,7 +25,7 @@ beforeEach(function () {
 
 function actingAsBaileysManager(): User
 {
-    $user = User::factory()->create();
+    $user = User::factory()->owner()->create();
     $user->givePermissionTo(['baileys.view', 'baileys.manage']);
     test()->actingAs($user);
 
@@ -157,7 +157,7 @@ describe('sale notification toggle endpoint', function () {
     });
 
     it('denies a user without the baileys.manage permission', function () {
-        $user = User::factory()->create();
+        $user = User::factory()->owner()->create();
         $user->givePermissionTo('baileys.view');
         $this->actingAs($user);
 

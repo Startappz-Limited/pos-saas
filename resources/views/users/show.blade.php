@@ -8,7 +8,7 @@
         <div class="col-xl-4">
             <x-ui-card>
                 <div class="text-center">
-                    <img src="{{ $user->avatar ?? asset('assets/images/users/avatar-1.jpg') }}" alt="{{ $user->name }}"
+                    <img src="{{ $user->profile_photo_url }}" alt="{{ $user->name }}"
                         class="avatar-xl rounded-circle mb-3">
 
                     <h4 class="mb-1">{{ $user->name }}</h4>
@@ -19,20 +19,20 @@
                     @endforeach
 
                     <div class="mt-3">
-                        <x-ui-badge :variant="$user->is_active ? 'success' : 'danger'">
-                            {{ $user->is_active ? 'Active' : 'Inactive' }}
+                        <x-ui-badge :variant="$user->isActive() ? 'success' : 'danger'">
+                            {{ $user->status?->label() }}
                         </x-ui-badge>
                     </div>
 
                     <div class="mt-4 d-flex gap-2 justify-content-center">
-                        @can('users.edit')
+                        @can('update', $user)
                             <x-ui-button variant="primary" size="sm" href="{{ route('users.edit', $user) }}"
                                 icon="solar:pen-2-broken">
                                 Edit Profile
                             </x-ui-button>
                         @endcan
 
-                        @can('users.destroy')
+                        @can('delete', $user)
                             <x-ui-button variant="danger" size="sm" data-bs-toggle="modal"
                                 data-bs-target="#deleteUserModal">
                                 Delete
@@ -148,8 +148,8 @@
                             <tr>
                                 <td class="fw-medium">Status:</td>
                                 <td>
-                                    <x-ui-badge :variant="$user->is_active ? 'success' : 'danger'">
-                                        {{ $user->is_active ? 'Active' : 'Inactive' }}
+                                    <x-ui-badge :variant="$user->isActive() ? 'success' : 'danger'">
+                                        {{ $user->status?->label() }}
                                     </x-ui-badge>
                                 </td>
                             </tr>
@@ -194,7 +194,7 @@
         </div>
     </div>
 
-    @can('users.destroy')
+    @can('delete', $user)
         @push('modals')
             <!-- Delete Confirmation Modal -->
             <x-ui-modal id="deleteUserModal" title="Confirm Delete" centered>

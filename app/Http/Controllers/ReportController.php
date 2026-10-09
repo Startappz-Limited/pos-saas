@@ -36,6 +36,7 @@ class ReportController extends Controller
         $validated = $request->validate([
             'start_date' => ['nullable', 'date'],
             'end_date' => ['nullable', 'date', 'after_or_equal:start_date'],
+            // Plain exists: a shop outside the viewer's list is a 403 below, not a validation error
             'shop_id' => ['nullable', 'integer', 'exists:shops,id'],
             'sale_status' => ['nullable', 'in:all,pending,completed,voided'],
             'sale_type' => ['nullable', 'in:all,regular,wholesale'],
@@ -44,15 +45,17 @@ class ReportController extends Controller
             'expense_status' => ['nullable', 'in:all,draft,pending,approved,rejected,paid,cancelled'],
         ]);
 
-        $allowedShops = $request->user()->can('reports.full-access')
-            ? Shop::query()->select('id', 'name')->orderBy('name', 'asc')->get()
-            : $request->user()->shops()->select('shops.id', 'shops.name')->orderBy('shops.name', 'asc')->get();
+        // Shop is scoped to the viewer, so this lists only their shops;
+        // reports.full-access no longer means "every shop in the database".
+        $allowedShops = Shop::query()->select('id', 'name')->orderBy('name', 'asc')->get();
 
-        $allowedShopIds = $request->user()->can('reports.full-access')
-            ? []
-            : $allowedShops->pluck('id')->all();
+        // ReportService treats an empty list as "no restriction", so a viewer
+        // with no shops gets an impossible id rather than everything.
+        $allowedShopIds = $request->user()->hasShopRestrictions()
+            ? ($allowedShops->pluck('id')->map(fn ($id): int => (int) $id)->all() ?: [0])
+            : [];
 
-        if (! empty($validated['shop_id']) && ! empty($allowedShopIds) && ! in_array((int) $validated['shop_id'], $allowedShopIds, true)) {
+        if (! empty($validated['shop_id']) && ! $allowedShops->contains('id', (int) $validated['shop_id'])) {
             abort(403);
         }
 

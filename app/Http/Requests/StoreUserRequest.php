@@ -4,6 +4,7 @@ namespace App\Http\Requests;
 
 use App\Enums\UserStatus;
 use App\Models\Role;
+use App\Models\Shop;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -55,9 +56,10 @@ class StoreUserRequest extends FormRequest
             'status' => ['required', Rule::enum(UserStatus::class)],
             'role_id' => ['nullable', 'exists:roles,id'],
             'roles' => ['nullable', 'array'],
-            'roles.*' => ['exists:roles,name'],
+            'roles.*' => [Rule::in(Role::assignableBy($this->user())->pluck('name'))],
             'shop_ids' => ['nullable', 'array'],
-            'shop_ids.*' => ['integer', 'exists:shops,id'],
+            // Shop is scoped, so this only accepts shops the current user can access
+            'shop_ids.*' => ['integer', Rule::in(Shop::query()->pluck('id'))],
         ];
     }
 

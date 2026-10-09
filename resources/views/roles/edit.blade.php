@@ -11,7 +11,7 @@
 
                 <!-- Role Information -->
                 <x-ui-card title="Role Information" class="mb-3">
-                    @if ($role->is_system)
+                    @if ($role->isSystemRole())
                         <x-ui-alert variant="warning" class="mb-3">
                             <i class="bx bx-error me-1"></i>
                             This is a system role. Some fields may be restricted.
@@ -21,7 +21,7 @@
                     <div class="row">
                         <div class="col-lg-6">
                             <x-ui-form-input name="name" label="Role Name" :value="old('name', $role->name)"
-                                placeholder="e.g., Store Manager" required :readonly="$role->is_system" />
+                                placeholder="e.g., Store Manager" required :readonly="$role->isSystemRole()" />
                         </div>
 
                         <div class="col-lg-6">
@@ -95,8 +95,8 @@
                     <x-ui-button variant="secondary" href="{{ route('roles.index') }}">
                         Cancel
                     </x-ui-button>
-                    @if (!$role->is_system)
-                        @can('roles.destroy')
+                    @if (!$role->isSystemRole())
+                        @can('delete', $role)
                             <x-ui-button variant="danger" data-bs-toggle="modal" data-bs-target="#deleteRoleModal"
                                 class="float-end">
                                 Delete Role
@@ -108,8 +108,8 @@
         </div>
     </div>
 
-    @if (!$role->is_system)
-        @can('roles.destroy')
+    @if (!$role->isSystemRole())
+        @can('delete', $role)
             @push('modals')
                 <x-ui-modal id="deleteRoleModal" title="Confirm Delete" centered>
                     <x-slot:body>

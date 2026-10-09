@@ -155,7 +155,7 @@ describe('the VAT report screen', function () {
     });
 
     it('is refused without the permission', function () {
-        $stranger = User::factory()->create();
+        $stranger = staffUser();
 
         $this->actingAs($stranger)
             ->get(route('reports.vat'))

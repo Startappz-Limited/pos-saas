@@ -89,6 +89,12 @@ the client gains nothing from.
 A 401 from any endpoint logs the cashier out mid-shift. Never use 401 for authorization failures —
 that's 403.
 
+**Shop linking.** A non-admin user who is not linked to any shop gets
+`403 {"success": false, "code": "shop_not_linked", "message": "…contact your administrator…"}` from every
+authenticated endpoint except `GET /api/user` and `POST /api/logout`; the app should show that message
+rather than a generic error. Records of a shop (or business) the user cannot access return **404**, not
+403 — they are filtered out by global scopes before any policy runs.
+
 ## Money is a string. Do not "fix" this.
 
 Laravel's `decimal:2` casts return **strings**, and every money field in the app's models is typed

@@ -133,7 +133,7 @@
                                 @if ($category->creator)
                                     <div>
                                         <small class="text-muted">Created By:</small>
-                                        <p class="mb-0">{{ $category->creator->name }}</p>
+                                        <p class="mb-0">{{ $category->creator?->name ?? __('Deleted user') }}</p>
                                     </div>
                                 @endif
                             </div>

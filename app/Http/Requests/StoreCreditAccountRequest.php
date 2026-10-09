@@ -3,6 +3,8 @@
 namespace App\Http\Requests;
 
 use App\Enums\CreditAccountStatus;
+use App\Models\Shop;
+use App\Rules\ExistsForViewer;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -32,7 +34,7 @@ class StoreCreditAccountRequest extends FormRequest
                     ->where('allow_credit', true),
                 Rule::unique('credit_accounts', 'customer_id')->where(fn ($query) => $query->where('shop_id', $this->input('shop_id'))),
             ],
-            'shop_id' => ['required', 'exists:shops,id'],
+            'shop_id' => ['required', new ExistsForViewer(Shop::class)],
             'credit_limit' => ['required', 'numeric', 'min:0'],
             'payment_terms_days' => ['required', 'integer', 'min:0', 'max:365'],
             'grace_period_days' => ['required', 'integer', 'min:0', 'max:365'],

@@ -19,7 +19,7 @@
                         <div class="row">
                             <div class="col-md-6">
                                 <strong>Opened:</strong> {{ $cashRegister->opened_at->format('M d, Y h:i A') }}<br>
-                                <strong>By:</strong> {{ $cashRegister->user->name }}
+                                <strong>By:</strong> {{ $cashRegister->user?->name ?? __('Deleted user') }}
                             </div>
                             <div class="col-md-6 text-md-end">
                                 <strong>Total Sales:</strong> {{ format_currency($cashRegister->total_sales) }}<br>

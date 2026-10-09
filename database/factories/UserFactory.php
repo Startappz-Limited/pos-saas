@@ -3,12 +3,14 @@
 namespace Database\Factories;
 
 use App\Enums\UserStatus;
+use App\Models\Role;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 
 /**
- * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\User>
+ * @extends Factory<User>
  */
 class UserFactory extends Factory
 {
@@ -25,6 +27,7 @@ class UserFactory extends Factory
     public function definition(): array
     {
         return [
+            'business_id' => fn (): int => BusinessFactory::defaultId(),
             'uuid' => Str::uuid(),
             'name' => fake()->name(),
             'email' => fake()->unique()->safeEmail(),
@@ -36,6 +39,17 @@ class UserFactory extends Factory
             'date_of_birth' => fake()->date('Y-m-d', '-18 years'),
             'status' => UserStatus::ACTIVE,
         ];
+    }
+
+    /**
+     * A shop owner: holds the admin role, so they see every shop of their
+     * business (permissions still come from roles/direct grants as usual).
+     */
+    public function owner(): static
+    {
+        return $this->afterCreating(function (User $user): void {
+            $user->assignRole(Role::global(Role::ADMIN));
+        });
     }
 
     /**

@@ -37,6 +37,11 @@
                                         <a href="{{ route('roles.show', $role) }}" class="text-dark fw-medium">
                                             {{ $role->name }}
                                         </a>
+                                        @if ($role->isGlobal())
+                                            <x-ui-badge variant="secondary">{{ __('System') }}</x-ui-badge>
+                                        @elseif (auth()->user()->isSuperAdmin())
+                                            <x-ui-badge variant="info">{{ $role->business?->name }}</x-ui-badge>
+                                        @endif
                                     </div>
                                 </div>
                             </td>
@@ -49,18 +54,18 @@
                             <td>{{ $role->created_at->format('M d, Y') }}</td>
                             <td>
                                 <div class="d-flex gap-1">
-                                    @can('roles.view')
+                                    @can('view', $role)
                                         <a href="{{ route('roles.show', $role) }}" class="btn btn-sm btn-soft-info">
                                             <i class="bx bx-show"></i>
                                         </a>
                                     @endcan
-                                    @can('roles.update')
+                                    @can('update', $role)
                                         <a href="{{ route('roles.edit', $role) }}" class="btn btn-sm btn-soft-primary">
                                             <i class="bx bx-edit"></i>
                                         </a>
                                     @endcan
-                                    @if ($role->name !== 'super-admin')
-                                        @can('roles.delete')
+                                    @if (! $role->isSystemRole())
+                                        @can('delete', $role)
                                             <form action="{{ route('roles.destroy', $role) }}" method="POST" class="d-inline"
                                                 onsubmit="return confirm('Are you sure you want to delete this role?')">
                                                 @csrf

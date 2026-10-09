@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\ExpenseStatus;
 use App\Models\Concerns\Auditable;
+use App\Models\Concerns\BelongsToAccessibleShop;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -15,6 +16,7 @@ use Illuminate\Support\Str;
 class Expense extends Model
 {
     use Auditable;
+    use BelongsToAccessibleShop;
     use HasFactory, SoftDeletes;
 
     protected $fillable = [
@@ -150,7 +152,7 @@ class Expense extends Model
             return $query;
         }
 
-        return $query->whereIn($this->qualifyColumn('shop_id'), $user->assignedShopIds());
+        return $query->whereIn($this->qualifyColumn('shop_id'), $user->accessibleShopIds());
     }
 
     public function scopeStatus($query, ExpenseStatus $status)

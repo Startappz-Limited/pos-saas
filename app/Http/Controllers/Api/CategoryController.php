@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Category;
+use App\Rules\ExistsForViewer;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -38,7 +39,7 @@ class CategoryController extends Controller
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
-            'parent_id' => ['nullable', 'exists:categories,id'],
+            'parent_id' => ['nullable', new ExistsForViewer(Category::class)],
             'order' => ['nullable', 'integer', 'min:0'],
         ]);
 
@@ -67,7 +68,7 @@ class CategoryController extends Controller
         $validated = $request->validate([
             'name' => ['sometimes', 'required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
-            'parent_id' => ['nullable', 'exists:categories,id'],
+            'parent_id' => ['nullable', new ExistsForViewer(Category::class)],
             'order' => ['nullable', 'integer', 'min:0'],
             'status' => ['sometimes', 'string'],
         ]);

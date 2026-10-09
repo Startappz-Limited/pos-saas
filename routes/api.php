@@ -41,9 +41,10 @@ Route::middleware('throttle:auth')->group(function () {
 });
 
 // Protected routes
-Route::middleware('auth:sanctum')->group(function () {
-    Route::get('/user', [AuthController::class, 'user']);
-    Route::post('/logout', [AuthController::class, 'logout']);
+Route::middleware(['auth:sanctum', 'active', 'shop.linked'])->group(function () {
+    // Still reachable when the user is not linked to a shop yet.
+    Route::get('/user', [AuthController::class, 'user'])->name('api.user');
+    Route::post('/logout', [AuthController::class, 'logout'])->name('api.logout');
 
     // Shops
     Route::apiResource('shops', ShopController::class)->names([

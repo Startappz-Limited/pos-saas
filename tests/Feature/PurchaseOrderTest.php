@@ -12,7 +12,7 @@ use Database\Seeders\RoleSeeder;
 use Spatie\Permission\Models\Permission;
 
 beforeEach(function () {
-    $this->user = User::factory()->create();
+    $this->user = User::factory()->owner()->create();
     $this->actingAs($this->user);
 });
 

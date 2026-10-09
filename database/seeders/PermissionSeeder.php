@@ -53,6 +53,12 @@ class PermissionSeeder extends Seeder
             'categories.delete',
             'categories.full-access',
 
+            // Product Attributes Management
+            'attributes.view',
+            'attributes.create',
+            'attributes.update',
+            'attributes.delete',
+
             // Products Management
             'products.view',
             'products.create',

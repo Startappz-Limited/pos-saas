@@ -27,7 +27,7 @@ class VatReportController extends Controller
         [$shop, $from, $to, $shops] = $this->resolvePeriod($request);
 
         return view('reports.vat', [
-            'summary' => $this->vatReports->summary($shop, $from, $to),
+            'summary' => $this->vatReports->summary($shop, $from, $to, $this->allowedShopIds($request)),
             'shop' => $shop,
             'shops' => $shops,
             'from' => $from,
@@ -41,7 +41,7 @@ class VatReportController extends Controller
 
         [$shop, $from, $to] = $this->resolvePeriod($request);
 
-        $summary = $this->vatReports->summary($shop, $from, $to);
+        $summary = $this->vatReports->summary($shop, $from, $to, $this->allowedShopIds($request));
         $filename = sprintf('vat-return-%s-to-%s.csv', $from->toDateString(), $to->toDateString());
 
         return response()->streamDownload(function () use ($summary, $shop, $from, $to): void {
@@ -105,24 +105,34 @@ class VatReportController extends Controller
     /**
      * @return array{0: ?Shop, 1: Carbon, 2: Carbon, 3: Collection}
      */
+    /**
+     * Shops the report may include; null means all of them (super-admin).
+     *
+     * @return array<int, int>|null
+     */
+    private function allowedShopIds(Request $request): ?array
+    {
+        $user = $request->user();
+
+        return $user->hasShopRestrictions() ? $user->accessibleShopIds()->all() : null;
+    }
+
     private function resolvePeriod(Request $request): array
     {
         $validated = $request->validate([
+            // Plain exists: a shop outside the viewer's list is a 403 below, not a validation error
             'shop_id' => ['nullable', 'integer', 'exists:shops,id'],
             'start_date' => ['nullable', 'date'],
             'end_date' => ['nullable', 'date', 'after_or_equal:start_date'],
         ]);
 
-        $user = $request->user();
-        $fullAccess = $user->can('reports.full-access');
-
-        $shops = $fullAccess
-            ? Shop::query()->select('id', 'name')->orderBy('name')->get()
-            : $user->shops()->select('shops.id', 'shops.name')->orderBy('shops.name')->get();
+        // Shop is scoped to the viewer, so this lists only their shops;
+        // reports.full-access no longer means "every shop in the database".
+        $shops = Shop::query()->select('id', 'name')->orderBy('name')->get();
 
         $shopId = $validated['shop_id'] ?? null;
 
-        if ($shopId !== null && ! $fullAccess && ! $shops->contains('id', (int) $shopId)) {
+        if ($shopId !== null && ! $shops->contains('id', (int) $shopId)) {
             abort(403);
         }
 

@@ -34,7 +34,7 @@ class EcommerceOrderController extends Controller
 
         $query = EcommerceOrder::query()
             ->visibleTo($user)
-            ->when($selectedShopId, fn($query): mixed => $query->where('shop_id', $selectedShopId))
+            ->when($selectedShopId, fn ($query): mixed => $query->where('shop_id', $selectedShopId))
             ->with(['shop', 'sale'])
             ->withCount('items')
             ->latest('platform_created_at');
@@ -99,6 +99,7 @@ class EcommerceOrderController extends Controller
     public function refresh(Request $request): JsonResponse
     {
         $request->validate([
+            // Plain exists: another shop's id is the explicit 403 below
             'shop_id' => ['required', 'exists:shops,id'],
         ]);
 
@@ -148,7 +149,7 @@ class EcommerceOrderController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'success' => true,
-                'message' => 'Order status updated locally, but platform sync failed: ' . $e->getMessage(),
+                'message' => 'Order status updated locally, but platform sync failed: '.$e->getMessage(),
                 'data' => $order,
             ]);
         }
@@ -178,7 +179,7 @@ class EcommerceOrderController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to convert order: ' . $e->getMessage(),
+                'message' => 'Failed to convert order: '.$e->getMessage(),
             ], 500);
         }
     }
@@ -193,7 +194,7 @@ class EcommerceOrderController extends Controller
 
         $alert = Alert::create([
             'shop_id' => $order->shop_id,
-            'title' => 'Note on Order #' . $order->order_number,
+            'title' => 'Note on Order #'.$order->order_number,
             'message' => $request->message,
             'type' => AlertType::ORDER_NOTE,
             'severity' => AlertSeverity::LOW,
@@ -271,7 +272,7 @@ class EcommerceOrderController extends Controller
         }
 
         if ($user->hasShopRestrictions()) {
-            return $query->whereIn('shop_id', $user->assignedShopIds());
+            return $query->whereIn('shop_id', $user->accessibleShopIds());
         }
 
         return $query;

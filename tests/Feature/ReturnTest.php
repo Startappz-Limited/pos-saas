@@ -27,7 +27,7 @@ function grantReturnPermissions(User $user, array $permissions): void
 function actingAsReturnUser(array $permissions): User
 {
     /** @var User $user */
-    $user = User::factory()->create();
+    $user = User::factory()->owner()->create();
 
     grantReturnPermissions($user, $permissions);
     actingAs($user);

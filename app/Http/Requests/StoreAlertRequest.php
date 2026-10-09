@@ -6,6 +6,8 @@ use App\Enums\AlertCategory;
 use App\Enums\AlertSeverity;
 use App\Enums\AlertType;
 use App\Models\Alert;
+use App\Models\Shop;
+use App\Rules\ExistsForViewer;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
@@ -30,7 +32,7 @@ class StoreAlertRequest extends FormRequest
             'severity' => ['required', Rule::enum(AlertSeverity::class)],
             'category' => ['required', Rule::enum(AlertCategory::class)],
             // Null shop_id is a system-wide alert, not an omission.
-            'shop_id' => ['nullable', 'integer', 'exists:shops,id'],
+            'shop_id' => ['nullable', 'integer', new ExistsForViewer(Shop::class)],
             'scheduled_at' => ['nullable', 'date'],
             'expires_at' => ['nullable', 'date', 'after:scheduled_at'],
         ];

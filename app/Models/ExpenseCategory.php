@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\CategoryStatus;
 use App\Enums\ExpenseCategoryType;
+use App\Models\Concerns\BelongsToBusiness;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -13,6 +14,7 @@ use Illuminate\Support\Str;
 
 class ExpenseCategory extends Model
 {
+    use BelongsToBusiness;
     use HasFactory, SoftDeletes;
 
     protected $fillable = [
@@ -65,7 +67,7 @@ class ExpenseCategory extends Model
                 $model->slug = Str::slug($model->name);
             }
             if (empty($model->code)) {
-                $model->code = 'CAT-' . strtoupper(Str::random(6));
+                $model->code = 'CAT-'.strtoupper(Str::random(6));
             }
             if (empty($model->status)) {
                 $model->status = CategoryStatus::ACTIVE;

@@ -3,6 +3,9 @@
 namespace App\Http\Requests;
 
 use App\Enums\RefundMethod;
+use App\Models\SaleReturn;
+use App\Rules\ExistsForViewer;
+use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 
 class ProcessRefundRequest extends FormRequest
@@ -16,13 +19,13 @@ class ProcessRefundRequest extends FormRequest
     }
 
     /**
-     * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
+     * @return array<string, ValidationRule|array<mixed>|string>
      */
     public function rules(): array
     {
         return [
-            'return_id' => ['required', 'exists:returns,id'],
-            'method' => ['required', 'string', 'in:' . implode(',', array_column(RefundMethod::cases(), 'value'))],
+            'return_id' => ['required', new ExistsForViewer(SaleReturn::class)],
+            'method' => ['required', 'string', 'in:'.implode(',', array_column(RefundMethod::cases(), 'value'))],
             'amount' => ['required', 'numeric', 'min:0.01'],
             'notes' => ['nullable', 'string', 'max:1000'],
             'reference_number' => ['nullable', 'string', 'max:255'],

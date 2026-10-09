@@ -111,7 +111,14 @@ class InvoiceNumberService
         $parts = [(string) config('invoicing.prefix', 'INV')];
 
         if (config('invoicing.include_shop_code', true) && $shop?->code) {
-            $parts[] = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', $shop->code) ?: 'SHOP');
+            $parts[] = Shop::normalizedCode($shop->code);
+
+            // Shop codes are only unique per business; the generated invoice
+            // code makes the number unique system-wide. Shops created before
+            // invoice codes have none and keep the shorter format.
+            if ($shop->invoice_code) {
+                $parts[] = $shop->invoice_code;
+            }
         }
 
         if ($series !== '*') {

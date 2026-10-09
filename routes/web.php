@@ -42,6 +42,7 @@ use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\VatReportController;
 use Illuminate\Support\Facades\Route;
+use Spatie\Honeypot\ProtectAgainstSpam;
 
 Route::get('/', function () {
     // redirect to ogin
@@ -50,7 +51,18 @@ Route::get('/', function () {
 
 Route::get('/dashboard', function () {
     return view('dashboard');
-})->middleware(['auth', 'verified'])->name('dashboard');
+})->middleware(['auth', 'active', 'verified', 'shop.linked'])->name('dashboard');
+
+// Shown to staff who are not linked to a shop yet (see EnsureUserIsLinkedToShop).
+Route::get('/no-shop', function () {
+    $user = auth()->user();
+
+    if ($user->isSuperAdmin() || $user->isAdmin() || $user->accessibleShopIds()->isNotEmpty()) {
+        return redirect()->route('dashboard');
+    }
+
+    return view('auth.no-shop');
+})->middleware(['auth', 'active'])->name('no-shop');
 
 // Public signed routes (no auth required)
 Route::get('orders/{order:uuid}/invoice', [EcommerceOrderController::class, 'invoicePdf'])
@@ -67,10 +79,13 @@ Route::get('credit-accounts/{creditAccount:uuid}/statement-pdf', [CreditAccountC
     ->name('credit-accounts.statement-pdf')
     ->middleware('signed');
 
-Route::middleware('auth')->group(function () {
+Route::middleware(['auth', 'active', 'shop.linked'])->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
-    Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+    // No self-deletion: staff deactivate themselves, the business owner deletes accounts
+    Route::post('/profile/deactivate', [ProfileController::class, 'deactivate'])
+        ->middleware(ProtectAgainstSpam::class)
+        ->name('profile.deactivate');
 
     // User Management Routes
     Route::resource('users', UserController::class);

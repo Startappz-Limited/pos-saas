@@ -16,6 +16,7 @@ class CategoryFactory extends Factory
         $name = fake()->unique()->words(2, true);
 
         return [
+            'business_id' => fn (): int => BusinessFactory::defaultId(),
             'uuid' => (string) Str::uuid(),
             'name' => ucwords($name),
             'slug' => Str::slug($name),

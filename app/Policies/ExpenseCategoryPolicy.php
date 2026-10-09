@@ -4,13 +4,16 @@ namespace App\Policies;
 
 use App\Models\ExpenseCategory;
 use App\Models\User;
+use App\Policies\Concerns\HandlesFullAccess;
 
 class ExpenseCategoryPolicy
 {
+    use HandlesFullAccess;
+
     /**
      * Perform pre-authorization checks.
      */
-    public function before(User $user, string $ability): ?bool
+    public function before(User $user, string $ability, mixed ...$arguments): ?bool
     {
         // Super-admin has unrestricted access
         if ($user->hasRole('super-admin')) {
@@ -18,8 +21,9 @@ class ExpenseCategoryPolicy
         }
 
         // Full-access permission grants all abilities
-        if ($user->can('expense-categories.full-access')) {
-            return true;
+        // Full access grants the permissions, not a way around the rules below
+        if (($decision = $this->decideWithFullAccess($user, 'expense-categories', $ability, $arguments)) !== null) {
+            return $decision;
         }
 
         return null;

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToAccessibleShop;
 use App\Support\PhoneNumber;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -15,6 +16,7 @@ use Illuminate\Support\Str;
 
 class Customer extends Model
 {
+    use BelongsToAccessibleShop;
     use HasFactory, Notifiable, SoftDeletes;
 
     protected $fillable = [

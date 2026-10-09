@@ -4,6 +4,9 @@ namespace App\Http\Requests;
 
 use App\Models\Product;
 use App\Models\PurchaseOrder;
+use App\Models\Shop;
+use App\Models\Supplier;
+use App\Rules\ExistsForViewer;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Validator;
@@ -26,8 +29,8 @@ class UpdatePurchaseOrderRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'supplier_id' => ['sometimes', 'required', 'exists:suppliers,id'],
-            'shop_id' => ['sometimes', 'required', 'exists:shops,id'],
+            'supplier_id' => ['sometimes', 'required', new ExistsForViewer(Supplier::class)],
+            'shop_id' => ['sometimes', 'required', new ExistsForViewer(Shop::class)],
             'order_date' => ['sometimes', 'required', 'date'],
             'expected_delivery_date' => ['nullable', 'date', 'after:order_date'],
             'actual_delivery_date' => ['nullable', 'date'],
@@ -41,7 +44,7 @@ class UpdatePurchaseOrderRequest extends FormRequest
             'terms_and_conditions' => ['nullable', 'string'],
             'items' => ['sometimes', 'array'],
             'items.*.id' => ['nullable', 'exists:purchase_order_items,id'],
-            'items.*.product_id' => ['required', 'exists:products,id'],
+            'items.*.product_id' => ['required', new ExistsForViewer(Product::class)],
             'items.*.product_variation_id' => ['nullable', 'exists:product_variations,id'],
             'items.*.quantity_ordered' => ['required', 'numeric', 'min:0.01'],
             'items.*.unit_cost' => ['required', 'numeric', 'min:0'],

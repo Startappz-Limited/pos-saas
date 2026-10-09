@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\PostStatus;
 use App\Enums\SocialPlatform;
+use App\Models\Concerns\BelongsToAccessibleShop;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -13,6 +14,7 @@ use Illuminate\Support\Str;
 
 class CampaignPost extends Model
 {
+    use BelongsToAccessibleShop;
     use HasFactory, SoftDeletes;
 
     protected $fillable = [
@@ -137,7 +139,7 @@ class CampaignPost extends Model
             $this->caption,
             $this->call_to_action,
             $this->landing_url,
-            collect($this->hashtags ?? [])->map(fn($tag) => Str::startsWith($tag, '#') ? $tag : '#' . ltrim($tag, '#'))->implode(' '),
+            collect($this->hashtags ?? [])->map(fn ($tag) => Str::startsWith($tag, '#') ? $tag : '#'.ltrim($tag, '#'))->implode(' '),
         ]);
 
         return implode("\n\n", $parts);

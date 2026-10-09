@@ -97,7 +97,9 @@ return [
          * foreign key is other than `team_id`.
          */
 
-        'team_foreign_key' => 'team_id',
+        // Teams are businesses: each business has its own roles (see Role and
+        // App\Support\DefaultRoles). Users with no business use team 0.
+        'team_foreign_key' => 'business_id',
     ],
 
     /*
@@ -140,7 +142,7 @@ return [
      * (view the latest version of this package's migration file)
      */
 
-    'teams' => false,
+    'teams' => true,
 
     /*
      * The class to use to resolve the permissions team id

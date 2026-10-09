@@ -12,6 +12,9 @@ class UpdateUserAction
      */
     public function execute(User $user, array $data): User
     {
+        // Absent means "leave the shops alone"; the web form always sends the
+        // key (empty when every box is unticked), the API only when it means it.
+        $syncShops = array_key_exists('shop_ids', $data);
         $shopIds = $data['shop_ids'] ?? [];
         unset($data['role_id'], $data['roles'], $data['shop_ids']);
 
@@ -24,7 +27,9 @@ class UpdateUserAction
         }
 
         $user->update($data);
-        $user->shops()->sync($shopIds);
+        if ($syncShops) {
+            $user->shops()->sync($shopIds);
+        }
 
         return $user->fresh(['shops']);
     }

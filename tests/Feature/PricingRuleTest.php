@@ -32,7 +32,7 @@ test('authorized user can view pricing rules', function () {
 });
 
 test('unauthorized user cannot view pricing rules', function () {
-    $user = User::factory()->create();
+    $user = staffUser();
     $this->actingAs($user);
 
     $response = $this->get(route('pricing-rules.index'));

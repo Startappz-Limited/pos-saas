@@ -12,6 +12,7 @@ use App\Notifications\Channels\WhatsAppChannel;
 use App\Notifications\CreditBalanceNotification;
 use App\Notifications\PaymentReceivedNotification;
 use App\Notifications\SaleCompletedNotification;
+use Database\Factories\BusinessFactory;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Str;
@@ -369,7 +370,7 @@ describe('WhatsAppChannel DB Logging', function () {
 describe('SaleController WhatsApp notifications', function () {
     beforeEach(function () {
         $this->saleSource = SaleSource::firstOrCreate(
-            ['name' => 'Walk-in'],
+            ['business_id' => BusinessFactory::defaultId(), 'name' => 'Walk-in'],
             ['is_active' => true, 'sort_order' => 1]
         );
     });

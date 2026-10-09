@@ -206,7 +206,7 @@
                                     @if ($purchaseOrder->approver)
                                         <tr>
                                             <td class="text-muted">Approved By:</td>
-                                            <td>{{ $purchaseOrder->approver->name }}</td>
+                                            <td>{{ $purchaseOrder->approver?->name ?? __('Deleted user') }}</td>
                                         </tr>
                                         <tr>
                                             <td class="text-muted">Approved At:</td>

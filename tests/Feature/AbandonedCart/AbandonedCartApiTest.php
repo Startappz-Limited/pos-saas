@@ -14,6 +14,7 @@ use App\Models\Sale;
 use App\Models\SaleSource;
 use App\Models\Shop;
 use App\Models\User;
+use Database\Factories\BusinessFactory;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
@@ -88,7 +89,7 @@ describe('access', function () {
     });
 
     it('requires the abandoned-carts.view permission', function () {
-        Sanctum::actingAs(User::factory()->create());
+        Sanctum::actingAs(staffUser());
 
         $this->getJson('/api/abandoned-carts')->assertForbidden();
     });
@@ -112,9 +113,10 @@ describe('access', function () {
     it('refuses every action on another shop\'s cart', function (string $method, string $suffix) {
         Sanctum::actingAs($this->user);
 
+        // Another shop's cart is invisible to this user, so it is not found
         $this->json($method, "/api/abandoned-carts/{$this->foreignCart->uuid}{$suffix}", [
             'message' => 'x', 'title' => 'x', 'scheduled_at' => now()->addDay()->toIso8601String(), 'payment_method' => 'cash', 'status' => 'lost',
-        ])->assertForbidden();
+        ])->assertNotFound();
     })->with([
         'show' => ['GET', ''],
         'update' => ['PATCH', ''],
@@ -245,7 +247,7 @@ describe('follow-up', function () {
 
         $foreignReminder = $this->foreignCart->logActivity('Not yours', '', type: AlertType::CART_REMINDER);
 
-        $this->postJson("/api/abandoned-carts/{$this->cart->uuid}/reminders/{$foreignReminder->uuid}/resolve")->assertForbidden();
+        $this->postJson("/api/abandoned-carts/{$this->cart->uuid}/reminders/{$foreignReminder->uuid}/resolve")->assertNotFound();
         $this->postJson("/api/abandoned-carts/{$this->cart->uuid}/reminders/{$reminder['uuid']}/resolve")->assertOk();
 
         expect(Alert::where('uuid', $reminder['uuid'])->value('is_resolved'))->toBeTruthy();
@@ -338,14 +340,14 @@ describe('converting to a sale', function () {
 
         $sale = Sale::sole();
         $cart = $this->cart->fresh();
-        $year = now()->format('Y');
+        $invoice = "INV-NRB-{$this->shop->invoice_code}-".now()->format('Y').'-000001';
 
         expect((float) $sale->total_amount)->toBe(1160.0)
             ->and((float) $sale->tax_amount)->toBe(160.0)
             ->and((float) $sale->taxable_amount)->toBe(1000.0)
             ->and((float) $sale->total_profit)->toBe(400.0)
             ->and($sale->tax_inclusive)->toBeTrue()
-            ->and($sale->invoice_number)->toBe("INV-NRB-{$year}-000001")
+            ->and($sale->invoice_number)->toBe($invoice)
             ->and($sale->source->name)->toBe('Abandoned Cart')
             ->and($sale->customer_id)->toBe($customer->id)
             ->and($sale->payment_status)->toBe('paid')
@@ -357,12 +359,13 @@ describe('converting to a sale', function () {
             ->and($cart->converted_by)->toBe($this->user->id);
 
         Queue::assertPushed(AbandonedCartWriteBackJob::class, fn ($job) => $job->status === 'recovered'
-            && $job->reference === "INV-NRB-{$year}-000001");
+            && $job->reference === $invoice);
     });
 
     it('uses the existing Abandoned Cart sale source rather than creating another', function () {
         Queue::fake([AbandonedCartWriteBackJob::class]);
-        $source = SaleSource::create(['name' => 'Abandoned Cart', 'is_active' => true, 'sort_order' => 6]);
+        // Every business starts with an "Abandoned Cart" source (SaleSource::defaults()).
+        $source = SaleSource::withoutGlobalScopes()->where(['business_id' => BusinessFactory::defaultId(), 'name' => 'Abandoned Cart'])->firstOrFail();
         sellableCart($this->cart);
         Sanctum::actingAs($this->user);
 
@@ -463,7 +466,7 @@ describe('web screens', function () {
         $this->actingAs($viewer);
 
         $this->get(route('abandoned-carts.show', $this->cart))->assertOk()->assertDontSee('SECRET-TOKEN');
-        $this->get(route('abandoned-carts.show', $this->foreignCart))->assertForbidden();
+        $this->get(route('abandoned-carts.show', $this->foreignCart))->assertNotFound();
     });
 
     it('converts from the cart page and lands on the sale', function () {
@@ -495,7 +498,7 @@ describe('web screens', function () {
             ->assertOk()
             ->assertSee(route('abandoned-carts.index'), false);
 
-        $other = User::factory()->create();
+        $other = staffUser($this->shop);
         $other->givePermissionTo(['sales.view', 'ecommerce-orders.view']);
 
         $this->actingAs($other)->get(route('ecommerce-orders.index'))

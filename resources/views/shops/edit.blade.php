@@ -31,12 +31,13 @@
                             </div>
 
                             <div class="col-md-6">
-                                <label for="code" class="form-label">Shop Code <span
-                                        class="text-danger">*</span></label>
+                                <label for="code" class="form-label">Shop Code </label>
                                 <input type="text" class="form-control @error('code') is-invalid @enderror"
                                     id="code" name="code" value="{{ old('code', $shop->code) }}"
-                                    placeholder="e.g., SHOP-001" required>
-                                <div class="form-text">Unique identifier (uppercase letters, numbers, and hyphens only)
+                                    placeholder="e.g., SHOP-001">
+                                 <div class="form-text">
+                                    Enter a unique shop code using uppercase letters, numbers, and hyphens.
+                                    Leave this field empty to have one generated automatically.
                                 </div>
                                 @error('code')
                                     <div class="invalid-feedback">{{ $message }}</div>
@@ -106,7 +107,7 @@
                             <div class="col-md-6">
                                 <label for="country" class="form-label">Country</label>
                                 <input type="text" class="form-control @error('country') is-invalid @enderror"
-                                    id="country" name="country" value="{{ old('country', $shop->country) }}">
+                                    id="country" name="country" value="{{ old('country', $shop->country) }}" required>
                                 @error('country')
                                     <div class="invalid-feedback">{{ $message }}</div>
                                 @enderror
@@ -489,7 +490,7 @@
                                     @if ($shop->creator)
                                         <tr>
                                             <td class="text-muted">Created By:</td>
-                                            <td class="text-end">{{ $shop->creator->name }}</td>
+                                            <td class="text-end">{{ $shop->creator?->name ?? __('Deleted user') }}</td>
                                         </tr>
                                     @endif
                                 </tbody>

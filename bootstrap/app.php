@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Middleware\EnsureUserIsActive;
+use App\Http\Middleware\EnsureUserIsLinkedToShop;
 use App\Http\Middleware\SecurityHeaders;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -22,6 +24,13 @@ return Application::configure(basePath: dirname(__DIR__))
         // routes/api.php. Limits live in config/ratelimit.php.
         $middleware->api(append: [
             'throttle:api',
+        ]);
+
+        // Staff without a shop see the "contact your administrator" page
+        // (web) or a 403 (api). Applied to the authenticated route groups.
+        $middleware->alias([
+            'active' => EnsureUserIsActive::class,
+            'shop.linked' => EnsureUserIsLinkedToShop::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

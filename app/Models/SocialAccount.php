@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\SocialPlatform;
+use App\Models\Concerns\BelongsToAccessibleShop;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -14,6 +15,7 @@ use Illuminate\Support\Str;
 
 class SocialAccount extends Model
 {
+    use BelongsToAccessibleShop;
     use HasFactory, SoftDeletes;
 
     protected $fillable = [

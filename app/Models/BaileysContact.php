@@ -2,12 +2,14 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToAccessibleShop;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class BaileysContact extends Model
 {
+    use BelongsToAccessibleShop;
     use HasFactory;
 
     protected $fillable = [

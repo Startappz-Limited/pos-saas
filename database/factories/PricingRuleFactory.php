@@ -3,13 +3,14 @@
 namespace Database\Factories;
 
 use App\Enums\PricingType;
+use App\Models\PricingRule;
 use App\Models\Product;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Str;
 
 /**
- * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\PricingRule>
+ * @extends Factory<PricingRule>
  */
 class PricingRuleFactory extends Factory
 {
@@ -23,6 +24,7 @@ class PricingRuleFactory extends Factory
         $price = fake()->randomFloat(2, 10, 500);
 
         return [
+            'business_id' => fn (): int => BusinessFactory::defaultId(),
             'uuid' => (string) Str::uuid(),
             'name' => fake()->words(3, true).' Pricing',
             'description' => fake()->optional()->sentence(),

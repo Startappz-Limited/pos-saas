@@ -41,9 +41,11 @@ class CashRegisterResource extends JsonResource
             'closed_at' => $this->closed_at?->toISOString(),
             'opening_notes' => $this->opening_notes,
             'closing_notes' => $this->closing_notes,
+            // The cashier may have been deleted (right to erasure): keep the
+            // object and a string name, which is the shape the app parses
             'user' => $this->whenLoaded('user', fn () => [
-                'id' => $this->user->id,
-                'name' => $this->user->name,
+                'id' => $this->user?->id,
+                'name' => $this->user?->name ?? 'Deleted user',
             ]),
             'closed_by' => $this->whenLoaded('closedBy', fn () => $this->closedBy ? [
                 'id' => $this->closedBy->id,

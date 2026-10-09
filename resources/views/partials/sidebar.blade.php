@@ -145,7 +145,8 @@
                 </li>
             @endcan
 
-            @can('stock.view')
+            {{-- There is no stock.view permission; show the menu for any of its screens --}}
+            @canany(['stock-intake.view', 'stock-adjustments.view', 'stock-movements.view', 'inventory-snapshots.view', 'alerts.view'])
                 <li class="nav-item">
                     <a class="nav-link menu-arrow" href="javascript:void(0);" data-bs-toggle="collapse"
                         data-bs-target="#sidebarInventory" role="button"
@@ -159,30 +160,40 @@
                     <div class="collapse {{ request()->routeIs('stock.*', 'inventory-snapshots.*', 'stock-movements.*', 'low-stock-alerts.*') ? 'show' : '' }}"
                         id="sidebarInventory">
                         <ul class="nav sub-navbar-nav">
-                            <li class="sub-nav-item">
-                                <a class="sub-nav-link {{ request()->routeIs('stock-intakes.*') ? 'active' : '' }}"
-                                    href="{{ route('stock-intakes.index') }}">Stock Intake</a>
-                            </li>
-                            <li class="sub-nav-item">
-                                <a class="sub-nav-link {{ request()->routeIs('stock-adjustments.*') ? 'active' : '' }}"
-                                    href="{{ route('stock-adjustments.index') }}">Adjustments</a>
-                            </li>
-                            <li class="sub-nav-item">
-                                <a class="sub-nav-link {{ request()->routeIs('stock-movements.*') ? 'active' : '' }}"
-                                    href="{{ route('stock-movements.index') }}">Stock Movements</a>
-                            </li>
-                            <li class="sub-nav-item">
-                                <a class="sub-nav-link {{ request()->routeIs('inventory-snapshots.*') ? 'active' : '' }}"
-                                    href="{{ route('inventory-snapshots.index') }}">Snapshots</a>
-                            </li>
-                            <li class="sub-nav-item">
-                                <a class="sub-nav-link {{ request()->routeIs('low-stock-alerts.*') ? 'active' : '' }}"
-                                    href="{{ route('low-stock-alerts.index') }}">Low Stock Alerts</a>
-                            </li>
+                            @can('stock-intake.view')
+                                <li class="sub-nav-item">
+                                    <a class="sub-nav-link {{ request()->routeIs('stock-intakes.*') ? 'active' : '' }}"
+                                        href="{{ route('stock-intakes.index') }}">Stock Intake</a>
+                                </li>
+                            @endcan
+                            @can('stock-adjustments.view')
+                                <li class="sub-nav-item">
+                                    <a class="sub-nav-link {{ request()->routeIs('stock-adjustments.*') ? 'active' : '' }}"
+                                        href="{{ route('stock-adjustments.index') }}">Adjustments</a>
+                                </li>
+                            @endcan
+                            @can('stock-movements.view')
+                                <li class="sub-nav-item">
+                                    <a class="sub-nav-link {{ request()->routeIs('stock-movements.*') ? 'active' : '' }}"
+                                        href="{{ route('stock-movements.index') }}">Stock Movements</a>
+                                </li>
+                            @endcan
+                            @can('inventory-snapshots.view')
+                                <li class="sub-nav-item">
+                                    <a class="sub-nav-link {{ request()->routeIs('inventory-snapshots.*') ? 'active' : '' }}"
+                                        href="{{ route('inventory-snapshots.index') }}">Snapshots</a>
+                                </li>
+                            @endcan
+                            @can('alerts.view')
+                                <li class="sub-nav-item">
+                                    <a class="sub-nav-link {{ request()->routeIs('low-stock-alerts.*') ? 'active' : '' }}"
+                                        href="{{ route('low-stock-alerts.index') }}">Low Stock Alerts</a>
+                                </li>
+                            @endcan
                         </ul>
                     </div>
                 </li>
-            @endcan
+            @endcanany
 
             @if (auth()->user()?->can('purchase_orders.view') || auth()->user()?->can('purchase_returns.view'))
                 <li class="nav-item">

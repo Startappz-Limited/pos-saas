@@ -4,13 +4,17 @@ namespace App\Policies;
 
 use App\Models\CreditAccount;
 use App\Models\User;
+use App\Policies\Concerns\HandlesFullAccess;
 
 class CreditAccountPolicy
 {
-    public function before(User $user, string $ability): ?bool
+    use HandlesFullAccess;
+
+    public function before(User $user, string $ability, mixed ...$arguments): ?bool
     {
-        if ($user->can('credit-sales.full-access')) {
-            return true;
+        // Full access grants the permissions, not a way around the rules below
+        if (($decision = $this->decideWithFullAccess($user, 'credit-sales', $ability, $arguments)) !== null) {
+            return $decision;
         }
 
         return null;

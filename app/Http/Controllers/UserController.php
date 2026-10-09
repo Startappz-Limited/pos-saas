@@ -30,7 +30,7 @@ class UserController extends Controller
         $filters = $request->only(['status', 'role', 'search']);
         $users = $this->userService->getPaginated($filters, $request->get('per_page', 15));
         $statistics = $this->userService->getStatistics();
-        $roles = Role::select('id', 'name')->get();
+        $roles = Role::assignableBy(auth()->user())->select('id', 'name')->get();
 
         return view('users.index', compact('users', 'statistics', 'roles', 'filters'));
     }
@@ -42,7 +42,7 @@ class UserController extends Controller
     {
         $this->authorize('create', User::class);
 
-        $roles = Role::select('id', 'name')->get();
+        $roles = Role::assignableBy(auth()->user())->select('id', 'name')->get();
         $shops = Shop::select('id', 'name')->get();
         $statuses = UserStatus::options();
 
@@ -82,7 +82,7 @@ class UserController extends Controller
     {
         $this->authorize('update', $user);
 
-        $roles = Role::select('id', 'name')->get();
+        $roles = Role::assignableBy(auth()->user())->select('id', 'name')->get();
         $shops = Shop::select('id', 'name')->get();
         $statuses = UserStatus::options();
         $user->load(['roles', 'shops']);

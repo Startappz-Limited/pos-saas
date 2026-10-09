@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\SupplierStatus;
+use App\Models\Concerns\BelongsToBusiness;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -13,6 +14,7 @@ use Illuminate\Support\Str;
 
 class Supplier extends Model
 {
+    use BelongsToBusiness;
     use HasFactory, HasUuids, SoftDeletes;
 
     protected $fillable = [

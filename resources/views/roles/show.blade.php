@@ -18,27 +18,23 @@
                     @endif
 
                     <div class="mt-3">
-                        @if ($role->is_system)
-                            <x-ui-badge variant="warning">System Role</x-ui-badge>
+                        @if ($role->isGlobal())
+                            <x-ui-badge variant="warning">{{ __('System Role') }}</x-ui-badge>
                         @else
-                            <x-ui-badge variant="secondary">Custom Role</x-ui-badge>
+                            <x-ui-badge variant="secondary">{{ __('Business Role') }}</x-ui-badge>
                         @endif
-
-                        <x-ui-badge :variant="$role->is_active ? 'success' : 'danger'">
-                            {{ $role->is_active ? 'Active' : 'Inactive' }}
-                        </x-ui-badge>
                     </div>
 
                     <div class="mt-4 d-flex gap-2 justify-content-center">
-                        @can('roles.edit')
+                        @can('update', $role)
                             <x-ui-button variant="primary" size="sm" href="{{ route('roles.edit', $role) }}"
                                 icon="solar:pen-2-broken">
                                 Edit Role
                             </x-ui-button>
                         @endcan
 
-                        @if (!$role->is_system)
-                            @can('roles.destroy')
+                        @if (!$role->isSystemRole())
+                            @can('delete', $role)
                                 <x-ui-button variant="danger" size="sm" data-bs-toggle="modal"
                                     data-bs-target="#deleteRoleModal">
                                     Delete
@@ -103,8 +99,8 @@
                             <iconify-icon icon="solar:check-circle-bold-duotone"
                                 class="avatar-title fs-32 text-info"></iconify-icon>
                         </div>
-                        <h4 class="mb-0">{{ $role->is_active ? 'Yes' : 'No' }}</h4>
-                        <p class="text-muted mb-0">Active Status</p>
+                        <h4 class="mb-0">{{ $role->isGlobal() ? __('All businesses') : ($role->business?->name ?? __('Business')) }}</h4>
+                        <p class="text-muted mb-0">{{ __('Applies to') }}</p>
                     </x-ui-card>
                 </div>
             </div>
@@ -150,12 +146,12 @@
                             </tr>
                         </x-slot:header>
 
-                        <x-slot:body>
+                        {{-- Rows go in the default slot: ui-table renders $slot, not a body slot --}}
                             @foreach ($role->users as $user)
                                 <tr>
                                     <td>
                                         <div class="d-flex align-items-center">
-                                            <img src="{{ $user->avatar ?? asset('assets/images/users/avatar-1.jpg') }}"
+                                            <img src="{{ $user->profile_photo_url }}"
                                                 alt="{{ $user->name }}" class="avatar-sm rounded-circle me-2">
                                             <div>
                                                 <h6 class="mb-0">{{ $user->name }}</h6>
@@ -164,14 +160,13 @@
                                     </td>
                                     <td>{{ $user->email }}</td>
                                     <td>
-                                        <x-ui-badge :variant="$user->is_active ? 'success' : 'danger'">
-                                            {{ $user->is_active ? 'Active' : 'Inactive' }}
+                                        <x-ui-badge :variant="$user->isActive() ? 'success' : 'danger'">
+                                            {{ $user->isActive() ? __('Active') : __('Inactive') }}
                                         </x-ui-badge>
                                     </td>
                                     <td>{{ $user->created_at->format('M d, Y') }}</td>
                                 </tr>
                             @endforeach
-                        </x-slot:body>
                     </x-ui-table>
                 @else
                     <x-ui-empty-state icon="solar:users-group-rounded-broken" title="No users assigned"
@@ -181,8 +176,8 @@
         </div>
     </div>
 
-    @if (!$role->is_system)
-        @can('roles.destroy')
+    @if (!$role->isSystemRole())
+        @can('delete', $role)
             @push('modals')
                 <x-ui-modal id="deleteRoleModal" title="Confirm Delete" centered>
                     <x-slot:body>

@@ -43,10 +43,10 @@ test('dashboard rejects inaccessible shop filters for allocated users', function
         ->assertForbidden();
 });
 
-test('dashboard allows unallocated users to filter any shop', function () {
+test('dashboard lets a shop owner filter any shop of their business', function () {
     $shop = Shop::factory()->create();
     $otherShop = Shop::factory()->create();
-    $user = User::factory()->create();
+    $user = User::factory()->owner()->create();
 
     $ownSale = Sale::factory()->create([
         'shop_id' => $shop->id,

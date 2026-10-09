@@ -8,12 +8,13 @@ use App\Models\SaleSource;
 use App\Models\Shop;
 use App\Models\User;
 use App\Services\ReportService;
+use Database\Factories\BusinessFactory;
 use Spatie\Permission\Models\Permission;
 
 beforeEach(function () {
     $this->shopA = Shop::factory()->create(['name' => 'Shop A']);
     $this->shopB = Shop::factory()->create(['name' => 'Shop B']);
-    $this->user = User::factory()->create();
+    $this->user = User::factory()->owner()->create();
     $this->actingAs($this->user);
 
     Permission::findOrCreate('sales.create');
@@ -21,7 +22,7 @@ beforeEach(function () {
 });
 
 test('a sale mixing products from two shops attributes each line to its product owning shop', function () {
-    $source = SaleSource::create(['name' => 'Counter', 'is_active' => true, 'sort_order' => 1]);
+    $source = SaleSource::create(['business_id' => BusinessFactory::defaultId(), 'name' => 'Counter', 'is_active' => true, 'sort_order' => 1]);
 
     $productA = Product::factory()->create([
         'shop_id' => $this->shopA->id,
@@ -66,7 +67,7 @@ test('a sale mixing products from two shops attributes each line to its product 
 });
 
 test('shop performance report splits revenue per shop at the line-item level', function () {
-    $source = SaleSource::create(['name' => 'Counter', 'is_active' => true, 'sort_order' => 1]);
+    $source = SaleSource::create(['business_id' => BusinessFactory::defaultId(), 'name' => 'Counter', 'is_active' => true, 'sort_order' => 1]);
 
     $productA = Product::factory()->create([
         'shop_id' => $this->shopA->id, 'stock_quantity' => 10, 'selling_price' => 100, 'cost_price' => 40,

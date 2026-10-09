@@ -6,9 +6,14 @@ use App\Enums\PurchaseReturnReason;
 use App\Enums\PurchaseReturnStatus;
 use App\Enums\StockIntakeStatus;
 use App\Models\Product;
+use App\Models\PurchaseOrder;
 use App\Models\PurchaseReturnItem;
 use App\Models\ReturnItem;
+use App\Models\SaleReturn;
+use App\Models\Shop;
 use App\Models\StockIntake;
+use App\Models\Supplier;
+use App\Rules\ExistsForViewer;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Collection;
 use Illuminate\Validation\Rule;
@@ -90,10 +95,10 @@ class StorePurchaseReturnRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'purchase_order_id' => ['nullable', 'exists:purchase_orders,id'],
-            'supplier_id' => ['required', 'exists:suppliers,id'],
-            'shop_id' => ['required', 'exists:shops,id'],
-            'sale_return_id' => ['nullable', 'exists:returns,id'],
+            'purchase_order_id' => ['nullable', new ExistsForViewer(PurchaseOrder::class)],
+            'supplier_id' => ['required', new ExistsForViewer(Supplier::class)],
+            'shop_id' => ['required', new ExistsForViewer(Shop::class)],
+            'sale_return_id' => ['nullable', new ExistsForViewer(SaleReturn::class)],
             'status' => ['nullable', Rule::in([
                 PurchaseReturnStatus::DRAFT->value,
                 PurchaseReturnStatus::PENDING->value,
@@ -105,9 +110,9 @@ class StorePurchaseReturnRequest extends FormRequest
             'shipment_reference' => ['nullable', 'string', 'max:255'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.purchase_order_item_id' => ['nullable', 'exists:purchase_order_items,id'],
-            'items.*.stock_intake_id' => ['nullable', 'exists:stock_intakes,id'],
+            'items.*.stock_intake_id' => ['nullable', new ExistsForViewer(StockIntake::class)],
             'items.*.return_item_id' => ['nullable', 'exists:return_items,id'],
-            'items.*.product_id' => ['required', 'exists:products,id'],
+            'items.*.product_id' => ['required', new ExistsForViewer(Product::class)],
             'items.*.product_variation_id' => ['nullable', 'exists:product_variations,id'],
             'items.*.quantity' => ['required', 'integer', 'min:1'],
             'items.*.unit_cost' => ['nullable', 'numeric', 'min:0'],

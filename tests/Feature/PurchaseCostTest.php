@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Services\Integration\ImageDownloadService;
 use App\Services\Integration\ShopifyProductSyncService;
 use App\Services\Integration\WooCommerceProductSyncService;
+use Database\Factories\BusinessFactory;
 use Illuminate\Support\Str;
 use Spatie\Permission\Models\Permission;
 
@@ -376,7 +377,7 @@ it('still completes a sale when the purchase cost is unknown', function () {
     $user->shops()->sync([$this->shop->id]);
     $user->givePermissionTo('sales.create');
 
-    $source = SaleSource::create(['name' => 'Counter', 'is_active' => true, 'sort_order' => 1]);
+    $source = SaleSource::create(['business_id' => BusinessFactory::defaultId(), 'name' => 'Counter', 'is_active' => true, 'sort_order' => 1]);
     $product = Product::factory()->withoutPurchaseCost()->create([
         'shop_id' => $this->shop->id,
         'stock_quantity' => 10,

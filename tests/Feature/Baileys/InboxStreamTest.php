@@ -8,7 +8,7 @@ use Database\Seeders\PermissionSeeder;
 
 beforeEach(function () {
     $this->seed(PermissionSeeder::class);
-    $user = User::factory()->create();
+    $user = User::factory()->owner()->create();
     $user->givePermissionTo(['baileys.view']);
     $this->actingAs($user);
 });

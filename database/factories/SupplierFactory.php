@@ -3,11 +3,12 @@
 namespace Database\Factories;
 
 use App\Enums\SupplierStatus;
+use App\Models\Supplier;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Str;
 
 /**
- * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\Supplier>
+ * @extends Factory<Supplier>
  */
 class SupplierFactory extends Factory
 {
@@ -19,6 +20,7 @@ class SupplierFactory extends Factory
     public function definition(): array
     {
         return [
+            'business_id' => fn (): int => BusinessFactory::defaultId(),
             'uuid' => (string) Str::uuid(),
             'name' => fake()->company(),
             'code' => 'SUP-'.strtoupper(Str::random(8)),

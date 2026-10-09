@@ -36,7 +36,7 @@ test('authorized user can view products', function () {
 });
 
 test('unauthorized user cannot view products', function () {
-    $user = User::factory()->create();
+    $user = staffUser();
     $this->actingAs($user);
 
     $response = $this->get(route('products.index'));

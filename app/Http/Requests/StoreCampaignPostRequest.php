@@ -2,6 +2,9 @@
 
 namespace App\Http\Requests;
 
+use App\Models\Product;
+use App\Models\SocialAccount;
+use App\Rules\ExistsForViewer;
 use Illuminate\Foundation\Http\FormRequest;
 
 class StoreCampaignPostRequest extends FormRequest
@@ -17,8 +20,8 @@ class StoreCampaignPostRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'social_account_id' => ['required', 'integer', 'exists:social_accounts,id'],
-            'product_id' => ['nullable', 'integer', 'exists:products,id'],
+            'social_account_id' => ['required', 'integer', new ExistsForViewer(SocialAccount::class)],
+            'product_id' => ['nullable', 'integer', new ExistsForViewer(Product::class)],
             'caption' => ['required', 'string', 'max:5000'],
             'hashtags' => ['nullable', 'array'],
             'hashtags.*' => ['string', 'max:50'],

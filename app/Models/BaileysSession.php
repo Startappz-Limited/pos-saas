@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\BaileysSessionStatus;
+use App\Models\Concerns\BelongsToAccessibleShop;
 use App\Services\BaileysMediaService;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
@@ -14,6 +15,7 @@ use Illuminate\Support\Str;
 
 class BaileysSession extends Model
 {
+    use BelongsToAccessibleShop;
     use HasFactory;
 
     protected $fillable = [

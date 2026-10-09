@@ -8,6 +8,7 @@ use App\Enums\BaileysSessionStatus;
 use App\Http\Controllers\Controller;
 use App\Models\BaileysSession;
 use App\Models\Shop;
+use App\Rules\ExistsForViewer;
 use Carbon\Carbon;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
@@ -94,7 +95,7 @@ class SessionController extends Controller
         $this->authorize('create', BaileysSession::class);
 
         $data = $request->validate([
-            'shop_id' => ['required', 'integer', 'exists:shops,id'],
+            'shop_id' => ['required', 'integer', new ExistsForViewer(Shop::class)],
             'name' => ['nullable', 'string', 'max:100'],
         ]);
 

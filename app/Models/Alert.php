@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\AlertCategory;
 use App\Enums\AlertSeverity;
 use App\Enums\AlertType;
+use App\Models\Concerns\BelongsToAccessibleShop;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
@@ -12,6 +13,8 @@ use Illuminate\Support\Str;
 
 class Alert extends Model
 {
+    use BelongsToAccessibleShop;
+
     protected $fillable = [
         'uuid',
         'shop_id',
@@ -120,9 +123,10 @@ class Alert extends Model
     }
 
     /**
-     * Restrict to alerts the user may see. Mirrors Sale::scopeVisibleTo(), but
-     * `shop_id` is nullable here — those are system-wide alerts and stay visible
-     * to everyone.
+     * Restrict to alerts the user may see. Mirrors Sale::scopeVisibleTo().
+     * `shop_id` is nullable here, but a shop-less alert belongs to no business:
+     * the ShopAccessScope global scope already hides it from everyone except a
+     * super-admin, so the whereNull branch below only matters for them.
      */
     public function scopeVisibleTo($query, User $user)
     {
@@ -132,7 +136,7 @@ class Alert extends Model
 
         return $query->where(function ($q) use ($user): void {
             $q->whereNull($this->qualifyColumn('shop_id'))
-                ->orWhereIn($this->qualifyColumn('shop_id'), $user->assignedShopIds());
+                ->orWhereIn($this->qualifyColumn('shop_id'), $user->accessibleShopIds());
         });
     }
 

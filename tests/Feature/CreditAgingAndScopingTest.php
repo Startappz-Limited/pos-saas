@@ -138,8 +138,8 @@ describe('cross-shop isolation on the credit accounts screen', function () {
             ->assertForbidden();
     });
 
-    it('still shows every shop to an unrestricted user', function () {
-        $admin = User::factory()->create();
+    it('shows every shop of the business to its owner', function () {
+        $admin = User::factory()->owner()->create();
         $admin->givePermissionTo('credit-sales.full-access');
 
         $response = $this->actingAs($admin)->get(route('credit-accounts.index'));

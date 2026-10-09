@@ -4,6 +4,10 @@ namespace App\Http\Requests;
 
 use App\Enums\ProductStatus;
 use App\Enums\TaxClass;
+use App\Models\Category;
+use App\Models\Shop;
+use App\Models\Supplier;
+use App\Rules\ExistsForViewer;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -23,12 +27,12 @@ class UpdateProductRequest extends FormRequest
             'slug' => ['nullable', 'string', 'max:255', Rule::unique('products', 'slug')->ignore($productId), 'regex:/^[a-z0-9-]+$/'],
             'description' => ['nullable', 'string'],
             'sku' => ['nullable', 'string', 'max:255', Rule::unique('products', 'sku')->ignore($productId)],
-            'category_id' => ['sometimes', 'required', 'exists:categories,id'],
-            'supplier_id' => ['nullable', 'exists:suppliers,id'],
-            'shop_id' => ['sometimes', 'required', 'exists:shops,id'],
+            'category_id' => ['sometimes', 'required', new ExistsForViewer(Category::class)],
+            'supplier_id' => ['nullable', new ExistsForViewer(Supplier::class)],
+            'shop_id' => ['sometimes', 'required', new ExistsForViewer(Shop::class)],
             'sync_shops' => ['nullable', 'boolean'],
             'shop_ids' => ['nullable', 'array'],
-            'shop_ids.*' => ['integer', 'exists:shops,id'],
+            'shop_ids.*' => ['integer', new ExistsForViewer(Shop::class)],
             'barcode' => ['nullable', 'string', 'max:255', Rule::unique('products', 'barcode')->ignore($productId)],
             'cost_price' => ['nullable', 'numeric', 'min:0'],
             'selling_price' => ['sometimes', 'required', 'numeric', 'min:0'],

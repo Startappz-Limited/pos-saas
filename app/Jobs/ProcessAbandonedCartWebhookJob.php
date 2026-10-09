@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Models\AbandonedCart;
+use App\Models\Role;
 use App\Models\Shop;
 use App\Notifications\NewAbandonedCartNotification;
 use App\Services\Integration\AbandonedCartSyncService;
@@ -13,7 +14,6 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
-use Spatie\Permission\Exceptions\RoleDoesNotExist;
 
 /**
  * Applies one Abandoned Cart Recovery plugin webhook (topic "acr_*") to the POS.
@@ -77,7 +77,7 @@ class ProcessAbandonedCartWebhookJob implements ShouldQueue
     }
 
     /**
-     * Tell the shop's manager (and other managers / super-admins on the shop)
+     * Tell the shop's manager (and other managers / admins / super-admins on the shop)
      * about a new abandoned cart, falling back to the shop's own contact details.
      * Mirrors ProcessOrderWebhookJob::notifyShopUsers(); a failure here must never
      * fail the webhook.
@@ -97,14 +97,12 @@ class ProcessAbandonedCartWebhookJob implements ShouldQueue
                 $notified++;
             }
 
-            try {
-                $others = $this->shop->users()
-                    ->role(['manager', 'super-admin'])
-                    ->where('users.id', '!=', $manager?->id)
-                    ->get();
-            } catch (RoleDoesNotExist) {
-                $others = collect();
-            }
+            // whereHas rather than ->role(): role() throws if any listed role is
+            // missing, which would silently skip every recipient.
+            $others = $this->shop->users()
+                ->whereHas('roles', fn ($q) => $q->whereIn('name', ['manager', Role::ADMIN, Role::SUPER_ADMIN]))
+                ->where('users.id', '!=', $manager?->id)
+                ->get();
 
             foreach ($others as $user) {
                 $user->notify($notification);

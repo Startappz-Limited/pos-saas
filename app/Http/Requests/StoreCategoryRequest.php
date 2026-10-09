@@ -3,6 +3,9 @@
 namespace App\Http\Requests;
 
 use App\Enums\CategoryStatus;
+use App\Models\Category;
+use App\Rules\ExistsForViewer;
+use App\Rules\UniqueInBusiness;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -16,10 +19,10 @@ class StoreCategoryRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'name' => ['required', 'string', 'max:255', 'unique:categories,name'],
-            'slug' => ['nullable', 'string', 'max:255', 'unique:categories,slug', 'regex:/^[a-z0-9-]+$/'],
+            'name' => ['required', 'string', 'max:255', UniqueInBusiness::for('categories', 'name')],
+            'slug' => ['nullable', 'string', 'max:255', UniqueInBusiness::for('categories', 'slug'), 'regex:/^[a-z0-9-]+$/'],
             'description' => ['nullable', 'string'],
-            'parent_id' => ['nullable', 'exists:categories,id'],
+            'parent_id' => ['nullable', new ExistsForViewer(Category::class)],
             'image' => ['nullable', 'string', 'max:255'],
             'order' => ['nullable', 'integer', 'min:0'],
             'status' => ['nullable', Rule::enum(CategoryStatus::class)],

@@ -17,6 +17,7 @@ use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Models\SalePayment;
 use App\Models\Shop;
+use App\Rules\ExistsForViewer;
 use App\Services\InvoiceNumberService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -271,7 +272,7 @@ class SaleController extends Controller
         abort_unless($request->user()->canAccessShop($sale->shop_id), 403);
 
         $validated = $request->validate([
-            'customer_id' => ['nullable', 'exists:customers,id'],
+            'customer_id' => ['nullable', new ExistsForViewer(Customer::class)],
             'notes' => ['nullable', 'string', 'max:1000'],
         ]);
 

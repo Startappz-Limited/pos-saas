@@ -14,14 +14,16 @@ use App\Models\User;
  * Api\ExpenseController did not, which meant those users saw an empty expense
  * list, got a 500 on create (expenses.shop_id is NOT NULL), and a 403 on show.
  *
- * These tests act as a user with NO shop assigned — the broken case.
+ * These tests act as a user with NO shop assigned — the broken case. Since
+ * staff must now be linked to a shop to work at all, that user is a shop owner
+ * (admin): they reach every shop of their business without a pivot row.
  */
 beforeEach(function () {
     $this->shop = Shop::factory()->create();
 
     // Deliberately NOT attached to any shop.
-    $this->user = User::factory()->create();
-    expect($this->user->shop_id)->toBeNull();
+    $this->user = User::factory()->owner()->create();
+    expect($this->user->assignedShopIds())->toBeEmpty();
 
     $this->actingAs($this->user);
 

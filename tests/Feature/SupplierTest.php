@@ -29,7 +29,7 @@ test('authorized user can view suppliers', function () {
 });
 
 test('unauthorized user cannot view suppliers', function () {
-    $user = User::factory()->create();
+    $user = staffUser();
     $this->actingAs($user);
 
     $response = $this->get(route('suppliers.index'));

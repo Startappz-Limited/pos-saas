@@ -4,14 +4,15 @@ use App\Enums\AlertCategory;
 use App\Enums\AlertSeverity;
 use App\Enums\AlertType;
 use App\Models\Alert;
+use App\Models\Role;
 use App\Models\Shop;
 use App\Models\User;
 use Laravel\Sanctum\Sanctum;
 
 /**
  * Calendar events are scheduled reminders on e-commerce orders and abandoned carts. They name
- * customers and follow-ups, so a user tied to one shop must never see another shop's. System-wide
- * (shop-less) alerts stay visible to everyone, as on the alerts screens (Alert::scopeVisibleTo).
+ * customers and follow-ups, so a user tied to one shop must never see another shop's. Shop-less
+ * alerts belong to no business, so only a super-admin sees them (ShopAccessScope).
  */
 function calendarReminder(?Shop $shop, string $title): Alert
 {
@@ -48,7 +49,7 @@ function calendarTitles($response): array
 it('shows a shop-restricted user only their own shop on the web calendar', function () {
     $response = $this->actingAs($this->staffA)->getJson(route('calendar.events'))->assertOk();
 
-    expect(calendarTitles($response))->toBe(['Call back shop A customer', 'System-wide reminder']);
+    expect(calendarTitles($response))->toBe(['Call back shop A customer']);
 });
 
 it('shows a shop-restricted user only their own shop on the API calendar', function () {
@@ -56,7 +57,7 @@ it('shows a shop-restricted user only their own shop on the API calendar', funct
 
     $response = $this->getJson(route('api.calendar.events'))->assertOk()->assertJsonPath('success', true);
 
-    expect(calendarTitles($response))->toBe(['Call back shop A customer', 'System-wide reminder']);
+    expect(calendarTitles($response))->toBe(['Call back shop A customer']);
 });
 
 it('shows a user of several shops all of those shops and no others', function () {
@@ -66,13 +67,22 @@ it('shows a user of several shops all of those shops and no others', function ()
 
     $response = $this->actingAs($this->staffA)->getJson(route('calendar.events'))->assertOk();
 
-    expect(calendarTitles($response))->toBe(['Call back shop A customer', 'Call back shop C customer', 'System-wide reminder']);
+    expect(calendarTitles($response))->toBe(['Call back shop A customer', 'Call back shop C customer']);
 });
 
-it('still shows everything to a user without shop restrictions', function () {
-    $admin = User::factory()->create();
+it('shows a shop owner every shop of their business', function () {
+    $owner = User::factory()->owner()->create();
 
-    $response = $this->actingAs($admin)->getJson(route('calendar.events'))->assertOk();
+    $response = $this->actingAs($owner)->getJson(route('calendar.events'))->assertOk();
+
+    expect(calendarTitles($response))->toBe(['Call back shop A customer', 'Call back shop B customer']);
+});
+
+it('shows everything, shop-less alerts included, to a super-admin', function () {
+    $superAdmin = User::factory()->create();
+    $superAdmin->assignRole(Role::findOrCreate(Role::SUPER_ADMIN, 'web'));
+
+    $response = $this->actingAs($superAdmin)->getJson(route('calendar.events'))->assertOk();
 
     expect(calendarTitles($response))->toBe(['Call back shop A customer', 'Call back shop B customer', 'System-wide reminder']);
 });

@@ -9,7 +9,7 @@
         <div class="alert alert-success alert-dismissible fade show" role="alert">
             <iconify-icon icon="solar:check-circle-bold-duotone" class="fs-18 align-middle me-2"></iconify-icon>
             <strong>Register Open:</strong> {{ $activeRegister->register_number }} opened by
-            {{ $activeRegister->user->name }} at {{ $activeRegister->opened_at->format('h:i A') }}
+            {{ $activeRegister->user?->name ?? __('Deleted user') }} at {{ $activeRegister->opened_at->format('h:i A') }}
             <div class="mt-2">
                 <a href="{{ route('cash-registers.show', $activeRegister) }}" class="btn btn-sm btn-success me-2">
                     <iconify-icon icon="solar:eye-linear" class="align-middle"></iconify-icon> View Details
@@ -182,7 +182,7 @@
                                         </a>
                                     </td>
                                     <td>{{ $register->register_date->format('M d, Y') }}</td>
-                                    <td>{{ $register->user->name }}</td>
+                                    <td>{{ $register->user?->name ?? __('Deleted user') }}</td>
                                     <td>{{ format_currency($register->opening_balance) }}</td>
                                     <td>
                                         @if ($register->closing_balance !== null)

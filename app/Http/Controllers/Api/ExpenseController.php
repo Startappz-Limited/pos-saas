@@ -6,7 +6,10 @@ use App\Enums\ExpenseStatus;
 use App\Http\Controllers\Controller;
 use App\Models\CashRegister;
 use App\Models\Expense;
+use App\Models\ExpenseCategory;
 use App\Models\Shop;
+use App\Models\Supplier;
+use App\Rules\ExistsForViewer;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -84,8 +87,8 @@ class ExpenseController extends Controller
     public function store(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'category_id' => ['required', 'exists:expense_categories,id'],
-            'vendor_id' => ['nullable', 'exists:suppliers,id'],
+            'category_id' => ['required', new ExistsForViewer(ExpenseCategory::class)],
+            'vendor_id' => ['nullable', new ExistsForViewer(Supplier::class)],
             'title' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:1000'],
             'amount' => ['required', 'numeric', 'min:0.01'],
@@ -170,8 +173,8 @@ class ExpenseController extends Controller
         }
 
         $validated = $request->validate([
-            'category_id' => ['sometimes', 'exists:expense_categories,id'],
-            'vendor_id' => ['nullable', 'exists:suppliers,id'],
+            'category_id' => ['sometimes', new ExistsForViewer(ExpenseCategory::class)],
+            'vendor_id' => ['nullable', new ExistsForViewer(Supplier::class)],
             'title' => ['sometimes', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:1000'],
             'amount' => ['sometimes', 'numeric', 'min:0.01'],

@@ -32,7 +32,12 @@ return [
     |--------------------------------------------------------------------------
     |
     | With several shops issuing invoices concurrently, embedding the shop code
-    | keeps each shop's series independently readable: INV-KLA-2026-000123.
+    | keeps each shop's series independently readable. Shop codes are only
+    | unique within a business, so each shop also carries a generated
+    | 3-character invoice code that makes the number unique system-wide:
+    | INV-KLA-7KQ-2026-000123. (Shops created before invoice codes keep
+    | INV-KLA-2026-000123 until their shop code changes.) Turning this off
+    | drops both, and invoice numbers are then no longer unique across shops.
     |
     */
 

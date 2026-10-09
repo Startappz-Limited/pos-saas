@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\ReturnReason;
 use App\Enums\ReturnStatus;
 use App\Models\Concerns\Auditable;
+use App\Models\Concerns\BelongsToAccessibleShop;
 use Database\Factories\ReturnFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -16,6 +17,7 @@ use Illuminate\Support\Str;
 class SaleReturn extends Model
 {
     use Auditable;
+    use BelongsToAccessibleShop;
 
     /** @use HasFactory<ReturnFactory> */
     use HasFactory;

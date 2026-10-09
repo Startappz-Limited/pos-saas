@@ -14,6 +14,7 @@ use App\Models\SaleReturn;
 use App\Models\Shop;
 use App\Models\SocialAccount;
 use App\Models\StockAdjustment;
+use App\Models\User;
 use App\Observers\ProductObserver;
 use App\Policies\BaileysSessionPolicy;
 use App\Policies\CampaignPolicy;
@@ -25,6 +26,7 @@ use App\Policies\SalePolicy;
 use App\Policies\ShopPolicy;
 use App\Policies\SocialAccountPolicy;
 use App\Policies\StockAdjustmentPolicy;
+use App\Support\FullAccess;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\Paginator;
@@ -40,6 +42,7 @@ use Spatie\Permission\Events\PermissionAttached;
 use Spatie\Permission\Events\PermissionDetached;
 use Spatie\Permission\Events\RoleAttached;
 use Spatie\Permission\Events\RoleDetached;
+use Spatie\Permission\Models\Permission;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -63,9 +66,32 @@ class AppServiceProvider extends ServiceProvider
         $this->enforceHttps();
         $this->definePasswordPolicy();
 
-        // Super-admin bypasses all permission checks
-        Gate::before(function ($user, $ability) {
-            return $user->hasRole('super-admin') ? true : null;
+        // Super-admin bypasses all permission checks, except deleting a user:
+        // a platform operator deactivates or suspends accounts, and removing
+        // someone is left to the admins of their business
+        Gate::before(function ($user, $ability, $arguments = []) {
+            if (! $user->hasRole('super-admin')) {
+                return null;
+            }
+
+            if (in_array($ability, ['delete', 'forceDelete'], true) && ($arguments[0] ?? null) instanceof User) {
+                return false;
+            }
+
+            return true;
+        });
+
+        // While a policy decides for a {resource}.full-access holder, that
+        // resource's permission checks pass (see HandlesFullAccess)
+        Gate::before(fn ($user, string $ability) => FullAccess::grants($user, $ability) ? true : null);
+
+        // Admins (shop owners) and super-admins hold every permission. Grant
+        // each new permission to them as it is created, so neither role
+        // silently lacks a new feature until RoleSeeder is re-run.
+        Permission::created(function (Permission $permission): void {
+            foreach ([Role::SUPER_ADMIN, Role::ADMIN] as $name) {
+                Role::query()->whereNull('business_id')->where('name', $name)->first()?->givePermissionTo($permission);
+            }
         });
 
         // Register Policies

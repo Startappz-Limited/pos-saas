@@ -4,13 +4,17 @@ namespace App\Policies;
 
 use App\Models\PurchaseReturn;
 use App\Models\User;
+use App\Policies\Concerns\HandlesFullAccess;
 
 class PurchaseReturnPolicy
 {
-    public function before(User $user, string $ability): ?bool
+    use HandlesFullAccess;
+
+    public function before(User $user, string $ability, mixed ...$arguments): ?bool
     {
-        if ($user->can('purchase_returns.full-access')) {
-            return true;
+        // Full access grants the permissions, not a way around the rules below
+        if (($decision = $this->decideWithFullAccess($user, 'purchase_returns', $ability, $arguments)) !== null) {
+            return $decision;
         }
 
         return null;

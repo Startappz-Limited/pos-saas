@@ -2,6 +2,7 @@
 
 use App\Models\Role;
 use App\Models\User;
+use Database\Factories\BusinessFactory;
 use Spatie\Permission\Models\Permission;
 
 beforeEach(function () {
@@ -13,7 +14,7 @@ beforeEach(function () {
 });
 
 test('user can view roles index if authorized', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->owner()->create();
     $user->givePermissionTo('roles.view');
 
     $response = $this->actingAs($user)->get(route('roles.index'));
@@ -22,7 +23,7 @@ test('user can view roles index if authorized', function () {
 });
 
 test('user cannot view roles index if not authorized', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->owner()->create();
 
     $response = $this->actingAs($user)->get(route('roles.index'));
 
@@ -30,7 +31,7 @@ test('user cannot view roles index if not authorized', function () {
 });
 
 test('user can create role if authorized', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->owner()->create();
     $user->givePermissionTo(['roles.create', 'roles.view']);
 
     $response = $this->actingAs($user)->post(route('roles.store'), [
@@ -43,7 +44,7 @@ test('user can create role if authorized', function () {
 });
 
 test('user cannot create role if not authorized', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->owner()->create();
 
     $response = $this->actingAs($user)->post(route('roles.store'), [
         'name' => 'test-role',
@@ -54,7 +55,7 @@ test('user cannot create role if not authorized', function () {
 });
 
 test('role name must be unique', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->owner()->create();
     $user->givePermissionTo(['roles.create', 'roles.view']);
     Role::create(['name' => 'existing-role']);
 
@@ -67,7 +68,7 @@ test('role name must be unique', function () {
 });
 
 test('role name must contain only lowercase letters numbers and hyphens', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->owner()->create();
     $user->givePermissionTo(['roles.create', 'roles.view']);
 
     $response = $this->actingAs($user)->post(route('roles.store'), [
@@ -81,9 +82,9 @@ test('role name must contain only lowercase letters numbers and hyphens', functi
 });
 
 test('user can update role if authorized', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->owner()->create();
     $user->givePermissionTo(['roles.update', 'roles.view']);
-    $role = Role::create(['name' => 'old-role']);
+    $role = Role::create(['name' => 'old-role', 'business_id' => BusinessFactory::defaultId()]);
 
     $response = $this->actingAs($user)->put(route('roles.update', $role), [
         'name' => 'updated-role',
@@ -95,8 +96,8 @@ test('user can update role if authorized', function () {
 });
 
 test('user cannot update role if not authorized', function () {
-    $user = User::factory()->create();
-    $role = Role::create(['name' => 'test-role']);
+    $user = User::factory()->owner()->create();
+    $role = Role::create(['name' => 'test-role', 'business_id' => BusinessFactory::defaultId()]);
 
     $response = $this->actingAs($user)->put(route('roles.update', $role), [
         'name' => 'updated-role',
@@ -107,7 +108,7 @@ test('user cannot update role if not authorized', function () {
 });
 
 test('super-admin role cannot be updated', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->owner()->create();
     $user->givePermissionTo(['roles.update', 'roles.view']);
     $superAdminRole = Role::create(['name' => 'super-admin']);
 
@@ -116,15 +117,15 @@ test('super-admin role cannot be updated', function () {
         'permissions' => [],
     ]);
 
-    $response->assertRedirect(route('roles.index'));
-    $response->assertSessionHas('error');
+    // RolePolicy rejects any change to a system role by a non-super-admin
+    $response->assertStatus(403);
     $this->assertDatabaseHas('roles', ['name' => 'super-admin']);
 });
 
 test('user can delete role if authorized', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->owner()->create();
     $user->givePermissionTo(['roles.delete', 'roles.view']);
-    $role = Role::create(['name' => 'deletable-role']);
+    $role = Role::create(['name' => 'deletable-role', 'business_id' => BusinessFactory::defaultId()]);
 
     $response = $this->actingAs($user)->delete(route('roles.destroy', $role));
 
@@ -133,8 +134,8 @@ test('user can delete role if authorized', function () {
 });
 
 test('user cannot delete role if not authorized', function () {
-    $user = User::factory()->create();
-    $role = Role::create(['name' => 'test-role']);
+    $user = User::factory()->owner()->create();
+    $role = Role::create(['name' => 'test-role', 'business_id' => BusinessFactory::defaultId()]);
 
     $response = $this->actingAs($user)->delete(route('roles.destroy', $role));
 
@@ -142,7 +143,7 @@ test('user cannot delete role if not authorized', function () {
 });
 
 test('super-admin role cannot be deleted', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->owner()->create();
     $user->givePermissionTo(['roles.delete', 'roles.view']);
     $superAdminRole = Role::create(['name' => 'super-admin']);
 
@@ -154,11 +155,11 @@ test('super-admin role cannot be deleted', function () {
 });
 
 test('role with assigned users cannot be deleted', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->owner()->create();
     $user->givePermissionTo(['roles.delete', 'roles.view']);
-    $role = Role::create(['name' => 'assigned-role']);
+    $role = Role::create(['name' => 'assigned-role', 'business_id' => BusinessFactory::defaultId()]);
 
-    $assignedUser = User::factory()->create();
+    $assignedUser = User::factory()->owner()->create();
     $assignedUser->assignRole($role);
 
     $response = $this->actingAs($user)->delete(route('roles.destroy', $role));
@@ -169,7 +170,7 @@ test('role with assigned users cannot be deleted', function () {
 });
 
 test('permissions can be assigned to role', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->owner()->create();
     $user->givePermissionTo(['roles.create', 'roles.view']);
 
     $permission1 = Permission::create(['name' => 'test.permission1']);
@@ -188,10 +189,10 @@ test('permissions can be assigned to role', function () {
 });
 
 test('permissions can be updated for role', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->owner()->create();
     $user->givePermissionTo(['roles.update', 'roles.view']);
 
-    $role = Role::create(['name' => 'test-role']);
+    $role = Role::create(['name' => 'test-role', 'business_id' => BusinessFactory::defaultId()]);
     $permission1 = Permission::create(['name' => 'test.permission1']);
     $permission2 = Permission::create(['name' => 'test.permission2']);
     $permission3 = Permission::create(['name' => 'test.permission3']);
@@ -211,7 +212,7 @@ test('permissions can be updated for role', function () {
 });
 
 test('super-admin role permissions cannot be modified', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->owner()->create();
     $user->givePermissionTo(['roles.update', 'roles.view']);
 
     $superAdminRole = Role::create(['name' => 'super-admin']);
@@ -219,11 +220,14 @@ test('super-admin role permissions cannot be modified', function () {
     $superAdminRole->givePermissionTo(Permission::all());
 
     $permission = Permission::create(['name' => 'test.permission']);
+    $countBefore = $superAdminRole->fresh()->permissions()->count();
 
     $response = $this->actingAs($user)->put(route('roles.updatePermissions', $superAdminRole), [
         'permissions' => [$permission->id],
     ]);
 
-    $response->assertRedirect(route('roles.index'));
-    $response->assertSessionHas('error');
+    // RolePolicy rejects any change to a system role by a non-super-admin; had
+    // it gone through, the role would be left with only test.permission
+    $response->assertStatus(403);
+    expect($superAdminRole->fresh()->permissions()->count())->toBe($countBefore);
 });

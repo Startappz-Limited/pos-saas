@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Models\Role;
 use App\Models\Shop;
 use App\Models\User;
 use Illuminate\Database\Seeder;
@@ -13,9 +14,9 @@ class ShopSeeder extends Seeder
      */
     public function run(): void
     {
-        // Get users with manager or super-admin roles to be shop managers
+        // Shop owners (admin) and managers run shops; super-admin is the platform operator
         $managers = User::whereHas('roles', function ($query) {
-            $query->whereIn('name', ['super-admin', 'manager']);
+            $query->whereIn('name', [Role::ADMIN, 'manager']);
         })->get();
 
         if ($managers->isEmpty()) {

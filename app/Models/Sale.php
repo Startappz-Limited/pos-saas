@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\Auditable;
+use App\Models\Concerns\BelongsToAccessibleShop;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -13,6 +14,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 class Sale extends Model
 {
     use Auditable;
+    use BelongsToAccessibleShop;
     use HasFactory;
 
     protected $fillable = [
@@ -116,6 +118,6 @@ class Sale extends Model
             return $query;
         }
 
-        return $query->whereIn($this->qualifyColumn('shop_id'), $user->assignedShopIds());
+        return $query->whereIn($this->qualifyColumn('shop_id'), $user->accessibleShopIds());
     }
 }
