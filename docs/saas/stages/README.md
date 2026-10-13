@@ -1,6 +1,6 @@
 # POS SaaS Conversion: Implementation Stages
 
-One file per implementation stage of [pos-saas-project.md](../pos-saas-plan.md). Each file pulls together what that
+One file per implementation stage of [pos-saas-plan.md](../pos-saas-plan.md). Each file pulls together what that
 stage needs from the plan: goal, blocking questions, relevant current state, decisions, work, schema,
 acceptance criteria, risks and the review proposals still awaiting a decision.
 
@@ -35,7 +35,7 @@ Answered on 12 October 2026:
 Open question 6 (eTIMS deferral) and 7 (timeline) don't block a stage, but should be answered before
 launch.
 
-## Rules for every stage (saas-plan.md "Development principles", section 5 and section 6)
+## Rules for every stage (pos-saas-plan.md "Development principles", section 5 and section 6)
 
 - **One branch per stage** off `main`, merged only when the stage's acceptance criteria pass in CI.
 - **One Claude Code session per stage.** Start large stages (1a, 1b, 1c, 3, 4, 6) in plan mode.
@@ -46,7 +46,7 @@ launch.
 - **Add the matching `/api/v1` endpoints** for whatever the stage changes (4.8).
 - **Every stage ends green:** Pint, the full suite (on SQLite and MySQL 8), the isolation
   suite (from Phase 2) and both API contract test sets.
-- **Keep the plan current.** When implementation diverges, update saas-plan.md and the stage file, and
+- **Keep the plan current.** When implementation diverges, update pos-saas-plan.md and the stage file, and
   tick the hotspot checklist (plan section 2) as items are done.
 
 ## Development principles (from the plan)

@@ -42,6 +42,8 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: shivammathur/setup-php@v2
         with:
@@ -68,8 +70,10 @@ jobs:
           cp .env.example .env
           php artisan key:generate --ansi
 
-      - name: Pint
-        run: vendor/bin/pint --test
+      # Only the files this branch changes: 123 files already on main predate
+      # Pint, and reformatting them all would bury every change in noise.
+      - name: Pint (changed files)
+        run: vendor/bin/pint --test --diff="origin/${{ github.base_ref || 'main' }}"
 
       - name: Test suite (SQLite)
         run: php artisan test --compact

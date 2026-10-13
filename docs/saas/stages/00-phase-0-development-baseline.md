@@ -54,13 +54,13 @@ data is present**.
 
 ### Live-data rules
 - [x] **Answer Open question 1:** no live data yet; develop as though live (12 October 2026).
-- [ ] **Keep** the live-data rule in `CLAUDE.md` and extend it: every database except the test database is
+- [x] **Keep** the live-data rule in `CLAUDE.md` and extend it: every database except the test database is
       treated as live; no destructive commands against it; snapshot before any migration; schema changes
       must carry existing data across.
-- [ ] Keep the project's safety hook that blocks wiping a live database.
+- [x] Keep the project's safety hook that blocks wiping a live database. **Kept and extended** (steps 3, 4b, 5, 6; `SafetyHookTest`, 45 cases).
 
 ### Environment
-- [ ] `composer install` to match the lock file.
+- [x] `composer install` to match the lock file. (Step 1, `f005222`.)
 - [x] ~~**A new local MySQL 8 database**, created by you and pointed to from `.env`
       (`DB_CONNECTION=mysql`).~~ **Changed 13 October 2026:** the development database is **UAT**
       (`fitness` on the UAT server, MariaDB 11.4, holding real-looking data), treated as live and not
@@ -72,7 +72,7 @@ data is present**.
       real inboxes. **Already the case:** `.env` sends to Mailpit (`lerd-mailpit:1025`); verified in step 4.
 
 ### Live-like dataset
-- [ ] A **live-like dataset** on the current (`main`) schema, so the new local database looks like a
+- [x] A **live-like dataset** on the current (`main`) schema, so the new local database looks like a
       system in use. Built by a local-only, reproducible seeder (fixed random seed) that refuses to run
       outside `local` and `testing`. It covers, at realistic volume:
   - several shops, with staff assigned to some shops and not others;
@@ -83,12 +83,12 @@ data is present**.
   - expenses, suppliers, categories, attributes and the other shared lists;
   - e-commerce orders and abandoned carts;
   - **soft-deleted rows** in the soft-deleting models, and duplicate-looking codes across shops.
-- [ ] **Snapshot and restore** for the local database (a script around `mysqldump` and `mysql`), so a
+- [x] **Snapshot and restore** for the local database (a script around `mysqldump` and `mysql`), so a
       migration or import can be rehearsed and rolled back.
 
 ### Tests and contracts
-- [ ] Make the 8 WhatsApp tests independent of `.env`; fix or isolate the HTTPS test.
-- [ ] Record the baseline.
+- [x] Make the 8 WhatsApp tests independent of `.env`; fix or isolate the HTTPS test. (Step 2, `100447a`.)
+- [x] Record the baseline. (PROGRESS.md; plan section 1.)
 - [x] Record the flat API's current contract (routes and response shapes) as fixtures for the
       compatibility tests, taken against the live-like dataset so responses have real content.
       **Done (step 7):** `tests/Fixtures/api-contract/`, checked by `FlatApiContractTest` on MySQL
@@ -121,15 +121,15 @@ None.
 
 ## Acceptance criteria
 
-- [ ] The suite is green on the live-like local database and in all three CI jobs.
-- [ ] The live-like dataset can be rebuilt from scratch with one command and produces the same data each
+- [ ] The suite is green on the live-like local database and in all three CI jobs. **Locally green on both engines; CI not yet run** (needs the `COMPOSER_AUTH` secret; first run on push).
+- [x] The live-like dataset can be rebuilt from scratch with one command and produces the same data each
       time.
-- [ ] A snapshot can be taken and restored, leaving the database identical.
-- [ ] The flat API contract fixtures are recorded.
-- [ ] `CLAUDE.md` states the extended live-data rule, and the safety hook is still in place.
+- [x] A snapshot can be taken and restored, leaving the database identical. (`DatabaseSnapshotTest`: identical `CHECKSUM TABLE` after a round trip.)
+- [x] The flat API contract fixtures are recorded. (`tests/Fixtures/api-contract/`, `FlatApiContractTest`.)
+- [x] `CLAUDE.md` states the extended live-data rule, and the safety hook is still in place.
 - [x] Open question 1 is answered (no live data yet; develop as though live).
 
 ## Definition of done
 
-- [ ] Pint and the full suite pass on SQLite and MySQL 8.
-- [ ] The baseline and the "work as though live" rule are recorded in saas-plan.md.
+- [x] Pint and the full suite pass on SQLite and MySQL 8. (SQLite 1,116 passed; MySQL 8 1,125 passed.)
+- [x] The baseline and the "work as though live" rule are recorded in pos-saas-plan.md (section 1, "After Phase 0").

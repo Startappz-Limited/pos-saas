@@ -189,6 +189,22 @@
 - The local database carries migrations from another branch and doesn't match `main`; it's replaced by a
   fresh database in Phase 0.
 
+**After Phase 0 (13 October 2026; details in [PROGRESS.md](PROGRESS.md)):**
+- **Baseline: green on both engines.** SQLite 1,116 passed; MySQL 8 1,125 passed (both with skips: the
+  safety-hook cases need `jq`, and the MySQL-only tests skip on SQLite). The 9 failures were environment
+  dependencies (WhatsApp settings and `APP_URL` read from `.env`), now pinned in `phpunit.xml`.
+- **MySQL found two production bugs SQLite hid**, both fixed: social account credentials stored as an
+  encrypted string in a JSON column, and low-stock checks for variations querying a column variations
+  don't have.
+- **Databases:** development is `pos-saas` (MariaDB 11.4 on the production server, no business data,
+  treated as live); tests and the live-like dataset use local MySQL 8 databases ending in `_testing`
+  (`mysql_testing`, `rehearsal_testing`, `dataset_testing` connections, `DB_TEST_*` keys).
+- **"Work as though live" rule:** every database except a `_testing` one is treated as live; no
+  destructive commands; snapshot before any migration or import (`db:snapshot`); schema changes carry
+  data across. Enforced by the safety hook, a `_testing`-only guard in `tests/TestCase.php`, and
+  `ConnectionGuard` in `dataset:build` and `db:restore-snapshot`. Recorded in CLAUDE.md.
+- **Six flat API endpoints are already broken on `main`** (recorded in the contract fixtures).
+
 ### Existing deployment (unconfirmed)
 
 The review found signs that a live system may hold real data. **This contradicts Assumption 2 and must be
@@ -262,7 +278,9 @@ answered before Phase 1** (Open question 1):
 - [ ] AI usage metered against a prepaid balance per business.
 - [ ] The current flat `/api` keeps working unchanged on the new schema; a new `/api/v1` covers every
       feature the Flutter app needs.
-- [ ] Tests independent of `.env`, plus a two-business fixture.
+- [ ] Tests independent of `.env`, plus a two-business fixture. **Half done (Phase 0):** tests no longer
+      depend on `.env` (WhatsApp, `APP_URL`; SMS still reads `env()` directly, fixed in Phase 6); the
+      two-business fixture comes with Phase 2.
 - [ ] A CI job on the target database (MySQL or MariaDB) for raw SQL, locks and the isolation suite.
 - [ ] Legacy flat-API clients with no register or shop context get a defined default (4.8).
 
