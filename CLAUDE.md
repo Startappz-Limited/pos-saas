@@ -18,10 +18,18 @@ Baileys through Chatway Gateway). Server-rendered Blade admin UI + a Sanctum-pro
 ## Stack
 
 - **PHP 8.2+** (Boost reports the runtime as 8.4), **Laravel 12** (streamlined Laravel 11+ structure).
-- **Database: MySQL/MariaDB.** ⚠️ The current `.env` uses `DB_CONNECTION=mysql` and points **`DB_HOST` at a
-  remote shared server** — not localhost. Treat the development database as live production data: never run
-  `migrate:fresh`/`migrate:refresh`/`migrate:reset`/`db:wipe`, and never `db:seed` without `--class=`.
-  A [PreToolUse hook](.claude/hooks/block-destructive-db.sh) now blocks these mechanically.
+- **Database: MySQL 8** (production will be MySQL). Locally it runs in the `lerd-mysql` container.
+- ⚠️ **Live-data rule: development works as though the system is live and data is present.** Every
+  database **except the test database** (a name ending in `_testing`) is treated as holding live data:
+  - **No destructive commands** against it: no `migrate:fresh`/`--fresh`, `migrate:refresh`,
+    `migrate:reset`, `migrate:rollback`, `db:wipe`, `TRUNCATE`, `DELETE FROM` without `WHERE`, or dropping
+    tables with rows; and never `db:seed` without `--class=`.
+  - **Take a snapshot before any migration or import**, and keep a way to restore it.
+  - **Every schema change carries existing data across.** If you can't see how, stop and ask.
+  - **The old (legacy) database is only ever read**, never written.
+  - A [PreToolUse hook](.claude/hooks/block-destructive-db.sh) blocks these commands mechanically (it
+    allows them only when a command names a `_testing` database and no live one);
+    [SafetyHookTest](tests/Feature/SafetyHookTest.php) pins its rules.
   A separate `audit` **SQLite** connection ([config/database.php](config/database.php),
   `database/audit.sqlite`) holds the audit trail. It has its **own migration repository**, so plain
   `migrate` does not create it — see the audit deploy command under Commands.

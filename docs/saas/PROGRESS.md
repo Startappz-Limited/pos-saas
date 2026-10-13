@@ -30,7 +30,8 @@ Known baseline failures (to be fixed in step 2):
 | Step | Commit | Tests added | Suite (SQLite) | Suite (MySQL 8) | Notes |
 |---|---|---|---|---|---|
 | 1. Composer sync, PROGRESS.md | `f005222` | none | 1,065 passed, 9 failed (baseline) | not set up yet (step 4) | `composer install` downgraded 99 packages to the lock (Laravel 12.69.3 → 12.56.0, Pest 4.7.8 → 4.5.0); results unchanged |
-| 2. Fix the 9 baseline failures | _this commit_ | `TestEnvironmentTest` (3 tests) | **1,077 passed, 0 failed** | not set up yet (step 4) | Tests only; no production code changed. The 9 tests also pass in three random orders (seeds 1, 42, 1337) |
+| 2. Fix the 9 baseline failures | `100447a` | `TestEnvironmentTest` (3 tests) | **1,077 passed, 0 failed** | not set up yet (step 4) | Tests only; no production code changed. The 9 tests also pass in three random orders (seeds 1, 42, 1337) |
+| 3. Live-data rule and safety hook | _this commit_ | `SafetyHookTest` (23 cases) | 1,077 passed, 23 skipped | not set up yet (step 4) | The hook now also blocks rolling back migrations, `TRUNCATE` without `TABLE`, `DELETE FROM` without `WHERE` and `DROP SCHEMA`, and allows commands that name only a `_testing` database. The 23 cases **skip locally** (lerd runs PHP in a container without `jq`); I verified them on the host shell instead (23/23). They run in CI, where `jq` is installed |
 
 ### Differences from the stage file
 
@@ -52,3 +53,6 @@ Known baseline failures (to be fixed in step 2):
 - **`SmsChannel::isConfigured()` reads `env()` directly** (`app/Notifications/Channels/SmsChannel.php:66`),
   so tests can only switch SMS on with `putenv()`, and `phpunit.xml` can't pin it without breaking
   `NewEcommerceOrderNotificationTest`. Fixed with the SMS service in stage 6 (plan Phase 6, "SMS fix").
+- **The hook matches text anywhere in a command**, including commit messages and heredocs, so a message
+  that quotes a blocked command is refused. Workaround: pass long text through a file (`git commit -F`).
+  Not worth weakening the hook for.
