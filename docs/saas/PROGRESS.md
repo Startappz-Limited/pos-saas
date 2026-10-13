@@ -32,7 +32,8 @@ Known baseline failures (to be fixed in step 2):
 | 1. Composer sync, PROGRESS.md | `f005222` | none | 1,065 passed, 9 failed (baseline) | not set up yet (step 4) | `composer install` downgraded 99 packages to the lock (Laravel 12.69.3 → 12.56.0, Pest 4.7.8 → 4.5.0); results unchanged |
 | 2. Fix the 9 baseline failures | `100447a` | `TestEnvironmentTest` (3 tests) | **1,077 passed, 0 failed** | not set up yet (step 4) | Tests only; no production code changed. The 9 tests also pass in three random orders (seeds 1, 42, 1337) |
 | 3. Live-data rule and safety hook | `c72bde4` | `SafetyHookTest` (23 cases) | 1,077 passed, 23 skipped | not set up yet (step 4) | The hook now also blocks rolling back migrations, `TRUNCATE` without `TABLE`, `DELETE FROM` without `WHERE` and `DROP SCHEMA`, and allows commands that name only a `_testing` database. The 23 cases **skip locally** (lerd runs PHP in a container without `jq`); I verified them on the host shell instead (23/23). They run in CI, where `jq` is installed |
-| 4. Databases, test guard, mail | _this commit_ | `TestEnvironmentTest` guard cases (+8), `SafetyHookTest` (+4) | 1,085 passed, 27 skipped | **1,081 passed, 4 failed, 27 skipped** (first run; the 4 are pre-existing bugs, fixed in steps 4b and 4c) | Development DB is **UAT** (see below). New `mysql_testing` connection reading `DB_TEST_*`; local `pos_saas_testing` on lerd MySQL 8.4.11; `phpunit.mysql.xml`; `TestCase` refuses any database not ending in `_testing`; hook treats UAT and production hosts and names as live; Mailpit verified (test message caught); `.env.example` updated |
+| 4. Databases, test guard, mail | `dc43f0b` | `TestEnvironmentTest` guard cases (+8), `SafetyHookTest` (+4) | 1,085 passed, 27 skipped | **1,081 passed, 4 failed, 27 skipped** (first run; the 4 are pre-existing bugs, fixed in steps 4b and 4c) | Development DB is **UAT** (see below). New `mysql_testing` connection reading `DB_TEST_*`; local `pos_saas_testing` on lerd MySQL 8.4.11; `phpunit.mysql.xml`; `TestCase` refuses any database not ending in `_testing`; hook treats UAT and production hosts and names as live; Mailpit verified (test message caught); `.env.example` updated |
+| 4b. Social account credentials column; hook hardened | _this commit_ | `SocialAccountCredentialsTest` (4); `SafetyHookTest` rewritten (41 cases, in `tests/Fixtures/safety-hook-cases.php`) | 1,088 passed, 42 skipped | 1,088 passed, **1 failed** (low stock, step 4c), 41 skipped | Migration `2026_10_13_111431`: `social_accounts.credentials` JSON → TEXT; `down()` refuses while encrypted values exist. Rehearsed on `pos_saas_rehearsal_testing`: 2 rows (NULL and JSON credentials) identical before and after. New `rehearsal_testing` connection. Hook now blocks every artisan command that changes a database unless `--database=…_testing`. **See "UAT incident" below** |
 
 ### Differences from the stage file
 
@@ -64,6 +65,28 @@ Known baseline failures (to be fixed in step 2):
      change the stage file didn't plan, approved 13 October 2026).
   2. `CheckLowStockLevels` compares variation stock with `reorder_level`, which variations don't have
      (1 test). Fixed in step 4c: a variation uses its product's reorder level (approved).
+
+### UAT incident (13 October 2026, step 4b)
+
+While rehearsing the step 4b migration I ran `migrate` followed by `migrate:rollback --step=1` with
+shell-exported `DB_CONNECTION`/`DB_TEST_DATABASE` meant to point at the scratch database. lerd runs PHP in
+a container, so the exports never reached PHP, and **both commands ran against UAT (`fitness`)**. My own
+target check printed `mysql → fitness`, and I didn't stop the chain on it. The safety hook allowed it
+because it trusted the `_testing` name in the shell prefix.
+
+- **Effect on UAT:** the migration changed `social_accounts.credentials` to TEXT and recorded itself;
+  the rollback changed it back and removed the record, within about a second. Verified read-only straight
+  afterwards: the column definition is identical to before (`longtext … utf8mb4_bin … CHECK
+  (json_valid(credentials))`), `social_accounts` still has 0 rows, and `migrations` has the same 106 rows
+  and last entry. The only trace is that the `migrations` table's auto-increment moved on by one. No
+  data was lost. No snapshot was taken first (the snapshot tool doesn't exist until step 5), which broke
+  the live-data rule.
+- **Fixes in this step:** the hook now blocks every artisan command that changes a database unless it
+  passes `--database=<connection ending in _testing>` (shell prefixes no longer count), including
+  `Artisan::call()` in tinker; rehearsals use the dedicated `rehearsal_testing` connection and check the
+  target before the first write; CLAUDE.md states that shell prefixes don't reach lerd's PHP. The command
+  that caused it is a test case that must be denied.
+- The user confirmed afterwards: UAT holds data; no destructive commands on it.
 
 ### Follow-ups
 

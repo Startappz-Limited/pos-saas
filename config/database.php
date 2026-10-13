@@ -98,6 +98,28 @@ return [
             'engine' => null,
         ],
 
+        /*
+         * Scratch database for migration rehearsals: migrate, roll back and
+         * compare data without touching the test or development databases.
+         * Always use it explicitly (--database=rehearsal_testing); shell
+         * prefixes don't reach lerd's PHP.
+         */
+        'rehearsal_testing' => [
+            'driver' => 'mysql',
+            'host' => env('DB_TEST_HOST', '127.0.0.1'),
+            'port' => env('DB_TEST_PORT', '3306'),
+            'database' => env('DB_REHEARSAL_DATABASE', 'pos_saas_rehearsal_testing'),
+            'username' => env('DB_TEST_USERNAME', 'root'),
+            'password' => env('DB_TEST_PASSWORD', ''),
+            'unix_socket' => '',
+            'charset' => 'utf8mb4',
+            'collation' => 'utf8mb4_unicode_ci',
+            'prefix' => '',
+            'prefix_indexes' => true,
+            'strict' => true,
+            'engine' => null,
+        ],
+
         'mariadb' => [
             'driver' => 'mariadb',
             'url' => env('DB_URL'),

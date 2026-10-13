@@ -27,9 +27,16 @@ Baileys through Chatway Gateway). Server-rendered Blade admin UI + a Sanctum-pro
   - **Take a snapshot before any migration or import**, and keep a way to restore it.
   - **Every schema change carries existing data across.** If you can't see how, stop and ask.
   - **The old (legacy) database is only ever read**, never written.
-  - A [PreToolUse hook](.claude/hooks/block-destructive-db.sh) blocks these commands mechanically (it
-    allows them only when a command names a `_testing` database and no live one);
-    [SafetyHookTest](tests/Feature/SafetyHookTest.php) pins its rules.
+  - **The development database (`.env`) is UAT, which holds data.** lerd runs PHP in a container, so
+    shell prefixes like `DB_DATABASE=… php artisan …` **never reach PHP**: artisan always uses the `.env`
+    database unless given `--database=`. Run migrations, seeders and rehearsals only with
+    `--database=<connection ending in _testing>` (`mysql_testing`, `rehearsal_testing`), and check the
+    target before the first write.
+  - A [PreToolUse hook](.claude/hooks/block-destructive-db.sh) blocks these commands mechanically: any
+    artisan command that changes a database without `--database=…_testing`, and destructive SQL unless a
+    `mysql` client command names only a `_testing` database. Its cases are in
+    [tests/Fixtures/safety-hook-cases.php](tests/Fixtures/safety-hook-cases.php), run by
+    [SafetyHookTest](tests/Feature/SafetyHookTest.php).
   A separate `audit` **SQLite** connection ([config/database.php](config/database.php),
   `database/audit.sqlite`) holds the audit trail. It has its **own migration repository**, so plain
   `migrate` does not create it — see the audit deploy command under Commands.
