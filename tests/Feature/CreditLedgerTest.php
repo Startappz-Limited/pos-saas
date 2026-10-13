@@ -116,6 +116,7 @@ describe('a credit sale debits the credit account', function () {
     });
 
     it('tells the customer their real balance, not the pre-sale one', function () {
+        configureWhatsApp();
         Notification::fake();
 
         $this->post(route('sales.store'), creditSalePayload())->assertRedirect();

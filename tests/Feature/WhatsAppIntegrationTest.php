@@ -273,7 +273,7 @@ describe('SendWhatsAppToCustomer action', function () {
         $action = app(SendWhatsAppToCustomer::class);
 
         expect(fn () => $action->execute($customer, 'Hello', $this->user->id))
-            ->toThrow(\InvalidArgumentException::class, 'Customer does not have a phone number');
+            ->toThrow(InvalidArgumentException::class, 'Customer does not have a phone number');
     });
 
     it('sends template message to customer', function () {
@@ -374,6 +374,7 @@ describe('Customer WhatsApp integration', function () {
     });
 
     it('can receive whatsapp notification', function () {
+        configureWhatsApp();
         Notification::fake();
 
         $this->customer->notify(new CustomerWhatsAppNotification($this->customer, 'Welcome!'));

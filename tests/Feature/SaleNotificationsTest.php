@@ -368,6 +368,8 @@ describe('WhatsAppChannel DB Logging', function () {
 
 describe('SaleController WhatsApp notifications', function () {
     beforeEach(function () {
+        configureWhatsApp();
+
         $this->saleSource = SaleSource::firstOrCreate(
             ['name' => 'Walk-in'],
             ['is_active' => true, 'sort_order' => 1]

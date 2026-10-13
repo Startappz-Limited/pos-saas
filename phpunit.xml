@@ -22,6 +22,13 @@
              128M is no longer enough to reach the end. -->
         <ini name="memory_limit" value="512M"/>
         <env name="APP_ENV" value="testing"/>
+        <!-- Tests never inherit the developer's .env for these: URLs are plain
+             http, and messaging channels start unconfigured; a test that needs a
+             channel configures it (configureWhatsApp() in tests/Pest.php). -->
+        <env name="APP_URL" value="http://localhost" force="true"/>
+        <env name="WHATSAPP_API_URL" value="" force="true"/>
+        <env name="WHATSAPP_API_TOKEN" value="" force="true"/>
+        <env name="WHATSAPP_PHONE_NUMBER_ID" value="" force="true"/>
         <env name="APP_MAINTENANCE_DRIVER" value="file"/>
         <env name="BCRYPT_ROUNDS" value="4"/>
         <env name="BROADCAST_CONNECTION" value="null"/>

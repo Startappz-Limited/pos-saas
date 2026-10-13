@@ -29,17 +29,26 @@ Known baseline failures (to be fixed in step 2):
 
 | Step | Commit | Tests added | Suite (SQLite) | Suite (MySQL 8) | Notes |
 |---|---|---|---|---|---|
-| 1. Composer sync, PROGRESS.md | _this commit_ | none | 1,065 passed, 9 failed (baseline) | not set up yet (step 4) | `composer install` downgraded 99 packages to the lock (Laravel 12.69.3 → 12.56.0, Pest 4.7.8 → 4.5.0); results unchanged |
+| 1. Composer sync, PROGRESS.md | `f005222` | none | 1,065 passed, 9 failed (baseline) | not set up yet (step 4) | `composer install` downgraded 99 packages to the lock (Laravel 12.69.3 → 12.56.0, Pest 4.7.8 → 4.5.0); results unchanged |
+| 2. Fix the 9 baseline failures | _this commit_ | `TestEnvironmentTest` (3 tests) | **1,077 passed, 0 failed** | not set up yet (step 4) | Tests only; no production code changed. The 9 tests also pass in three random orders (seeds 1, 42, 1337) |
 
 ### Differences from the stage file
 
 - The local database is MySQL 8.4.11 on `lerd-mysql` (`DB_CONNECTION=mysql`, database `fitness_center`),
   not MariaDB / remote `ecohub_pos`. `fitness_center` is treated as the read-only legacy database.
 - Local mail already goes to Mailpit (`lerd-mailpit:1025`); only verification and documentation remain.
-- The 8 notification failures are not caused by `.env` WhatsApp settings (the tests set the config that
-  `WhatsAppService::isConfigured()` reads); the real cause is diagnosed in step 2.
+- **The 8 notification failures** (diagnosed in step 2): `Notification::fake()` doesn't record a
+  notification whose `via()` returns no channels, and the WhatsApp notifications return none when
+  WhatsApp isn't configured. These 8 tests go through the sale or notification path **without**
+  configuring WhatsApp, so they only passed where `.env` held WhatsApp credentials. The stage file's
+  explanation was right; my planning note saying otherwise was wrong. Fix: the tests call the new
+  `configureWhatsApp()` helper (`tests/Pest.php`), and `phpunit.xml` forces the WhatsApp values blank.
+- **The HTTPS failure:** `APP_URL` came from `.env` (`https://…`). `phpunit.xml` now forces
+  `APP_URL=http://localhost`.
 - The README links `pos-saas-project.md`; the plan file is `pos-saas-plan.md`.
 
 ### Follow-ups
 
-None yet.
+- **`SmsChannel::isConfigured()` reads `env()` directly** (`app/Notifications/Channels/SmsChannel.php:66`),
+  so tests can only switch SMS on with `putenv()`, and `phpunit.xml` can't pin it without breaking
+  `NewEcommerceOrderNotificationTest`. Fixed with the SMS service in stage 6 (plan Phase 6, "SMS fix").
