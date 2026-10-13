@@ -422,8 +422,10 @@ Reported from evidence in the repo — not invented:
   `order-notifications`, `ecommerce`); a default worker drains none of them. `composer run dev` now
   passes the full `--queue=` list, but production deployment is undocumented — if WhatsApp "stopped
   working", check the worker's queue list *first*, then `select queue, count(*) from jobs group by queue;`
-- **No CI/CD or container config** — `.github/` holds AI guidance, not workflows; no `Dockerfile` or
-  `docker-compose.yml`. Deployment is undocumented, and nothing establishes that the **queue worker** and
+- **CI exists; CD and container config don't.** [.github/workflows/ci.yml](.github/workflows/ci.yml)
+  runs Pint and the suite on SQLite, the suite and flat API contract on MySQL 8, and a migration
+  rehearsal on the live-like dataset (it needs the `COMPOSER_AUTH` repository secret). There's no
+  `Dockerfile` or `docker-compose.yml`. Deployment is undocumented, and nothing establishes that the **queue worker** and
   **`schedule:run`** are running in production — without them, every sync job and the campaign sweep silently
   never execute.
 - **Dead frontend scaffolding.** `resources/css/app.css` holds Tailwind directives and `package.json`

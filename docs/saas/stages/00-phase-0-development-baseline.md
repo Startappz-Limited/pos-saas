@@ -95,12 +95,18 @@ data is present**.
       (shapes differ between engines, so the contract runs in the MySQL CI job, not the SQLite one).
 
 ### CI
-- [ ] A CI pipeline that runs Pint, the full suite and the flat API contract tests on every push.
-- [ ] A second CI job that runs the suite on **MySQL 8** (Open question 4), so raw SQL, row locks and
-      unique keys are tested on the engine that runs them.
-- [ ] A third CI job, the **migration rehearsal**: load the live-like dataset on the `main` schema, then
+- [x] A CI pipeline that runs Pint, the full suite and the flat API contract tests on every push.
+      **Done (step 8):** `.github/workflows/ci.yml`, job `sqlite`. The flat API contract runs in the
+      `mysql` job instead (shapes differ between engines; see step 7).
+- [x] A second CI job that runs the suite on **MySQL 8** (Open question 4), so raw SQL, row locks and
+      unique keys are tested on the engine that runs them. **Done:** job `mysql` (MySQL 8.4 service).
+- [x] A third CI job, the **migration rehearsal**: load the live-like dataset on the `main` schema, then
       run the branch's migrations and import, and check that no data is lost. In Phase 0 there's nothing
-      to migrate, so it only proves the dataset loads; it becomes the gate for Phase 1a.
+      to migrate, so it only proves the dataset loads; it becomes the gate for Phase 1a. **Done:** job
+      `migration-rehearsal` builds with the base branch's code once it has `dataset:build`, then runs this
+      branch's migrations and fails if any table has fewer rows.
+- **Needs the `COMPOSER_AUTH` repository secret** (private `wa-gateway-laravel`); every job stops with
+  a clear message without it. CI hasn't run yet: the first run is the push at the end of the stage.
 
 ## Schema
 
