@@ -43,7 +43,9 @@ class RestoreDatabaseSnapshotCommand extends Command
         try {
             $snapshots->header($this->argument('file'));
 
-            $backup = storage_path('app/snapshots/'.$database.'-before-restore-'.now()->format('Ymd-His').'.sql.gz');
+            // Microseconds: two restores in the same second must not overwrite
+            // each other's backup.
+            $backup = storage_path('app/snapshots/'.$database.'-before-restore-'.now()->format('Ymd-His-u').'.sql.gz');
             $snapshots->dump($connection, $backup);
             $this->line("Target snapshotted first: {$backup}");
 
