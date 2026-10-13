@@ -43,8 +43,7 @@ Known baseline failures (to be fixed in step 2):
 
 ### Differences from the stage file
 
-- The local database is MySQL 8.4.11 on `lerd-mysql` (`DB_CONNECTION=mysql`, database `fitness_center`),
-  not MariaDB / remote `ecohub_pos`. `fitness_center` is treated as the read-only legacy database.
+- The local database is MySQL 8.4.11 on `46.101.89.24` (`DB_CONNECTION=mysql`, database `pos-saas`).
 - Local mail already goes to Mailpit (`lerd-mailpit:1025`); only verification and documentation remain.
 - **The 8 notification failures** (diagnosed in step 2): `Notification::fake()` doesn't record a
   notification whose `via()` returns no channels, and the WhatsApp notifications return none when
@@ -55,7 +54,7 @@ Known baseline failures (to be fixed in step 2):
 - **The HTTPS failure:** `APP_URL` came from `.env` (`https://…`). `phpunit.xml` now forces
   `APP_URL=http://localhost`.
 - The README links `pos-saas-project.md`; the plan file is `pos-saas-plan.md`.
-- **Development database is Development Database, not a new local database** (decided 13 October 2026). Development Database is `fitness`
+- **Development database is Development Database, not a new local database** (decided 13 October 2026). Development Database is `pos-saas`
   on a shared MariaDB 11.4.4 server (64.227.44.46) holding real-looking data (13 shops, 25 users,
   79 products, 25 sales, 4 customers); every migration on `main` has already run there, so nothing is
   pending. It's treated as live and **not written in stage 0**. The two production connections in
@@ -63,9 +62,9 @@ Known baseline failures (to be fixed in step 2):
 - **Tests and the synthetic dataset run on lerd's local MySQL 8.4.11** (`pos_saas_testing`). The Development Database
   server hosts about 20 other applications' databases that its account can drop tables in, so tests
   never run there. CI's second job uses MySQL 8, as decided.
-- **Engine note:** Development Database and both production connections are **MariaDB**, while the stage file says
+- **Engine note:** Development Database and both production connections are **MySQL**, while the stage file says
   production is MySQL and CI tests MySQL 8 (kept as decided). Worth confirming before launch.
-- **MySQL 8 exposed two pre-existing application bugs** (they also affect Development Database's MariaDB):
+- **MySQL 8 exposed two pre-existing application bugs** :
   1. `social_accounts.credentials` is a JSON column but holds an encrypted string, so saving a social
      account fails (3 tests). Development Database has 0 social accounts. Fixed in step 4b (column becomes TEXT; a schema
      change the stage file didn't plan, approved 13 October 2026).
