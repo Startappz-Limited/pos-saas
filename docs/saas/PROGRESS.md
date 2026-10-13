@@ -35,7 +35,8 @@ Known baseline failures (to be fixed in step 2):
 | 4. Databases, test guard, mail | `dc43f0b` | `TestEnvironmentTest` guard cases (+8), `SafetyHookTest` (+4) | 1,085 passed, 27 skipped | **1,081 passed, 4 failed, 27 skipped** (first run; the 4 are pre-existing bugs, fixed in steps 4b and 4c) | Development DB is **UAT** (see below). New `mysql_testing` connection reading `DB_TEST_*`; local `pos_saas_testing` on lerd MySQL 8.4.11; `phpunit.mysql.xml`; `TestCase` refuses any database not ending in `_testing`; hook treats UAT and production hosts and names as live; Mailpit verified (test message caught); `.env.example` updated |
 | 4b. Social account credentials column; hook hardened | `8f44b46` | `SocialAccountCredentialsTest` (4); `SafetyHookTest` rewritten (41 cases, in `tests/Fixtures/safety-hook-cases.php`) | 1,088 passed, 42 skipped | 1,088 passed, **1 failed** (low stock, step 4c), 41 skipped | Migration `2026_10_13_111431`: `social_accounts.credentials` JSON → TEXT; `down()` refuses while encrypted values exist. Rehearsed on `pos_saas_rehearsal_testing`: 2 rows (NULL and JSON credentials) identical before and after. New `rehearsal_testing` connection. Hook now blocks every artisan command that changes a database unless `--database=…_testing`. **See "UAT incident" below** |
 | 4c. Low-stock check for variations | `5b5c2c0` | `CheckLowStockLevelsTest` (5) | 1,093 passed, 42 skipped | **1,094 passed, 0 failed**, 41 skipped | `CheckLowStockLevels` compares a variation's stock with its **product's** `reorder_level` (approved) and records that as the threshold. The 5 new tests fail on MySQL against the old code and pass with the fix. MySQL suite fully green for the first time |
-| 5. Snapshot and restore | _this commit_ | `DatabaseSnapshotTest` (12); hook cases +4 (45) | 1,102 passed, 49 skipped | **1,106 passed, 0 failed**, 45 skipped | `db:snapshot` (read-only, any MySQL/MariaDB connection) and `db:restore-snapshot` (only into a connection and database ending in `_testing`, local/testing env, `--yes`, snapshots the target first, checks row counts afterwards). Round trip verified with `CHECKSUM TABLE`; awkward values (quotes, semicolons, newlines, the statement marker, Unicode, NULL, empty) survive. **Real run:** UAT snapshot, 85 tables / 1,290 rows (UAT unchanged before and after), restored into `rehearsal_testing` (MariaDB 11.4 → MySQL 8.4) with every row count matching |
+| 5. Snapshot and restore | `1bc830a` | `DatabaseSnapshotTest` (12); hook cases +4 (45) | 1,102 passed, 49 skipped | **1,106 passed, 0 failed**, 45 skipped | `db:snapshot` (read-only, any MySQL/MariaDB connection) and `db:restore-snapshot` (only into a connection and database ending in `_testing`, local/testing env, `--yes`, snapshots the target first, checks row counts afterwards). Round trip verified with `CHECKSUM TABLE`; awkward values (quotes, semicolons, newlines, the statement marker, Unicode, NULL, empty) survive. **Real run:** UAT snapshot, 85 tables / 1,290 rows (UAT unchanged before and after), restored into `rehearsal_testing` (MariaDB 11.4 → MySQL 8.4) with every row count matching |
+| 6. Live-like dataset; connection guard | _this commit_ | `LiveLikeDatasetTest` (13), `ConnectionGuardTest` (4) | 1,116 passed, 52 skipped | 1,123 passed, 0 failed, 45 skipped (7 min 22 s) | `dataset:build --database=…_testing [--scale=]` builds into an **empty** `_testing` database only. `LiveLikeDatasetSeeder`: seeded Faker/`mt_rand`/UUIDs/random strings, frozen clock, fixed password hash, faked mail/notifications/jobs/HTTP. Sales through the **real paths** (web and API `store()`, both converters); credit payments through `collectPayment()`; adjustments through `StockAdjustmentService`. Medium build (scale 1): 3,000 sales / 7,289 lines / 400 products / 503 customers, **5 min 21 s, 145 MB**. Two separate builds give identical data in every table (encrypted columns compared decrypted). `ConnectionGuard` blocks every query not on the target connection, in `dataset:build` and `db:restore-snapshot` |
 
 ### Differences from the stage file
 
@@ -76,6 +77,22 @@ Known baseline failures (to be fixed in step 2):
   `rehearsal_testing` scratch database now holds a copy of UAT's data for rehearsals. Both contain real
   data; both are local and git-ignored.
 
+- **The development database is now `pos-saas`** on 46.101.89.24 (MariaDB 11.4, 87 tables, no business
+  data), replacing UAT `fitness` (decided 13 October 2026). Treated as live; the hook already does.
+- **The dataset isn't built into the development database** (the plan said "the dev DB is built once"):
+  the development database is live, and the dataset only goes into empty `_testing` databases
+  (`dataset_testing` locally, a MySQL service in CI). Running the MySQL suite empties `dataset_testing`.
+- **Step 6 factories:** only `SaleSource`, `DeliveryCompany` and `EcommerceOrderItem` got factories.
+  `ShopPaymentMethod` and `ExpenseApprovalHistory` are empty stub models, so the dataset inserts their
+  rows directly; `SalePayment` rows come from the real payment path. `PurchaseOrderItemFactory` always
+  creates a product of its own, so the dataset creates purchase order lines directly.
+- **Near-miss in step 6 (no confirmed change):** Spatie's permission cache is bound at boot to the
+  `.env` database's `cache` table, so the first dataset builds sent their "forget cached permissions"
+  calls there (the 73 s permission seeding). A comparison that seemed to show UAT cache rows deleted
+  turned out to have read `pos-saas` (the `.env` had already been switched; the remaining row's expiry
+  differs from UAT's), so there's no evidence UAT changed. Fixed: the build moves the permission cache to
+  memory, and `ConnectionGuard` blocks every query not on the target connection.
+
 ### UAT incident (13 October 2026, step 4b)
 
 While rehearsing the step 4b migration I ran `migrate` followed by `migrate:rollback --step=1` with
@@ -109,6 +126,12 @@ because it trusted the `_testing` name in the shell prefix.
 - **`CheckLowStockLevels` isn't limited to the shop it raises alerts for:** it checks every product
   and variation in the database and files each alert under the given shop. Per-shop stock and scoping
   belong to stages 1b (stock per shop and variation) and 1c.
+- **Dataset realism:** cash registers are opened per cashier per day by the real sale path and never
+  closed (1,827 open at scale 1); a later stage could close each day's registers.
+- **Within one PHP process a second dataset build differs** (static state held over), so the
+  determinism test runs each build as its own process, as `dataset:build` is used.
+- **UAT schema drift:** UAT's `sale_sources` and `delivery_companies` have `business_id` columns that no
+  migration on `main` creates. Relevant to any import from UAT (stage 1a).
 - **No local audit database for UAT development:** `database/audit.sqlite` doesn't exist, so audit
   logging from a local session against UAT fails silently (the logger swallows errors). Create it when
   local writes to UAT start (`touch database/audit.sqlite` and the audit migration).

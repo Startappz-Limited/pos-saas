@@ -2,11 +2,14 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class EcommerceOrderItem extends Model
 {
+    use HasFactory;
+
     protected $fillable = [
         'ecommerce_order_id',
         'platform_product_id',

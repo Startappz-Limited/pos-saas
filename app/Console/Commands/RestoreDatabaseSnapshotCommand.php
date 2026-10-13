@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Support\ConnectionGuard;
 use App\Support\DatabaseSnapshot;
 use Illuminate\Console\Command;
 use Throwable;
@@ -35,6 +36,9 @@ class RestoreDatabaseSnapshotCommand extends Command
 
             return self::FAILURE;
         }
+
+        // Only the target may be queried while restoring.
+        ConnectionGuard::only([$connection]);
 
         try {
             $snapshots->header($this->argument('file'));
