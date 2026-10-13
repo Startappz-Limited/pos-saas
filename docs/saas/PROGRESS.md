@@ -31,7 +31,8 @@ Known baseline failures (to be fixed in step 2):
 |---|---|---|---|---|---|
 | 1. Composer sync, PROGRESS.md | `f005222` | none | 1,065 passed, 9 failed (baseline) | not set up yet (step 4) | `composer install` downgraded 99 packages to the lock (Laravel 12.69.3 → 12.56.0, Pest 4.7.8 → 4.5.0); results unchanged |
 | 2. Fix the 9 baseline failures | `100447a` | `TestEnvironmentTest` (3 tests) | **1,077 passed, 0 failed** | not set up yet (step 4) | Tests only; no production code changed. The 9 tests also pass in three random orders (seeds 1, 42, 1337) |
-| 3. Live-data rule and safety hook | _this commit_ | `SafetyHookTest` (23 cases) | 1,077 passed, 23 skipped | not set up yet (step 4) | The hook now also blocks rolling back migrations, `TRUNCATE` without `TABLE`, `DELETE FROM` without `WHERE` and `DROP SCHEMA`, and allows commands that name only a `_testing` database. The 23 cases **skip locally** (lerd runs PHP in a container without `jq`); I verified them on the host shell instead (23/23). They run in CI, where `jq` is installed |
+| 3. Live-data rule and safety hook | `c72bde4` | `SafetyHookTest` (23 cases) | 1,077 passed, 23 skipped | not set up yet (step 4) | The hook now also blocks rolling back migrations, `TRUNCATE` without `TABLE`, `DELETE FROM` without `WHERE` and `DROP SCHEMA`, and allows commands that name only a `_testing` database. The 23 cases **skip locally** (lerd runs PHP in a container without `jq`); I verified them on the host shell instead (23/23). They run in CI, where `jq` is installed |
+| 4. Databases, test guard, mail | _this commit_ | `TestEnvironmentTest` guard cases (+8), `SafetyHookTest` (+4) | 1,085 passed, 27 skipped | **1,081 passed, 4 failed, 27 skipped** (first run; the 4 are pre-existing bugs, fixed in steps 4b and 4c) | Development DB is **UAT** (see below). New `mysql_testing` connection reading `DB_TEST_*`; local `pos_saas_testing` on lerd MySQL 8.4.11; `phpunit.mysql.xml`; `TestCase` refuses any database not ending in `_testing`; hook treats UAT and production hosts and names as live; Mailpit verified (test message caught); `.env.example` updated |
 
 ### Differences from the stage file
 
@@ -47,6 +48,22 @@ Known baseline failures (to be fixed in step 2):
 - **The HTTPS failure:** `APP_URL` came from `.env` (`https://…`). `phpunit.xml` now forces
   `APP_URL=http://localhost`.
 - The README links `pos-saas-project.md`; the plan file is `pos-saas-plan.md`.
+- **Development database is UAT, not a new local database** (decided 13 October 2026). UAT is `fitness`
+  on a shared MariaDB 11.4.4 server (64.227.44.46) holding real-looking data (13 shops, 25 users,
+  79 products, 25 sales, 4 customers); every migration on `main` has already run there, so nothing is
+  pending. It's treated as live and **not written in stage 0**. The two production connections in
+  `.env` are commented out.
+- **Tests and the synthetic dataset run on lerd's local MySQL 8.4.11** (`pos_saas_testing`). The UAT
+  server hosts about 20 other applications' databases that its account can drop tables in, so tests
+  never run there. CI's second job uses MySQL 8, as decided.
+- **Engine note:** UAT and both production connections are **MariaDB**, while the stage file says
+  production is MySQL and CI tests MySQL 8 (kept as decided). Worth confirming before launch.
+- **MySQL 8 exposed two pre-existing application bugs** (they also affect UAT's MariaDB):
+  1. `social_accounts.credentials` is a JSON column but holds an encrypted string, so saving a social
+     account fails (3 tests). UAT has 0 social accounts. Fixed in step 4b (column becomes TEXT; a schema
+     change the stage file didn't plan, approved 13 October 2026).
+  2. `CheckLowStockLevels` compares variation stock with `reorder_level`, which variations don't have
+     (1 test). Fixed in step 4c: a variation uses its product's reorder level (approved).
 
 ### Follow-ups
 
@@ -56,3 +73,6 @@ Known baseline failures (to be fixed in step 2):
 - **The hook matches text anywhere in a command**, including commit messages and heredocs, so a message
   that quotes a blocked command is refused. Workaround: pass long text through a file (`git commit -F`).
   Not worth weakening the hook for.
+- **No local audit database for UAT development:** `database/audit.sqlite` doesn't exist, so audit
+  logging from a local session against UAT fails silently (the logger swallows errors). Create it when
+  local writes to UAT start (`touch database/audit.sqlite` and the audit migration).

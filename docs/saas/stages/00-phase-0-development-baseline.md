@@ -61,10 +61,15 @@ data is present**.
 
 ### Environment
 - [ ] `composer install` to match the lock file.
-- [ ] **A new local MySQL 8 database**, created by you and pointed to from `.env`
-      (`DB_CONNECTION=mysql`). Leave the current database untouched; the safety hook blocks wiping it.
-- [ ] Point local mail at a development catcher (log driver or Mailpit), so invites and codes never reach
-      real inboxes.
+- [x] ~~**A new local MySQL 8 database**, created by you and pointed to from `.env`
+      (`DB_CONNECTION=mysql`).~~ **Changed 13 October 2026:** the development database is **UAT**
+      (`fitness` on the UAT server, MariaDB 11.4, holding real-looking data), treated as live and not
+      written in this stage. **Tests and the synthetic dataset run on a local MySQL 8 database**
+      (`pos_saas_testing` on lerd), through the `mysql_testing` connection and `DB_TEST_*` keys;
+      `tests/TestCase.php` refuses any database whose name doesn't end in `_testing`. The UAT server is
+      shared with about 20 other applications' databases, so it isn't used for tests.
+- [x] Point local mail at a development catcher (log driver or Mailpit), so invites and codes never reach
+      real inboxes. **Already the case:** `.env` sends to Mailpit (`lerd-mailpit:1025`); verified in step 4.
 
 ### Live-like dataset
 - [ ] A **live-like dataset** on the current (`main`) schema, so the new local database looks like a

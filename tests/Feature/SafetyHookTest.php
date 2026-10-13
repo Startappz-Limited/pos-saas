@@ -44,6 +44,9 @@ it('blocks destructive commands against a live database', function (string $comm
     'delete without where' => 'mysql pos_saas_dev -e "DELETE FROM sales"',
     'uppercase' => 'PHP ARTISAN MIGRATE:FRESH',
     'live database named next to a test one' => 'DB_DATABASE=pos_saas_testing mysql fitness_center -e "truncate sales"',
+    'UAT database next to a test one' => 'mysql pos_saas_testing fitness -e "truncate sales"',
+    'UAT host next to a test one' => 'mysql -h 64.227.44.46 pos_saas_testing -e "truncate sales"',
+    'production database next to a test one' => 'mysql -h 46.101.89.24 ecohub_pos_testing -e "truncate sales"',
 ]);
 
 it('allows safe commands', function (string $command) {
@@ -62,4 +65,5 @@ it('allows destructive commands that only target the test database', function (s
 })->with([
     'migrate:fresh on the test database' => 'DB_DATABASE=pos_saas_testing php artisan migrate:fresh',
     'truncate on the test database' => 'mysql pos_saas_testing -e "TRUNCATE TABLE sales"',
+    'project path containing fitness' => 'cd /home/user/Projects/fitness-center && DB_DATABASE=pos_saas_testing php artisan migrate:fresh',
 ]);

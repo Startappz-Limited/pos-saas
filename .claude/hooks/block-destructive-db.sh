@@ -33,10 +33,16 @@ deny() {
   exit 0
 }
 
+# Live databases and servers: UAT (development: `fitness` on 64.227.44.46), the
+# production servers (`pos`, `ecohub_pos` on 46.101.89.24) and the legacy local
+# `fitness_center`. Names match only as whole words, so project paths such as
+# /fitness-center/ don't count.
+live_db_pattern='(^|[ =.`"'"'"'])(fitness|pos|ecohub_pos|fitness_center|pos_saas_dev)([ ;.`"'"'"']|$)|64\.227\.44\.46|46\.101\.89\.24'
+
 # The test database may be reset freely; only when the command names it and
-# no live database (the legacy and development databases) alongside it.
+# no live database alongside it.
 if printf '%s' "$norm" | grep -Eq '[a-z0-9_]+_testing\b' \
-  && ! printf '%s' "$norm" | grep -Eq 'fitness_center|pos_saas_dev|ecohub_pos'; then
+  && ! printf '%s' "$norm" | grep -Eq "$live_db_pattern"; then
   exit 0
 fi
 

@@ -583,8 +583,10 @@ No tenancy package is needed; scoping is built in-house (4.1).
 - **Work:**
   - **Answer Open question 1** (is there live data?). If there is, plan the one-off import (4.7).
   - `composer install` to match the lock file.
-  - **A new, empty local database**, created by you and pointed to from `.env`. The project's safety
-    hook blocks wiping the current one, which carries another branch's migrations.
+  - ~~A new, empty local database, pointed to from `.env`.~~ **Changed 13 October 2026:** development
+    uses the **UAT** database (treated as live); tests and the synthetic dataset use a local MySQL 8
+    database whose name ends in `_testing` (`mysql_testing` connection, `DB_TEST_*` keys). See the
+    stage 0 file.
   - Make the 8 WhatsApp tests independent of `.env`; fix or isolate the HTTPS test.
   - Point local mail at a development catcher (log driver or Mailpit), so invites and codes never reach
     real inboxes.
