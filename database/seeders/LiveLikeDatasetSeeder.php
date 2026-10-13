@@ -39,6 +39,8 @@ use App\Services\Integration\ShopifyOrderSyncService;
 use App\Services\Integration\WooCommerceOrderSyncService;
 use App\Services\StockAdjustmentService;
 use App\Support\Dataset\Determinism;
+use Illuminate\Console\Command;
+use Illuminate\Console\OutputStyle;
 use Illuminate\Database\Seeder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -48,6 +50,8 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use RuntimeException;
+use Symfony\Component\Console\Input\ArrayInput;
+use Symfony\Component\Console\Output\NullOutput;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
@@ -114,6 +118,7 @@ class LiveLikeDatasetSeeder extends Seeder
             throw new RuntimeException('The live-like dataset is only built in the local or testing environment.');
         }
 
+        $this->ensureCommand();
         Determinism::start(self::SEED, self::STARTS);
         $this->fakeEcommercePlatforms();
 
@@ -723,14 +728,38 @@ class LiveLikeDatasetSeeder extends Seeder
         Expense::orderBy('id')->get()->filter(fn ($e, int $i): bool => $i % 60 === 7)->each->delete();
         EcommerceOrder::whereNull('sale_id')->orderBy('id')->limit(3)->get()->each->delete();
         AbandonedCart::whereNull('sale_id')->orderBy('id')->limit(4)->get()->each->delete();
-        PurchaseOrder::orderBy('id')->limit(2)->get()->each->delete();
-        StockIntake::orderBy('id')->first()?->delete();
+        // Leave at least one live row in each table, at any scale.
+        PurchaseOrder::orderBy('id')->limit(min(2, PurchaseOrder::count() - 1))->get()->each->delete();
+        if (StockIntake::count() > 1) {
+            StockIntake::orderBy('id')->first()->delete();
+        }
 
         $closed = Shop::factory()->create(['name' => 'Closed Kiosk', 'code' => 'KSK', 'manager_id' => $this->owner->id]);
         $closed->delete();
     }
 
     // --- helpers -------------------------------------------------------------
+
+    /**
+     * The permission and role seeders write progress to a command; when the
+     * dataset is seeded from code (a test) rather than an artisan command,
+     * give them a silent one.
+     */
+    private function ensureCommand(): void
+    {
+        if (isset($this->command)) {
+            return;
+        }
+
+        $command = new class extends Command
+        {
+            protected $name = 'dataset:seed-quietly';
+        };
+        $command->setLaravel(app());
+        $command->setOutput(new OutputStyle(new ArrayInput([]), new NullOutput));
+
+        $this->setContainer(app())->setCommand($command);
+    }
 
     /**
      * A seeded random pick. Collection::random() uses random_int() and

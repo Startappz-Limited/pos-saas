@@ -36,7 +36,8 @@ Known baseline failures (to be fixed in step 2):
 | 4b. Social account credentials column; hook hardened | `8f44b46` | `SocialAccountCredentialsTest` (4); `SafetyHookTest` rewritten (41 cases, in `tests/Fixtures/safety-hook-cases.php`) | 1,088 passed, 42 skipped | 1,088 passed, **1 failed** (low stock, step 4c), 41 skipped | Migration `2026_10_13_111431`: `social_accounts.credentials` JSON → TEXT; `down()` refuses while encrypted values exist. Rehearsed on `pos_saas_rehearsal_testing`: 2 rows (NULL and JSON credentials) identical before and after. New `rehearsal_testing` connection. Hook now blocks every artisan command that changes a database unless `--database=…_testing`. **See "UAT incident" below** |
 | 4c. Low-stock check for variations | `5b5c2c0` | `CheckLowStockLevelsTest` (5) | 1,093 passed, 42 skipped | **1,094 passed, 0 failed**, 41 skipped | `CheckLowStockLevels` compares a variation's stock with its **product's** `reorder_level` (approved) and records that as the threshold. The 5 new tests fail on MySQL against the old code and pass with the fix. MySQL suite fully green for the first time |
 | 5. Snapshot and restore | `1bc830a` | `DatabaseSnapshotTest` (12); hook cases +4 (45) | 1,102 passed, 49 skipped | **1,106 passed, 0 failed**, 45 skipped | `db:snapshot` (read-only, any MySQL/MariaDB connection) and `db:restore-snapshot` (only into a connection and database ending in `_testing`, local/testing env, `--yes`, snapshots the target first, checks row counts afterwards). Round trip verified with `CHECKSUM TABLE`; awkward values (quotes, semicolons, newlines, the statement marker, Unicode, NULL, empty) survive. **Real run:** UAT snapshot, 85 tables / 1,290 rows (UAT unchanged before and after), restored into `rehearsal_testing` (MariaDB 11.4 → MySQL 8.4) with every row count matching |
-| 6. Live-like dataset; connection guard | _this commit_ | `LiveLikeDatasetTest` (13), `ConnectionGuardTest` (4) | 1,116 passed, 52 skipped | 1,123 passed, 0 failed, 45 skipped (7 min 22 s) | `dataset:build --database=…_testing [--scale=]` builds into an **empty** `_testing` database only. `LiveLikeDatasetSeeder`: seeded Faker/`mt_rand`/UUIDs/random strings, frozen clock, fixed password hash, faked mail/notifications/jobs/HTTP. Sales through the **real paths** (web and API `store()`, both converters); credit payments through `collectPayment()`; adjustments through `StockAdjustmentService`. Medium build (scale 1): 3,000 sales / 7,289 lines / 400 products / 503 customers, **5 min 21 s, 145 MB**. Two separate builds give identical data in every table (encrypted columns compared decrypted). `ConnectionGuard` blocks every query not on the target connection, in `dataset:build` and `db:restore-snapshot` |
+| 6. Live-like dataset; connection guard | `1a0e3b1` | `LiveLikeDatasetTest` (13), `ConnectionGuardTest` (4) | 1,116 passed, 52 skipped | 1,123 passed, 0 failed, 45 skipped (7 min 22 s) | `dataset:build --database=…_testing [--scale=]` builds into an **empty** `_testing` database only. `LiveLikeDatasetSeeder`: seeded Faker/`mt_rand`/UUIDs/random strings, frozen clock, fixed password hash, faked mail/notifications/jobs/HTTP. Sales through the **real paths** (web and API `store()`, both converters); credit payments through `collectPayment()`; adjustments through `StockAdjustmentService`. Medium build (scale 1): 3,000 sales / 7,289 lines / 400 products / 503 customers, **5 min 21 s, 145 MB**. Two separate builds give identical data in every table (encrypted columns compared decrypted). `ConnectionGuard` blocks every query not on the target connection, in `dataset:build` and `db:restore-snapshot` |
+| 7. Flat API contract fixtures | _this commit_ | `FlatApiContractTest` (2 checks + 1 recorder) | 1,116 passed, 54 skipped | **1,125 passed, 0 failed**, 45 skipped (7 min 44 s) | `tests/Fixtures/api-contract/routes.json` (all 118 `/api` routes: method, URI, name, middleware) and `responses.json` (48 calls against the live-like dataset: 46 GET routes, sign-in, creating a sale; each with status and JSON shape). Fails when a recorded route is removed or changed, or a working endpoint changes status or loses or retypes a key; additions are allowed. A deliberately altered fixture made the check fail as expected. **6 endpoints are already broken on `main`** (see "Known broken flat API endpoints") |
 
 ### Differences from the stage file
 
@@ -93,6 +94,26 @@ Known baseline failures (to be fixed in step 2):
   differs from UAT's), so there's no evidence UAT changed. Fixed: the build moves the permission cache to
   memory, and `ConnectionGuard` blocks every query not on the target connection.
 
+- **Contract recording is a test group, not an `api:contract-record` command** (the plan said a command):
+  the test framework already signs in through Sanctum and seeds the dataset. Re-record on purpose with
+  `php artisan test --configuration=phpunit.mysql.xml --group=api-contract-record` (the group is excluded
+  from normal runs).
+- **The contract is recorded and checked on MySQL only** (the plan put it in the SQLite CI job). On
+  SQLite, raw report queries return numbers where MySQL returns strings, so shapes differ between
+  engines; production is MySQL-family. CI runs it in the MySQL job.
+- **Shapes treat `null` as compatible with any type, and record numbers as `number`** (JSON has one
+  number type). Whether a field is empty, or a total is whole, depends on the data, not the contract.
+
+### Known broken flat API endpoints (pre-existing on `main`, found in step 7)
+
+Recorded in the contract as broken; fixing them later won't fail the contract test.
+
+| Endpoint | Problem |
+|---|---|
+| `GET api/inventory`, `GET api/inventory/low-stock`, `GET api/inventory/shop/{shop}`, `GET api/inventory/product/{product}` | Routed to `Api\InventoryController` methods (`index`, `lowStock`, `byShop`, `byProduct`) that don't exist: always 500 |
+| `GET api/users/{user}` | 500: `Call to undefined relationship [shop] on model [App\Models\User]` |
+| `GET api/expenses/{expense}` | 403 "Unauthorized access to this expense." even for the owner (super-admin) |
+
 ### UAT incident (13 October 2026, step 4b)
 
 While rehearsing the step 4b migration I ran `migrate` followed by `migrate:rollback --step=1` with
@@ -126,6 +147,8 @@ because it trusted the `_testing` name in the shell prefix.
 - **`CheckLowStockLevels` isn't limited to the shop it raises alerts for:** it checks every product
   and variation in the database and files each alert under the given shop. Per-shop stock and scoping
   belong to stages 1b (stock per shop and variation) and 1c.
+- **Fix or remove the 6 known broken flat API endpoints** (table above). Check first whether the Flutter
+  app calls them; it fails silently on errors.
 - **Dataset realism:** cash registers are opened per cashier per day by the real sale path and never
   closed (1,827 open at scale 1); a later stage could close each day's registers.
 - **Within one PHP process a second dataset build differs** (static state held over), so the

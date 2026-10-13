@@ -1,0 +1,2683 @@
+{
+    "GET api/abandoned-carts": {
+        "status": 200,
+        "shape": {
+            "success": "bool",
+            "data": {
+                "carts": {
+                    "current_page": "number",
+                    "data": [
+                        {
+                            "uuid": "string",
+                            "platform": "string",
+                            "platform_cart_id": "string",
+                            "status": "string",
+                            "status_label": "string",
+                            "platform_status": "string",
+                            "shop": {
+                                "uuid": "string",
+                                "name": "string"
+                            },
+                            "customer": "null",
+                            "customer_name": "string",
+                            "customer_email": "string",
+                            "customer_phone": "string",
+                            "user_type": "string",
+                            "capture_source": "string",
+                            "currency": "string",
+                            "subtotal": "string",
+                            "tax_total": "string",
+                            "total": "string",
+                            "coupon_code": "null",
+                            "items_count": "number",
+                            "has_recovery_link": "bool",
+                            "reminders_sent": "number",
+                            "last_activity": "string",
+                            "assigned_to": "null",
+                            "sale": {
+                                "uuid": "string",
+                                "invoice_number": "string"
+                            },
+                            "platform_order_id": "null",
+                            "is_opted_out": "bool",
+                            "abandoned_at": "string",
+                            "recovered_at": "null",
+                            "converted_at": "string",
+                            "last_contacted_at": "null",
+                            "opted_out_at": "null",
+                            "created_at": "string",
+                            "updated_at": "string"
+                        }
+                    ],
+                    "first_page_url": "string",
+                    "from": "number",
+                    "last_page": "number",
+                    "last_page_url": "string",
+                    "links": [
+                        {
+                            "url": "null",
+                            "label": "string",
+                            "page": "null",
+                            "active": "bool"
+                        }
+                    ],
+                    "next_page_url": "null",
+                    "path": "string",
+                    "per_page": "number",
+                    "prev_page_url": "null",
+                    "to": "number",
+                    "total": "number"
+                },
+                "statistics": {
+                    "total": "number",
+                    "abandoned": "number",
+                    "contacted": "number",
+                    "recovered": "number",
+                    "converted": "number",
+                    "lost": "number"
+                }
+            }
+        }
+    },
+    "GET api/abandoned-carts/{abandonedCart}": {
+        "status": 200,
+        "shape": {
+            "success": "bool",
+            "data": {
+                "uuid": "string",
+                "platform": "string",
+                "platform_cart_id": "string",
+                "status": "string",
+                "status_label": "string",
+                "platform_status": "string",
+                "shop": {
+                    "uuid": "string",
+                    "name": "string"
+                },
+                "customer": "null",
+                "customer_name": "string",
+                "customer_email": "string",
+                "customer_phone": "string",
+                "user_type": "string",
+                "capture_source": "string",
+                "currency": "string",
+                "subtotal": "string",
+                "tax_total": "string",
+                "total": "string",
+                "coupon_code": "null",
+                "has_recovery_link": "bool",
+                "reminders_sent": "number",
+                "last_activity": "string",
+                "assigned_to": "null",
+                "sale": {
+                    "uuid": "string",
+                    "invoice_number": "string"
+                },
+                "platform_order_id": "null",
+                "is_opted_out": "bool",
+                "abandoned_at": "string",
+                "recovered_at": "null",
+                "converted_at": "string",
+                "last_contacted_at": "null",
+                "opted_out_at": "null",
+                "created_at": "string",
+                "updated_at": "string",
+                "recovery_link": "string",
+                "can_be_converted": "bool",
+                "has_unmatched_items": "bool",
+                "ecommerce_order": "null",
+                "items": [
+                    {
+                        "id": "number",
+                        "name": "string",
+                        "sku": "null",
+                        "platform_product_id": "string",
+                        "platform_variation_id": "null",
+                        "product": {
+                            "uuid": "string",
+                            "name": "string"
+                        },
+                        "variation_id": "null",
+                        "is_matched": "bool",
+                        "quantity": "number",
+                        "unit_price": "string",
+                        "line_total": "string",
+                        "image_url": "null"
+                    }
+                ],
+                "timeline": [
+                    {
+                        "uuid": "string",
+                        "type": "string",
+                        "title": "string",
+                        "message": "string",
+                        "severity": "string",
+                        "data": {
+                            "event": "string",
+                            "sale_id": "number",
+                            "invoice_number": "string"
+                        },
+                        "scheduled_at": "null",
+                        "is_resolved": "bool",
+                        "is_overdue": "bool",
+                        "created_by": "string",
+                        "created_at": "string"
+                    }
+                ],
+                "reminders": [
+                    "(empty list)"
+                ]
+            }
+        }
+    },
+    "GET api/calendar/events": {
+        "status": 200,
+        "shape": {
+            "success": "bool",
+            "data": [
+                "(empty list)"
+            ]
+        }
+    },
+    "GET api/cash-registers": {
+        "status": 200,
+        "shape": {
+            "success": "bool",
+            "data": [
+                {
+                    "id": "number",
+                    "uuid": "string",
+                    "shop_id": "number",
+                    "user_id": "number",
+                    "register_number": "string",
+                    "register_date": "string",
+                    "opening_balance": "number",
+                    "expense_opening_balance": "number",
+                    "expense_balance_used": "number",
+                    "remaining_expense_balance": "number",
+                    "closing_balance": "null",
+                    "expected_balance": "null",
+                    "variance": "null",
+                    "total_sales": "number",
+                    "total_cash_sales": "number",
+                    "total_card_sales": "number",
+                    "total_credit_sales": "number",
+                    "total_mobile_money_sales": "number",
+                    "total_bank_transfer_sales": "number",
+                    "total_cheque_sales": "number",
+                    "transaction_count": "number",
+                    "status": "string",
+                    "opened_at": "string",
+                    "closed_at": "null",
+                    "opening_notes": "string",
+                    "closing_notes": "null",
+                    "user": {
+                        "id": "number",
+                        "name": "string"
+                    },
+                    "closed_by": "null",
+                    "expenses_total": "number",
+                    "created_at": "string",
+                    "updated_at": "string"
+                }
+            ]
+        }
+    },
+    "GET api/cash-registers/status": {
+        "status": 200,
+        "shape": {
+            "success": "bool",
+            "data": {
+                "has_active_register": "bool",
+                "register": "null"
+            }
+        }
+    },
+    "GET api/cash-registers/{cashRegister}": {
+        "status": 200,
+        "shape": {
+            "success": "bool",
+            "data": {
+                "id": "number",
+                "uuid": "string",
+                "shop_id": "number",
+                "user_id": "number",
+                "register_number": "string",
+                "register_date": "string",
+                "opening_balance": "number",
+                "expense_opening_balance": "number",
+                "expense_balance_used": "number",
+                "remaining_expense_balance": "number",
+                "closing_balance": "number",
+                "expected_balance": "number",
+                "variance": "number",
+                "total_sales": "number",
+                "total_cash_sales": "number",
+                "total_card_sales": "number",
+                "total_credit_sales": "number",
+                "total_mobile_money_sales": "number",
+                "total_bank_transfer_sales": "number",
+                "total_cheque_sales": "number",
+                "transaction_count": "number",
+                "status": "string",
+                "opened_at": "string",
+                "closed_at": "string",
+                "opening_notes": "string",
+                "closing_notes": "null",
+                "user": {
+                    "id": "number",
+                    "name": "string"
+                },
+                "closed_by": {
+                    "id": "number",
+                    "name": "string"
+                },
+                "expenses": [
+                    "(empty list)"
+                ],
+                "expenses_total": "number",
+                "created_at": "string",
+                "updated_at": "string"
+            }
+        }
+    },
+    "GET api/categories": {
+        "status": 200,
+        "shape": {
+            "success": "bool",
+            "data": {
+                "current_page": "number",
+                "data": [
+                    {
+                        "id": "number",
+                        "uuid": "string",
+                        "name": "string",
+                        "slug": "string",
+                        "description": "string",
+                        "parent_id": "null",
+                        "image": "null",
+                        "order": "number",
+                        "status": "string",
+                        "created_by": "null",
+                        "updated_by": "null",
+                        "created_at": "string",
+                        "updated_at": "string",
+                        "deleted_at": "null",
+                        "products_count": "number"
+                    }
+                ],
+                "first_page_url": "string",
+                "from": "number",
+                "last_page": "number",
+                "last_page_url": "string",
+                "links": [
+                    {
+                        "url": "null",
+                        "label": "string",
+                        "page": "null",
+                        "active": "bool"
+                    }
+                ],
+                "next_page_url": "null",
+                "path": "string",
+                "per_page": "number",
+                "prev_page_url": "null",
+                "to": "number",
+                "total": "number"
+            }
+        }
+    },
+    "GET api/categories/{category}": {
+        "status": 200,
+        "shape": {
+            "success": "bool",
+            "data": {
+                "id": "number",
+                "uuid": "string",
+                "name": "string",
+                "slug": "string",
+                "description": "string",
+                "parent_id": "null",
+                "image": "null",
+                "order": "number",
+                "status": "string",
+                "created_by": "null",
+                "updated_by": "null",
+                "created_at": "string",
+                "updated_at": "string",
+                "deleted_at": "null",
+                "parent": "null",
+                "children": [
+                    "(empty list)"
+                ],
+                "products": [
+                    {
+                        "id": "number",
+                        "uuid": "string",
+                        "name": "string",
+                        "slug": "string",
+                        "description": "string",
+                        "sku": "string",
+                        "category_id": "number",
+                        "supplier_id": "number",
+                        "shop_id": "number",
+                        "barcode": "string",
+                        "cost_price": "string",
+                        "selling_price": "string",
+                        "wholesale_price": "null",
+                        "tax_class": "null",
+                        "stock_quantity": "number",
+                        "reorder_level": "number",
+                        "track_stock": "bool",
+                        "has_variations": "bool",
+                        "image": "null",
+                        "images": "null",
+                        "unit": "string",
+                        "status": "string",
+                        "notes": "string",
+                        "created_by": "null",
+                        "updated_by": "null",
+                        "created_at": "string",
+                        "updated_at": "string",
+                        "deleted_at": "null"
+                    }
+                ]
+            }
+        }
+    },
+    "GET api/customers": {
+        "status": 200,
+        "shape": {
+            "success": "bool",
+            "data": {
+                "current_page": "number",
+                "data": [
+                    {
+                        "id": "number",
+                        "uuid": "string",
+                        "shop_id": "number",
+                        "code": "string",
+                        "name": "string",
+                        "email": "string",
+                        "tax_pin": "null",
+                        "phone": "string",
+                        "phone_normalized": "string",
+                        "address": "string",
+                        "customer_type": "string",
+                        "allow_credit": "bool",
+                        "credit_limit": "string",
+                        "credit_balance": "string",
+                        "status": "string",
+                        "notes": "null",
+                        "created_by": "number",
+                        "updated_by": "null",
+                        "created_at": "string",
+                        "updated_at": "string",
+                        "deleted_at": "null"
+                    }
+                ],
+                "first_page_url": "string",
+                "from": "number",
+                "last_page": "number",
+                "last_page_url": "string",
+                "links": [
+                    {
+                        "url": "null",
+                        "label": "string",
+                        "page": "null",
+                        "active": "bool"
+                    }
+                ],
+                "next_page_url": "null",
+                "path": "string",
+                "per_page": "number",
+                "prev_page_url": "null",
+                "to": "number",
+                "total": "number"
+            }
+        }
+    },
+    "GET api/customers/{customer}": {
+        "status": 200,
+        "shape": {
+            "success": "bool",
+            "data": {
+                "id": "number",
+                "uuid": "string",
+                "shop_id": "number",
+                "code": "string",
+                "name": "string",
+                "email": "string",
+                "tax_pin": "null",
+                "phone": "string",
+                "phone_normalized": "string",
+                "address": "string",
+                "customer_type": "string",
+                "allow_credit": "bool",
+                "credit_limit": "string",
+                "credit_balance": "string",
+                "status": "string",
+                "notes": "null",
+                "created_by": "number",
+                "updated_by": "null",
+                "created_at": "string",
+                "updated_at": "string",
+                "deleted_at": "null"
+            }
+        }
+    },
+    "GET api/delivery-companies": {
+        "status": 200,
+        "shape": {
+            "success": "bool",
+            "data": [
+                {
+                    "id": "number",
+                    "uuid": "string",
+                    "name": "string",
+                    "contact_person": "string",
+                    "phone": "string",
+                    "email": "null",
+                    "address": "null",
+                    "is_active": "bool",
+                    "created_at": "string",
+                    "updated_at": "string"
+                }
+            ]
+        }
+    },
+    "GET api/delivery-companies/{delivery_company}": {
+        "status": 200,
+        "shape": {
+            "success": "bool",
+            "data": {
+                "id": "number",
+                "uuid": "string",
+                "name": "string",
+                "contact_person": "string",
+                "phone": "string",
+                "email": "null",
+                "address": "null",
+                "is_active": "bool",
+                "created_at": "string",
+                "updated_at": "string"
+            }
+        }
+    },
+    "GET api/ecommerce-orders": {
+        "status": 200,
+        "shape": {
+            "success": "bool",
+            "data": {
+                "orders": {
+                    "current_page": "number",
+                    "data": [
+                        {
+                            "id": "number",
+                            "uuid": "string",
+                            "shop_id": "number",
+                            "platform": "string",
+                            "platform_order_id": "string",
+                            "order_number": "string",
+                            "status": "string",
+                            "payment_method": "string",
+                            "payment_status": "string",
+                            "currency": "string",
+                            "subtotal": "string",
+                            "discount_total": "string",
+                            "shipping_total": "string",
+                            "tax_total": "string",
+                            "total": "string",
+                            "customer_name": "string",
+                            "customer_email": "string",
+                            "customer_phone": "string",
+                            "billing_address": {
+                                "city": "string",
+                                "country": "string",
+                                "address_1": "string"
+                            },
+                            "shipping_address": {
+                                "city": "string",
+                                "country": "string",
+                                "address_1": "string"
+                            },
+                            "notes": "null",
+                            "platform_created_at": "string",
+                            "platform_updated_at": "null",
+                            "platform_data": "null",
+                            "sale_id": "number",
+                            "converted_at": "string",
+                            "converted_by": "number",
+                            "last_synced_at": "string",
+                            "created_at": "string",
+                            "updated_at": "string",
+                            "deleted_at": "null",
+                            "items_count": "number",
+                            "shop": {
+                                "id": "number",
+                                "uuid": "string",
+                                "name": "string",
+                                "code": "string",
+                                "description": "string",
+                                "phone": "string",
+                                "email": "string",
+                                "tax_pin": "null",
+                                "vat_registered": "bool",
+                                "address": "string",
+                                "city": "string",
+                                "state": "string",
+                                "country": "string",
+                                "postal_code": "string",
+                                "latitude": "string",
+                                "longitude": "string",
+                                "status": "string",
+                                "manager_id": "number",
+                                "settings": {
+                                    "currency": "string",
+                                    "tax_rate": "number",
+                                    "timezone": "string",
+                                    "closing_time": "string",
+                                    "opening_time": "string"
+                                },
+                                "created_by": "null",
+                                "updated_by": "null",
+                                "created_at": "string",
+                                "updated_at": "string",
+                                "deleted_at": "null"
+                            },
+                            "sale": {
+                                "id": "number",
+                                "uuid": "string",
+                                "shop_id": "number",
+                                "register_id": "number",
+                                "customer_id": "null",
+                                "source_id": "number",
+                                "delivery_location": "string",
+                                "walk_in_customer_name": "string",
+                                "walk_in_customer_email": "string",
+                                "walk_in_customer_phone": "string",
+                                "customer_tax_pin": "null",
+                                "delivery_company_id": "null",
+                                "invoice_number": "string",
+                                "sale_type": "string",
+                                "subtotal": "string",
+                                "discount_amount": "string",
+                                "discount_type": "null",
+                                "tax_amount": "string",
+                                "tax_inclusive": "bool",
+                                "taxable_amount": "string",
+                                "tax_breakdown": "null",
+                                "delivery_fee": "string",
+                                "packaging_fee": "string",
+                                "other_expenses": "string",
+                                "expense_notes": "null",
+                                "total_amount": "string",
+                                "total_cost": "string",
+                                "total_profit": "string",
+                                "paid_amount": "string",
+                                "balance_due": "string",
+                                "payment_status": "string",
+                                "payment_method": "string",
+                                "is_cod": "bool",
+                                "status": "string",
+                                "notes": "string",
+                                "completed_at": "string",
+                                "voided_at": "null",
+                                "voided_by": "null",
+                                "void_reason": "null",
+                                "created_by": "number",
+                                "updated_by": "null",
+                                "created_at": "string",
+                                "updated_at": "string",
+                                "deleted_at": "null"
+                            }
+                        }
+                    ],
+                    "first_page_url": "string",
+                    "from": "number",
+                    "last_page": "number",
+                    "last_page_url": "string",
+                    "links": [
+                        {
+                            "url": "null",
+                            "label": "string",
+                            "page": "null",
+                            "active": "bool"
+                        }
+                    ],
+                    "next_page_url": "null",
+                    "path": "string",
+                    "per_page": "number",
+                    "prev_page_url": "null",
+                    "to": "number",
+                    "total": "number"
+                },
+                "statistics": {
+                    "total": "number",
+                    "pending": "number",
+                    "processing": "number",
+                    "completed": "number"
+                }
+            }
+        }
+    },
+    "GET api/ecommerce-orders/{order}": {
+        "status": 200,
+        "shape": {
+            "success": "bool",
+            "data": {
+                "id": "number",
+                "uuid": "string",
+                "shop_id": "number",
+                "platform": "string",
+                "platform_order_id": "string",
+                "order_number": "string",
+                "status": "string",
+                "payment_method": "string",
+                "payment_status": "string",
+                "currency": "string",
+                "subtotal": "string",
+                "discount_total": "string",
+                "shipping_total": "string",
+                "tax_total": "string",
+                "total": "string",
+                "customer_name": "string",
+                "customer_email": "string",
+                "customer_phone": "string",
+                "billing_address": {
+                    "city": "string",
+                    "country": "string",
+                    "address_1": "string"
+                },
+                "shipping_address": {
+                    "city": "string",
+                    "country": "string",
+                    "address_1": "string"
+                },
+                "notes": "null",
+                "platform_created_at": "string",
+                "platform_updated_at": "null",
+                "platform_data": "null",
+                "sale_id": "number",
+                "converted_at": "string",
+                "converted_by": {
+                    "id": "number",
+                    "uuid": "string",
+                    "name": "string",
+                    "email": "string",
+                    "email_verified_at": "string",
+                    "phone": "string",
+                    "address": "string",
+                    "date_of_birth": "string",
+                    "profile_photo": "null",
+                    "status": "string",
+                    "created_by": "null",
+                    "updated_by": "null",
+                    "created_at": "string",
+                    "updated_at": "string"
+                },
+                "last_synced_at": "string",
+                "created_at": "string",
+                "updated_at": "string",
+                "deleted_at": "null",
+                "shop": {
+                    "id": "number",
+                    "uuid": "string",
+                    "name": "string",
+                    "code": "string",
+                    "description": "string",
+                    "phone": "string",
+                    "email": "string",
+                    "tax_pin": "null",
+                    "vat_registered": "bool",
+                    "address": "string",
+                    "city": "string",
+                    "state": "string",
+                    "country": "string",
+                    "postal_code": "string",
+                    "latitude": "string",
+                    "longitude": "string",
+                    "status": "string",
+                    "manager_id": "number",
+                    "settings": {
+                        "currency": "string",
+                        "tax_rate": "number",
+                        "timezone": "string",
+                        "closing_time": "string",
+                        "opening_time": "string"
+                    },
+                    "created_by": "null",
+                    "updated_by": "null",
+                    "created_at": "string",
+                    "updated_at": "string",
+                    "deleted_at": "null"
+                },
+                "sale": {
+                    "id": "number",
+                    "uuid": "string",
+                    "shop_id": "number",
+                    "register_id": "number",
+                    "customer_id": "null",
+                    "source_id": "number",
+                    "delivery_location": "string",
+                    "walk_in_customer_name": "string",
+                    "walk_in_customer_email": "string",
+                    "walk_in_customer_phone": "string",
+                    "customer_tax_pin": "null",
+                    "delivery_company_id": "null",
+                    "invoice_number": "string",
+                    "sale_type": "string",
+                    "subtotal": "string",
+                    "discount_amount": "string",
+                    "discount_type": "null",
+                    "tax_amount": "string",
+                    "tax_inclusive": "bool",
+                    "taxable_amount": "string",
+                    "tax_breakdown": "null",
+                    "delivery_fee": "string",
+                    "packaging_fee": "string",
+                    "other_expenses": "string",
+                    "expense_notes": "null",
+                    "total_amount": "string",
+                    "total_cost": "string",
+                    "total_profit": "string",
+                    "paid_amount": "string",
+                    "balance_due": "string",
+                    "payment_status": "string",
+                    "payment_method": "string",
+                    "is_cod": "bool",
+                    "status": "string",
+                    "notes": "string",
+                    "completed_at": "string",
+                    "voided_at": "null",
+                    "voided_by": "null",
+                    "void_reason": "null",
+                    "created_by": "number",
+                    "updated_by": "null",
+                    "created_at": "string",
+                    "updated_at": "string",
+                    "deleted_at": "null"
+                },
+                "items": [
+                    {
+                        "id": "number",
+                        "ecommerce_order_id": "number",
+                        "platform_product_id": "string",
+                        "platform_line_item_id": "string",
+                        "product_id": "number",
+                        "name": "string",
+                        "sku": "string",
+                        "quantity": "number",
+                        "unit_price": "string",
+                        "subtotal": "string",
+                        "total": "string",
+                        "tax_total": "string",
+                        "platform_data": "null",
+                        "created_at": "string",
+                        "updated_at": "string",
+                        "product": {
+                            "id": "number",
+                            "uuid": "string",
+                            "name": "string",
+                            "slug": "string",
+                            "description": "string",
+                            "sku": "string",
+                            "category_id": "number",
+                            "supplier_id": "number",
+                            "shop_id": "number",
+                            "barcode": "null",
+                            "cost_price": "string",
+                            "selling_price": "string",
+                            "wholesale_price": "null",
+                            "tax_class": "null",
+                            "stock_quantity": "number",
+                            "reorder_level": "number",
+                            "track_stock": "bool",
+                            "has_variations": "bool",
+                            "image": "null",
+                            "images": "null",
+                            "unit": "string",
+                            "status": "string",
+                            "notes": "string",
+                            "created_by": "null",
+                            "updated_by": "null",
+                            "created_at": "string",
+                            "updated_at": "string",
+                            "deleted_at": "null"
+                        }
+                    }
+                ],
+                "order_notes": [
+                    "(empty list)"
+                ],
+                "reminders": [
+                    "(empty list)"
+                ]
+            }
+        }
+    },
+    "GET api/expense-categories": {
+        "status": 200,
+        "shape": {
+            "success": "bool",
+            "data": [
+                {
+                    "id": "number",
+                    "uuid": "string",
+                    "parent_id": "null",
+                    "depth": "number",
+                    "path": "null",
+                    "name": "string",
+                    "slug": "string",
+                    "code": "string",
+                    "description": "null",
+                    "type": "string",
+                    "is_operational": "bool",
+                    "is_tax_deductible": "bool",
+                    "monthly_budget": "null",
+                    "yearly_budget": "null",
+                    "requires_approval": "bool",
+                    "approval_threshold": "null",
+                    "icon": "null",
+                    "color": "null",
+                    "sort_order": "number",
+                    "status": "string",
+                    "created_by": "null",
+                    "updated_by": "null",
+                    "created_at": "string",
+                    "updated_at": "string",
+                    "deleted_at": "null",
+                    "parent": "null",
+                    "children": [
+                        "(empty list)"
+                    ]
+                }
+            ]
+        }
+    },
+    "GET api/expense-categories/{expense_category}": {
+        "status": 200,
+        "shape": {
+            "success": "bool",
+            "data": {
+                "id": "number",
+                "uuid": "string",
+                "parent_id": "null",
+                "depth": "number",
+                "path": "null",
+                "name": "string",
+                "slug": "string",
+                "code": "string",
+                "description": "null",
+                "type": "string",
+                "is_operational": "bool",
+                "is_tax_deductible": "bool",
+                "monthly_budget": "null",
+                "yearly_budget": "null",
+                "requires_approval": "bool",
+                "approval_threshold": "null",
+                "icon": "null",
+                "color": "null",
+                "sort_order": "number",
+                "status": "string",
+                "created_by": "null",
+                "updated_by": "null",
+                "created_at": "string",
+                "updated_at": "string",
+                "deleted_at": "null",
+                "monthly_usage_percent": "null",
+                "yearly_usage_percent": "null",
+                "parent": "null",
+                "children": [
+                    "(empty list)"
+                ]
+            }
+        }
+    },
+    "GET api/expenses": {
+        "status": 200,
+        "shape": {
+            "success": "bool",
+            "data": [
+                {
+                    "id": "number",
+                    "uuid": "string",
+                    "shop_id": "number",
+                    "category_id": "number",
+                    "vendor_id": "null",
+                    "expense_number": "string",
+                    "title": "string",
+                    "description": "null",
+                    "amount": "string",
+                    "currency": "string",
+                    "payment_method": "null",
+                    "reference_number": "null",
+                    "is_paid": "bool",
+                    "settled_from_register": "bool",
+                    "cash_register_id": "null",
+                    "paid_date": "null",
+                    "expense_date": "string",
+                    "due_date": "null",
+                    "status": "string",
+                    "rejection_reason": "null",
+                    "submitted_at": "null",
+                    "approved_at": "null",
+                    "approved_by": "null",
+                    "is_recurring": "bool",
+                    "recurrence_frequency": "null",
+                    "recurrence_end_date": "null",
+                    "parent_expense_id": "null",
+                    "is_tax_deductible": "bool",
+                    "tax_amount": "null",
+                    "notes": "null",
+                    "created_by": "number",
+                    "updated_by": "null",
+                    "created_at": "string",
+                    "updated_at": "string",
+                    "deleted_at": "null",
+                    "category": {
+                        "id": "number",
+                        "uuid": "string",
+                        "parent_id": "null",
+                        "depth": "number",
+                        "path": "null",
+                        "name": "string",
+                        "slug": "string",
+                        "code": "string",
+                        "description": "null",
+                        "type": "string",
+                        "is_operational": "bool",
+                        "is_tax_deductible": "bool",
+                        "monthly_budget": "null",
+                        "yearly_budget": "null",
+                        "requires_approval": "bool",
+                        "approval_threshold": "null",
+                        "icon": "null",
+                        "color": "null",
+                        "sort_order": "number",
+                        "status": "string",
+                        "created_by": "null",
+                        "updated_by": "null",
+                        "created_at": "string",
+                        "updated_at": "string",
+                        "deleted_at": "null"
+                    },
+                    "vendor": "null",
+                    "creator": {
+                        "id": "number",
+                        "uuid": "string",
+                        "name": "string",
+                        "email": "string",
+                        "email_verified_at": "string",
+                        "phone": "string",
+                        "address": "string",
+                        "date_of_birth": "string",
+                        "profile_photo": "null",
+                        "status": "string",
+                        "created_by": "null",
+                        "updated_by": "null",
+                        "created_at": "string",
+                        "updated_at": "string"
+                    },
+                    "approver": "null"
+                }
+            ],
+            "meta": {
+                "current_page": "number",
+                "last_page": "number",
+                "per_page": "number",
+                "total": "number"
+            }
+        }
+    },
+    "GET api/expenses/summary": {
+        "status": 200,
+        "shape": {
+            "success": "bool",
+            "data": {
+                "period": {
+                    "start_date": "string",
+                    "end_date": "string"
+                },
+                "totals": {
+                    "total_expenses": "number",
+                    "paid": "number",
+                    "unpaid": "number",
+                    "pending_approval_count": "number"
+                },
+                "by_category": [
+                    "(empty list)"
+                ],
+                "by_status": [
+                    "(empty list)"
+                ]
+            }
+        }
+    },
+    "GET api/expenses/{expense}": {
+        "status": 403,
+        "shape": {
+            "message": "Unauthorized access to this expense."
+        }
+    },
+    "GET api/inventory": {
+        "status": 500,
+        "shape": {
+            "message": "App\\Http\\Controllers\\Api\\InventoryController::index does not exist"
+        }
+    },
+    "GET api/inventory/low-stock": {
+        "status": 500,
+        "shape": {
+            "message": "App\\Http\\Controllers\\Api\\InventoryController::lowStock does not exist"
+        }
+    },
+    "GET api/inventory/product/{product}": {
+        "status": 500,
+        "shape": {
+            "message": "App\\Http\\Controllers\\Api\\InventoryController::byProduct does not exist"
+        }
+    },
+    "GET api/inventory/shop/{shop}": {
+        "status": 500,
+        "shape": {
+            "message": "App\\Http\\Controllers\\Api\\InventoryController::byShop does not exist"
+        }
+    },
+    "GET api/products": {
+        "status": 200,
+        "shape": {
+            "success": "bool",
+            "data": {
+                "current_page": "number",
+                "data": [
+                    {
+                        "id": "number",
+                        "uuid": "string",
+                        "name": "string",
+                        "slug": "string",
+                        "description": "string",
+                        "sku": "string",
+                        "category_id": "number",
+                        "supplier_id": "number",
+                        "shop_id": "number",
+                        "barcode": "string",
+                        "cost_price": "string",
+                        "selling_price": "string",
+                        "wholesale_price": "null",
+                        "tax_class": "null",
+                        "stock_quantity": "number",
+                        "reorder_level": "number",
+                        "track_stock": "bool",
+                        "has_variations": "bool",
+                        "image": "null",
+                        "images": "null",
+                        "unit": "string",
+                        "status": "string",
+                        "notes": "string",
+                        "created_by": "null",
+                        "updated_by": "null",
+                        "created_at": "string",
+                        "updated_at": "string",
+                        "deleted_at": "null",
+                        "category": {
+                            "id": "number",
+                            "uuid": "string",
+                            "name": "string",
+                            "slug": "string",
+                            "description": "string",
+                            "parent_id": "null",
+                            "image": "null",
+                            "order": "number",
+                            "status": "string",
+                            "created_by": "null",
+                            "updated_by": "null",
+                            "created_at": "string",
+                            "updated_at": "string",
+                            "deleted_at": "null"
+                        },
+                        "creator": "null",
+                        "updater": "null",
+                        "shops": [
+                            {
+                                "id": "number",
+                                "uuid": "string",
+                                "name": "string",
+                                "code": "string",
+                                "description": "string",
+                                "phone": "string",
+                                "email": "string",
+                                "tax_pin": "null",
+                                "vat_registered": "bool",
+                                "address": "string",
+                                "city": "string",
+                                "state": "string",
+                                "country": "string",
+                                "postal_code": "string",
+                                "latitude": "string",
+                                "longitude": "string",
+                                "status": "string",
+                                "manager_id": "number",
+                                "settings": {
+                                    "currency": "string",
+                                    "tax_rate": "number",
+                                    "timezone": "string",
+                                    "closing_time": "string",
+                                    "opening_time": "string"
+                                },
+                                "created_by": "null",
+                                "updated_by": "null",
+                                "created_at": "string",
+                                "updated_at": "string",
+                                "deleted_at": "null",
+                                "pivot": {
+                                    "product_id": "number",
+                                    "shop_id": "number",
+                                    "stock_quantity": "number",
+                                    "reorder_level": "number",
+                                    "cost_price": "null",
+                                    "selling_price": "null",
+                                    "wholesale_price": "null",
+                                    "is_active": "number",
+                                    "created_at": "string",
+                                    "updated_at": "string"
+                                }
+                            }
+                        ]
+                    }
+                ],
+                "first_page_url": "string",
+                "from": "number",
+                "last_page": "number",
+                "last_page_url": "string",
+                "links": [
+                    {
+                        "url": "null",
+                        "label": "string",
+                        "page": "null",
+                        "active": "bool"
+                    }
+                ],
+                "next_page_url": "null",
+                "path": "string",
+                "per_page": "number",
+                "prev_page_url": "null",
+                "to": "number",
+                "total": "number"
+            }
+        }
+    },
+    "GET api/products/low-stock": {
+        "status": 200,
+        "shape": {
+            "success": "bool",
+            "data": {
+                "current_page": "number",
+                "data": [
+                    "(empty list)"
+                ],
+                "first_page_url": "string",
+                "from": "null",
+                "last_page": "number",
+                "last_page_url": "string",
+                "links": [
+                    {
+                        "url": "null",
+                        "label": "string",
+                        "page": "null",
+                        "active": "bool"
+                    }
+                ],
+                "next_page_url": "null",
+                "path": "string",
+                "per_page": "number",
+                "prev_page_url": "null",
+                "to": "null",
+                "total": "number"
+            }
+        }
+    },
+    "GET api/products/{product}": {
+        "status": 200,
+        "shape": {
+            "success": "bool",
+            "data": {
+                "id": "number",
+                "uuid": "string",
+                "name": "string",
+                "slug": "string",
+                "description": "string",
+                "sku": "string",
+                "category_id": "number",
+                "supplier_id": "number",
+                "shop_id": "number",
+                "barcode": "string",
+                "cost_price": "string",
+                "selling_price": "string",
+                "wholesale_price": "null",
+                "tax_class": "null",
+                "stock_quantity": "number",
+                "reorder_level": "number",
+                "track_stock": "bool",
+                "has_variations": "bool",
+                "image": "null",
+                "images": "null",
+                "unit": "string",
+                "status": "string",
+                "notes": "string",
+                "created_by": "null",
+                "updated_by": "null",
+                "created_at": "string",
+                "updated_at": "string",
+                "deleted_at": "null",
+                "category": {
+                    "id": "number",
+                    "uuid": "string",
+                    "name": "string",
+                    "slug": "string",
+                    "description": "string",
+                    "parent_id": "null",
+                    "image": "null",
+                    "order": "number",
+                    "status": "string",
+                    "created_by": "null",
+                    "updated_by": "null",
+                    "created_at": "string",
+                    "updated_at": "string",
+                    "deleted_at": "null"
+                },
+                "supplier": {
+                    "id": "number",
+                    "uuid": "string",
+                    "name": "string",
+                    "code": "string",
+                    "email": "string",
+                    "phone": "string",
+                    "mobile": "string",
+                    "website": "string",
+                    "contact_person": "string",
+                    "contact_email": "string",
+                    "contact_phone": "string",
+                    "address": "string",
+                    "city": "string",
+                    "state": "string",
+                    "country": "string",
+                    "postal_code": "string",
+                    "tax_number": "string",
+                    "registration_number": "string",
+                    "currency": "string",
+                    "payment_terms_days": "number",
+                    "credit_limit": "string",
+                    "current_balance": "string",
+                    "total_orders": "string",
+                    "order_count": "number",
+                    "average_rating": "null",
+                    "on_time_deliveries": "number",
+                    "late_deliveries": "number",
+                    "status": "string",
+                    "notes": "string",
+                    "created_by": "null",
+                    "updated_by": "null",
+                    "created_at": "string",
+                    "updated_at": "string",
+                    "deleted_at": "null"
+                },
+                "variations": [
+                    "(empty list)"
+                ],
+                "shops": [
+                    {
+                        "id": "number",
+                        "uuid": "string",
+                        "name": "string",
+                        "code": "string",
+                        "description": "string",
+                        "phone": "string",
+                        "email": "string",
+                        "tax_pin": "null",
+                        "vat_registered": "bool",
+                        "address": "string",
+                        "city": "string",
+                        "state": "string",
+                        "country": "string",
+                        "postal_code": "string",
+                        "latitude": "string",
+                        "longitude": "string",
+                        "status": "string",
+                        "manager_id": "number",
+                        "settings": {
+                            "currency": "string",
+                            "tax_rate": "number",
+                            "timezone": "string",
+                            "closing_time": "string",
+                            "opening_time": "string"
+                        },
+                        "created_by": "null",
+                        "updated_by": "null",
+                        "created_at": "string",
+                        "updated_at": "string",
+                        "deleted_at": "null",
+                        "pivot": {
+                            "product_id": "number",
+                            "shop_id": "number",
+                            "stock_quantity": "number",
+                            "reorder_level": "number",
+                            "cost_price": "null",
+                            "selling_price": "null",
+                            "wholesale_price": "null",
+                            "is_active": "number",
+                            "created_at": "string",
+                            "updated_at": "string"
+                        }
+                    }
+                ]
+            }
+        }
+    },
+    "GET api/purchase-orders": {
+        "status": 200,
+        "shape": {
+            "success": "bool",
+            "data": {
+                "current_page": "number",
+                "data": [
+                    {
+                        "id": "number",
+                        "uuid": "string",
+                        "order_number": "string",
+                        "supplier_id": "number",
+                        "shop_id": "number",
+                        "status": "string",
+                        "order_date": "string",
+                        "expected_delivery_date": "string",
+                        "actual_delivery_date": "null",
+                        "subtotal": "string",
+                        "tax_amount": "string",
+                        "shipping_cost": "string",
+                        "discount_amount": "string",
+                        "total_amount": "string",
+                        "currency": "string",
+                        "payment_terms": "string",
+                        "payment_due_date": "string",
+                        "payment_status": "string",
+                        "payment_date": "null",
+                        "notes": "string",
+                        "terms_and_conditions": "null",
+                        "attachments": "null",
+                        "approved_by": "number",
+                        "approved_at": "null",
+                        "created_by": "number",
+                        "updated_by": "null",
+                        "created_at": "string",
+                        "updated_at": "string",
+                        "deleted_at": "null",
+                        "supplier": {
+                            "id": "number",
+                            "uuid": "string",
+                            "name": "string",
+                            "code": "string",
+                            "email": "string",
+                            "phone": "string",
+                            "mobile": "string",
+                            "website": "string",
+                            "contact_person": "string",
+                            "contact_email": "string",
+                            "contact_phone": "string",
+                            "address": "string",
+                            "city": "string",
+                            "state": "string",
+                            "country": "string",
+                            "postal_code": "string",
+                            "tax_number": "string",
+                            "registration_number": "string",
+                            "currency": "string",
+                            "payment_terms_days": "number",
+                            "credit_limit": "string",
+                            "current_balance": "string",
+                            "total_orders": "string",
+                            "order_count": "number",
+                            "average_rating": "null",
+                            "on_time_deliveries": "number",
+                            "late_deliveries": "number",
+                            "status": "string",
+                            "notes": "string",
+                            "created_by": "null",
+                            "updated_by": "null",
+                            "created_at": "string",
+                            "updated_at": "string",
+                            "deleted_at": "null"
+                        },
+                        "shop": {
+                            "id": "number",
+                            "uuid": "string",
+                            "name": "string",
+                            "code": "string",
+                            "description": "string",
+                            "phone": "string",
+                            "email": "string",
+                            "tax_pin": "null",
+                            "vat_registered": "bool",
+                            "address": "string",
+                            "city": "string",
+                            "state": "string",
+                            "country": "string",
+                            "postal_code": "string",
+                            "latitude": "string",
+                            "longitude": "string",
+                            "status": "string",
+                            "manager_id": "number",
+                            "settings": {
+                                "currency": "string",
+                                "tax_rate": "number",
+                                "timezone": "string",
+                                "closing_time": "string",
+                                "opening_time": "string"
+                            },
+                            "created_by": "null",
+                            "updated_by": "null",
+                            "created_at": "string",
+                            "updated_at": "string",
+                            "deleted_at": "null"
+                        },
+                        "items": [
+                            {
+                                "id": "number",
+                                "uuid": "string",
+                                "purchase_order_id": "number",
+                                "product_id": "number",
+                                "product_variation_id": "null",
+                                "sku": "string",
+                                "product_name": "string",
+                                "variation_attributes": "null",
+                                "quantity_ordered": "string",
+                                "quantity_received": "string",
+                                "quantity_remaining": "string",
+                                "unit": "string",
+                                "unit_cost": "string",
+                                "tax_rate": "string",
+                                "tax_amount": "string",
+                                "discount_percent": "string",
+                                "discount_amount": "string",
+                                "line_total": "string",
+                                "notes": "null",
+                                "metadata": "null",
+                                "created_by": "null",
+                                "updated_by": "null",
+                                "created_at": "string",
+                                "updated_at": "string"
+                            }
+                        ]
+                    }
+                ],
+                "first_page_url": "string",
+                "from": "number",
+                "last_page": "number",
+                "last_page_url": "string",
+                "links": [
+                    {
+                        "url": "null",
+                        "label": "string",
+                        "page": "null",
+                        "active": "bool"
+                    }
+                ],
+                "next_page_url": "null",
+                "path": "string",
+                "per_page": "number",
+                "prev_page_url": "null",
+                "to": "number",
+                "total": "number"
+            }
+        }
+    },
+    "GET api/purchase-orders/{purchase_order}": {
+        "status": 200,
+        "shape": {
+            "success": "bool",
+            "data": {
+                "id": "number",
+                "uuid": "string",
+                "order_number": "string",
+                "supplier_id": "number",
+                "shop_id": "number",
+                "status": "string",
+                "order_date": "string",
+                "expected_delivery_date": "string",
+                "actual_delivery_date": "null",
+                "subtotal": "string",
+                "tax_amount": "string",
+                "shipping_cost": "string",
+                "discount_amount": "string",
+                "total_amount": "string",
+                "currency": "string",
+                "payment_terms": "string",
+                "payment_due_date": "string",
+                "payment_status": "string",
+                "payment_date": "null",
+                "notes": "string",
+                "terms_and_conditions": "null",
+                "attachments": "null",
+                "approved_by": "number",
+                "approved_at": "null",
+                "created_by": "number",
+                "updated_by": "null",
+                "created_at": "string",
+                "updated_at": "string",
+                "deleted_at": "null",
+                "items": [
+                    {
+                        "id": "number",
+                        "uuid": "string",
+                        "purchase_order_id": "number",
+                        "product_id": "number",
+                        "product_variation_id": "null",
+                        "sku": "string",
+                        "product_name": "string",
+                        "variation_attributes": "null",
+                        "quantity_ordered": "string",
+                        "quantity_received": "string",
+                        "quantity_remaining": "string",
+                        "unit": "string",
+                        "unit_cost": "string",
+                        "tax_rate": "string",
+                        "tax_amount": "string",
+                        "discount_percent": "string",
+                        "discount_amount": "string",
+                        "line_total": "string",
+                        "notes": "null",
+                        "metadata": "null",
+                        "created_by": "null",
+                        "updated_by": "null",
+                        "created_at": "string",
+                        "updated_at": "string",
+                        "product": {
+                            "id": "number",
+                            "uuid": "string",
+                            "name": "string",
+                            "slug": "string",
+                            "description": "string",
+                            "sku": "string",
+                            "category_id": "number",
+                            "supplier_id": "number",
+                            "shop_id": "number",
+                            "barcode": "string",
+                            "cost_price": "string",
+                            "selling_price": "string",
+                            "wholesale_price": "null",
+                            "tax_class": "null",
+                            "stock_quantity": "number",
+                            "reorder_level": "number",
+                            "track_stock": "bool",
+                            "has_variations": "bool",
+                            "image": "null",
+                            "images": "null",
+                            "unit": "string",
+                            "status": "string",
+                            "notes": "string",
+                            "created_by": "null",
+                            "updated_by": "null",
+                            "created_at": "string",
+                            "updated_at": "string",
+                            "deleted_at": "null"
+                        },
+                        "product_variation": "null"
+                    }
+                ],
+                "supplier": {
+                    "id": "number",
+                    "uuid": "string",
+                    "name": "string",
+                    "code": "string",
+                    "email": "string",
+                    "phone": "string",
+                    "mobile": "string",
+                    "website": "string",
+                    "contact_person": "string",
+                    "contact_email": "string",
+                    "contact_phone": "string",
+                    "address": "string",
+                    "city": "string",
+                    "state": "string",
+                    "country": "string",
+                    "postal_code": "string",
+                    "tax_number": "string",
+                    "registration_number": "string",
+                    "currency": "string",
+                    "payment_terms_days": "number",
+                    "credit_limit": "string",
+                    "current_balance": "string",
+                    "total_orders": "string",
+                    "order_count": "number",
+                    "average_rating": "null",
+                    "on_time_deliveries": "number",
+                    "late_deliveries": "number",
+                    "status": "string",
+                    "notes": "string",
+                    "created_by": "null",
+                    "updated_by": "null",
+                    "created_at": "string",
+                    "updated_at": "string",
+                    "deleted_at": "null"
+                },
+                "shop": {
+                    "id": "number",
+                    "uuid": "string",
+                    "name": "string",
+                    "code": "string",
+                    "description": "string",
+                    "phone": "string",
+                    "email": "string",
+                    "tax_pin": "null",
+                    "vat_registered": "bool",
+                    "address": "string",
+                    "city": "string",
+                    "state": "string",
+                    "country": "string",
+                    "postal_code": "string",
+                    "latitude": "string",
+                    "longitude": "string",
+                    "status": "string",
+                    "manager_id": "number",
+                    "settings": {
+                        "currency": "string",
+                        "tax_rate": "number",
+                        "timezone": "string",
+                        "closing_time": "string",
+                        "opening_time": "string"
+                    },
+                    "created_by": "null",
+                    "updated_by": "null",
+                    "created_at": "string",
+                    "updated_at": "string",
+                    "deleted_at": "null"
+                },
+                "stock_intakes": [
+                    "(empty list)"
+                ],
+                "creator": {
+                    "id": "number",
+                    "uuid": "string",
+                    "name": "string",
+                    "email": "string",
+                    "email_verified_at": "string",
+                    "phone": "string",
+                    "address": "string",
+                    "date_of_birth": "string",
+                    "profile_photo": "null",
+                    "status": "string",
+                    "created_by": "null",
+                    "updated_by": "null",
+                    "created_at": "string",
+                    "updated_at": "string"
+                },
+                "approver": {
+                    "id": "number",
+                    "uuid": "string",
+                    "name": "string",
+                    "email": "string",
+                    "email_verified_at": "string",
+                    "phone": "string",
+                    "address": "string",
+                    "date_of_birth": "string",
+                    "profile_photo": "null",
+                    "status": "string",
+                    "created_by": "null",
+                    "updated_by": "null",
+                    "created_at": "string",
+                    "updated_at": "string"
+                }
+            }
+        }
+    },
+    "GET api/reports/daily-register": {
+        "status": 200,
+        "shape": {
+            "success": "bool",
+            "data": "null",
+            "message": "string"
+        }
+    },
+    "GET api/reports/daily-sales": {
+        "status": 200,
+        "shape": {
+            "success": "bool",
+            "data": {
+                "date": "string",
+                "statistics": {
+                    "total_sales": "string",
+                    "total_cost": "string",
+                    "total_profit": "string",
+                    "total_transactions": "number",
+                    "cash_sales": "string",
+                    "card_sales": "string"
+                },
+                "sales": [
+                    "(empty list)"
+                ]
+            }
+        }
+    },
+    "GET api/reports/pending-payments": {
+        "status": 200,
+        "shape": {
+            "success": "bool",
+            "data": {
+                "sales": {
+                    "current_page": "number",
+                    "data": [
+                        "(empty list)"
+                    ],
+                    "first_page_url": "string",
+                    "from": "null",
+                    "last_page": "number",
+                    "last_page_url": "string",
+                    "links": [
+                        {
+                            "url": "null",
+                            "label": "string",
+                            "page": "null",
+                            "active": "bool"
+                        }
+                    ],
+                    "next_page_url": "null",
+                    "path": "string",
+                    "per_page": "number",
+                    "prev_page_url": "null",
+                    "to": "null",
+                    "total": "number"
+                },
+                "totals": {
+                    "total_outstanding": "string",
+                    "total_count": "number"
+                }
+            }
+        }
+    },
+    "GET api/reports/top-products": {
+        "status": 200,
+        "shape": {
+            "success": "bool",
+            "data": [
+                "(empty list)"
+            ]
+        }
+    },
+    "GET api/sale-sources": {
+        "status": 200,
+        "shape": {
+            "success": "bool",
+            "data": [
+                {
+                    "id": "number",
+                    "name": "string",
+                    "description": "string",
+                    "icon": "string",
+                    "color": "string",
+                    "is_active": "bool",
+                    "sort_order": "number",
+                    "created_at": "string",
+                    "updated_at": "string"
+                }
+            ]
+        }
+    },
+    "GET api/sales": {
+        "status": 200,
+        "shape": {
+            "success": "bool",
+            "data": {
+                "current_page": "number",
+                "data": [
+                    {
+                        "id": "number",
+                        "uuid": "string",
+                        "shop_id": "number",
+                        "register_id": "number",
+                        "customer_id": "number",
+                        "source_id": "number",
+                        "delivery_location": "string",
+                        "walk_in_customer_name": "null",
+                        "walk_in_customer_email": "null",
+                        "walk_in_customer_phone": "null",
+                        "customer_tax_pin": "null",
+                        "delivery_company_id": "null",
+                        "invoice_number": "string",
+                        "sale_type": "string",
+                        "subtotal": "string",
+                        "discount_amount": "string",
+                        "discount_type": "null",
+                        "tax_amount": "string",
+                        "tax_inclusive": "bool",
+                        "taxable_amount": "string",
+                        "tax_breakdown": "null",
+                        "delivery_fee": "string",
+                        "packaging_fee": "string",
+                        "other_expenses": "string",
+                        "expense_notes": "null",
+                        "total_amount": "string",
+                        "total_cost": "string",
+                        "total_profit": "string",
+                        "paid_amount": "string",
+                        "balance_due": "string",
+                        "payment_status": "string",
+                        "payment_method": "string",
+                        "is_cod": "bool",
+                        "status": "string",
+                        "notes": "null",
+                        "completed_at": "string",
+                        "voided_at": "null",
+                        "voided_by": "null",
+                        "void_reason": "null",
+                        "created_by": {
+                            "id": "number",
+                            "uuid": "string",
+                            "name": "string",
+                            "email": "string",
+                            "email_verified_at": "string",
+                            "phone": "string",
+                            "address": "string",
+                            "date_of_birth": "string",
+                            "profile_photo": "null",
+                            "status": "string",
+                            "created_by": "null",
+                            "updated_by": "null",
+                            "created_at": "string",
+                            "updated_at": "string"
+                        },
+                        "updated_by": "null",
+                        "created_at": "string",
+                        "updated_at": "string",
+                        "deleted_at": "null",
+                        "customer": {
+                            "id": "number",
+                            "uuid": "string",
+                            "shop_id": "number",
+                            "code": "string",
+                            "name": "string",
+                            "email": "string",
+                            "tax_pin": "null",
+                            "phone": "string",
+                            "phone_normalized": "string",
+                            "address": "string",
+                            "customer_type": "string",
+                            "allow_credit": "bool",
+                            "credit_limit": "string",
+                            "credit_balance": "string",
+                            "status": "string",
+                            "notes": "null",
+                            "created_by": "null",
+                            "updated_by": "null",
+                            "created_at": "string",
+                            "updated_at": "string",
+                            "deleted_at": "null"
+                        },
+                        "source": {
+                            "id": "number",
+                            "name": "string",
+                            "description": "string",
+                            "icon": "string",
+                            "color": "string",
+                            "is_active": "bool",
+                            "sort_order": "number",
+                            "created_at": "string",
+                            "updated_at": "string"
+                        }
+                    }
+                ],
+                "first_page_url": "string",
+                "from": "number",
+                "last_page": "number",
+                "last_page_url": "string",
+                "links": [
+                    {
+                        "url": "null",
+                        "label": "string",
+                        "page": "null",
+                        "active": "bool"
+                    }
+                ],
+                "next_page_url": "string",
+                "path": "string",
+                "per_page": "number",
+                "prev_page_url": "null",
+                "to": "number",
+                "total": "number"
+            }
+        }
+    },
+    "GET api/sales/{sale}": {
+        "status": 200,
+        "shape": {
+            "success": "bool",
+            "data": {
+                "id": "number",
+                "uuid": "string",
+                "shop_id": "number",
+                "register_id": "number",
+                "customer_id": "number",
+                "source_id": "number",
+                "delivery_location": "string",
+                "walk_in_customer_name": "null",
+                "walk_in_customer_email": "null",
+                "walk_in_customer_phone": "null",
+                "customer_tax_pin": "null",
+                "delivery_company_id": "null",
+                "invoice_number": "string",
+                "sale_type": "string",
+                "subtotal": "string",
+                "discount_amount": "string",
+                "discount_type": "null",
+                "tax_amount": "string",
+                "tax_inclusive": "bool",
+                "taxable_amount": "string",
+                "tax_breakdown": "null",
+                "delivery_fee": "string",
+                "packaging_fee": "string",
+                "other_expenses": "string",
+                "expense_notes": "null",
+                "total_amount": "string",
+                "total_cost": "string",
+                "total_profit": "string",
+                "paid_amount": "string",
+                "balance_due": "string",
+                "payment_status": "string",
+                "payment_method": "string",
+                "is_cod": "bool",
+                "status": "string",
+                "notes": "null",
+                "completed_at": "string",
+                "voided_at": "null",
+                "voided_by": "null",
+                "void_reason": "null",
+                "created_by": {
+                    "id": "number",
+                    "uuid": "string",
+                    "name": "string",
+                    "email": "string",
+                    "email_verified_at": "string",
+                    "phone": "string",
+                    "address": "string",
+                    "date_of_birth": "string",
+                    "profile_photo": "null",
+                    "status": "string",
+                    "created_by": "null",
+                    "updated_by": "null",
+                    "created_at": "string",
+                    "updated_at": "string"
+                },
+                "updated_by": "null",
+                "created_at": "string",
+                "updated_at": "string",
+                "deleted_at": "null",
+                "customer": {
+                    "id": "number",
+                    "uuid": "string",
+                    "shop_id": "number",
+                    "code": "string",
+                    "name": "string",
+                    "email": "string",
+                    "tax_pin": "null",
+                    "phone": "string",
+                    "phone_normalized": "string",
+                    "address": "string",
+                    "customer_type": "string",
+                    "allow_credit": "bool",
+                    "credit_limit": "string",
+                    "credit_balance": "string",
+                    "status": "string",
+                    "notes": "null",
+                    "created_by": "number",
+                    "updated_by": "null",
+                    "created_at": "string",
+                    "updated_at": "string",
+                    "deleted_at": "null"
+                },
+                "shop": {
+                    "id": "number",
+                    "uuid": "string",
+                    "name": "string",
+                    "code": "string",
+                    "description": "null",
+                    "phone": "string",
+                    "email": "string",
+                    "tax_pin": "null",
+                    "vat_registered": "bool",
+                    "address": "string",
+                    "city": "string",
+                    "state": "string",
+                    "country": "string",
+                    "postal_code": "string",
+                    "latitude": "string",
+                    "longitude": "string",
+                    "status": "string",
+                    "manager_id": "number",
+                    "settings": {
+                        "currency": "string",
+                        "tax_rate": "number",
+                        "timezone": "string",
+                        "closing_time": "string",
+                        "opening_time": "string"
+                    },
+                    "created_by": "null",
+                    "updated_by": "null",
+                    "created_at": "string",
+                    "updated_at": "string",
+                    "deleted_at": "null"
+                },
+                "items": [
+                    {
+                        "id": "number",
+                        "uuid": "string",
+                        "sale_id": "number",
+                        "product_id": "number",
+                        "shop_id": "number",
+                        "variation_id": "null",
+                        "quantity": "number",
+                        "unit_price": "string",
+                        "discount_amount": "string",
+                        "line_total": "string",
+                        "tax_class": "null",
+                        "tax_rate": "string",
+                        "tax_amount": "string",
+                        "taxable_amount": "string",
+                        "unit_cost": "string",
+                        "total_cost": "string",
+                        "profit": "string",
+                        "profit_margin": "string",
+                        "status": "string",
+                        "created_by": "null",
+                        "updated_by": "null",
+                        "created_at": "string",
+                        "updated_at": "string",
+                        "product": {
+                            "id": "number",
+                            "uuid": "string",
+                            "name": "string",
+                            "slug": "string",
+                            "description": "string",
+                            "sku": "string",
+                            "category_id": "number",
+                            "supplier_id": "number",
+                            "shop_id": "number",
+                            "barcode": "string",
+                            "cost_price": "string",
+                            "selling_price": "string",
+                            "wholesale_price": "null",
+                            "tax_class": "null",
+                            "stock_quantity": "number",
+                            "reorder_level": "number",
+                            "track_stock": "bool",
+                            "has_variations": "bool",
+                            "image": "null",
+                            "images": "null",
+                            "unit": "string",
+                            "status": "string",
+                            "notes": "null",
+                            "created_by": "null",
+                            "updated_by": "null",
+                            "created_at": "string",
+                            "updated_at": "string",
+                            "deleted_at": "null"
+                        },
+                        "variation": "null"
+                    }
+                ],
+                "source": {
+                    "id": "number",
+                    "name": "string",
+                    "description": "string",
+                    "icon": "string",
+                    "color": "string",
+                    "is_active": "bool",
+                    "sort_order": "number",
+                    "created_at": "string",
+                    "updated_at": "string"
+                },
+                "delivery_company": "null",
+                "payments": [
+                    "(empty list)"
+                ]
+            }
+        }
+    },
+    "GET api/sales/{sale}/payments": {
+        "status": 200,
+        "shape": {
+            "success": "bool",
+            "data": [
+                "(empty list)"
+            ]
+        }
+    },
+    "GET api/shops": {
+        "status": 200,
+        "shape": {
+            "success": "bool",
+            "data": {
+                "current_page": "number",
+                "data": [
+                    {
+                        "id": "number",
+                        "uuid": "string",
+                        "name": "string",
+                        "code": "string",
+                        "description": "string",
+                        "phone": "string",
+                        "email": "string",
+                        "tax_pin": "null",
+                        "vat_registered": "bool",
+                        "address": "string",
+                        "city": "string",
+                        "state": "string",
+                        "country": "string",
+                        "postal_code": "string",
+                        "latitude": "string",
+                        "longitude": "string",
+                        "status": "string",
+                        "manager_id": "number",
+                        "settings": {
+                            "currency": "string",
+                            "tax_rate": "number",
+                            "timezone": "string",
+                            "closing_time": "string",
+                            "opening_time": "string"
+                        },
+                        "created_by": "null",
+                        "updated_by": "null",
+                        "created_at": "string",
+                        "updated_at": "string",
+                        "deleted_at": "null"
+                    }
+                ],
+                "first_page_url": "string",
+                "from": "number",
+                "last_page": "number",
+                "last_page_url": "string",
+                "links": [
+                    {
+                        "url": "null",
+                        "label": "string",
+                        "page": "null",
+                        "active": "bool"
+                    }
+                ],
+                "next_page_url": "null",
+                "path": "string",
+                "per_page": "number",
+                "prev_page_url": "null",
+                "to": "number",
+                "total": "number"
+            }
+        }
+    },
+    "GET api/shops/{shop}": {
+        "status": 200,
+        "shape": {
+            "success": "bool",
+            "data": {
+                "id": "number",
+                "uuid": "string",
+                "name": "string",
+                "code": "string",
+                "description": "null",
+                "phone": "string",
+                "email": "string",
+                "tax_pin": "null",
+                "vat_registered": "bool",
+                "address": "string",
+                "city": "string",
+                "state": "string",
+                "country": "string",
+                "postal_code": "string",
+                "latitude": "string",
+                "longitude": "string",
+                "status": "string",
+                "manager_id": "number",
+                "settings": {
+                    "currency": "string",
+                    "tax_rate": "number",
+                    "timezone": "string",
+                    "closing_time": "string",
+                    "opening_time": "string"
+                },
+                "created_by": "null",
+                "updated_by": "null",
+                "created_at": "string",
+                "updated_at": "string",
+                "deleted_at": "null",
+                "manager": {
+                    "id": "number",
+                    "uuid": "string",
+                    "name": "string",
+                    "email": "string",
+                    "email_verified_at": "string",
+                    "phone": "string",
+                    "address": "string",
+                    "date_of_birth": "string",
+                    "profile_photo": "null",
+                    "status": "string",
+                    "created_by": "null",
+                    "updated_by": "null",
+                    "created_at": "string",
+                    "updated_at": "string"
+                }
+            }
+        }
+    },
+    "GET api/suppliers": {
+        "status": 200,
+        "shape": {
+            "success": "bool",
+            "data": {
+                "current_page": "number",
+                "data": [
+                    {
+                        "id": "number",
+                        "uuid": "string",
+                        "name": "string",
+                        "code": "string",
+                        "email": "string",
+                        "phone": "string",
+                        "mobile": "string",
+                        "website": "string",
+                        "contact_person": "string",
+                        "contact_email": "string",
+                        "contact_phone": "string",
+                        "address": "string",
+                        "city": "string",
+                        "state": "string",
+                        "country": "string",
+                        "postal_code": "string",
+                        "tax_number": "string",
+                        "registration_number": "string",
+                        "currency": "string",
+                        "payment_terms_days": "number",
+                        "credit_limit": "string",
+                        "current_balance": "string",
+                        "total_orders": "string",
+                        "order_count": "number",
+                        "average_rating": "null",
+                        "on_time_deliveries": "number",
+                        "late_deliveries": "number",
+                        "status": "string",
+                        "notes": "string",
+                        "created_by": "null",
+                        "updated_by": "null",
+                        "created_at": "string",
+                        "updated_at": "string",
+                        "deleted_at": "null"
+                    }
+                ],
+                "first_page_url": "string",
+                "from": "number",
+                "last_page": "number",
+                "last_page_url": "string",
+                "links": [
+                    {
+                        "url": "null",
+                        "label": "string",
+                        "page": "null",
+                        "active": "bool"
+                    }
+                ],
+                "next_page_url": "null",
+                "path": "string",
+                "per_page": "number",
+                "prev_page_url": "null",
+                "to": "number",
+                "total": "number"
+            }
+        }
+    },
+    "GET api/suppliers/{supplier}": {
+        "status": 200,
+        "shape": {
+            "success": "bool",
+            "data": {
+                "id": "number",
+                "uuid": "string",
+                "name": "string",
+                "code": "string",
+                "email": "string",
+                "phone": "string",
+                "mobile": "string",
+                "website": "string",
+                "contact_person": "string",
+                "contact_email": "string",
+                "contact_phone": "string",
+                "address": "string",
+                "city": "string",
+                "state": "string",
+                "country": "string",
+                "postal_code": "string",
+                "tax_number": "string",
+                "registration_number": "string",
+                "currency": "string",
+                "payment_terms_days": "number",
+                "credit_limit": "string",
+                "current_balance": "string",
+                "total_orders": "string",
+                "order_count": "number",
+                "average_rating": "null",
+                "on_time_deliveries": "number",
+                "late_deliveries": "number",
+                "status": "string",
+                "notes": "string",
+                "created_by": "null",
+                "updated_by": "null",
+                "created_at": "string",
+                "updated_at": "string",
+                "deleted_at": "null",
+                "products": [
+                    {
+                        "id": "number",
+                        "uuid": "string",
+                        "name": "string",
+                        "slug": "string",
+                        "description": "string",
+                        "sku": "string",
+                        "category_id": "number",
+                        "supplier_id": "number",
+                        "shop_id": "number",
+                        "barcode": "string",
+                        "cost_price": "string",
+                        "selling_price": "string",
+                        "wholesale_price": "null",
+                        "tax_class": "null",
+                        "stock_quantity": "number",
+                        "reorder_level": "number",
+                        "track_stock": "bool",
+                        "has_variations": "bool",
+                        "image": "null",
+                        "images": "null",
+                        "unit": "string",
+                        "status": "string",
+                        "notes": "string",
+                        "created_by": "null",
+                        "updated_by": "null",
+                        "created_at": "string",
+                        "updated_at": "string",
+                        "deleted_at": "null"
+                    }
+                ]
+            }
+        }
+    },
+    "GET api/user": {
+        "status": 200,
+        "shape": {
+            "success": "bool",
+            "data": {
+                "id": "number",
+                "uuid": "string",
+                "name": "string",
+                "email": "string",
+                "phone": "string",
+                "roles": [
+                    "string"
+                ],
+                "permissions": [
+                    "string"
+                ]
+            }
+        }
+    },
+    "GET api/users": {
+        "status": 200,
+        "shape": {
+            "success": "bool",
+            "data": {
+                "current_page": "number",
+                "data": [
+                    {
+                        "id": "number",
+                        "uuid": "string",
+                        "name": "string",
+                        "email": "string",
+                        "email_verified_at": "string",
+                        "phone": "string",
+                        "address": "string",
+                        "date_of_birth": "string",
+                        "profile_photo": "null",
+                        "status": "string",
+                        "created_by": "null",
+                        "updated_by": "null",
+                        "created_at": "string",
+                        "updated_at": "string",
+                        "roles": [
+                            {
+                                "id": "number",
+                                "uuid": "string",
+                                "name": "string",
+                                "guard_name": "string",
+                                "created_at": "string",
+                                "updated_at": "string",
+                                "pivot": {
+                                    "model_type": "string",
+                                    "model_id": "number",
+                                    "role_id": "number"
+                                }
+                            }
+                        ]
+                    }
+                ],
+                "first_page_url": "string",
+                "from": "number",
+                "last_page": "number",
+                "last_page_url": "string",
+                "links": [
+                    {
+                        "url": "null",
+                        "label": "string",
+                        "page": "null",
+                        "active": "bool"
+                    }
+                ],
+                "next_page_url": "string",
+                "path": "string",
+                "per_page": "number",
+                "prev_page_url": "null",
+                "to": "number",
+                "total": "number"
+            }
+        }
+    },
+    "GET api/users/roles": {
+        "status": 200,
+        "shape": {
+            "success": "bool",
+            "data": [
+                {
+                    "id": "number",
+                    "name": "string"
+                }
+            ]
+        }
+    },
+    "GET api/users/shops": {
+        "status": 200,
+        "shape": {
+            "success": "bool",
+            "data": [
+                {
+                    "id": "number",
+                    "name": "string",
+                    "uuid": "string"
+                }
+            ]
+        }
+    },
+    "GET api/users/statuses": {
+        "status": 200,
+        "shape": {
+            "success": "bool",
+            "data": {
+                "active": "string",
+                "inactive": "string",
+                "suspended": "string"
+            }
+        }
+    },
+    "GET api/users/{user}": {
+        "status": 500,
+        "shape": {
+            "message": "Call to undefined relationship [shop] on model [App\\Models\\User]."
+        }
+    },
+    "POST api/login": {
+        "status": 200,
+        "shape": {
+            "success": "bool",
+            "message": "string",
+            "data": {
+                "user": {
+                    "id": "number",
+                    "uuid": "string",
+                    "name": "string",
+                    "email": "string",
+                    "phone": "string",
+                    "roles": [
+                        "string"
+                    ],
+                    "permissions": [
+                        "string"
+                    ]
+                },
+                "token": "string"
+            }
+        }
+    },
+    "POST api/sales": {
+        "status": 201,
+        "shape": {
+            "success": "bool",
+            "message": "string",
+            "over_credit_limit": "bool",
+            "data": {
+                "uuid": "string",
+                "shop_id": "number",
+                "register_id": "number",
+                "customer_id": "null",
+                "source_id": "number",
+                "delivery_location": "string",
+                "walk_in_customer_name": "string",
+                "walk_in_customer_email": "null",
+                "walk_in_customer_phone": "string",
+                "customer_tax_pin": "null",
+                "delivery_company_id": "null",
+                "invoice_number": "string",
+                "sale_type": "string",
+                "subtotal": "number",
+                "discount_amount": "number",
+                "tax_amount": "number",
+                "tax_inclusive": "bool",
+                "taxable_amount": "number",
+                "tax_breakdown": "null",
+                "delivery_fee": "number",
+                "packaging_fee": "number",
+                "other_expenses": "number",
+                "expense_notes": "null",
+                "total_amount": "number",
+                "total_cost": "number",
+                "total_profit": "number",
+                "paid_amount": "number",
+                "balance_due": "number",
+                "payment_status": "string",
+                "payment_method": "string",
+                "is_cod": "bool",
+                "status": "string",
+                "notes": "null",
+                "completed_at": "string",
+                "created_by": {
+                    "id": "number",
+                    "uuid": "string",
+                    "name": "string",
+                    "email": "string",
+                    "email_verified_at": "string",
+                    "phone": "string",
+                    "address": "string",
+                    "date_of_birth": "string",
+                    "profile_photo": "null",
+                    "status": "string",
+                    "created_by": "null",
+                    "updated_by": "null",
+                    "created_at": "string",
+                    "updated_at": "string"
+                },
+                "updated_at": "string",
+                "created_at": "string",
+                "id": "number",
+                "customer": "null",
+                "items": [
+                    {
+                        "id": "number",
+                        "uuid": "string",
+                        "sale_id": "number",
+                        "product_id": "number",
+                        "shop_id": "number",
+                        "variation_id": "null",
+                        "quantity": "number",
+                        "unit_price": "string",
+                        "discount_amount": "string",
+                        "line_total": "string",
+                        "tax_class": "null",
+                        "tax_rate": "string",
+                        "tax_amount": "string",
+                        "taxable_amount": "string",
+                        "unit_cost": "string",
+                        "total_cost": "string",
+                        "profit": "string",
+                        "profit_margin": "string",
+                        "status": "string",
+                        "created_by": "null",
+                        "updated_by": "null",
+                        "created_at": "string",
+                        "updated_at": "string",
+                        "product": {
+                            "id": "number",
+                            "uuid": "string",
+                            "name": "string",
+                            "slug": "string",
+                            "description": "string",
+                            "sku": "string",
+                            "category_id": "number",
+                            "supplier_id": "number",
+                            "shop_id": "number",
+                            "barcode": "string",
+                            "cost_price": "string",
+                            "selling_price": "string",
+                            "wholesale_price": "null",
+                            "tax_class": "null",
+                            "stock_quantity": "number",
+                            "reorder_level": "number",
+                            "track_stock": "bool",
+                            "has_variations": "bool",
+                            "image": "null",
+                            "images": "null",
+                            "unit": "string",
+                            "status": "string",
+                            "notes": "null",
+                            "created_by": "null",
+                            "updated_by": "null",
+                            "created_at": "string",
+                            "updated_at": "string",
+                            "deleted_at": "null"
+                        },
+                        "variation": "null"
+                    }
+                ],
+                "source": {
+                    "id": "number",
+                    "name": "string",
+                    "description": "string",
+                    "icon": "string",
+                    "color": "string",
+                    "is_active": "bool",
+                    "sort_order": "number",
+                    "created_at": "string",
+                    "updated_at": "string"
+                }
+            }
+        }
+    }
+}

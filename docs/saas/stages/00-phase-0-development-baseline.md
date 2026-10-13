@@ -89,8 +89,10 @@ data is present**.
 ### Tests and contracts
 - [ ] Make the 8 WhatsApp tests independent of `.env`; fix or isolate the HTTPS test.
 - [ ] Record the baseline.
-- [ ] Record the flat API's current contract (routes and response shapes) as fixtures for the
+- [x] Record the flat API's current contract (routes and response shapes) as fixtures for the
       compatibility tests, taken against the live-like dataset so responses have real content.
+      **Done (step 7):** `tests/Fixtures/api-contract/`, checked by `FlatApiContractTest` on MySQL
+      (shapes differ between engines, so the contract runs in the MySQL CI job, not the SQLite one).
 
 ### CI
 - [ ] A CI pipeline that runs Pint, the full suite and the flat API contract tests on every push.

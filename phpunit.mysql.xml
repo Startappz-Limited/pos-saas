@@ -12,6 +12,13 @@
             <directory>tests/Feature</directory>
         </testsuite>
     </testsuites>
+    <groups>
+        <exclude>
+            <!-- Re-records the flat API contract fixtures; run it on purpose by
+                 naming this group (see tests/Feature/FlatApiContractTest.php). -->
+            <group>api-contract-record</group>
+        </exclude>
+    </groups>
     <source>
         <include>
             <directory>app</directory>
