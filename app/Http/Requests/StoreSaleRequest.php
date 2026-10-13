@@ -61,6 +61,7 @@ class StoreSaleRequest extends FormRequest
     {
         $validator->after(function (Validator $validator): void {
             $this->validateCreditCustomer($validator);
+            $this->validateDiscount($validator);
 
             $items = $this->input('items', []);
 
@@ -121,6 +122,34 @@ class StoreSaleRequest extends FormRequest
 
         if ($customer && $customer->customer_type !== 'wholesale') {
             $validator->errors()->add('customer_id', 'Credit sales are only available for wholesale customers.');
+        }
+    }
+
+    /**
+     * A sale-level discount may not exceed the lines' subtotal: CalculateSaleTotals
+     * doesn't clamp it, so a larger one records a negative total (and, on credit,
+     * a negative balance that no payment can be collected against).
+     *
+     * The subtotal is computed as CalculateSaleTotals does, from the posted lines.
+     */
+    private function validateDiscount(Validator $validator): void
+    {
+        $discount = $this->input('discount_amount');
+        $items = $this->input('items');
+
+        if (! is_numeric($discount) || ! is_array($items) || $validator->errors()->hasAny(['discount_amount', 'items', 'items.*'])) {
+            return;
+        }
+
+        $subtotal = round(collect($items)->sum(
+            fn (mixed $item): float => is_array($item) ? round((int) ($item['quantity'] ?? 0) * (float) ($item['price'] ?? 0), 2) : 0.0
+        ), 2);
+
+        if (round((float) $discount, 2) > $subtotal) {
+            $validator->errors()->add(
+                'discount_amount',
+                __('The discount cannot be more than the sale subtotal (:subtotal).', ['subtotal' => number_format($subtotal, 2)])
+            );
         }
     }
 
