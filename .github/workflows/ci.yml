@@ -14,6 +14,10 @@
 
 name: CI
 
+# Needs one repository secret, COMPOSER_GITHUB_TOKEN: a GitHub token (only the token string, not
+# JSON) with read access to the private startappz/wa-gateway-laravel repository. Composer receives it
+# through COMPOSER_AUTH, which each install step builds below.
+
 on:
   push:
   pull_request:
@@ -51,18 +55,23 @@ jobs:
           extensions: ${{ env.PHP_EXTENSIONS }}
           coverage: none
 
-      - name: Check the COMPOSER_AUTH secret
+      - name: Check the COMPOSER_GITHUB_TOKEN secret
         env:
-          COMPOSER_AUTH: ${{ secrets.COMPOSER_AUTH }}
+          TOKEN: ${{ secrets.COMPOSER_GITHUB_TOKEN }}
         run: |
-          if [ -z "$COMPOSER_AUTH" ]; then
-            echo "::error::Add the repository secret COMPOSER_AUTH (see the top of .github/workflows/ci.yml) so Composer can install the private wa-gateway-laravel package."
+          if [ -z "$TOKEN" ]; then
+            echo "::error::Add the repository secret COMPOSER_GITHUB_TOKEN (the token only, not JSON) so Composer can install the private wa-gateway-laravel package."
             exit 1
           fi
+          case "$TOKEN" in
+            *'{'*|*'"'*|*' '*)
+              echo "::error::COMPOSER_GITHUB_TOKEN must contain only the token (ghp_... or github_pat_...), with no JSON, quotes or spaces."
+              exit 1 ;;
+          esac
 
       - name: Install dependencies
         env:
-          COMPOSER_AUTH: ${{ secrets.COMPOSER_AUTH }}
+          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.COMPOSER_GITHUB_TOKEN }}"}}'
         run: composer install --no-interaction --prefer-dist --no-progress
 
       - name: Prepare the environment
@@ -104,18 +113,23 @@ jobs:
           extensions: ${{ env.PHP_EXTENSIONS }}
           coverage: none
 
-      - name: Check the COMPOSER_AUTH secret
+      - name: Check the COMPOSER_GITHUB_TOKEN secret
         env:
-          COMPOSER_AUTH: ${{ secrets.COMPOSER_AUTH }}
+          TOKEN: ${{ secrets.COMPOSER_GITHUB_TOKEN }}
         run: |
-          if [ -z "$COMPOSER_AUTH" ]; then
-            echo "::error::Add the repository secret COMPOSER_AUTH (see the top of .github/workflows/ci.yml) so Composer can install the private wa-gateway-laravel package."
+          if [ -z "$TOKEN" ]; then
+            echo "::error::Add the repository secret COMPOSER_GITHUB_TOKEN (the token only, not JSON) so Composer can install the private wa-gateway-laravel package."
             exit 1
           fi
+          case "$TOKEN" in
+            *'{'*|*'"'*|*' '*)
+              echo "::error::COMPOSER_GITHUB_TOKEN must contain only the token (ghp_... or github_pat_...), with no JSON, quotes or spaces."
+              exit 1 ;;
+          esac
 
       - name: Install dependencies
         env:
-          COMPOSER_AUTH: ${{ secrets.COMPOSER_AUTH }}
+          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.COMPOSER_GITHUB_TOKEN }}"}}'
         run: composer install --no-interaction --prefer-dist --no-progress
 
       - name: Prepare the environment and the scratch databases
@@ -155,14 +169,19 @@ jobs:
           extensions: ${{ env.PHP_EXTENSIONS }}
           coverage: none
 
-      - name: Check the COMPOSER_AUTH secret
+      - name: Check the COMPOSER_GITHUB_TOKEN secret
         env:
-          COMPOSER_AUTH: ${{ secrets.COMPOSER_AUTH }}
+          TOKEN: ${{ secrets.COMPOSER_GITHUB_TOKEN }}
         run: |
-          if [ -z "$COMPOSER_AUTH" ]; then
-            echo "::error::Add the repository secret COMPOSER_AUTH (see the top of .github/workflows/ci.yml) so Composer can install the private wa-gateway-laravel package."
+          if [ -z "$TOKEN" ]; then
+            echo "::error::Add the repository secret COMPOSER_GITHUB_TOKEN (the token only, not JSON) so Composer can install the private wa-gateway-laravel package."
             exit 1
           fi
+          case "$TOKEN" in
+            *'{'*|*'"'*|*' '*)
+              echo "::error::COMPOSER_GITHUB_TOKEN must contain only the token (ghp_... or github_pat_...), with no JSON, quotes or spaces."
+              exit 1 ;;
+          esac
 
       # The dataset is built with the base branch's code and schema when it has
       # dataset:build (stage 1a onwards); in stage 0 the base doesn't, so this
@@ -183,7 +202,7 @@ jobs:
       - name: Install dependencies (dataset code)
         working-directory: ${{ steps.base.outputs.dir }}
         env:
-          COMPOSER_AUTH: ${{ secrets.COMPOSER_AUTH }}
+          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.COMPOSER_GITHUB_TOKEN }}"}}'
         run: |
           composer install --no-interaction --prefer-dist --no-progress
           cp .env.example .env
@@ -200,7 +219,7 @@ jobs:
       - name: Install dependencies (this branch)
         if: steps.base.outputs.dir != '.'
         env:
-          COMPOSER_AUTH: ${{ secrets.COMPOSER_AUTH }}
+          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.COMPOSER_GITHUB_TOKEN }}"}}'
         run: |
           composer install --no-interaction --prefer-dist --no-progress
           cp .env.example .env
