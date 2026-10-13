@@ -455,22 +455,23 @@ class LiveLikeDatasetSeeder extends Seeder
         $cashier = $this->pick($this->cashiers[$shop->id]);
         $customer = fake()->boolean(70) ? $this->pick($this->customers[$shop->id]) : null;
         $credit = $customer?->customer_type === 'wholesale' && $customer->allow_credit && fake()->boolean(40);
-        $items = $this->saleLines($shop);
-
-        // The sale paths don't clamp a sale-level discount to the basket, so a
-        // flat discount on a cheap basket would make a negative total (and, on
-        // credit, a negative balance no payment can be collected against).
-        $subtotal = collect($items)->sum(fn (array $line): float => $line['price'] * $line['quantity']);
-        $discount = fake()->boolean(15) ? fake()->randomElement([50, 100, 200]) : 0;
 
         $payload = [
             'shop_id' => $shop->id,
             'source_id' => $this->sources[fake()->randomElement(['Walk-in', 'Walk-in', 'Walk-in', 'Phone Order', 'WhatsApp', 'Instagram'])]->id,
             'delivery_location' => fake()->randomElement(['In store', 'In store', 'In store', fake()->streetAddress()]),
             'payment_method' => $credit ? 'credit' : fake()->randomElement(['cash', 'cash', 'mobile_money', 'mobile_money', 'card', 'bank_transfer']),
-            'items' => $items,
-            'discount_amount' => $discount < $subtotal ? $discount : 0,
+            'items' => $this->saleLines($shop),
+            'discount_amount' => fake()->boolean(15) ? fake()->randomElement([50, 100, 200]) : 0,
         ];
+
+        // A discount may not exceed the subtotal (StoreSaleRequest), and a flat
+        // one can on a cheap basket. Capped after the draws, so the random
+        // sequence (and the data the API contract was recorded on) is unchanged.
+        $subtotal = collect($payload['items'])->sum(fn (array $line): float => $line['price'] * $line['quantity']);
+        if ($payload['discount_amount'] >= $subtotal) {
+            $payload['discount_amount'] = 0;
+        }
 
         if ($customer) {
             $payload['customer_id'] = $customer->id;

@@ -97,7 +97,7 @@ Known baseline failures (to be fixed in step 2):
 
 - **Contract recording is a test group, not an `api:contract-record` command** (the plan said a command):
   the test framework already signs in through Sanctum and seeds the dataset. Re-record on purpose with
-  `php artisan test --configuration=phpunit.mysql.xml --group=api-contract-record` (the group is excluded
+  `vendor/bin/pest --configuration=phpunit.mysql.xml --group=api-contract-record` (the group is excluded
   from normal runs).
 - **The contract is recorded and checked on MySQL only** (the plan put it in the SQLite CI job). On
   SQLite, raw report queries return numbers where MySQL returns strings, so shapes differ between

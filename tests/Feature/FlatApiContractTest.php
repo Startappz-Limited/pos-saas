@@ -26,7 +26,10 @@ use Laravel\Sanctum\Sanctum;
  * strings, so shapes legitimately differ between engines.
  *
  * Re-record on purpose (after an intended change), on MySQL:
- *   php artisan test --configuration=phpunit.mysql.xml --group=api-contract-record
+ *   vendor/bin/pest --configuration=phpunit.mysql.xml --group=api-contract-record
+ *
+ * (Not `php artisan test`: it always adds --configuration=phpunit.xml, and
+ * PHPUnit 12 refuses a second --configuration.)
  */
 const CONTRACT_DIR = __DIR__.'/../Fixtures/api-contract';
 

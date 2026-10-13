@@ -51,6 +51,7 @@ return [
         'migrate status' => 'php artisan migrate:status',
         'running the tests' => 'php artisan test --compact',
         'running the tests on MySQL' => 'php artisan test --configuration=phpunit.mysql.xml',
+        'running the tests on MySQL with Pest' => 'vendor/bin/pest --compact --configuration=phpunit.mysql.xml',
         'migrate a test connection' => 'php artisan migrate --database=mysql_testing --no-interaction',
         'roll back a test connection' => 'php artisan migrate:rollback --step=1 --database=rehearsal_testing',
         'fresh on a test connection' => 'php artisan migrate:fresh --database=mysql_testing',

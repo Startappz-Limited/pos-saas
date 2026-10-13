@@ -138,8 +138,10 @@ jobs:
           php artisan key:generate --ansi
           mysql -h 127.0.0.1 -u root -proot -e "CREATE DATABASE IF NOT EXISTS pos_saas_rehearsal_testing; CREATE DATABASE IF NOT EXISTS pos_saas_dataset_testing;"
 
+      # Pest directly: `php artisan test` always adds --configuration=phpunit.xml
+      # itself, and PHPUnit 12 refuses a second --configuration.
       - name: Test suite (MySQL 8)
-        run: php artisan test --compact --configuration=phpunit.mysql.xml
+        run: vendor/bin/pest --compact --configuration=phpunit.mysql.xml
 
   migration-rehearsal:
     name: Migration rehearsal on the live-like dataset
