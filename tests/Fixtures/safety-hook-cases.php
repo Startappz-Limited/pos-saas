@@ -30,6 +30,8 @@ return [
         'one test connection and one live' => 'php artisan migrate --database=mysql_testing && php artisan migrate --database=mysql',
         'Artisan::call in tinker on the .env database' => "php artisan tinker --execute=\"Artisan::call('migrate');\"",
         'Artisan::call rollback in tinker' => "php artisan tinker --execute=\"Artisan::call('migrate:rollback', ['--step' => 1]);\"",
+        'restoring a snapshot into the .env database' => 'php artisan db:restore-snapshot storage/app/snapshots/fitness.sql.gz --yes',
+        'restoring a snapshot into a live connection' => 'php artisan db:restore-snapshot snap.sql.gz --database=mysql --yes',
 
         // destructive SQL against a live database
         'drop table' => 'mysql -e "DROP TABLE sales"',
@@ -56,6 +58,8 @@ return [
         'project path containing fitness' => 'cd /home/user/Projects/fitness-center && php artisan migrate --database=mysql_testing',
         'mysql client on a test database' => 'mysql pos_saas_testing -e "TRUNCATE TABLE sales"',
         'Artisan::call in tinker on a test connection' => "php artisan tinker --execute=\"Artisan::call('migrate', ['--database' => 'rehearsal_testing']);\"",
+        'snapshot the .env database (read-only)' => 'php artisan db:snapshot',
+        'restore a snapshot into a test connection' => 'php artisan db:restore-snapshot snap.sql.gz --database=rehearsal_testing --yes',
         'delete with where' => 'mysql pos_saas_dev -e "DELETE FROM sessions WHERE last_activity < 1"',
         'unrelated command' => 'git status',
     ],

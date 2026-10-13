@@ -215,7 +215,10 @@ npm run dev / npm run build  # Vite — only affects Breeze leftover pages (welc
 # notification, invoice and sync job silently piles up in the `jobs` table. ALWAYS name them:
 php artisan queue:work --queue=default,whatsapp-notifications,order-notifications,baileys,ecommerce --tries=3
 # Diagnose a "notifications never arrive" report with:  select queue, count(*) from jobs group by queue;
-php artisan migrate       # apply migrations (NEVER migrate:fresh / --fresh — destroys data)
+php artisan db:snapshot   # read-only snapshot of the .env database → storage/app/snapshots/ (take one before any migration)
+php artisan db:restore-snapshot FILE --database=rehearsal_testing --yes   # only into a _testing database
+php artisan migrate --database=rehearsal_testing   # rehearse migrations on the scratch database first
+php artisan migrate       # apply migrations to the .env database (UAT): the user runs this, after a snapshot
 # ⚠️ The audit trail lives on a SEPARATE connection with its OWN migration
 # repository, so plain `migrate` does NOT create it. Every environment must run:
 php artisan migrate --database=audit --path=database/migrations/audit
