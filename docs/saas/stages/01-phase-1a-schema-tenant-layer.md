@@ -66,14 +66,17 @@ Phase 1 doesn't start until these are answered:
 ## Work
 
 ### Migrations and seeders
-- [ ] **Migrations rewritten** (decision 4.7), with the empty-database guard. The schema for 1b and 1c
+- [x] **Migrations rewritten** (decision 4.7), with the empty-database guard. The schema for 1b and 1c
       (stock, registers, sync columns) is written here too, because the migrations are rewritten once.
       See "Phase 1 schema" below.
+      *Steps 1–2:* 84 consolidated `create_*` migrations, proved identical to `main`'s schema (step 1), then the SaaS schema written into them; the guard is `0001_01_01_000000_guard_empty_database` (`DB_BASELINE_FORCE`). Every legacy column is kept, so the import carries every value (`MigrationBaselineTest`). Still to come with their steps: Spatie team columns, one credit account per customer.
 - [ ] **Seeders:** platform essentials only (permissions, role templates, plans).
 
 ### Tenant layer
-- [ ] `Business` model and `BusinessMembership`.
-- [ ] `TenantContext`: current business from the session or token; set explicitly for jobs and commands.
+- [x] `Business` model and `BusinessMembership`.
+      *Stage 1a step 2.* `app/Models/Business.php`, `BusinessMembership.php`; a new business gets its default sale source (Walk-in).
+- [x] `TenantContext`: current business from the session or token; set explicitly for jobs and commands.
+      *Stage 1a step 2.* `app/Support/Tenancy/TenantContext.php` (`set`, `run`, `bypass`), set by `ResolveTenant` after authentication; `BelongsToBusiness` refuses a record with no business (`MissingTenantContext`). `TenantContextTest`.
 - [ ] `BelongsToBusiness` and `BelongsToShop` traits; `BusinessScope` and `ShopAccessScope`.
 - [ ] A viewer-aware `exists` rule (replaces `exists:table,id`).
 - [ ] A per-tenant unique rule that **ignores soft-deleted rows**.
@@ -99,35 +102,49 @@ Phase 1 doesn't start until these are answered:
 
 ## Phase 1 schema (written in 1a)
 
-- [ ] `businesses` (uuid, name, settings, status).
-- [ ] `business_user` (status, invited by, joined at); `users.default_business_id`.
+- [x] `businesses` (uuid, name, settings, status).
+      *Stage 1a step 2.* Also `currency` and `timezone`.
+- [x] `business_user` (status, invited by, joined at); `users.default_business_id`.
+      *Stage 1a step 2.*
 - [ ] Spatie `teams => true` with `team_foreign_key = business_id` (roles per business).
-- [ ] `business_id` on shops, products and the 7 lists.
-- [ ] `business_id` on `customers`; customers become business-wide (Open question 3), with customer codes
+- [x] `business_id` on shops, products and the 7 lists.
+      *Stage 1a step 2.* Also on `product_variations` (per-business SKU and barcode), `sales`, `sale_payments` and `cash_registers` (for their `client_uuid` keys).
+- [x] `business_id` on `customers`; customers become business-wide (Open question 3), with customer codes
       unique per business; `customers.shop_id` kept.
+      *Stage 1a step 2.* Unique `(business_id, code)` among rows not soft-deleted.
 - [ ] Credit accounts: **one per customer** (unique on the customer), replacing one per shop.
 - [ ] **A default variation for every product**; per-shop stock, reorder level and price and cost
       overrides keyed on `(shop_id, variation_id)` (4.2).
-- [ ] FIFO costing tables (`cost_layers`, `cost_allocations`, `sale_item_stock_allocations`) **kept** in
+- [x] FIFO costing tables (`cost_layers`, `cost_allocations`, `sale_item_stock_allocations`) **kept** in
       the rewritten schema (Open question 5); their final columns follow the Phase 1b analysis, so leave
       room to adjust them there.
-- [ ] `registers` (shop, name, code, device id, paired at, last synced at, last invoice number);
+      *Stage 1a step 2.* Unchanged.
+- [x] `registers` (shop, name, code, device id, paired at, last synced at, last invoice number);
       `cash_registers` becomes register sessions with a register reference.
-- [ ] `client_uuid` plus a unique `(business_id, client_uuid)` on sales, sale payments, customers and
+      *Stage 1a step 2.* `cash_registers.register_id` (nullable until 1b moves the code).
+- [x] `client_uuid` plus a unique `(business_id, client_uuid)` on sales, sale payments, customers and
       register sessions.
-- [ ] `sync_deletions` (business, entity, id, deleted at), written for soft and hard deletes.
-- [ ] Per-tenant unique keys, including SKU and barcode on variations; `sales` unique on
+      *Stage 1a step 2.*
+- [x] `sync_deletions` (business, entity, id, deleted at), written for soft and hard deletes.
+      *Stage 1a step 2.* Writing it on deletes comes with sync (Phase 6).
+- [x] Per-tenant unique keys, including SKU and barcode on variations; `sales` unique on
       `(business_id, invoice_number)`.
-- [ ] **Invoice series per register** (`registers.code`, a per-register sequence) so tills can number
+      *Stage 1a step 2.* Keys on soft-deleting tables include a generated `alive` column (NULL once deleted), so a deleted code can be reused.
+- [x] **Invoice series per register** (`registers.code`, a per-register sequence) so tills can number
       sales offline (4.9).
-- [ ] `businesses.currency` and `businesses.timezone`, plus an optional shop timezone (the `shops` table
+      *Stage 1a step 2.* `registers.code` and `registers.last_invoice_number`; numbering moves in 1b.
+- [x] `businesses.currency` and `businesses.timezone`, plus an optional shop timezone (the `shops` table
       has none today); amounts never assume KES (4.9).
-- [ ] Review flags: `customers.needs_review` (possible duplicate) and a flag for sales with an implausible
+      *Stage 1a step 2.*
+- [x] Review flags: `customers.needs_review` (possible duplicate) and a flag for sales with an implausible
       recorded time.
-- [ ] **Per-shop stock keyed by variation** (4.2); `products.stock_quantity` and
+      *Stage 1a step 2.* `sales.needs_review`.
+- [x] **Per-shop stock keyed by variation** (4.2); `products.stock_quantity` and
       `product_variations.stock_quantity` removed as stored figures.
-- [ ] Foreign keys from cash sessions and other business records to `users` no longer cascade on delete
+      *Stage 1a step 2.* `shop_variation` (unique `(shop_id, variation_id)`). **Departure (decided 14 October 2026):** the legacy stock columns stay until stage 1b moves their writers and readers, then 1b drops them with a migration that carries the data across.
+- [x] Foreign keys from cash sessions and other business records to `users` no longer cascade on delete
       (9 tables cascade today).
+      *Stage 1a step 2.* `cash_registers.user_id` and `expense_approval_history.user_id` now `nullOnDelete`. The other 7 cascades are on rows owned by the user (shop assignments, notification preferences and logs, saved reports, widgets, exports, alert recipients) and stay.
 
 ## Decisions made 12 October 2026 (were pending)
 
@@ -152,7 +169,8 @@ No tenancy package is needed; scoping is built in-house (4.1).
 - [ ] Scope unit tests: owner, staff, no assignment, switching business.
 - [ ] Per-tenant unique keys: both businesses can use the same codes, and a soft-deleted code can be
       reused.
-- [ ] The migration guard refuses a non-empty database unless forced.
+- [x] The migration guard refuses a non-empty database unless forced.
+      *Step 1:* `MigrationBaselineTest` (refuses, empty, already built, forced); CI checks it refuses `main`'s dataset.
 - [ ] A customer created in one shop is visible in every shop of the same business and in no other
       business; customer codes are unique per business.
 - [ ] A customer has at most one credit account.

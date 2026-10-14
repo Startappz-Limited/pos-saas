@@ -1,6 +1,8 @@
 <?php
 
+use App\Http\Middleware\ResolveTenant;
 use App\Http\Middleware\SecurityHeaders;
+use Illuminate\Contracts\Auth\Middleware\AuthenticatesRequests;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -23,6 +25,13 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->api(append: [
             'throttle:api',
         ]);
+
+        // The business a signed-in request acts for (stage 1a, decision 4.3).
+        // It needs the authenticated user, so it's ordered after
+        // authentication wherever both apply.
+        $middleware->web(append: [ResolveTenant::class]);
+        $middleware->api(append: [ResolveTenant::class]);
+        $middleware->appendToPriorityList(AuthenticatesRequests::class, ResolveTenant::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

@@ -1,5 +1,7 @@
 <?php
 
+use App\Models\Business;
+use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -39,6 +41,28 @@ pest()->beforeEach(function () {
         DB::connection('audit')->table('audit_logs')->delete();
     }
 })->in('Feature');
+
+/*
+|--------------------------------------------------------------------------
+| The test business
+|--------------------------------------------------------------------------
+|
+| Every shop, product, list and customer belongs to a business (stage 1a). Each
+| feature test runs inside one: records created without a business join it,
+| and users created by the factory become its members with it as their
+| default, so their requests act on it. Tests about several businesses build
+| their own on top (tests/Support/TwoBusinesses.php).
+|
+*/
+
+pest()->beforeEach(function () {
+    app(TenantContext::class)->set(Business::factory()->create(['name' => 'Test Business']));
+})->in('Feature');
+
+function testBusiness(): Business
+{
+    return app(TenantContext::class)->business();
+}
 
 /*
 |--------------------------------------------------------------------------

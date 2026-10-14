@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\ProductStatus;
 use App\Enums\TaxClass;
 use App\Models\Concerns\Auditable;
+use App\Models\Concerns\BelongsToBusiness;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -17,9 +18,11 @@ use Illuminate\Support\Str;
 class Product extends Model
 {
     use Auditable;
+    use BelongsToBusiness;
     use HasFactory, HasUuids, SoftDeletes;
 
     protected $fillable = [
+        'business_id',
         'uuid',
         'name',
         'slug',

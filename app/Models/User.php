@@ -6,7 +6,9 @@ use App\Enums\UserStatus;
 use App\Models\Concerns\Auditable;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Collection;
@@ -36,6 +38,7 @@ class User extends Authenticatable
         'date_of_birth',
         'profile_photo',
         'status',
+        'default_business_id',
         'created_by',
         'updated_by',
     ];
@@ -184,6 +187,66 @@ class User extends Authenticatable
     /**
      * Relationship: Shops the user belongs to
      */
+    /**
+     * The businesses this login belongs to (decision 4.4).
+     */
+    public function businesses(): BelongsToMany
+    {
+        return $this->belongsToMany(Business::class)
+            ->using(BusinessMembership::class)
+            ->withPivot(['status', 'invited_by', 'joined_at'])
+            ->withTimestamps();
+    }
+
+    public function memberships(): HasMany
+    {
+        return $this->hasMany(BusinessMembership::class);
+    }
+
+    /**
+     * The business a sign-in opens when it's still usable.
+     */
+    public function defaultBusiness(): BelongsTo
+    {
+        return $this->belongsTo(Business::class, 'default_business_id');
+    }
+
+    /**
+     * Whether this login has an active membership in an active business.
+     */
+    public function canEnterBusiness(Business|int|null $business): bool
+    {
+        $businessId = $business instanceof Business ? $business->id : $business;
+
+        if ($businessId === null) {
+            return false;
+        }
+
+        return $this->memberships()
+            ->where('business_id', $businessId)
+            ->where('status', BusinessMembership::STATUS_ACTIVE)
+            ->whereHas('business', fn ($query) => $query->where('status', Business::STATUS_ACTIVE))
+            ->exists();
+    }
+
+    /**
+     * Adds an active membership in $business, and makes it the default
+     * business when the user has none.
+     */
+    public function joinBusiness(Business $business, ?User $invitedBy = null): BusinessMembership
+    {
+        $membership = BusinessMembership::firstOrCreate(
+            ['business_id' => $business->id, 'user_id' => $this->id],
+            ['status' => BusinessMembership::STATUS_ACTIVE, 'invited_by' => $invitedBy?->id, 'joined_at' => now()],
+        );
+
+        if ($this->default_business_id === null) {
+            $this->forceFill(['default_business_id' => $business->id])->saveQuietly();
+        }
+
+        return $membership;
+    }
+
     public function shops(): BelongsToMany
     {
         return $this->belongsToMany(Shop::class, 'shop_user')

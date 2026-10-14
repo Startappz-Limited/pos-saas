@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToBusiness;
 use App\Support\PhoneNumber;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -15,9 +16,11 @@ use Illuminate\Support\Str;
 
 class Customer extends Model
 {
+    use BelongsToBusiness;
     use HasFactory, Notifiable, SoftDeletes;
 
     protected $fillable = [
+        'business_id',
         'uuid',
         'shop_id',
         'code',

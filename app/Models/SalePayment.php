@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToBusiness;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -9,7 +10,10 @@ use Illuminate\Support\Str;
 
 class SalePayment extends Model
 {
+    use BelongsToBusiness;
+
     protected $fillable = [
+        'business_id',
         'uuid',
         'sale_id',
         'payment_number',
@@ -78,5 +82,13 @@ class SalePayment extends Model
             'mobile_money' => 'Mobile Money',
             default => ucfirst(str_replace('_', ' ', $this->payment_method)),
         };
+    }
+
+    /**
+     * A sale payment belongs to its sale's business.
+     */
+    protected function inferBusinessId(): ?int
+    {
+        return empty($this->sale_id) ? null : Sale::withoutGlobalScopes()->whereKey($this->sale_id)->value('business_id');
     }
 }

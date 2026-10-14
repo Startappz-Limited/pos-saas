@@ -10,6 +10,7 @@ return new class extends Migration
     {
         Schema::create('sales', function (Blueprint $table) {
             $table->id();
+            $table->foreignId('business_id')->constrained();
             $table->uuid('uuid');
             $table->unsignedBigInteger('shop_id');
             $table->unsignedBigInteger('register_id')->nullable();
@@ -50,16 +51,19 @@ return new class extends Migration
             $table->string('void_reason')->nullable();
             $table->unsignedBigInteger('created_by')->nullable();
             $table->unsignedBigInteger('updated_by')->nullable();
+            $table->uuid('client_uuid')->nullable()->comment('Set by the till that recorded it offline');
+            $table->boolean('needs_review')->default(false)->comment('Recorded time implausible (future, or before the register last synced)');
             $table->timestamps();
             $table->softDeletes();
             $table->index('invoice_number');
-            $table->unique('invoice_number');
+            $table->unique(['business_id', 'invoice_number']);
             $table->index('payment_status');
             $table->index(['shop_id', 'created_at']);
             $table->index(['shop_id', 'status']);
             $table->index(['status', 'completed_at']);
             $table->index('uuid');
             $table->unique('uuid');
+            $table->unique(['business_id', 'client_uuid']);
             $table->foreign('created_by')->references('id')->on('users')->nullOnDelete();
             $table->foreign('customer_id')->references('id')->on('customers')->nullOnDelete();
             $table->foreign('delivery_company_id')->references('id')->on('delivery_companies');

@@ -10,6 +10,7 @@ return new class extends Migration
     {
         Schema::create('pricing_rules', function (Blueprint $table) {
             $table->id();
+            $table->foreignId('business_id')->constrained();
             $table->uuid('uuid');
             $table->string('name');
             $table->text('description')->nullable();

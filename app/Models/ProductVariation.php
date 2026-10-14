@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\ProductStatus;
 use App\Enums\TaxClass;
+use App\Models\Concerns\BelongsToBusiness;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -12,9 +13,11 @@ use Illuminate\Support\Str;
 
 class ProductVariation extends Model
 {
+    use BelongsToBusiness;
     use HasFactory, HasUuids;
 
     protected $fillable = [
+        'business_id',
         'uuid',
         'product_id',
         'name',
@@ -117,5 +120,13 @@ class ProductVariation extends Model
     public function getProfitAttribute(): float
     {
         return $this->selling_price - (float) $this->cost_price;
+    }
+
+    /**
+     * A product variation belongs to its product's business.
+     */
+    protected function inferBusinessId(): ?int
+    {
+        return empty($this->product_id) ? null : Product::withoutGlobalScopes()->whereKey($this->product_id)->value('business_id');
     }
 }

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\Auditable;
+use App\Models\Concerns\BelongsToBusiness;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -13,9 +14,11 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 class Sale extends Model
 {
     use Auditable;
+    use BelongsToBusiness;
     use HasFactory;
 
     protected $fillable = [
+        'business_id',
         'uuid',
         'shop_id',
         'register_id',

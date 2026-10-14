@@ -10,6 +10,7 @@ return new class extends Migration
     {
         Schema::create('suppliers', function (Blueprint $table) {
             $table->id();
+            $table->foreignId('business_id')->constrained();
             $table->uuid('uuid');
             $table->string('name');
             $table->string('code');
@@ -42,8 +43,9 @@ return new class extends Migration
             $table->unsignedBigInteger('updated_by')->nullable();
             $table->timestamps();
             $table->softDeletes();
+            $table->boolean('alive')->nullable()->virtualAs('case when deleted_at is null then 1 end')->comment('1 until soft-deleted, then NULL: per-business unique keys skip deleted rows');
             $table->index('code');
-            $table->unique('code');
+            $table->unique(['business_id', 'code', 'alive']);
             $table->index(['country', 'city']);
             $table->index('status');
             $table->unique('uuid');

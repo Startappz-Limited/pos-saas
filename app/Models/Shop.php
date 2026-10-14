@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\ShopStatus;
 use App\Models\Concerns\Auditable;
+use App\Models\Concerns\BelongsToBusiness;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -17,9 +18,11 @@ use Illuminate\Support\Str;
 class Shop extends Model
 {
     use Auditable;
+    use BelongsToBusiness;
     use HasFactory, SoftDeletes;
 
     protected $fillable = [
+        'business_id',
         'uuid',
         'name',
         'code',

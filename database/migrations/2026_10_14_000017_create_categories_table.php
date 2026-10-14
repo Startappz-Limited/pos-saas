@@ -10,6 +10,7 @@ return new class extends Migration
     {
         Schema::create('categories', function (Blueprint $table) {
             $table->id();
+            $table->foreignId('business_id')->constrained();
             $table->uuid('uuid');
             $table->string('name');
             $table->string('slug');
@@ -22,9 +23,10 @@ return new class extends Migration
             $table->unsignedBigInteger('updated_by')->nullable();
             $table->timestamps();
             $table->softDeletes();
+            $table->boolean('alive')->nullable()->virtualAs('case when deleted_at is null then 1 end')->comment('1 until soft-deleted, then NULL: per-business unique keys skip deleted rows');
             $table->index('order');
             $table->index('parent_id');
-            $table->unique('slug');
+            $table->unique(['business_id', 'slug', 'alive']);
             $table->index(['status', 'parent_id']);
             $table->unique('uuid');
             $table->foreign('created_by')->references('id')->on('users')->nullOnDelete();

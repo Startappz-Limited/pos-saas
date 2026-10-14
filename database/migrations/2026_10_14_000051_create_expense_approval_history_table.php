@@ -12,7 +12,7 @@ return new class extends Migration
             $table->id();
             $table->uuid('uuid');
             $table->unsignedBigInteger('expense_id');
-            $table->unsignedBigInteger('user_id');
+            $table->unsignedBigInteger('user_id')->nullable();
             $table->string('action');
             $table->string('from_status');
             $table->string('to_status');
@@ -21,7 +21,7 @@ return new class extends Migration
             $table->index('expense_id');
             $table->unique('uuid');
             $table->foreign('expense_id')->references('id')->on('expenses')->cascadeOnDelete();
-            $table->foreign('user_id')->references('id')->on('users')->cascadeOnDelete();
+            $table->foreign('user_id')->references('id')->on('users')->nullOnDelete();
         });
     }
 

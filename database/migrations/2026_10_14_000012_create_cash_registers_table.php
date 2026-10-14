@@ -10,9 +10,11 @@ return new class extends Migration
     {
         Schema::create('cash_registers', function (Blueprint $table) {
             $table->id();
+            $table->foreignId('business_id')->constrained();
             $table->uuid('uuid');
             $table->unsignedBigInteger('shop_id');
-            $table->unsignedBigInteger('user_id');
+            $table->foreignId('register_id')->nullable()->constrained()->nullOnDelete()->comment('The till this session ran on');
+            $table->unsignedBigInteger('user_id')->nullable();
             $table->string('register_number');
             $table->date('register_date');
             $table->decimal('opening_balance', 15, 2)->default(0);
@@ -35,14 +37,16 @@ return new class extends Migration
             $table->unsignedBigInteger('closed_by')->nullable();
             $table->text('opening_notes')->nullable();
             $table->text('closing_notes')->nullable();
+            $table->uuid('client_uuid')->nullable()->comment('Set by the till that opened it offline');
             $table->timestamps();
             $table->unique('register_number');
             $table->index(['shop_id', 'register_date', 'status']);
             $table->index(['status', 'opened_at']);
             $table->unique('uuid');
+            $table->unique(['business_id', 'client_uuid']);
             $table->foreign('closed_by')->references('id')->on('users')->nullOnDelete();
             $table->foreign('shop_id')->references('id')->on('shops')->cascadeOnDelete();
-            $table->foreign('user_id')->references('id')->on('users')->cascadeOnDelete();
+            $table->foreign('user_id')->references('id')->on('users')->nullOnDelete();
         });
     }
 

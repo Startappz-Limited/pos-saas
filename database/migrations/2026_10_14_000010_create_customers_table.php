@@ -10,6 +10,7 @@ return new class extends Migration
     {
         Schema::create('customers', function (Blueprint $table) {
             $table->id();
+            $table->foreignId('business_id')->constrained();
             $table->uuid('uuid');
             $table->unsignedBigInteger('shop_id');
             $table->string('code');
@@ -27,14 +28,18 @@ return new class extends Migration
             $table->text('notes')->nullable();
             $table->unsignedBigInteger('created_by')->nullable();
             $table->unsignedBigInteger('updated_by')->nullable();
+            $table->uuid('client_uuid')->nullable()->comment('Set by the till that created it offline');
+            $table->boolean('needs_review')->default(false)->comment('Possible duplicate created offline');
             $table->timestamps();
             $table->softDeletes();
+            $table->boolean('alive')->nullable()->virtualAs('case when deleted_at is null then 1 end')->comment('1 until soft-deleted, then NULL: per-business unique keys skip deleted rows');
             $table->index('code');
-            $table->unique('code');
+            $table->unique(['business_id', 'code', 'alive']);
             $table->index('phone_normalized');
             $table->index(['shop_id', 'status']);
             $table->index('uuid');
             $table->unique('uuid');
+            $table->unique(['business_id', 'client_uuid']);
             $table->foreign('created_by')->references('id')->on('users')->nullOnDelete();
             $table->foreign('shop_id')->references('id')->on('shops')->cascadeOnDelete();
             $table->foreign('updated_by')->references('id')->on('users')->nullOnDelete();

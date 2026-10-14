@@ -10,6 +10,7 @@ return new class extends Migration
     {
         Schema::create('users', function (Blueprint $table) {
             $table->id();
+            $table->foreignId('default_business_id')->nullable()->constrained('businesses')->nullOnDelete()->comment('The business a sign-in opens');
             $table->uuid('uuid');
             $table->string('name');
             $table->string('email');

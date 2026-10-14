@@ -10,6 +10,7 @@ return new class extends Migration
     {
         Schema::create('delivery_companies', function (Blueprint $table) {
             $table->id();
+            $table->foreignId('business_id')->constrained();
             $table->uuid('uuid');
             $table->string('name');
             $table->string('contact_person')->nullable();

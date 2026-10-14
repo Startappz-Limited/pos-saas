@@ -25,6 +25,7 @@ use App\Policies\SalePolicy;
 use App\Policies\ShopPolicy;
 use App\Policies\SocialAccountPolicy;
 use App\Policies\StockAdjustmentPolicy;
+use App\Support\Tenancy\TenantContext;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\Paginator;
@@ -48,7 +49,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        // The business the current request, job or command acts for; reset
+        // between requests and queued jobs (stage 1a).
+        $this->app->scoped(TenantContext::class);
     }
 
     /**

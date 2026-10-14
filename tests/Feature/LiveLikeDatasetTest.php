@@ -2,6 +2,7 @@
 
 use App\Support\DatabaseSnapshot;
 use Database\Seeders\LiveLikeDatasetSeeder;
+use Illuminate\Contracts\Process\ProcessResult;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Process;
@@ -51,6 +52,16 @@ function datasetFingerprint(): array
     return $sums;
 }
 
+/**
+ * Builds the dataset as its own process, exactly as `php artisan
+ * dataset:build` is run.
+ */
+function buildDatasetProcess(): ProcessResult
+{
+    return Process::path(base_path())->timeout(900)
+        ->run([PHP_BINARY, 'artisan', 'dataset:build', '--database=dataset_testing', '--scale='.DATASET_SCALE]);
+}
+
 function emptyDatasetDatabase(): void
 {
     Schema::connection('dataset_testing')->dropAllTables();
@@ -76,14 +87,11 @@ describe('building on MySQL', function () {
         // Each build is its own process, exactly as `php artisan dataset:build`
         // is run: within one PHP process, state held over from a first build
         // (static caches) changes a second one's random sequence.
-        $build = fn () => Process::path(base_path())->timeout(900)
-            ->run([PHP_BINARY, 'artisan', 'dataset:build', '--database=dataset_testing', '--scale='.DATASET_SCALE]);
-
-        expect($build()->successful())->toBeTrue();
+        expect(buildDatasetProcess()->successful())->toBeTrue();
         $first = datasetFingerprint();
 
         emptyDatasetDatabase();
-        expect($build()->successful())->toBeTrue();
+        expect(buildDatasetProcess()->successful())->toBeTrue();
         $second = datasetFingerprint();
 
         $differing = array_keys(array_diff_assoc($first, $second));
@@ -92,7 +100,10 @@ describe('building on MySQL', function () {
     });
 
     it('covers what a system in use holds', function () {
-        $this->artisan('dataset:build', ['--database' => 'dataset_testing', '--scale' => DATASET_SCALE])->assertSuccessful();
+        // Its own process, like the build above: run in-process, the command
+        // would leave the test on the dataset connection and its guard, and
+        // the test's own transaction would never be rolled back.
+        expect(buildDatasetProcess()->successful())->toBeTrue();
         $db = DB::connection('dataset_testing');
 
         // Several shops; staff assigned to some shops, to two, and to none.

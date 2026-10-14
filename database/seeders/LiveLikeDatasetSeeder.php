@@ -10,6 +10,7 @@ use App\Http\Requests\StoreSaleRequest;
 use App\Models\AbandonedCart;
 use App\Models\AbandonedCartItem;
 use App\Models\Attribute;
+use App\Models\Business;
 use App\Models\Category;
 use App\Models\CreditAccount;
 use App\Models\Customer;
@@ -39,6 +40,7 @@ use App\Services\Integration\ShopifyOrderSyncService;
 use App\Services\Integration\WooCommerceOrderSyncService;
 use App\Services\StockAdjustmentService;
 use App\Support\Dataset\Determinism;
+use App\Support\Tenancy\TenantContext;
 use Illuminate\Console\Command;
 use Illuminate\Console\OutputStyle;
 use Illuminate\Database\Seeder;
@@ -112,6 +114,8 @@ class LiveLikeDatasetSeeder extends Seeder
     /** @var array<int, Collection<int, Customer>> customers by shop id */
     private array $customers = [];
 
+    public Business $business;
+
     public function run(): void
     {
         if (! app()->environment(['local', 'testing'])) {
@@ -121,6 +125,8 @@ class LiveLikeDatasetSeeder extends Seeder
         $this->ensureCommand();
         Determinism::start(self::SEED, self::STARTS);
         $this->fakeEcommercePlatforms();
+        $tenant = app(TenantContext::class);
+        $previousBusiness = $tenant->business();
 
         try {
             // One transaction: committing every insert separately is very slow
@@ -128,6 +134,11 @@ class LiveLikeDatasetSeeder extends Seeder
             // inside it as savepoints, so they behave as in production.
             DB::transaction(function (): void {
                 $this->call([PermissionSeeder::class, RoleSeeder::class]);
+
+                // Everything below belongs to one business (stage 1a). Created
+                // without Faker so the dataset's random draws stay in order.
+                $this->business = Business::create(['name' => 'Live-like Retail', 'currency' => 'KES', 'timezone' => 'Africa/Nairobi']);
+                app(TenantContext::class)->set($this->business);
 
                 $this->people();
                 $this->shops();
@@ -144,6 +155,7 @@ class LiveLikeDatasetSeeder extends Seeder
                 $this->softDeletions();
             });
         } finally {
+            $tenant->set($previousBusiness);
             Auth::forgetUser();
             Determinism::stop();
         }
@@ -216,8 +228,8 @@ class LiveLikeDatasetSeeder extends Seeder
     private function sharedLists(): void
     {
         foreach (['Walk-in', 'Online Shop', 'Phone Order', 'WhatsApp', 'Instagram'] as $order => $name) {
-            // A migration already creates some sources (Walk-in, ...); reuse them.
-            $this->sources[$name] = SaleSource::firstOrCreate(['name' => $name], ['is_active' => true, 'sort_order' => $order + 1]);
+            // A new business already has some sources (Walk-in); reuse them.
+            $this->sources[$name] = SaleSource::firstOrCreate(['business_id' => $this->business->id, 'name' => $name], ['is_active' => true, 'sort_order' => $order + 1]);
         }
         SaleSource::factory()->inactive()->create(['name' => 'Market Stall (closed)']);
 

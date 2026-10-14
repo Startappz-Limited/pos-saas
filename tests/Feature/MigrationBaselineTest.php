@@ -1,15 +1,18 @@
 <?php
 
 use App\Support\SchemaSnapshot;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 /**
  * The consolidated migrations (stage 1a, decision 4.7).
  *
  * tests/Fixtures/legacy-schema/{sqlite,mysql}.json hold the schema main's
- * 104 migrations built (main at 1aea0e3). The legacy import checks its source
- * against them, and until the SaaS schema lands the consolidated migrations
- * must build exactly the same.
+ * 104 migrations built (main at 1aea0e3). Step 1 proved the consolidated
+ * migrations built exactly that schema; the SaaS baseline adds to it and must
+ * keep every legacy column (until stage 1b moves stock), so the legacy import
+ * can carry every value across. The import checks its source against them.
  *
  * The fixtures were recorded with main's migrations, once per engine:
  *   php artisan test --group=legacy-schema-record
@@ -22,12 +25,36 @@ function legacySchemaFixture(): string
     return LEGACY_SCHEMA_DIR.'/'.DB::getDriverName().'.json';
 }
 
-it('builds the same schema as the migrations it replaced', function () {
+/**
+ * Legacy columns the SaaS baseline changes on purpose, with the reason.
+ */
+const INTENDED_COLUMN_CHANGES = [
+    // Business records no longer disappear with the user who made them; the
+    // reference is cleared instead (Phase 1 schema).
+    'cash_registers.user_id' => 'nullable',
+    'expense_approval_history.user_id' => 'nullable',
+];
+
+it('keeps every legacy table and column, so the import can carry all data across', function () {
     $legacy = json_decode(file_get_contents(legacySchemaFixture()), true);
+    $current = SchemaSnapshot::of();
+    $lost = [];
 
-    $differences = SchemaSnapshot::differences($legacy, SchemaSnapshot::of());
+    foreach ($legacy as $table => $definition) {
+        foreach ($definition['columns'] as $column => $was) {
+            $now = $current[$table]['columns'][$column] ?? null;
 
-    expect($differences)->toBe([], "Schema differs from main's:\n".implode("\n", $differences));
+            if ($now === null) {
+                $lost[] = "{$table}.{$column}: removed";
+            } elseif ($now['type'] !== $was['type']) {
+                $lost[] = "{$table}.{$column}: type {$was['type']} became {$now['type']}";
+            } elseif ($now['nullable'] !== $was['nullable'] && (INTENDED_COLUMN_CHANGES["{$table}.{$column}"] ?? null) !== 'nullable') {
+                $lost[] = "{$table}.{$column}: nullable changed";
+            }
+        }
+    }
+
+    expect($lost)->toBe([], "Legacy columns changed:\n".implode("\n", $lost));
 });
 
 describe('the empty-database guard', function () {
@@ -40,7 +67,16 @@ describe('the empty-database guard', function () {
 
     function migrateGuardDatabase(): int
     {
-        return Artisan::call('migrate', ['--database' => 'guard_testing', '--force' => true]);
+        // The migrator doesn't switch the default connection back when a
+        // migration throws; left on guard_testing, the test's own transaction
+        // would never be rolled back and would lock the test database.
+        $default = DB::getDefaultConnection();
+
+        try {
+            return Artisan::call('migrate', ['--database' => 'guard_testing', '--force' => true]);
+        } finally {
+            DB::setDefaultConnection($default);
+        }
     }
 
     it('builds the baseline on an empty database', function () {

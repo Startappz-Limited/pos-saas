@@ -10,6 +10,7 @@ return new class extends Migration
     {
         Schema::create('product_variations', function (Blueprint $table) {
             $table->id();
+            $table->foreignId('business_id')->constrained();
             $table->uuid('uuid');
             $table->unsignedBigInteger('product_id');
             $table->string('name');
@@ -23,13 +24,16 @@ return new class extends Migration
             $table->integer('stock_quantity')->default(0);
             $table->string('image')->nullable();
             $table->string('status')->default('active');
+            $table->boolean('is_default')->default(false)->comment('The variation a simple product sells as');
+            $table->boolean('default_marker')->nullable()->virtualAs('case when is_default = 1 then 1 end')->comment('1 on the default variation, NULL otherwise: one default per product');
             $table->timestamps();
             $table->index('barcode');
-            $table->unique('barcode');
+            $table->unique(['business_id', 'barcode']);
             $table->index(['product_id', 'status']);
             $table->index('sku');
-            $table->unique('sku');
+            $table->unique(['business_id', 'sku']);
             $table->unique('uuid');
+            $table->unique(['product_id', 'default_marker']);
             $table->foreign('product_id')->references('id')->on('products')->cascadeOnDelete();
         });
     }

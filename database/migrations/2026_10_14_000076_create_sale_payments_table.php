@@ -10,6 +10,7 @@ return new class extends Migration
     {
         Schema::create('sale_payments', function (Blueprint $table) {
             $table->id();
+            $table->foreignId('business_id')->constrained();
             $table->uuid('uuid');
             $table->unsignedBigInteger('sale_id');
             $table->string('payment_number');
@@ -19,11 +20,13 @@ return new class extends Migration
             $table->text('notes')->nullable();
             $table->timestamp('paid_at');
             $table->unsignedBigInteger('received_by')->nullable();
+            $table->uuid('client_uuid')->nullable()->comment('Set by the till that recorded it offline');
             $table->timestamps();
             $table->unique('payment_number');
             $table->index(['sale_id', 'paid_at']);
             $table->index('uuid');
             $table->unique('uuid');
+            $table->unique(['business_id', 'client_uuid']);
             $table->foreign('received_by')->references('id')->on('users')->nullOnDelete();
             $table->foreign('sale_id')->references('id')->on('sales')->cascadeOnDelete();
         });
