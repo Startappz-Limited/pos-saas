@@ -5,7 +5,7 @@ namespace App\Models;
 use App\Enums\CreditAccountStatus;
 use App\Enums\CreditTransactionType;
 use App\Models\Concerns\Auditable;
-use App\Models\Concerns\BelongsToShop;
+use App\Models\Concerns\BelongsToBusiness;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -17,10 +17,11 @@ use Illuminate\Support\Str;
 class CreditAccount extends Model
 {
     use Auditable;
-    use BelongsToShop;
+    use BelongsToBusiness;
     use HasFactory, SoftDeletes;
 
     protected $fillable = [
+        'business_id',
         'uuid',
         'customer_id',
         'shop_id',
@@ -205,18 +206,13 @@ class CreditAccount extends Model
     }
 
     /**
-     * Restrict to the shops this user is assigned to.
-     *
-     * A user with no shop assignments is unrestricted; one assigned to several
-     * shops sees all of them, not just their primary. Mirrors Sale::scopeVisibleTo.
+     * A customer has one credit account, serving every shop of the business
+     * (stage 1a), so every member who sees the customer sees the account.
+     * Kept so existing callers read the same.
      */
     public function scopeVisibleTo($query, User $user)
     {
-        if (! $user->hasShopRestrictions()) {
-            return $query;
-        }
-
-        return $query->whereIn($this->qualifyColumn('shop_id'), $user->assignedShopIds());
+        return $query;
     }
 
     public function scopeWithBalance($query)

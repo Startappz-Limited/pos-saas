@@ -121,7 +121,8 @@ Phase 1 doesn't start until these are answered:
 - [x] `business_id` on `customers`; customers become business-wide (Open question 3), with customer codes
       unique per business; `customers.shop_id` kept.
       *Stage 1a step 2.* Unique `(business_id, code)` among rows not soft-deleted.
-- [ ] Credit accounts: **one per customer** (unique on the customer), replacing one per shop.
+- [x] Credit accounts: **one per customer** (unique on the customer), replacing one per shop.
+      *Step 8:* `credit_accounts` unique on `customer_id`, with `business_id`; the account is business-scoped (it serves every shop) and keeps `shop_id` as the shop it was opened in. `CreditAccountService` finds and opens accounts by customer; `StoreCreditAccountRequest` checks one per customer.
 - [ ] **A default variation for every product**; per-shop stock, reorder level and price and cost
       overrides keyed on `(shop_id, variation_id)` (4.2).
 - [x] FIFO costing tables (`cost_layers`, `cost_allocations`, `sale_item_stock_allocations`) **kept** in
@@ -183,9 +184,11 @@ No tenancy package is needed; scoping is built in-house (4.1).
       *Step 5:* `PerTenantUniqueKeysTest` on both engines: same codes in two businesses; duplicates refused within one (shop, product, variation, customer, supplier, sale source, invoice number); soft-deleted codes reused (shop, product, customer, supplier, category); the rule and the supplier form agree.
 - [x] The migration guard refuses a non-empty database unless forced.
       *Step 1:* `MigrationBaselineTest` (refuses, empty, already built, forced); CI checks it refuses `main`'s dataset.
-- [ ] A customer created in one shop is visible in every shop of the same business and in no other
+- [x] A customer created in one shop is visible in every shop of the same business and in no other
       business; customer codes are unique per business.
-- [ ] A customer has at most one credit account.
+      *Steps 3, 5 and 8:* `BusinessCustomersTest` (a branch cashier sees a customer created in the main shop; another business gets 404; a duplicate code in one business is refused), `PerTenantUniqueKeysTest`.
+- [x] A customer has at most one credit account.
+      *Step 8:* `BusinessCustomersTest`: credit sales in two shops share one account; a second account is refused by the service and by the database.
 - [ ] Creating a product creates its default variation; per-shop stock rows are keyed on shop and
       variation.
 - [ ] The flat API contract tests pass; the full suite is green on SQLite and MySQL 8.

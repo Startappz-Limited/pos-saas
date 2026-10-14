@@ -41,9 +41,10 @@ class CreditAccountService
         return DB::transaction(function () use ($customer, $shop, $data): CreditAccount {
             $this->ensureCreditAllowedCustomer($customer);
 
-            if (CreditAccount::where('customer_id', $customer->id)->where('shop_id', $shop->id)->exists()) {
+            // One account per customer, serving every shop (stage 1a).
+            if (CreditAccount::withTrashed()->where('customer_id', $customer->id)->exists()) {
                 throw ValidationException::withMessages([
-                    'customer_id' => 'This customer already has a credit account for the selected shop.',
+                    'customer_id' => 'This customer already has a credit account.',
                 ]);
             }
 
@@ -65,7 +66,9 @@ class CreditAccountService
     }
 
     /**
-     * Find the customer's credit account for a shop, creating it if absent.
+     * Find the customer's credit account, creating it if absent. A customer
+     * has one account, serving every shop of the business (stage 1a); a new
+     * one records $shop as the shop it was opened in and takes its terms.
      *
      * Called from the till when a credit sale is rung up. A wholesale customer
      * who has never been set up must not block the sale, and the resulting debt
@@ -81,12 +84,11 @@ class CreditAccountService
      */
     public function resolveAccount(Customer $customer, Shop $shop, bool $grantCredit = true): CreditAccount
     {
-        // withTrashed: `credit_accounts` is uniquely indexed on (customer_id,
-        // shop_id) irrespective of deleted_at, so a soft-deleted account must be
+        // withTrashed: `credit_accounts` is uniquely indexed on customer_id
+        // irrespective of deleted_at, so a soft-deleted account must be
         // restored rather than re-created.
         $existing = CreditAccount::withTrashed()
             ->where('customer_id', $customer->id)
-            ->where('shop_id', $shop->id)
             ->first();
 
         if ($existing) {
@@ -122,7 +124,6 @@ class CreditAccountService
             // Two tills rang up this customer's first credit sale at once.
             return CreditAccount::withTrashed()
                 ->where('customer_id', $customer->id)
-                ->where('shop_id', $shop->id)
                 ->firstOrFail();
         }
 

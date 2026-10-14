@@ -195,7 +195,7 @@ describe('sending from the mobile app', function () {
         Queue::assertNothingPushed();
     });
 
-    it('refuses, never 401s, a customer whose credit account is in a shop the user can\'t access', function () {
+    it('403s, never 401s, for a customer whose account was opened in another shop', function () {
         $otherShop = Shop::factory()->create();
         $otherCustomer = Customer::factory()->forShop($otherShop)->create([
             'customer_type' => 'wholesale',
@@ -211,10 +211,10 @@ describe('sending from the mobile app', function () {
             'grace_period_days' => 7,
         ]);
 
-        // Customers are business-wide (stage 1a), but the credit account in
-        // the other shop is out of the user's reach: no statement, no 401.
+        // The account serves every shop (stage 1a), but the statement goes out
+        // from the shop it was opened in, which this user can't access.
         $this->postJson("/api/customers/{$otherCustomer->uuid}/send-statement")
-            ->assertStatus(422);
+            ->assertForbidden();
 
         Queue::assertNothingPushed();
     });

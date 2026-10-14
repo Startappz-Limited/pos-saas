@@ -2,6 +2,7 @@
 
 use App\Models\AuditLog;
 use App\Models\BusinessMembership;
+use App\Models\CreditAccount;
 use App\Models\Customer;
 use App\Models\Product;
 use App\Models\SaleItem;
@@ -33,8 +34,9 @@ const UNSCOPED_TENANT_MODELS = [
  * came from: scoped by business, deliberately not by shop.
  */
 const BUSINESS_WIDE_MODELS = [
-    Customer::class, // Open question 3: customers belong to the business
-    Product::class,  // decision 4.2: products belong to the business
+    Customer::class,      // Open question 3: customers belong to the business
+    CreditAccount::class, // one per customer, serving every shop
+    Product::class,       // decision 4.2: products belong to the business
 ];
 
 /**

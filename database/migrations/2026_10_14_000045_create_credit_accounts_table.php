@@ -10,9 +10,10 @@ return new class extends Migration
     {
         Schema::create('credit_accounts', function (Blueprint $table) {
             $table->id();
+            $table->foreignId('business_id')->constrained();
             $table->uuid('uuid');
             $table->unsignedBigInteger('customer_id');
-            $table->unsignedBigInteger('shop_id');
+            $table->unsignedBigInteger('shop_id')->comment('The shop it was opened in; the account serves every shop');
             $table->decimal('credit_limit', 15, 2)->default(0);
             $table->decimal('current_balance', 15, 2)->default(0);
             $table->decimal('available_credit', 15, 2)->default(0);
@@ -30,7 +31,7 @@ return new class extends Migration
             $table->timestamps();
             $table->softDeletes();
             $table->index('current_balance');
-            $table->unique(['customer_id', 'shop_id']);
+            $table->unique('customer_id'); // one account per customer, business-wide (stage 1a)
             $table->index(['shop_id', 'status']);
             $table->index('uuid');
             $table->unique('uuid');
