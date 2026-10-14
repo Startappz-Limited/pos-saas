@@ -38,11 +38,16 @@ class CheckLowStockLevels
             $alerts->push($alert);
         }
 
-        // Check product variations
-        $variations = ProductVariation::whereHas('product', function ($query) {
-            $query->where('track_stock', true)->where('has_variations', true);
-        })
-            ->whereColumn('stock_quantity', '<=', 'reorder_level')
+        // Check product variations. Variations have no reorder level of their
+        // own: a variation is low when its stock is at or below its product's
+        // reorder level. (Comparing with a bare `reorder_level` failed on MySQL
+        // and MariaDB, where product_variations has no such column.)
+        $variations = ProductVariation::with('product')
+            ->whereHas('product', function ($query) {
+                $query->where('track_stock', true)
+                    ->where('has_variations', true)
+                    ->whereColumn('product_variations.stock_quantity', '<=', 'products.reorder_level');
+            })
             ->get();
 
         foreach ($variations as $variation) {
@@ -51,7 +56,7 @@ class CheckLowStockLevels
                 'product_id' => $variation->product_id,
                 'variation_id' => $variation->id,
                 'current_quantity' => $variation->stock_quantity,
-                'threshold_quantity' => $variation->reorder_level,
+                'threshold_quantity' => $variation->product->reorder_level,
                 'created_by' => $userId ?? 1,
             ]);
 

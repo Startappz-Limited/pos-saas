@@ -197,6 +197,10 @@ describe('sale notification toggle endpoint', function () {
 });
 
 describe('the switches actually gate delivery', function () {
+    beforeEach(function () {
+        configureWhatsApp();
+    });
+
     it('sends nothing at all when the master switch is off', function () {
         Queue::fake();
         Notification::fake();

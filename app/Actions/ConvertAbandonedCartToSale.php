@@ -81,6 +81,14 @@ class ConvertAbandonedCartToSale
                 ],
             );
 
+            // As StoreSaleRequest does for till sales: the cart's lines aren't in
+            // the request, so the discount is checked against them here.
+            if ($totals->discountAmount > $totals->subtotal) {
+                throw new AbandonedCartActionException(
+                    'The discount cannot be more than the cart subtotal ('.number_format($totals->subtotal, 2).').'
+                );
+            }
+
             $isCod = (bool) ($data['is_cod'] ?? false);
 
             $sale = Sale::create([

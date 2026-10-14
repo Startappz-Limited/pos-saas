@@ -1,0 +1,246 @@
+# Continuous integration (stage 0 of the SaaS conversion, docs/saas/).
+#
+#   sqlite              Pint and the full suite on SQLite.
+#   mysql               The full suite on MySQL 8, including the flat API contract
+#                       (tests/Fixtures/api-contract) and the live-like dataset tests.
+#   migration-rehearsal Builds the live-like dataset, runs this branch's migrations on
+#                       it and checks no table lost rows. From stage 1a the dataset is
+#                       built with the base branch's code first, so this is the gate
+#                       for schema changes.
+#
+# Needs the repository secret COMPOSER_AUTH (Settings → Secrets and variables →
+# Actions) to install the private startappz/wa-gateway-laravel package:
+#   {"github-oauth":{"github.com":"<token with read access to wa-gateway-laravel>"}}
+
+name: CI
+
+# Needs one repository secret, COMPOSER_GITHUB_TOKEN: a GitHub token (only the token string, not
+# JSON) with read access to the private startappz/wa-gateway-laravel repository. Composer receives it
+# through COMPOSER_AUTH, which each install step builds below.
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PHP_VERSION: '8.4'
+  PHP_EXTENSIONS: mbstring, pdo_sqlite, pdo_mysql, zip, gd, intl, bcmath, sodium
+  # Nothing in CI uses the database for cache, sessions or queues.
+  CACHE_STORE: array
+  SESSION_DRIVER: array
+  QUEUE_CONNECTION: sync
+  # The MySQL service below (tests, rehearsal and dataset databases).
+  DB_TEST_HOST: 127.0.0.1
+  DB_TEST_PORT: 3306
+  DB_TEST_USERNAME: root
+  DB_TEST_PASSWORD: root
+
+jobs:
+  sqlite:
+    name: Pint and suite (SQLite)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ env.PHP_VERSION }}
+          extensions: ${{ env.PHP_EXTENSIONS }}
+          coverage: none
+
+      - name: Check the COMPOSER_GITHUB_TOKEN secret
+        env:
+          TOKEN: ${{ secrets.COMPOSER_GITHUB_TOKEN }}
+        run: |
+          if [ -z "$TOKEN" ]; then
+            echo "::error::Add the repository secret COMPOSER_GITHUB_TOKEN (the token only, not JSON) so Composer can install the private wa-gateway-laravel package."
+            exit 1
+          fi
+          case "$TOKEN" in
+            *'{'*|*'"'*|*' '*)
+              echo "::error::COMPOSER_GITHUB_TOKEN must contain only the token (ghp_... or github_pat_...), with no JSON, quotes or spaces."
+              exit 1 ;;
+          esac
+
+      - name: Install dependencies
+        env:
+          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.COMPOSER_GITHUB_TOKEN }}"}}'
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Prepare the environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate --ansi
+
+      # Only the files this branch changes: 123 files already on main predate
+      # Pint, and reformatting them all would bury every change in noise.
+      - name: Pint (changed files)
+        run: vendor/bin/pint --test --diff="origin/${{ github.base_ref || 'main' }}"
+
+      - name: Test suite (SQLite)
+        run: php artisan test --compact
+
+  mysql:
+    name: Suite and API contract (MySQL 8)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: pos_saas_testing
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ env.PHP_VERSION }}
+          extensions: ${{ env.PHP_EXTENSIONS }}
+          coverage: none
+
+      - name: Check the COMPOSER_GITHUB_TOKEN secret
+        env:
+          TOKEN: ${{ secrets.COMPOSER_GITHUB_TOKEN }}
+        run: |
+          if [ -z "$TOKEN" ]; then
+            echo "::error::Add the repository secret COMPOSER_GITHUB_TOKEN (the token only, not JSON) so Composer can install the private wa-gateway-laravel package."
+            exit 1
+          fi
+          case "$TOKEN" in
+            *'{'*|*'"'*|*' '*)
+              echo "::error::COMPOSER_GITHUB_TOKEN must contain only the token (ghp_... or github_pat_...), with no JSON, quotes or spaces."
+              exit 1 ;;
+          esac
+
+      - name: Install dependencies
+        env:
+          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.COMPOSER_GITHUB_TOKEN }}"}}'
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Prepare the environment and the scratch databases
+        run: |
+          cp .env.example .env
+          php artisan key:generate --ansi
+          mysql -h 127.0.0.1 -u root -proot -e "CREATE DATABASE IF NOT EXISTS pos_saas_rehearsal_testing; CREATE DATABASE IF NOT EXISTS pos_saas_dataset_testing;"
+
+      # Pest directly: `php artisan test` always adds --configuration=phpunit.xml
+      # itself, and PHPUnit 12 refuses a second --configuration.
+      - name: Test suite (MySQL 8)
+        run: vendor/bin/pest --compact --configuration=phpunit.mysql.xml
+
+  migration-rehearsal:
+    name: Migration rehearsal on the live-like dataset
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: pos_saas_dataset_testing
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ env.PHP_VERSION }}
+          extensions: ${{ env.PHP_EXTENSIONS }}
+          coverage: none
+
+      - name: Check the COMPOSER_GITHUB_TOKEN secret
+        env:
+          TOKEN: ${{ secrets.COMPOSER_GITHUB_TOKEN }}
+        run: |
+          if [ -z "$TOKEN" ]; then
+            echo "::error::Add the repository secret COMPOSER_GITHUB_TOKEN (the token only, not JSON) so Composer can install the private wa-gateway-laravel package."
+            exit 1
+          fi
+          case "$TOKEN" in
+            *'{'*|*'"'*|*' '*)
+              echo "::error::COMPOSER_GITHUB_TOKEN must contain only the token (ghp_... or github_pat_...), with no JSON, quotes or spaces."
+              exit 1 ;;
+          esac
+
+      # The dataset is built with the base branch's code and schema when it has
+      # dataset:build (stage 1a onwards); in stage 0 the base doesn't, so this
+      # branch builds it and the rehearsal only proves the dataset loads.
+      - name: Choose the code to build the dataset with
+        id: base
+        run: |
+          BASE="origin/${{ github.base_ref || 'main' }}"
+          if git cat-file -e "$BASE:app/Console/Commands/BuildDatasetCommand.php" 2>/dev/null; then
+            git worktree add ../base "$BASE"
+            echo "dir=../base" >> "$GITHUB_OUTPUT"
+            echo "Building the dataset with $BASE"
+          else
+            echo "dir=." >> "$GITHUB_OUTPUT"
+            echo "$BASE has no dataset:build yet; building with this branch"
+          fi
+
+      - name: Install dependencies (dataset code)
+        working-directory: ${{ steps.base.outputs.dir }}
+        env:
+          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.COMPOSER_GITHUB_TOKEN }}"}}'
+        run: |
+          composer install --no-interaction --prefer-dist --no-progress
+          cp .env.example .env
+          php artisan key:generate --ansi
+
+      - name: Build the live-like dataset
+        working-directory: ${{ steps.base.outputs.dir }}
+        run: php artisan dataset:build --database=dataset_testing --scale=0.25
+
+      - name: Count rows before migrating
+        working-directory: ${{ steps.base.outputs.dir }}
+        run: php artisan tinker --execute="require '.github/scripts/table-counts.php';" > /tmp/counts-before.json
+
+      - name: Install dependencies (this branch)
+        if: steps.base.outputs.dir != '.'
+        env:
+          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.COMPOSER_GITHUB_TOKEN }}"}}'
+        run: |
+          composer install --no-interaction --prefer-dist --no-progress
+          cp .env.example .env
+          php artisan key:generate --ansi
+
+      - name: Run this branch's migrations on the dataset
+        run: php artisan migrate --database=dataset_testing --no-interaction
+
+      - name: Check no table lost rows
+        run: |
+          php artisan tinker --execute="require '.github/scripts/table-counts.php';" > /tmp/counts-after.json
+          php -r '
+            $before = json_decode(file_get_contents("/tmp/counts-before.json"), true);
+            $after = json_decode(file_get_contents("/tmp/counts-after.json"), true);
+            $lost = [];
+            foreach ($before as $table => $rows) {
+                $now = $after[$table] ?? 0;
+                if ($now < $rows) { $lost[] = "$table: $rows -> $now"; }
+            }
+            if ($lost) { fwrite(STDERR, "Rows lost by the migration:\n".implode("\n", $lost)."\n"); exit(1); }
+            echo count($before)." tables, ".array_sum($before)." rows before; no table lost rows.\n";
+          '

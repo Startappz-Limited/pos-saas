@@ -1,0 +1,1072 @@
+[
+    {
+        "method": "GET",
+        "uri": "api/abandoned-carts",
+        "name": "api.abandoned-carts.index",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "GET",
+        "uri": "api/abandoned-carts/{abandonedCart}",
+        "name": "api.abandoned-carts.show",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "PUT|PATCH",
+        "uri": "api/abandoned-carts/{abandonedCart}",
+        "name": "api.abandoned-carts.update",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "POST",
+        "uri": "api/abandoned-carts/{abandonedCart}/convert",
+        "name": "api.abandoned-carts.convert",
+        "middleware": [
+            "api",
+            "auth:sanctum",
+            "throttle:writes"
+        ]
+    },
+    {
+        "method": "POST",
+        "uri": "api/abandoned-carts/{abandonedCart}/notes",
+        "name": "api.abandoned-carts.store-note",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "POST",
+        "uri": "api/abandoned-carts/{abandonedCart}/opt-out",
+        "name": "api.abandoned-carts.opt-out",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "POST",
+        "uri": "api/abandoned-carts/{abandonedCart}/reminders",
+        "name": "api.abandoned-carts.store-reminder",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "POST",
+        "uri": "api/abandoned-carts/{abandonedCart}/reminders/{alert}/resolve",
+        "name": "api.abandoned-carts.resolve-reminder",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "POST",
+        "uri": "api/abandoned-carts/{abandonedCart}/whatsapp",
+        "name": "api.abandoned-carts.whatsapp",
+        "middleware": [
+            "api",
+            "auth:sanctum",
+            "throttle:writes"
+        ]
+    },
+    {
+        "method": "GET",
+        "uri": "api/calendar/events",
+        "name": "api.calendar.events",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "GET",
+        "uri": "api/cash-registers",
+        "name": "api.cash-registers.index",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "POST",
+        "uri": "api/cash-registers/open",
+        "name": "api.cash-registers.open",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "GET",
+        "uri": "api/cash-registers/status",
+        "name": "api.cash-registers.status",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "GET",
+        "uri": "api/cash-registers/{cashRegister}",
+        "name": "api.cash-registers.show",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "POST",
+        "uri": "api/cash-registers/{cashRegister}/close",
+        "name": "api.cash-registers.close",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "GET",
+        "uri": "api/categories",
+        "name": "api.categories.index",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "POST",
+        "uri": "api/categories",
+        "name": "api.categories.store",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "DELETE",
+        "uri": "api/categories/{category}",
+        "name": "api.categories.destroy",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "GET",
+        "uri": "api/categories/{category}",
+        "name": "api.categories.show",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "PUT|PATCH",
+        "uri": "api/categories/{category}",
+        "name": "api.categories.update",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "GET",
+        "uri": "api/customers",
+        "name": "api.customers.index",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "POST",
+        "uri": "api/customers",
+        "name": "api.customers.store",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "DELETE",
+        "uri": "api/customers/{customer}",
+        "name": "api.customers.destroy",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "GET",
+        "uri": "api/customers/{customer}",
+        "name": "api.customers.show",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "PUT|PATCH",
+        "uri": "api/customers/{customer}",
+        "name": "api.customers.update",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "POST",
+        "uri": "api/customers/{customer}/activate",
+        "name": "api.customers.activate",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "POST",
+        "uri": "api/customers/{customer}/deactivate",
+        "name": "api.customers.deactivate",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "POST",
+        "uri": "api/customers/{customer}/send-statement",
+        "name": "api.customers.send-statement",
+        "middleware": [
+            "api",
+            "auth:sanctum",
+            "throttle:writes"
+        ]
+    },
+    {
+        "method": "GET",
+        "uri": "api/delivery-companies",
+        "name": "api.delivery-companies.index",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "POST",
+        "uri": "api/delivery-companies",
+        "name": "api.delivery-companies.store",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "POST",
+        "uri": "api/delivery-companies/{deliveryCompany}/toggle-active",
+        "name": "api.delivery-companies.toggle-active",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "DELETE",
+        "uri": "api/delivery-companies/{delivery_company}",
+        "name": "api.delivery-companies.destroy",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "GET",
+        "uri": "api/delivery-companies/{delivery_company}",
+        "name": "api.delivery-companies.show",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "PUT|PATCH",
+        "uri": "api/delivery-companies/{delivery_company}",
+        "name": "api.delivery-companies.update",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "GET",
+        "uri": "api/ecommerce-orders",
+        "name": "api.ecommerce-orders.index",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "POST",
+        "uri": "api/ecommerce-orders/refresh",
+        "name": "api.ecommerce-orders.refresh",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "GET",
+        "uri": "api/ecommerce-orders/{order}",
+        "name": "api.ecommerce-orders.show",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "POST",
+        "uri": "api/ecommerce-orders/{order}/convert",
+        "name": "api.ecommerce-orders.convert",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "POST",
+        "uri": "api/ecommerce-orders/{order}/notes",
+        "name": "api.ecommerce-orders.store-note",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "POST",
+        "uri": "api/ecommerce-orders/{order}/reminders",
+        "name": "api.ecommerce-orders.store-reminder",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "POST",
+        "uri": "api/ecommerce-orders/{order}/reminders/{alert}/resolve",
+        "name": "api.ecommerce-orders.resolve-reminder",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "POST",
+        "uri": "api/ecommerce-orders/{order}/update-status",
+        "name": "api.ecommerce-orders.update-status",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "GET",
+        "uri": "api/expense-categories",
+        "name": "api.expense-categories.index",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "POST",
+        "uri": "api/expense-categories",
+        "name": "api.expense-categories.store",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "DELETE",
+        "uri": "api/expense-categories/{expense_category}",
+        "name": "api.expense-categories.destroy",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "GET",
+        "uri": "api/expense-categories/{expense_category}",
+        "name": "api.expense-categories.show",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "PUT|PATCH",
+        "uri": "api/expense-categories/{expense_category}",
+        "name": "api.expense-categories.update",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "GET",
+        "uri": "api/expenses",
+        "name": "api.expenses.index",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "POST",
+        "uri": "api/expenses",
+        "name": "api.expenses.store",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "GET",
+        "uri": "api/expenses/summary",
+        "name": "api.expenses.summary",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "DELETE",
+        "uri": "api/expenses/{expense}",
+        "name": "api.expenses.destroy",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "GET",
+        "uri": "api/expenses/{expense}",
+        "name": "api.expenses.show",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "PUT|PATCH",
+        "uri": "api/expenses/{expense}",
+        "name": "api.expenses.update",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "POST",
+        "uri": "api/expenses/{expense}/approve",
+        "name": "api.expenses.approve",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "POST",
+        "uri": "api/expenses/{expense}/cancel",
+        "name": "api.expenses.cancel",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "POST",
+        "uri": "api/expenses/{expense}/mark-paid",
+        "name": "api.expenses.mark-paid",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "POST",
+        "uri": "api/expenses/{expense}/reject",
+        "name": "api.expenses.reject",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "POST",
+        "uri": "api/expenses/{expense}/settle-from-register",
+        "name": "api.expenses.settle-from-register",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "POST",
+        "uri": "api/expenses/{expense}/submit",
+        "name": "api.expenses.submit",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "GET",
+        "uri": "api/inventory",
+        "name": null,
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "GET",
+        "uri": "api/inventory/low-stock",
+        "name": null,
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "GET",
+        "uri": "api/inventory/product/{product}",
+        "name": null,
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "GET",
+        "uri": "api/inventory/shop/{shop}",
+        "name": null,
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "POST",
+        "uri": "api/login",
+        "name": "api.login",
+        "middleware": [
+            "api",
+            "throttle:auth"
+        ]
+    },
+    {
+        "method": "POST",
+        "uri": "api/logout",
+        "name": null,
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "GET",
+        "uri": "api/products",
+        "name": "api.products.index",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "POST",
+        "uri": "api/products",
+        "name": "api.products.store",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "GET",
+        "uri": "api/products/low-stock",
+        "name": "api.products.low-stock",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "DELETE",
+        "uri": "api/products/{product}",
+        "name": "api.products.destroy",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "GET",
+        "uri": "api/products/{product}",
+        "name": "api.products.show",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "PUT|PATCH",
+        "uri": "api/products/{product}",
+        "name": "api.products.update",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "POST",
+        "uri": "api/products/{product}/activate",
+        "name": "api.products.activate",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "POST",
+        "uri": "api/products/{product}/deactivate",
+        "name": "api.products.deactivate",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "GET",
+        "uri": "api/purchase-orders",
+        "name": "api.purchase-orders.index",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "POST",
+        "uri": "api/purchase-orders",
+        "name": "api.purchase-orders.store",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "POST",
+        "uri": "api/purchase-orders/{purchaseOrder}/approve",
+        "name": "api.purchase-orders.approve",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "POST",
+        "uri": "api/purchase-orders/{purchaseOrder}/cancel",
+        "name": "api.purchase-orders.cancel",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "POST",
+        "uri": "api/purchase-orders/{purchaseOrder}/mark-ordered",
+        "name": "api.purchase-orders.mark-ordered",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "DELETE",
+        "uri": "api/purchase-orders/{purchase_order}",
+        "name": "api.purchase-orders.destroy",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "GET",
+        "uri": "api/purchase-orders/{purchase_order}",
+        "name": "api.purchase-orders.show",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "PUT|PATCH",
+        "uri": "api/purchase-orders/{purchase_order}",
+        "name": "api.purchase-orders.update",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "POST",
+        "uri": "api/register",
+        "name": "api.register",
+        "middleware": [
+            "api",
+            "throttle:auth"
+        ]
+    },
+    {
+        "method": "GET",
+        "uri": "api/reports/daily-register",
+        "name": "api.reports.daily-register",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "GET",
+        "uri": "api/reports/daily-sales",
+        "name": "api.reports.daily-sales",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "GET",
+        "uri": "api/reports/pending-payments",
+        "name": "api.reports.pending-payments",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "GET",
+        "uri": "api/reports/top-products",
+        "name": "api.reports.top-products",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "GET",
+        "uri": "api/sale-sources",
+        "name": "api.sale-sources.index",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "POST",
+        "uri": "api/sale-sources",
+        "name": "api.sale-sources.store",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "GET",
+        "uri": "api/sales",
+        "name": "api.sales.index",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "POST",
+        "uri": "api/sales",
+        "name": "api.sales.store",
+        "middleware": [
+            "api",
+            "auth:sanctum",
+            "throttle:writes"
+        ]
+    },
+    {
+        "method": "DELETE",
+        "uri": "api/sales/{sale}",
+        "name": "api.sales.destroy",
+        "middleware": [
+            "api",
+            "auth:sanctum",
+            "throttle:destructive"
+        ]
+    },
+    {
+        "method": "GET",
+        "uri": "api/sales/{sale}",
+        "name": "api.sales.show",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "PUT|PATCH",
+        "uri": "api/sales/{sale}",
+        "name": "api.sales.update",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "POST",
+        "uri": "api/sales/{sale}/collect-payment",
+        "name": "api.sales.collect-payment",
+        "middleware": [
+            "api",
+            "auth:sanctum",
+            "throttle:writes"
+        ]
+    },
+    {
+        "method": "POST",
+        "uri": "api/sales/{sale}/complete",
+        "name": "api.sales.complete",
+        "middleware": [
+            "api",
+            "auth:sanctum",
+            "throttle:writes"
+        ]
+    },
+    {
+        "method": "GET",
+        "uri": "api/sales/{sale}/payments",
+        "name": "api.sales.payments",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "POST",
+        "uri": "api/sales/{sale}/void",
+        "name": "api.sales.void",
+        "middleware": [
+            "api",
+            "auth:sanctum",
+            "throttle:destructive"
+        ]
+    },
+    {
+        "method": "GET",
+        "uri": "api/shops",
+        "name": "api.shops.index",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "POST",
+        "uri": "api/shops",
+        "name": "api.shops.store",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "DELETE",
+        "uri": "api/shops/{shop}",
+        "name": "api.shops.destroy",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "GET",
+        "uri": "api/shops/{shop}",
+        "name": "api.shops.show",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "PUT|PATCH",
+        "uri": "api/shops/{shop}",
+        "name": "api.shops.update",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "GET",
+        "uri": "api/suppliers",
+        "name": "api.suppliers.index",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "POST",
+        "uri": "api/suppliers",
+        "name": "api.suppliers.store",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "DELETE",
+        "uri": "api/suppliers/{supplier}",
+        "name": "api.suppliers.destroy",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "GET",
+        "uri": "api/suppliers/{supplier}",
+        "name": "api.suppliers.show",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "PUT|PATCH",
+        "uri": "api/suppliers/{supplier}",
+        "name": "api.suppliers.update",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "GET",
+        "uri": "api/user",
+        "name": null,
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "GET",
+        "uri": "api/users",
+        "name": "api.users.index",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "POST",
+        "uri": "api/users",
+        "name": "api.users.store",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "GET",
+        "uri": "api/users/roles",
+        "name": "api.users.roles",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "GET",
+        "uri": "api/users/shops",
+        "name": "api.users.shops",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "GET",
+        "uri": "api/users/statuses",
+        "name": "api.users.statuses",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "DELETE",
+        "uri": "api/users/{user}",
+        "name": "api.users.destroy",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "GET",
+        "uri": "api/users/{user}",
+        "name": "api.users.show",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "PUT|PATCH",
+        "uri": "api/users/{user}",
+        "name": "api.users.update",
+        "middleware": [
+            "api",
+            "auth:sanctum"
+        ]
+    },
+    {
+        "method": "POST",
+        "uri": "api/webhooks/shopify/{shop}",
+        "name": "webhooks.shopify",
+        "middleware": [
+            "api",
+            "throttle:webhooks"
+        ]
+    },
+    {
+        "method": "POST",
+        "uri": "api/webhooks/woocommerce/{shop}",
+        "name": "webhooks.woocommerce",
+        "middleware": [
+            "api",
+            "throttle:webhooks"
+        ]
+    }
+]

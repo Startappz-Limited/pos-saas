@@ -409,6 +409,19 @@ describe('converting to a sale', function () {
             ->and($this->cart->fresh()->status)->toBe(AbandonedCartStatus::Abandoned);
     });
 
+    it('refuses a discount larger than the cart subtotal', function () {
+        sellableCart($this->cart);
+        Sanctum::actingAs($this->user);
+
+        $this->postJson("/api/abandoned-carts/{$this->cart->uuid}/convert", ['payment_method' => 'cash', 'discount_amount' => 1160.01])
+            ->assertUnprocessable()
+            ->assertJsonPath('success', false)
+            ->assertJsonFragment(['message' => 'The discount cannot be more than the cart subtotal (1,160.00).']);
+
+        expect(Sale::count())->toBe(0)
+            ->and($this->cart->fresh()->status)->toBe(AbandonedCartStatus::Abandoned);
+    });
+
     it('refuses a cart already recovered online, and a second conversion', function () {
         Queue::fake([AbandonedCartWriteBackJob::class]);
         sellableCart($this->cart);

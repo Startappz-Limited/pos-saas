@@ -18,10 +18,25 @@ Baileys through Chatway Gateway). Server-rendered Blade admin UI + a Sanctum-pro
 ## Stack
 
 - **PHP 8.2+** (Boost reports the runtime as 8.4), **Laravel 12** (streamlined Laravel 11+ structure).
-- **Database: MySQL/MariaDB.** ⚠️ The current `.env` uses `DB_CONNECTION=mysql` and points **`DB_HOST` at a
-  remote shared server** — not localhost. Treat the development database as live production data: never run
-  `migrate:fresh`/`migrate:refresh`/`migrate:reset`/`db:wipe`, and never `db:seed` without `--class=`.
-  A [PreToolUse hook](.claude/hooks/block-destructive-db.sh) now blocks these mechanically.
+- **Database: MySQL 8** (production will be MySQL). Locally it runs in the `lerd-mysql` container.
+- ⚠️ **Live-data rule: development works as though the system is live and data is present.** Every
+  database **except the test database** (a name ending in `_testing`) is treated as holding live data:
+  - **No destructive commands** against it: no `migrate:fresh`/`--fresh`, `migrate:refresh`,
+    `migrate:reset`, `migrate:rollback`, `db:wipe`, `TRUNCATE`, `DELETE FROM` without `WHERE`, or dropping
+    tables with rows; and never `db:seed` without `--class=`.
+  - **Take a snapshot before any migration or import**, and keep a way to restore it.
+  - **Every schema change carries existing data across.** If you can't see how, stop and ask.
+  - **The old (legacy) database is only ever read**, never written.
+  - **The development database (`.env`) is UAT, which holds data.** lerd runs PHP in a container, so
+    shell prefixes like `DB_DATABASE=… php artisan …` **never reach PHP**: artisan always uses the `.env`
+    database unless given `--database=`. Run migrations, seeders and rehearsals only with
+    `--database=<connection ending in _testing>` (`mysql_testing`, `rehearsal_testing`), and check the
+    target before the first write.
+  - A [PreToolUse hook](.claude/hooks/block-destructive-db.sh) blocks these commands mechanically: any
+    artisan command that changes a database without `--database=…_testing`, and destructive SQL unless a
+    `mysql` client command names only a `_testing` database. Its cases are in
+    [tests/Fixtures/safety-hook-cases.php](tests/Fixtures/safety-hook-cases.php), run by
+    [SafetyHookTest](tests/Feature/SafetyHookTest.php).
   A separate `audit` **SQLite** connection ([config/database.php](config/database.php),
   `database/audit.sqlite`) holds the audit trail. It has its **own migration repository**, so plain
   `migrate` does not create it — see the audit deploy command under Commands.
@@ -200,7 +215,10 @@ npm run dev / npm run build  # Vite — only affects Breeze leftover pages (welc
 # notification, invoice and sync job silently piles up in the `jobs` table. ALWAYS name them:
 php artisan queue:work --queue=default,whatsapp-notifications,order-notifications,baileys,ecommerce --tries=3
 # Diagnose a "notifications never arrive" report with:  select queue, count(*) from jobs group by queue;
-php artisan migrate       # apply migrations (NEVER migrate:fresh / --fresh — destroys data)
+php artisan db:snapshot   # read-only snapshot of the .env database → storage/app/snapshots/ (take one before any migration)
+php artisan db:restore-snapshot FILE --database=rehearsal_testing --yes   # only into a _testing database
+php artisan migrate --database=rehearsal_testing   # rehearse migrations on the scratch database first
+php artisan migrate       # apply migrations to the .env database (UAT): the user runs this, after a snapshot
 # ⚠️ The audit trail lives on a SEPARATE connection with its OWN migration
 # repository, so plain `migrate` does NOT create it. Every environment must run:
 php artisan migrate --database=audit --path=database/migrations/audit
@@ -404,8 +422,10 @@ Reported from evidence in the repo — not invented:
   `order-notifications`, `ecommerce`); a default worker drains none of them. `composer run dev` now
   passes the full `--queue=` list, but production deployment is undocumented — if WhatsApp "stopped
   working", check the worker's queue list *first*, then `select queue, count(*) from jobs group by queue;`
-- **No CI/CD or container config** — `.github/` holds AI guidance, not workflows; no `Dockerfile` or
-  `docker-compose.yml`. Deployment is undocumented, and nothing establishes that the **queue worker** and
+- **CI exists; CD and container config don't.** [.github/workflows/ci.yml](.github/workflows/ci.yml)
+  runs Pint and the suite on SQLite, the suite and flat API contract on MySQL 8, and a migration
+  rehearsal on the live-like dataset (it needs the `COMPOSER_AUTH` repository secret). There's no
+  `Dockerfile` or `docker-compose.yml`. Deployment is undocumented, and nothing establishes that the **queue worker** and
   **`schedule:run`** are running in production — without them, every sync job and the campaign sweep silently
   never execute.
 - **Dead frontend scaffolding.** `resources/css/app.css` holds Tailwind directives and `package.json`

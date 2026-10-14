@@ -70,3 +70,18 @@ function something()
 {
     // ..
 }
+
+/**
+ * Configure the WhatsApp Cloud API for the current test.
+ *
+ * phpunit.xml leaves it unconfigured, and a notification whose via() returns
+ * no channels is never recorded by Notification::fake(), so any test that
+ * expects a WhatsApp notification must call this first.
+ */
+function configureWhatsApp(): void
+{
+    config([
+        'services.whatsapp.api_url' => 'https://api.example.com',
+        'services.whatsapp.api_token' => 'test-token',
+    ]);
+}
