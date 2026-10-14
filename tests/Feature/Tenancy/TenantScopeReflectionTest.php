@@ -7,7 +7,9 @@ use App\Models\Product;
 use App\Models\SaleItem;
 use App\Models\Scopes\BusinessScope;
 use App\Models\Scopes\ShopAccessScope;
+use Illuminate\Contracts\Routing\UrlRoutable;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
 
 /**
@@ -80,4 +82,29 @@ it('lists only models that still need an exception', function () {
             ->not->toContain(BusinessScope::class)
             ->not->toContain(ShopAccessScope::class);
     }
+});
+
+it('binds every route model by uuid, never by a sequential id', function () {
+    $sequential = [];
+
+    foreach (Route::getRoutes()->getRoutes() as $route) {
+        foreach ($route->signatureParameters(['subClass' => UrlRoutable::class]) as $parameter) {
+            $class = $parameter->getType()?->getName();
+
+            if (! $class || ! is_subclass_of($class, Model::class)) {
+                continue;
+            }
+
+            $model = new $class;
+            $field = $route->bindingFieldFor($parameter->getName()) ?? $model->getRouteKeyName();
+            // A uuid primary key (attributes) is as good as a uuid column.
+            $byUuid = $field === 'uuid' || ($field === $model->getKeyName() && $model->getKeyType() === 'string');
+
+            if (! $byUuid) {
+                $sequential[] = "{$route->uri()}: {$class} by {$field}";
+            }
+        }
+    }
+
+    expect(array_unique($sequential))->toBe([], "Routes binding a model by a sequential id:\n".implode("\n", array_unique($sequential)));
 });

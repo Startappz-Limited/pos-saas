@@ -24,7 +24,8 @@ class ShopFactory extends Factory
         return [
             'uuid' => Str::uuid(),
             'name' => $name,
-            'code' => strtoupper(Str::slug($name, '-')),
+            // Company names repeat; a suffix keeps codes unique per business.
+            'code' => strtoupper(Str::slug($name, '-').'-'.Str::random(4)),
             'description' => fake()->optional()->paragraph(),
             'phone' => fake()->phoneNumber(),
             'email' => fake()->companyEmail(),

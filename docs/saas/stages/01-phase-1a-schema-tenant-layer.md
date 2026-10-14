@@ -83,7 +83,8 @@ Phase 1 doesn't start until these are answered:
       *Step 6:* rather than a new rule in 123 places, `exists:` itself is viewer-aware: `app/Support/Tenancy/TenantPresenceVerifier.php` (bound as Laravel's validation presence verifier) checks tenant tables through the models' tenant scopes, child tables through their visible parent, and `users` as members of the business. Soft-deleted rows still count, as before. It covers every existing and future `exists:` rule. `ViewerAwareExistsTest` (fails without the verifier).
 - [x] A per-tenant unique rule that **ignores soft-deleted rows**.
       *Step 5:* `app/Rules/UniqueForTenant.php` replaces the 24 `unique:` rules on tenant tables (shop code, product slug/SKU/barcode, category name/slug, attribute name/slug, supplier code, sale source name). The credit-account rule changes with one account per customer.
-- [ ] Route model binding by uuid on unscoped models.
+- [x] Route model binding by uuid on unscoped models.
+      *Step 7:* the unscoped models bound in routes (`User`, `Role`, `AuditLog`) already bound by uuid; the one model bound by its sequential id, `BaileysChat` (`{chat}`), gains a `uuid` and binds by it (inbox links, redirect and stream URL too). A test in `TenantScopeReflectionTest` fails if any route binds a model by a sequential id.
 
 ### Test fixture
 - [x] **The two-business test fixture**, with a user who belongs to both.

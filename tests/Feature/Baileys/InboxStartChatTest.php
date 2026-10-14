@@ -33,7 +33,7 @@ it('creates a chat for a phone number from the inbox', function () {
 
     $response->assertRedirect(route('baileys.inbox.index', [
         'session' => $session->uuid,
-        'chat' => $chat->id,
+        'chat' => $chat->uuid,
     ]));
 });
 

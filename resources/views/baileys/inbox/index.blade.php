@@ -178,7 +178,7 @@
                                             $label = $chat->name ?? ($chat->phone ? '+' . $chat->phone : $chat->jid);
                                             $url = route('baileys.inbox.index', [
                                                 'session' => $session->uuid,
-                                                'chat' => $chat->id,
+                                                'chat' => $chat->uuid,
                                                 'type' => request('type'),
                                                 'q' => request('q'),
                                             ]);
@@ -647,7 +647,7 @@
 
             // ---- Live updates via Server-Sent Events ----
             @if ($activeChat)
-                const streamUrl = @json(route('baileys.inbox.stream', ['chat' => $activeChat->id]));
+                const streamUrl = @json(route('baileys.inbox.stream', ['chat' => $activeChat->uuid]));
                 const threadEl = document.getElementById('baileys-chat-thread');
 
                 const appendInbound = (m) => {

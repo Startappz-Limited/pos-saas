@@ -10,6 +10,7 @@ return new class extends Migration
     {
         Schema::create('baileys_chats', function (Blueprint $table) {
             $table->id();
+            $table->uuid('uuid')->unique()->comment('Route key: chats are bound by uuid, not id (stage 1a)');
             $table->unsignedBigInteger('baileys_session_id');
             $table->unsignedBigInteger('shop_id');
             $table->string('jid');
