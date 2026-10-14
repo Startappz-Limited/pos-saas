@@ -90,7 +90,8 @@ Phase 1 doesn't start until these are answered:
 ### Test fixture
 - [x] **The two-business test fixture**, with a user who belongs to both.
       *Step 3.* `tests/Support/TwoBusinesses.php`: A and B, each with two shops (the same codes), an owner, a cashier assigned to one shop, a customer, product, supplier and sale; plus a member of both.
-- [ ] Existing tests adapted to it.
+- [x] Existing tests adapted to it.
+      *Steps 2–10:* every feature test runs in a test business; tests whose meaning changed were adapted (records outside the user's shops are 404; default-deny; one credit account per customer), each listed in PROGRESS.md.
 
 ### Models
 - [x] Every model with `shop_id` (about 42) and the 7 list models get their scope.
@@ -198,7 +199,8 @@ No tenancy package is needed; scoping is built in-house (4.1).
 - [x] Creating a product creates its default variation; per-shop stock rows are keyed on shop and
       variation.
       *Step 9:* `DefaultVariationTest` (default created; hidden from lists and the flat API; one per product; rows per shop and variation, including for a variation added later).
-- [ ] The flat API contract tests pass; the full suite is green on SQLite and MySQL 8.
+- [x] The flat API contract tests pass; the full suite is green on SQLite and MySQL 8.
+      *End of stage:* SQLite 1,202 passed, 58 skipped; MySQL 8 1,211 passed, 49 skipped (contract tests included, fixtures unchanged).
 
 ## Risks (Phase 1, leakage)
 
@@ -211,6 +213,9 @@ No tenancy package is needed; scoping is built in-house (4.1).
 
 ## Definition of done
 
-- [ ] Acceptance criteria met, with tests.
-- [ ] Pint, the full suite (SQLite and MySQL 8) and the flat API contract tests pass.
-- [ ] Hotspot checklist items for schema, tenant layer and default-deny ticked in saas-plan.md section 2.
+- [x] Acceptance criteria met, with tests.
+      *End of stage:* each criterion above with its test.
+- [x] Pint, the full suite (SQLite and MySQL 8) and the flat API contract tests pass.
+      *End of stage:* `pint --test --diff=origin/main` passes; suites as above.
+- [x] Hotspot checklist items for schema, tenant layer and default-deny ticked in saas-plan.md section 2.
+      *End of stage:* 9 items ticked in section 2; partly done items (stock source, registers, sync, roles, tokens, fixture) annotated with what remains and where.

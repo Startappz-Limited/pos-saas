@@ -46,4 +46,3 @@ it('keeps accounts without credentials', function () {
 it('stores credentials in a text column, not JSON', function () {
     expect(Schema::getColumnType('social_accounts', 'credentials'))->toBe('text');
 })->skip(fn () => DB::getDriverName() === 'sqlite', 'SQLite reports column types loosely; checked on MySQL.');
-

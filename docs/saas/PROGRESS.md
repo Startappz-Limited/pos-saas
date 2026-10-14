@@ -198,7 +198,29 @@ MySQL 8 1,129 passed, 46 skipped**; Pint passes on changed files.
 | 8. One credit account per customer | `806d853` | `BusinessCustomersTest` (4) | 1,181 passed, 55 skipped | 1,190 passed, 46 skipped (11 min) | `credit_accounts` unique on `customer_id` and business-scoped: the one account serves every shop of the business, so it can't be hidden by the shop it was opened in (`shop_id` kept for that). `CreditAccountService::resolveAccount()` and `createAccount()` work by customer; the request rule checks one per customer; `CreditAccount::scopeVisibleTo()` no longer narrows by shop. Credit transactions keep their shop scope, like sales. **Behaviour change, tests adapted (2):** shop-assigned staff now see every credit account of their business (still none of another business); a statement for an account opened in a shop the user can't access is 403 again (the original assertion, restored) |
 | 9. Default variation; per-shop rows | `2771af3` | `DefaultVariationTest` (5) | 1,186 passed, 55 skipped | 1,195 passed, 46 skipped (13 min) | Every new product gets a default variation (reserved SKU `DEFAULT-{product uuid}`, the product's prices and tax class), hidden by a global scope from variation lists, the API and `exists:` checks. Each variation gets a `shop_variation` row in every shop of its product (own shop and listed shops), created with the product, with each variation, and after shop assignments change (product create and update actions, Woo and Shopify sync, `BackfillShopProductPivot`). Rows start at zero; stage 1b moves stock onto them. No existing test changed. The MySQL suite now takes about 13 minutes (the dataset builds create the extra rows) |
 | 10. Spatie teams: roles per business | `24d385b` | `RolesPerBusinessTest` (7) | 1,193 passed, 55 skipped | 1,202 passed, 46 skipped (13 min) | `teams => true`, `team_foreign_key = business_id`. Seeded roles are templates shared by every business (`business_id` NULL; `RoleSeeder` runs with no business set); a role created while a business is set belongs to that business, and roles screens show templates plus the business's own. Assignments and direct permissions are held per business. `TenantContext::set()` sets Spatie's team and clears loaded roles; `POST /api/login` sets the default business first, so it returns the roles held there. The 11 policy-level super-admin checks repeated `Gate::before` and are removed; `Gate::before` asks `isBusinessOwner()`. Tests: the fixture uses shared templates (`sharedRole()` in `tests/Pest.php`); no existing test changed |
-| 11. One-off legacy import | _this commit_ | `LegacyImportTest` (8); hook cases +3 (49, checked on the host) | 1,201 passed, 58 skipped | 1,210 passed, 49 skipped (12 min) | `php artisan saas:import-legacy --from=<legacy connection> --database=<freshly migrated baseline> --business-name=…` (`app/Support/Legacy/LegacyImport.php`): the stage 0 commitment that data crosses into the rewritten schema. The source is only read (a guard refuses anything but reads; `ConnectionGuard` limits the command to the two connections); the target must be a freshly migrated baseline. Every legacy row is copied with its ids into one business; users become members (inactive ones inactive) with role grants held in the business; credit accounts merge to one per customer; every product gets a default variation and per-shop stock rows (a product's stock goes to its own shop; listed shops' e-commerce figures are noted, not used). A verification compares counts, money totals, credit balances per customer and stock, and finds orphaned references; any mismatch fails the command; a JSON report goes to `storage/app/imports/`. The legacy schema fixtures moved to `database/legacy/` (the command reads them) and their recorder was removed. **Rehearsed on MySQL:** `main`'s live-like dataset, built with `main`'s own code (worktree, scale 0.25), imported and verified with no mismatches (94 notes, all listed-shop stock figures); the copy of the old development database in `rehearsal_testing` (13 shops, 25 users, 79 products, 25 sales, 4 customers) imported and verified, no notes. New `import_testing` connection. **CI:** the rehearsal job now imports `main`'s dataset into the baseline as its gate, uploads the report, and checks the dataset is unchanged. The safety hook treats the import as a write: it needs a `_testing` target |
+| 11. One-off legacy import | `94021c5` | `LegacyImportTest` (8); hook cases +3 (49, checked on the host) | 1,201 passed, 58 skipped | 1,210 passed, 49 skipped (12 min) | `php artisan saas:import-legacy --from=<legacy connection> --database=<freshly migrated baseline> --business-name=…` (`app/Support/Legacy/LegacyImport.php`): the stage 0 commitment that data crosses into the rewritten schema. The source is only read (a guard refuses anything but reads; `ConnectionGuard` limits the command to the two connections); the target must be a freshly migrated baseline. Every legacy row is copied with its ids into one business; users become members (inactive ones inactive) with role grants held in the business; credit accounts merge to one per customer; every product gets a default variation and per-shop stock rows (a product's stock goes to its own shop; listed shops' e-commerce figures are noted, not used). A verification compares counts, money totals, credit balances per customer and stock, and finds orphaned references; any mismatch fails the command; a JSON report goes to `storage/app/imports/`. The legacy schema fixtures moved to `database/legacy/` (the command reads them) and their recorder was removed. **Rehearsed on MySQL:** `main`'s live-like dataset, built with `main`'s own code (worktree, scale 0.25), imported and verified with no mismatches (94 notes, all listed-shop stock figures); the copy of the old development database in `rehearsal_testing` (13 shops, 25 users, 79 products, 25 sales, 4 customers) imported and verified, no notes. New `import_testing` connection. **CI:** the rehearsal job now imports `main`'s dataset into the baseline as its gate, uploads the report, and checks the dataset is unchanged. The safety hook treats the import as a write: it needs a `_testing` target |
+
+| 12. End of stage | _this commit_ | `TenantScopeBypassTest` (every place that lifts the tenant scopes, with its reason) | **1,202 passed, 0 failed**, 58 skipped | **1,211 passed, 0 failed**, 49 skipped (9.5 min) | CLAUDE.md tenancy rules and the migration/import commands; plan updated (4.7 as built, Phase 1a as built, hotspots); stage file ticked with evidence; UAT runbook below; `pint --test --diff=origin/main` passes. The 58 SQLite skips are the MySQL-only tests and the safety-hook cases (no `jq` in lerd's container; all 49 checked on the host) |
+
+### Moving UAT onto the new schema (for you to run; nothing here has touched UAT)
+
+The baseline refuses a database that already has tables, so UAT (`pos-saas`) can't be migrated in place.
+Its data crosses by the import into a **new** database; `pos-saas` itself is only read and stays as it is.
+
+1. Stop the queue worker and let `jobs` drain: queued jobs, sessions, cache and password-reset tokens are
+   not carried across.
+2. Snapshot UAT: `php artisan db:snapshot` (read-only; the file lands in `storage/app/snapshots/`).
+3. Create an empty database on the UAT server (for example `pos-saas-v2`) and add a connection for it.
+4. Migrate the baseline into it: `php artisan migrate --database=<new connection>`. This is also the first run of
+   the baseline on **MariaDB 11.4** (CI and local tests use MySQL 8); if it fails, no data has moved.
+5. Import: `php artisan saas:import-legacy --from=mysql --database=<new connection> --business-name="<name>"`.
+   It reads `pos-saas` only and stops with a non-zero exit on any mismatch; read the report it writes.
+6. Point `DB_DATABASE` at the new database.
+
+**Worth knowing first:** UAT holds almost nothing to carry (1 sale source, no users, 111 migrations from
+another branch whose extra `business_id` columns the import ignores and reports). With no users, nobody
+can sign in after the import. A freshly migrated database seeded with `db:seed` (permissions and role
+templates) and a first user may serve UAT better; the import is there for any database that does hold data.
 
 ### Differences from the stage file
 
@@ -215,6 +237,31 @@ MySQL 8 1,129 passed, 46 skipped**; Pint passes on changed files.
   `product_variations.stock_quantity`, `shop_product`, the `cash_registers` name), decided 14 October
   2026: the code that writes them moves in 1b, which then drops them with a migration that carries the
   data across.
+- **The super-admin split stays in Phase 3**, as the plan places it. Stage 1a switches roles to per
+  business (Spatie teams) and reviews the 12 direct checks; the owner is `super-admin` in the current
+  business until then. (An earlier answer chose to split now; you then asked to follow the stages as set.)
+- **`exists:` is viewer-aware without rewriting the 123 rules:** a tenant presence verifier makes Laravel's
+  own `exists:` respect the scopes, which also covers rules written later.
+- **A record outside the user's shops is 404, not 403**, and naming an inaccessible shop in a form is a
+  validation error: the record is outside the user's scope, so its existence isn't revealed. The tests
+  adapted in steps 3 and 6 assert the new statuses.
+- **Credit accounts are business-scoped**, not shop-scoped: with one account per customer serving every
+  shop, scoping it by the shop it was opened in would stop other shops selling on credit to that customer.
+- **The one-off import is built in 1a** (stage 0's commitment), with its own CI rehearsal.
+
+### Follow-ups
+
+- **Jobs, commands and webhooks run without a business** in production until stage 1c makes each set
+  one: scoped queries then run unscoped (logged); the two webhook jobs that look up managers by role find
+  none. Covered in tests by the test business; tracked by 1c's "the 10 jobs carry the business".
+- **The 30 `auth()->user()->shop_id ?? Shop::first()?->id` fallbacks** remain (now limited to accessible
+  shops); 1c's raw SQL and controller work replaces them.
+- **`shop_variation` stock starts at zero** for new products; 1b moves stock onto it.
+- **`mobile:contract-diff` not run:** the Flutter app (`MOBILE_APP_PATH`) isn't on this machine. The flat
+  API contract test passed at every step; worth running where the app is, especially since login's
+  `roles` now come from the default business.
+- **The MySQL suite takes about 12–13 minutes** (it was 7): the dataset builds now create default
+  variations and per-shop rows.
 - **Intermittent MySQL failure seen in stage 1a step 3:** `StockIntakeTest > authorized user can create
   stock intake` failed in one full run and two isolated runs straight after it (the redirect succeeded,
   the asserted row wasn't found), then passed in 11 further runs, including a full run with

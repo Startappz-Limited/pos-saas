@@ -219,29 +219,41 @@ answered before Phase 1** (Open question 1):
 ## 2. Single-Tenant Hotspots
 
 **Schema**
-- [ ] A tenant table (`businesses`) and **memberships** (`business_user`), so one login can belong to
+- [x] A tenant table (`businesses`) and **memberships** (`business_user`), so one login can belong to
       several businesses, with a default business per user.
-- [ ] `business_id` on business-wide lists, `shops`, `products`, and every table whose keys must be
+      **Done (stage 1a).**
+- [x] `business_id` on business-wide lists, `shops`, `products`, and every table whose keys must be
       unique per tenant.
-- [ ] Per-tenant unique keys (shop code, SKU, barcode, slugs, supplier, customer and category codes,
+      **Done (stage 1a)**, also on alerts, campaigns, saved reports and credit accounts.
+- [x] Per-tenant unique keys (shop code, SKU, barcode, slugs, supplier, customer and category codes,
       sale source name).
-- [ ] Invoice numbers unique **per business** (`(business_id, invoice_number)`), not system-wide.
+      **Done (stage 1a):** unique per business in the schema and `UniqueForTenant`.
+- [x] Invoice numbers unique **per business** (`(business_id, invoice_number)`), not system-wide.
+      **Done (stage 1a)** in the schema; numbering moves to per-register series in 1b.
 - [ ] **One stock source, per shop and per sellable item, variants included** (4.2);
       `products.stock_quantity` and `product_variations.stock_quantity` stop being stock figures.
+      **Schema done (stage 1a):** `shop_variation` keyed on `(shop_id, variation_id)`, a default variation per product. The legacy columns stay until 1b moves the code (decided 14 October 2026).
 - [ ] All four sale paths and every stock writer and reader moved to that source; a `StockMovement` per
       sale.
 - [ ] The unused FIFO costing tables dropped or adopted (Open question 5); profit uses the per-shop cost.
-- [ ] Per-tenant unique keys that allow a soft-deleted code to be reused (19 soft-deleting models).
+- [x] Per-tenant unique keys that allow a soft-deleted code to be reused (19 soft-deleting models).
+      **Done (stage 1a):** a generated `alive` column in each key.
 - [ ] Registers (devices) separate from cash sessions.
+      **Schema done (stage 1a):** `registers`, `cash_registers.register_id`; model and code in 1b.
 - [ ] Sync support: `client_uuid`, `updated_at` indexes and a deletions log for every synced table;
       last-sync time per register.
+      **Partly done (stage 1a):** `client_uuid` keys and `sync_deletions`; `updated_at` indexes and the writes come with sync (Phase 6).
 
 **Queries**
-- [ ] Global scopes on every model with `shop_id` (about 42) and every business-wide model (7 lists,
+- [x] Global scopes on every model with `shop_id` (about 42) and every business-wide model (7 lists,
       products, shops).
-- [ ] Default-deny shop access (no assignment means no access).
-- [ ] Viewer-aware validation instead of `exists:table,id`.
-- [ ] Route model binding by uuid on unscoped models.
+      **Done (stage 1a):** `BusinessScope`, `ShopAccessScope`; a reflection test enforces it.
+- [x] Default-deny shop access (no assignment means no access).
+      **Done (stage 1a).**
+- [x] Viewer-aware validation instead of `exists:table,id`.
+      **Done (stage 1a):** every `exists:` rule, through `TenantPresenceVerifier`.
+- [x] Route model binding by uuid on unscoped models.
+      **Done (stage 1a):** a test checks every route binds by uuid.
 - [ ] Raw SQL in 34 files (section 1) and "empty list means all" filters (`ReportService`).
 - [ ] CSV and PDF exports.
 - [ ] `AuditService` reads (audit rows gain `business_id`); the SQLite audit database included in export
@@ -251,8 +263,10 @@ answered before Phase 1** (Open question 1):
 **Auth and roles**
 - [ ] Platform operator (`super-admin`, outside every business) versus business owner (`admin`).
 - [ ] Roles per business: default role templates plus custom roles (Spatie teams on `business_id`).
+      **Partly done (stage 1a):** Spatie teams on `business_id`; the seeded roles are templates shared by every business. Copies per business and custom roles: Phase 3.
 - [ ] Business picker at sign-in, a switcher, and a default business.
 - [ ] New API tokens bound to one business; legacy API tokens act on the default business.
+      **Half done (stage 1a):** legacy tokens act on the default business; business-bound tokens come with `/api/v1` (Phase 6).
 - [ ] Signup creates a business and its owner, after the email is verified (no trial before that).
 - [ ] Account status enforced on web and API.
 - [ ] Hard self-delete replaced by deactivation and owner-controlled deletion.
@@ -281,6 +295,7 @@ answered before Phase 1** (Open question 1):
 - [ ] Tests independent of `.env`, plus a two-business fixture. **Half done (Phase 0):** tests no longer
       depend on `.env` (WhatsApp, `APP_URL`; SMS still reads `env()` directly, fixed in Phase 6); the
       two-business fixture comes with Phase 2.
+      **Two-business fixture done (stage 1a):** `tests/Support/TwoBusinesses.php`.
 - [ ] A CI job on the target database (MySQL or MariaDB) for raw SQL, locks and the isolation suite.
 - [ ] Legacy flat-API clients with no register or shop context get a defined default (4.8).
 
@@ -522,6 +537,18 @@ There's no data in any environment, so this is a rebuild rather than a migration
 
 **Decision: CONFIRMED (empty database; rewrite approach A)**
 
+**As built (stage 1a, 14 October 2026):** the rewrite stands, and because development works as though live
+(Phase 0), data crosses by a **one-off import** rather than being given up:
+- the 104 migrations became one `create_*` migration per table, first proved to build `main`'s exact schema,
+  then given the SaaS schema; every legacy column is kept, so the import can carry every value;
+- the empty-database guard is the first migration (`DB_BASELINE_FORCE` overrides);
+- `saas:import-legacy` copies a pre-SaaS database into a freshly migrated baseline as one business, reading the
+  source only, and verifies counts, money totals, credit balances, stock and references. Rehearsed on `main`'s
+  live-like dataset and on a copy of the old development database; CI repeats it on every push;
+- **departure:** `products.stock_quantity`, `product_variations.stock_quantity`, `shop_product` and the
+  `cash_registers` name are **kept until Phase 1b**, which moves the code off them and drops them with a migration
+  that carries the data across (decided 14 October 2026).
+
 ### 4.8 API strategy
 
 | Option | Notes |
@@ -657,6 +684,23 @@ answered.
   - Per-tenant unique keys: both businesses can use the same codes, and a soft-deleted code can be reused.
   - The migration guard refuses a non-empty database unless forced.
   - The flat API contract tests pass; the full suite is green on SQLite and the target database.
+
+**Phase 1a as built (14 October 2026; details in [PROGRESS.md](PROGRESS.md)):**
+- **Tenant layer:** `TenantContext` (set by `ResolveTenant`; jobs and commands set it explicitly), `BelongsToBusiness`
+  and `BelongsToShop` with `BusinessScope` and `ShopAccessScope` on every tenant model (a reflection test enforces
+  it). With no business set, local and testing throw; production gives a signed-in user no rows, and code with no
+  user runs unscoped with a warning until 1c.
+- **Default-deny:** the owner sees every shop; others only their assigned shops. A record outside the user's shops
+  is now **404, not 403**.
+- **Validation:** every `exists:` rule is viewer-aware through a tenant presence verifier (no rule rewritten);
+  per-business uniqueness through `UniqueForTenant`.
+- **Roles:** Spatie teams on `business_id`; the seeded roles are templates shared by every business. The platform
+  operator / business owner split stays in **Phase 3**: until then the owner is `super-admin` in the current
+  business, through one method (`User::isBusinessOwner`).
+- **Customers** are business-wide; **one credit account per customer**, business-scoped (it serves every shop).
+- **Products** get a hidden default variation and per-shop rows in `shop_variation`.
+- **Seeders:** permissions and role templates; plans are seeded in Phase 4 with their table.
+- **Import:** see 4.7.
 
 #### Phase 1b: Stock, sales, registers, invoice numbers
 
