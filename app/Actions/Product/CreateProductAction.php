@@ -45,6 +45,7 @@ class CreateProductAction
 
         if ($shouldSyncShops) {
             $product->shops()->sync($shopIds);
+            $product->syncShopVariationRows();
         }
 
         if ($product->has_variations && ! empty($variations)) {

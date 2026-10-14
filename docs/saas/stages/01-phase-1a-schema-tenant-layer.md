@@ -123,8 +123,9 @@ Phase 1 doesn't start until these are answered:
       *Stage 1a step 2.* Unique `(business_id, code)` among rows not soft-deleted.
 - [x] Credit accounts: **one per customer** (unique on the customer), replacing one per shop.
       *Step 8:* `credit_accounts` unique on `customer_id`, with `business_id`; the account is business-scoped (it serves every shop) and keeps `shop_id` as the shop it was opened in. `CreditAccountService` finds and opens accounts by customer; `StoreCreditAccountRequest` checks one per customer.
-- [ ] **A default variation for every product**; per-shop stock, reorder level and price and cost
+- [x] **A default variation for every product**; per-shop stock, reorder level and price and cost
       overrides keyed on `(shop_id, variation_id)` (4.2).
+      *Steps 2 and 9:* `is_default` with one default per product (generated `default_marker` column, unique with `product_id`); `shop_variation` keyed on `(shop_id, variation_id)`. A new product creates its default variation (`Product::createDefaultVariation`, reserved SKU `DEFAULT-{uuid}`), and every variation gets a row in each of the product's shops (`Product::syncShopVariationRows`, also after shop assignments change). A global scope keeps the default out of variation lists, API responses and validation; `defaultVariation()` and `sellableVariations()` reach it. Rows start at zero stock: stage 1b moves stock onto them.
 - [x] FIFO costing tables (`cost_layers`, `cost_allocations`, `sale_item_stock_allocations`) **kept** in
       the rewritten schema (Open question 5); their final columns follow the Phase 1b analysis, so leave
       room to adjust them there.
@@ -189,8 +190,9 @@ No tenancy package is needed; scoping is built in-house (4.1).
       *Steps 3, 5 and 8:* `BusinessCustomersTest` (a branch cashier sees a customer created in the main shop; another business gets 404; a duplicate code in one business is refused), `PerTenantUniqueKeysTest`.
 - [x] A customer has at most one credit account.
       *Step 8:* `BusinessCustomersTest`: credit sales in two shops share one account; a second account is refused by the service and by the database.
-- [ ] Creating a product creates its default variation; per-shop stock rows are keyed on shop and
+- [x] Creating a product creates its default variation; per-shop stock rows are keyed on shop and
       variation.
+      *Step 9:* `DefaultVariationTest` (default created; hidden from lists and the flat API; one per product; rows per shop and variation, including for a variation added later).
 - [ ] The flat API contract tests pass; the full suite is green on SQLite and MySQL 8.
 
 ## Risks (Phase 1, leakage)

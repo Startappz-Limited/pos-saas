@@ -47,6 +47,7 @@ class UpdateProductAction
 
         if ($shouldSyncShops) {
             $product->shops()->sync($shopIds);
+            $product->syncShopVariationRows();
         }
 
         // Sync variations when has_variations is enabled and variations data is provided

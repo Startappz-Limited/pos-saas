@@ -12,7 +12,9 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class Product extends Model
@@ -91,6 +93,14 @@ class Product extends Model
             }
         });
 
+        // Every product has at least one variation (decision 4.2): a simple
+        // product sells as its default variation, so per-shop stock is keyed
+        // on (shop, variation) for everything.
+        static::created(function (Product $product): void {
+            $product->createDefaultVariation();
+            $product->syncShopVariationRows();
+        });
+
         static::updating(function (Product $product): void {
             if ($product->isDirty('name') && empty($product->slug)) {
                 $product->slug = Str::slug($product->name);
@@ -128,9 +138,76 @@ class Product extends Model
             ->withTimestamps();
     }
 
+    /**
+     * The variations people created; the default variation isn't one of them.
+     */
     public function variations(): HasMany
     {
         return $this->hasMany(ProductVariation::class);
+    }
+
+    /**
+     * The variation a simple product sells as (decision 4.2).
+     */
+    public function defaultVariation(): HasOne
+    {
+        return $this->hasOne(ProductVariation::class)
+            ->withoutGlobalScope(ProductVariation::HIDE_DEFAULT)
+            ->where('is_default', true);
+    }
+
+    /**
+     * Every sellable variation, the default one included.
+     */
+    public function sellableVariations(): HasMany
+    {
+        return $this->hasMany(ProductVariation::class)->withoutGlobalScope(ProductVariation::HIDE_DEFAULT);
+    }
+
+    /**
+     * Creates the default variation. Its SKU is reserved
+     * (`DEFAULT-{product uuid}`), so it can never collide with a variation
+     * someone creates; stage 1b decides how sales and searches use it.
+     */
+    public function createDefaultVariation(): ProductVariation
+    {
+        return $this->defaultVariation()->first() ?? $this->defaultVariation()->create([
+            'business_id' => $this->business_id,
+            'name' => 'Default',
+            'sku' => 'DEFAULT-'.$this->uuid,
+            'cost_price' => $this->cost_price,
+            'selling_price' => $this->selling_price ?? 0,
+            'wholesale_price' => $this->wholesale_price,
+            'tax_class' => $this->tax_class,
+            'status' => $this->status ?? ProductStatus::ACTIVE,
+            'is_default' => true,
+        ]);
+    }
+
+    /**
+     * Ensures a per-shop stock row (shop_variation) for every variation in
+     * each of the product's shops: its own shop and the shops it's listed in.
+     * Rows start at zero; stage 1b moves stock onto them from the legacy
+     * product and variation columns.
+     */
+    public function syncShopVariationRows(): void
+    {
+        $shopIds = DB::table('shop_product')->where('product_id', $this->id)->pluck('shop_id')
+            ->push($this->shop_id)->filter()->unique();
+        $variationIds = DB::table('product_variations')->where('product_id', $this->id)->pluck('id');
+
+        if ($shopIds->isEmpty() || $variationIds->isEmpty()) {
+            return;
+        }
+
+        $now = now();
+        DB::table('shop_variation')->insertOrIgnore($shopIds->crossJoin($variationIds)->map(fn (array $pair): array => [
+            'shop_id' => $pair[0],
+            'product_id' => $this->id,
+            'variation_id' => $pair[1],
+            'created_at' => $now,
+            'updated_at' => $now,
+        ])->all());
     }
 
     public function pricingRules(): HasMany

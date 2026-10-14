@@ -294,6 +294,7 @@ class WooCommerceProductSyncService
                     'is_active' => ($wcProduct['status'] ?? '') === 'publish',
                 ],
             ]);
+            $product->syncShopVariationRows();
 
             // Create or update sync record
             $sync = ProductEcommerceSync::updateOrCreate(

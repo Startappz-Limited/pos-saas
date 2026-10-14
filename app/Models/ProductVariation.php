@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\ProductStatus;
 use App\Enums\TaxClass;
 use App\Models\Concerns\BelongsToBusiness;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -13,6 +14,8 @@ use Illuminate\Support\Str;
 
 class ProductVariation extends Model
 {
+    public const HIDE_DEFAULT = 'hide-default-variation';
+
     use BelongsToBusiness;
     use HasFactory, HasUuids;
 
@@ -31,6 +34,7 @@ class ProductVariation extends Model
         'stock_quantity',
         'image',
         'status',
+        'is_default',
     ];
 
     protected function casts(): array
@@ -38,6 +42,7 @@ class ProductVariation extends Model
         return [
             'status' => ProductStatus::class,
             'attributes' => 'array',
+            'is_default' => 'boolean',
             'cost_price' => 'decimal:2',
             'selling_price' => 'decimal:2',
             'wholesale_price' => 'decimal:2',
@@ -60,11 +65,20 @@ class ProductVariation extends Model
     {
         parent::boot();
 
+        // A product's default variation (what a simple product sells as) is
+        // bookkeeping for per-shop stock, not a variation anyone chose: keep it
+        // out of variation lists, API responses and validation (stage 1a).
+        // Product::defaultVariation() and sellableVariations() reach it.
+        static::addGlobalScope(self::HIDE_DEFAULT, fn (Builder $query) => $query->where($query->qualifyColumn('is_default'), false));
+
         static::creating(function ($variation) {
             if (empty($variation->uuid)) {
                 $variation->uuid = (string) Str::uuid();
             }
         });
+
+        // Every variation has a stock row in each of its product's shops.
+        static::created(fn (self $variation) => $variation->product()->withoutGlobalScopes()->first()?->syncShopVariationRows());
     }
 
     // Relationships
