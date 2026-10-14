@@ -183,8 +183,10 @@ test('allocated user cannot refresh orders for another shop', function () {
     $otherShop = Shop::factory()->create();
     $this->user->shops()->sync([$shop->id]);
 
+    // A shop the user can't access fails validation (stage 1a: exists: rules
+    // respect shop access), before the controller's own check.
     $this->post(route('ecommerce-orders.refresh'), ['shop_id' => $otherShop->id])
-        ->assertForbidden();
+        ->assertSessionHasErrors('shop_id');
 });
 
 test('index page searches by order number', function () {

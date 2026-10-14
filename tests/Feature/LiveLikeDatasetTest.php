@@ -53,6 +53,51 @@ function datasetFingerprint(): array
 }
 
 /**
+ * Every row of every table, by table and id (small at the test's scale).
+ *
+ * @return array<string, array<int|string, array<string, mixed>>>
+ */
+function datasetRows(): array
+{
+    $db = DB::connection('dataset_testing');
+
+    return collect(Schema::connection('dataset_testing')->getTableListing($db->getDatabaseName(), false))
+        ->mapWithKeys(fn (string $table): array => [$table => $db->table($table)->get()
+            ->map(fn (object $row): array => (array) $row)
+            ->keyBy(fn (array $row, int $index) => $row['id'] ?? $index)
+            ->all()])
+        ->all();
+}
+
+/**
+ * The first few differing rows and columns of $tables, so a failure says
+ * what changed between builds.
+ *
+ * @param  array<string, array<int|string, array<string, mixed>>>  $first
+ * @param  array<string, array<int|string, array<string, mixed>>>  $second
+ * @param  list<string>  $tables
+ */
+function datasetDifferences(array $first, array $second, array $tables): string
+{
+    $lines = [];
+
+    foreach ($tables as $table) {
+        foreach ($first[$table] ?? [] as $id => $row) {
+            foreach ($row as $column => $value) {
+                if (($second[$table][$id][$column] ?? null) !== $value && count($lines) < 10) {
+                    $lines[] = "{$table} #{$id} {$column}: ".json_encode($value).' then '.json_encode($second[$table][$id][$column] ?? null);
+                }
+            }
+        }
+        if (count($first[$table] ?? []) !== count($second[$table] ?? [])) {
+            $lines[] = "{$table}: ".count($first[$table] ?? []).' rows then '.count($second[$table] ?? []);
+        }
+    }
+
+    return implode("\n", $lines);
+}
+
+/**
  * Builds the dataset as its own process, exactly as `php artisan
  * dataset:build` is run.
  */
@@ -89,13 +134,14 @@ describe('building on MySQL', function () {
         // (static caches) changes a second one's random sequence.
         expect(buildDatasetProcess()->successful())->toBeTrue();
         $first = datasetFingerprint();
+        $firstRows = datasetRows();
 
         emptyDatasetDatabase();
         expect(buildDatasetProcess()->successful())->toBeTrue();
         $second = datasetFingerprint();
 
         $differing = array_keys(array_diff_assoc($first, $second));
-        expect($differing)->toBe([], 'Tables that differ between builds: '.implode(', ', $differing))
+        expect($differing)->toBe([], 'Tables that differ between builds: '.implode(', ', $differing)."\n".datasetDifferences($firstRows, datasetRows(), $differing))
             ->and($second)->toBe($first);
     });
 

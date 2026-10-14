@@ -79,7 +79,8 @@ Phase 1 doesn't start until these are answered:
       *Stage 1a step 2.* `app/Support/Tenancy/TenantContext.php` (`set`, `run`, `bypass`), set by `ResolveTenant` after authentication; `BelongsToBusiness` refuses a record with no business (`MissingTenantContext`). `TenantContextTest`.
 - [x] `BelongsToBusiness` and `BelongsToShop` traits; `BusinessScope` and `ShopAccessScope`.
       *Step 3.* `app/Models/Concerns/BelongsToShop.php`, `app/Models/Scopes/{BusinessScope,ShopAccessScope}.php`. With no business set: strict mode (local, testing) throws; a signed-in user gets no rows; code with no user runs unscoped and is logged until 1c. Shop access is a fresh subquery per query. Unauthenticated routes (webhooks, signed links) bind across businesses and then act for the record's business (`ResolvesTenantFromRouteBinding`); the WhatsApp gateway listener does the same by session key.
-- [ ] A viewer-aware `exists` rule (replaces `exists:table,id`).
+- [x] A viewer-aware `exists` rule (replaces `exists:table,id`).
+      *Step 6:* rather than a new rule in 123 places, `exists:` itself is viewer-aware: `app/Support/Tenancy/TenantPresenceVerifier.php` (bound as Laravel's validation presence verifier) checks tenant tables through the models' tenant scopes, child tables through their visible parent, and `users` as members of the business. Soft-deleted rows still count, as before. It covers every existing and future `exists:` rule. `ViewerAwareExistsTest` (fails without the verifier).
 - [x] A per-tenant unique rule that **ignores soft-deleted rows**.
       *Step 5:* `app/Rules/UniqueForTenant.php` replaces the 24 `unique:` rules on tenant tables (shop code, product slug/SKU/barcode, category name/slug, attribute name/slug, supplier code, sale source name). The credit-account rule changes with one account per customer.
 - [ ] Route model binding by uuid on unscoped models.

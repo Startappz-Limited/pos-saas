@@ -3,6 +3,7 @@
 use App\Models\Product;
 use App\Models\Shop;
 use App\Models\User;
+use App\Support\Tenancy\TenantContext;
 use Database\Seeders\LiveLikeDatasetSeeder;
 use Illuminate\Contracts\Routing\UrlRoutable;
 use Illuminate\Routing\Route;
@@ -159,6 +160,8 @@ function contractResponses(): array
     $seeder = app(LiveLikeDatasetSeeder::class);
     $seeder->scale = CONTRACT_SCALE;
     $seeder->run();
+    // Act for the dataset's business (stage 1a), as its owner's requests do.
+    app(TenantContext::class)->set($seeder->business);
     $owner = User::where('email', 'owner@dataset.test')->sole();
     // A failing endpoint is recorded by status and message only: debug
     // output (traces) changes all the time and is no part of the contract.
@@ -198,7 +201,9 @@ function contractResponses(): array
     $product = Product::where('shop_id', $shop->id)->where('has_variations', false)->orderBy('id')->first();
     $responses['POST api/sales'] = $record(test()->postJson('/api/sales', [
         'shop_id' => $shop->id,
-        'source_id' => DB::table('sale_sources')->orderBy('id')->value('id'),
+        // The dataset business's own source: exists: rules are scoped to the
+        // business since stage 1a.
+        'source_id' => DB::table('sale_sources')->where('business_id', $shop->business_id)->orderBy('id')->value('id'),
         'delivery_location' => 'In store',
         'walk_in_customer_name' => 'Contract Test',
         'walk_in_customer_phone' => '0700000000',
