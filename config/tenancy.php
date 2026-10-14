@@ -18,17 +18,4 @@ return [
 
     'strict' => (bool) env('TENANCY_STRICT', in_array(env('APP_ENV'), ['local', 'testing'], true)),
 
-    /*
-    |--------------------------------------------------------------------------
-    | Default-Deny Shop Access
-    |--------------------------------------------------------------------------
-    |
-    | When true, a member who isn't an owner sees only the shops assigned to
-    | them; with no assignment, none (decision 4.4). When false, a member with
-    | no assignment sees every shop of the business, as before stage 1a.
-    |
-    */
-
-    'default_deny' => (bool) env('TENANCY_DEFAULT_DENY', false),
-
 ];

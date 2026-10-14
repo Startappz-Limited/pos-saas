@@ -13,7 +13,8 @@ use Spatie\Permission\Models\Permission;
 beforeEach(function () {
     $this->shopA = Shop::factory()->create(['name' => 'Shop A']);
     $this->shopB = Shop::factory()->create(['name' => 'Shop B']);
-    $this->user = User::factory()->create();
+    // Works in both shops (shop access is default-deny).
+    $this->user = assignToNewShops(User::factory()->create());
     $this->actingAs($this->user);
 
     Permission::findOrCreate('sales.create');

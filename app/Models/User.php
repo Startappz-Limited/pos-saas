@@ -280,12 +280,13 @@ class User extends Authenticatable
     /**
      * Whether the user may work in $shopId: one of the current business's
      * shops they may access (TenantContext::accessibleShopIdsFor). With no
-     * business set, no shop.
+     * business set, no shop; a member with no assigned shop, none.
      */
     public function canAccessShop(?int $shopId): bool
     {
+        // "Every shop" (no shop named): only an owner (default-deny, 4.4).
         if ($shopId === null) {
-            return ! $this->hasShopRestrictions();
+            return app(TenantContext::class)->has() && $this->isBusinessOwner();
         }
 
         $tenant = app(TenantContext::class);

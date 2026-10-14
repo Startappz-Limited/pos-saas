@@ -93,8 +93,9 @@ Phase 1 doesn't start until these are answered:
       *Step 3.* 31 shop-owned models get `BelongsToShop`; alerts, alert rules, campaigns and saved reports (optional shop) also get `business_id` and `BelongsToBusiness`; `Shop` is limited to accessible shops on its own id. Exceptions, with reasons, in the reflection test: `SaleItem` (its `shop_id` is the product's shop; reached through the sale), `BusinessMembership`, `AuditLog` (1c).
 - [x] `Customer` uses `BelongsToBusiness` (business-wide), not `BelongsToShop` (Open question 3).
       *Step 3.* Scoped by business only.
-- [ ] `User`: memberships, current and default business, **default-deny** shops (no assignment means no
+- [x] `User`: memberships, current and default business, **default-deny** shops (no assignment means no
       access).
+      *Steps 2 and 4.* Memberships and default business (step 2); shop access is default-deny: an owner sees every shop of the business, other members only their assigned shops, no assignment means none (`TenantContext::accessibleShopsQuery`, `User::canAccessShop`). "Owner" is the `super-admin` role until Phase 3 splits platform operator and business owner.
 - [x] `Product` and `Shop`.
       *Step 3.* Both scoped by business; `Shop` also by shop access.
 
@@ -172,7 +173,8 @@ No tenancy package is needed; scoping is built in-house (4.1).
 
 - [x] A reflection test: every model with `shop_id` or `business_id` has its scope.
       *Step 3.* `tests/Feature/Tenancy/TenantScopeReflectionTest.php` (removing a scope from `Expense` fails it).
-- [ ] Scope unit tests: owner, staff, no assignment, switching business.
+- [x] Scope unit tests: owner, staff, no assignment, switching business.
+      *Steps 3–4:* `TenantScopeTest` (owner, staff, no assignment, a member of two businesses switching, web session switch).
 - [ ] Per-tenant unique keys: both businesses can use the same codes, and a soft-deleted code can be
       reused.
 - [x] The migration guard refuses a non-empty database unless forced.

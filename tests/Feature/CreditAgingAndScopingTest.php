@@ -4,6 +4,7 @@ use App\Enums\CreditTransactionType;
 use App\Models\CreditAccount;
 use App\Models\CreditTransaction;
 use App\Models\Customer;
+use App\Models\Role;
 use App\Models\Shop;
 use App\Models\User;
 use App\Services\CreditAccountService;
@@ -138,8 +139,11 @@ describe('cross-shop isolation on the credit accounts screen', function () {
             ->assertForbidden();
     });
 
-    it('still shows every shop to an unrestricted user', function () {
+    it('still shows every shop to the business owner', function () {
+        // Default-deny (stage 1a): reaching every shop takes being the owner;
+        // a full-access permission alone no longer does.
         $admin = User::factory()->create();
+        $admin->assignRole(Role::findOrCreate('super-admin', 'web'));
         $admin->givePermissionTo('credit-sales.full-access');
 
         $response = $this->actingAs($admin)->get(route('credit-accounts.index'));

@@ -53,6 +53,21 @@ it('limits staff to their assigned shops, but shows business-wide records', func
         ->and(Product::pluck('id')->all())->toBe([$a->product->id]);
 });
 
+it('gives a member with no assigned shop no shop at all (default-deny)', function () {
+    $a = $this->fixture->a;
+    $unassigned = User::factory()->memberOf($a->business)->create();
+    actFor($unassigned, $a->business);
+
+    expect(Shop::count())->toBe(0)
+        ->and(Sale::count())->toBe(0)
+        ->and($unassigned->canAccessShop($a->shops[0]->id))->toBeFalse()
+        ->and($unassigned->canAccessShop(null))->toBeFalse()
+        // Business-wide records stay visible to every member.
+        ->and(Customer::pluck('id')->all())->toBe([$a->customer->id]);
+
+    $this->get(route('sales.show', $a->sale))->assertNotFound();
+});
+
 it('shows a member of two businesses only the business they act for', function () {
     $both = $this->fixture->both;
 

@@ -1,6 +1,8 @@
 <?php
 
 use App\Models\Business;
+use App\Models\Shop;
+use App\Models\User;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -62,6 +64,21 @@ pest()->beforeEach(function () {
 function testBusiness(): Business
 {
     return app(TenantContext::class)->business();
+}
+
+/**
+ * Shop access is default-deny (stage 1a): staff see only the shops assigned
+ * to them. For tests about staff working in the shops the scenario creates,
+ * this assigns $user to the business's shops and to every shop the test
+ * creates from now on. Tests about shops the user may NOT access assign shops
+ * explicitly instead.
+ */
+function assignToNewShops(User $user): User
+{
+    $user->shops()->syncWithoutDetaching(Shop::pluck('id')->all());
+    Shop::created(fn (Shop $shop) => $user->shops()->syncWithoutDetaching([$shop->id]));
+
+    return $user;
 }
 
 /*

@@ -13,7 +13,8 @@ beforeEach(function () {
     config()->set('wa-gateway.webhook.secret', 'shh');
 
     $this->seed(PermissionSeeder::class);
-    $user = User::factory()->create();
+    // Staff working in the shops each test creates (shop access is default-deny).
+    $user = assignToNewShops(User::factory()->create());
     $user->givePermissionTo(['baileys.view', 'baileys.send', 'baileys.manage']);
     $this->actingAs($user);
 });

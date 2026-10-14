@@ -25,7 +25,8 @@ beforeEach(function () {
 
 function actingAsBaileysManager(): User
 {
-    $user = User::factory()->create();
+    // Staff working in the shops each test creates (shop access is default-deny).
+    $user = assignToNewShops(User::factory()->create());
     $user->givePermissionTo(['baileys.view', 'baileys.manage']);
     test()->actingAs($user);
 
@@ -157,7 +158,8 @@ describe('sale notification toggle endpoint', function () {
     });
 
     it('denies a user without the baileys.manage permission', function () {
-        $user = User::factory()->create();
+        // Works in the shop, so only the missing permission refuses them.
+        $user = assignToNewShops(User::factory()->create());
         $user->givePermissionTo('baileys.view');
         $this->actingAs($user);
 

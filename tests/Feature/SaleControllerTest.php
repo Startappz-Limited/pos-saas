@@ -12,6 +12,8 @@ use Spatie\Permission\Models\Permission;
 beforeEach(function () {
     $this->shop = Shop::factory()->create();
     $this->user = User::factory()->create();
+    // Staff in this shop (shop access is default-deny).
+    $this->user->shops()->attach($this->shop);
     $this->actingAs($this->user);
 
     Permission::create(['name' => 'sales.view']);

@@ -8,7 +8,9 @@ use App\Models\User;
 use Spatie\Permission\Models\Permission;
 
 beforeEach(function () {
-    $this->user = User::factory()->create();
+    // Staff working in the shops each test creates (shop access is
+    // default-deny); the cross-shop tests narrow it with sync().
+    $this->user = assignToNewShops(User::factory()->create());
     $this->actingAs($this->user);
 
     Permission::create(['name' => 'ecommerce-orders.view']);

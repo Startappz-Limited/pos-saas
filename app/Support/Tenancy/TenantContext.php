@@ -132,31 +132,19 @@ class TenantContext
     /**
      * The current business's shops $user may access (decision 4.4), as a
      * subquery of shop ids: every shop for an owner or for code with no
-     * signed-in user; otherwise the shops assigned to the user. A member with
-     * no assignment in this business sees every shop unless default-deny is
-     * on. Built fresh for each query, so shops and assignments made earlier in
-     * the same request count.
+     * signed-in user; otherwise only the shops assigned to the user, so no
+     * assignment means no shop (default-deny). Built fresh for each query, so
+     * shops and assignments made earlier in the same request count.
      */
     public function accessibleShopsQuery(?User $user): QueryBuilder
     {
-        $businessId = $this->id();
-        $query = DB::table('shops')->select('shops.id')->where('shops.business_id', $businessId);
+        $query = DB::table('shops')->select('shops.id')->where('shops.business_id', $this->id());
 
         if ($user === null || $user->isBusinessOwner()) {
             return $query;
         }
 
-        return $query->where(function (QueryBuilder $where) use ($user, $businessId): void {
-            $where->whereIn('shops.id', DB::table('shop_user')->select('shop_user.shop_id')->where('shop_user.user_id', $user->id));
-
-            if (! config('tenancy.default_deny')) {
-                $where->orWhereNotExists(fn (QueryBuilder $assigned) => $assigned->selectRaw('1')
-                    ->from('shop_user as assigned')
-                    ->join('shops as assigned_shop', 'assigned_shop.id', '=', 'assigned.shop_id')
-                    ->where('assigned.user_id', $user->id)
-                    ->where('assigned_shop.business_id', $businessId));
-            }
-        });
+        return $query->whereIn('shops.id', DB::table('shop_user')->select('shop_user.shop_id')->where('shop_user.user_id', $user->id));
     }
 
     /**

@@ -3,11 +3,15 @@
 use App\Actions\CreateUserAction;
 use App\Actions\UpdateUserAction;
 use App\Enums\UserStatus;
+use App\Models\Role;
 use App\Models\Shop;
 use App\Models\User;
 
 beforeEach(function () {
+    // Signed in as the business owner, who sees every shop, so other users'
+    // shop assignments are visible (shop access is default-deny).
     $this->user = User::factory()->create();
+    $this->user->assignRole(Role::findOrCreate('super-admin', 'web'));
     $this->actingAs($this->user);
 });
 
@@ -109,12 +113,21 @@ test('user can have roles assigned', function () {
     expect(true)->toBeTrue();
 });
 
-test('user without shop allocations can access every shop', function () {
+test('user without shop allocations can access no shop', function () {
+    // Default-deny (stage 1a, decision 4.4): no assignment means no access.
     $shop = Shop::factory()->create();
     $user = User::factory()->create();
 
     expect($user->hasShopRestrictions())->toBeFalse()
-        ->and($user->canAccessShop($shop->id))->toBeTrue();
+        ->and($user->canAccessShop($shop->id))->toBeFalse()
+        ->and($user->canAccessShop(null))->toBeFalse();
+});
+
+test('business owner can access every shop without allocations', function () {
+    $shop = Shop::factory()->create();
+
+    expect($this->user->canAccessShop($shop->id))->toBeTrue()
+        ->and($this->user->canAccessShop(null))->toBeTrue();
 });
 
 test('user with shop allocations can access only assigned shops', function () {
@@ -145,7 +158,7 @@ test('create user action syncs multiple shop allocations', function () {
         ->toBe($shops->pluck('id')->sort()->values()->all());
 });
 
-test('update user action can clear shop allocations for all shop access', function () {
+test('update user action can clear shop allocations, leaving no shop access', function () {
     $shop = Shop::factory()->create();
     $user = User::factory()->create();
     $user->shops()->sync([$shop->id]);
@@ -157,5 +170,6 @@ test('update user action can clear shop allocations for all shop access', functi
         'shop_ids' => [],
     ]);
 
-    expect($user->fresh()->hasShopRestrictions())->toBeFalse();
+    expect($user->fresh()->hasShopRestrictions())->toBeFalse()
+        ->and($user->fresh()->canAccessShop($shop->id))->toBeFalse();
 });

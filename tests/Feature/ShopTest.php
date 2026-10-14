@@ -5,6 +5,8 @@ use App\Models\Shop;
 use App\Models\User;
 use Spatie\Permission\Models\Permission;
 
+// The users below work in the shops each test creates: shop access is
+// default-deny, so these tests are about permissions alone.
 beforeEach(function () {
     // Create permissions for testing
     Permission::create(['name' => 'shops.view']);
@@ -15,7 +17,7 @@ beforeEach(function () {
 });
 
 test('user can view shops index if authorized', function () {
-    $user = User::factory()->create();
+    $user = assignToNewShops(User::factory()->create());
     $user->givePermissionTo('shops.view');
 
     $response = $this->actingAs($user)->get(route('shops.index'));
@@ -24,7 +26,7 @@ test('user can view shops index if authorized', function () {
 });
 
 test('user cannot view shops index if not authorized', function () {
-    $user = User::factory()->create();
+    $user = assignToNewShops(User::factory()->create());
 
     $response = $this->actingAs($user)->get(route('shops.index'));
 
@@ -32,7 +34,7 @@ test('user cannot view shops index if not authorized', function () {
 });
 
 test('user can create shop if authorized', function () {
-    $user = User::factory()->create();
+    $user = assignToNewShops(User::factory()->create());
     $user->givePermissionTo(['shops.create', 'shops.view']);
     $manager = User::factory()->create();
 
@@ -61,7 +63,7 @@ test('user can create shop if authorized', function () {
 });
 
 test('user cannot create shop if not authorized', function () {
-    $user = User::factory()->create();
+    $user = assignToNewShops(User::factory()->create());
 
     $response = $this->actingAs($user)->post(route('shops.store'), [
         'name' => 'Test Shop',
@@ -72,7 +74,7 @@ test('user cannot create shop if not authorized', function () {
 });
 
 test('shop code must be unique', function () {
-    $user = User::factory()->create();
+    $user = assignToNewShops(User::factory()->create());
     $user->givePermissionTo(['shops.create', 'shops.view']);
 
     Shop::factory()->create(['code' => 'EXISTING-001']);
@@ -86,7 +88,7 @@ test('shop code must be unique', function () {
 });
 
 test('shop code must contain only uppercase letters numbers and hyphens', function () {
-    $user = User::factory()->create();
+    $user = assignToNewShops(User::factory()->create());
     $user->givePermissionTo(['shops.create', 'shops.view']);
 
     $response = $this->actingAs($user)->post(route('shops.store'), [
@@ -98,7 +100,7 @@ test('shop code must contain only uppercase letters numbers and hyphens', functi
 });
 
 test('user can update shop if authorized', function () {
-    $user = User::factory()->create();
+    $user = assignToNewShops(User::factory()->create());
     $user->givePermissionTo(['shops.update', 'shops.view']);
     $shop = Shop::factory()->create(['name' => 'Old Name']);
 
@@ -112,7 +114,7 @@ test('user can update shop if authorized', function () {
 });
 
 test('user cannot update shop if not authorized', function () {
-    $user = User::factory()->create();
+    $user = assignToNewShops(User::factory()->create());
     $shop = Shop::factory()->create();
 
     $response = $this->actingAs($user)->put(route('shops.update', $shop), [
@@ -124,7 +126,7 @@ test('user cannot update shop if not authorized', function () {
 });
 
 test('user can delete shop if authorized', function () {
-    $user = User::factory()->create();
+    $user = assignToNewShops(User::factory()->create());
     $user->givePermissionTo('shops.delete');
     $shop = Shop::factory()->create();
 
@@ -135,7 +137,7 @@ test('user can delete shop if authorized', function () {
 });
 
 test('user cannot delete shop if not authorized', function () {
-    $user = User::factory()->create();
+    $user = assignToNewShops(User::factory()->create());
     $shop = Shop::factory()->create();
 
     $response = $this->actingAs($user)->delete(route('shops.destroy', $shop));
@@ -144,7 +146,7 @@ test('user cannot delete shop if not authorized', function () {
 });
 
 test('user can activate shop if authorized', function () {
-    $user = User::factory()->create();
+    $user = assignToNewShops(User::factory()->create());
     $user->givePermissionTo('shops.activate');
     $shop = Shop::factory()->inactive()->create();
 
@@ -158,7 +160,7 @@ test('user can activate shop if authorized', function () {
 });
 
 test('user can deactivate shop if authorized', function () {
-    $user = User::factory()->create();
+    $user = assignToNewShops(User::factory()->create());
     $user->givePermissionTo('shops.activate');
     $shop = Shop::factory()->create();
 
@@ -172,7 +174,7 @@ test('user can deactivate shop if authorized', function () {
 });
 
 test('user can suspend shop if authorized', function () {
-    $user = User::factory()->create();
+    $user = assignToNewShops(User::factory()->create());
     $user->givePermissionTo('shops.activate');
     $shop = Shop::factory()->create();
 

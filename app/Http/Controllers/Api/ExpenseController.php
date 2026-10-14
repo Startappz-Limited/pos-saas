@@ -104,6 +104,8 @@ class ExpenseController extends Controller
         ]);
 
         $validated['shop_id'] = $this->resolveShopId();
+        // Default-deny (stage 1a): a member with no shop has nowhere to record it.
+        abort_if($validated['shop_id'] === null, 422, 'No shop is available for this action.');
         $validated['created_by'] = auth()->id();
         $validated['status'] = ExpenseStatus::DRAFT;
 
