@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Schema;
 /**
  * social_accounts.credentials holds an encrypted string, not JSON. As a JSON
  * column it was rejected by MySQL and MariaDB (only SQLite accepted it), so
- * the column is now TEXT (stage 0, step 4b).
+ * the column is TEXT (stage 0, step 4b; part of the baseline since stage 1a).
  */
 function connectedAccount(array $credentials): SocialAccount
 {
@@ -47,11 +47,3 @@ it('stores credentials in a text column, not JSON', function () {
     expect(Schema::getColumnType('social_accounts', 'credentials'))->toBe('text');
 })->skip(fn () => DB::getDriverName() === 'sqlite', 'SQLite reports column types loosely; checked on MySQL.');
 
-it('refuses to roll back while encrypted credentials are stored', function () {
-    connectedAccount(['access_token' => 'secret-token']);
-
-    $migration = require database_path('migrations/2026_10_13_111431_change_credentials_to_text_on_social_accounts_table.php');
-
-    expect(fn () => $migration->down())
-        ->toThrow(RuntimeException::class, 'hold encrypted credentials');
-});

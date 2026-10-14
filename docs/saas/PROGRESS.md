@@ -173,3 +173,29 @@ because it trusted the `_testing` name in the shell prefix.
 - **No local audit database for Development Database development:** `database/audit.sqlite` doesn't exist, so audit
   logging from a local session against Development Database fails silently (the logger swallows errors). Create it when
   local writes to Development Database start (`touch database/audit.sqlite` and the audit migration).
+
+## Stage 1a (Phase 1a): Schema, tenant layer, default-deny
+
+Branch: `saas/phase-1a-schema-tenant-layer` (from `main` at `1aea0e3`, the merge of stage 0). Plan: the
+stage file itself (approved 14 October 2026), worked in its own order.
+
+### Starting result
+
+`main` at `1aea0e3` (same tree as `bdd710e`), 14 October 2026: **SQLite 1,120 passed, 55 skipped;
+MySQL 8 1,129 passed, 46 skipped**; Pint passes on changed files.
+
+### Steps
+
+| Step | Commit | Tests added | Suite (SQLite) | Suite (MySQL 8) | Notes |
+|---|---|---|---|---|---|
+| 1. Migrations consolidated; empty-database guard | _this commit_ | `MigrationBaselineTest` (5) | 1,124 passed, 55 skipped | 1,133 passed, 46 skipped (11 min; contract test passes) | First part of "Migrations rewritten". The 104 migrations become 84 `create_*` migrations (one per table) plus the guard; they build **exactly** `main`'s schema on both engines, proved against `tests/Fixtures/legacy-schema/{sqlite,mysql}.json` (recorded from `main`'s migrations; a deliberately changed default fails the check). The guard (`0001_01_01_000000_guard_empty_database`) refuses a database that already has tables unless `DB_BASELINE_FORCE=true`. CI's rehearsal now checks that the baseline **refuses** `main`'s dataset and builds in an empty database; the real rehearsal (the legacy import) comes with the import. Removed one test, with approval: the rollback guard of stage 0's credentials migration, which no longer exists |
+
+### Differences from the stage file
+
+- **"Migrations rewritten" lands in two commits:** first the same schema, consolidated and proved
+  identical, then the SaaS schema written into those files. Each commit stays green; the second is
+  reviewable as a schema diff against `main`.
+- **Legacy stock columns are kept through 1a** (`products.stock_quantity`,
+  `product_variations.stock_quantity`, `shop_product`, the `cash_registers` name), decided 14 October
+  2026: the code that writes them moves in 1b, which then drops them with a migration that carries the
+  data across.

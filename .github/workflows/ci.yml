@@ -227,8 +227,21 @@ jobs:
           cp .env.example .env
           php artisan key:generate --ansi
 
-      - name: Run this branch's migrations on the dataset
-        run: php artisan migrate --database=dataset_testing --no-interaction
+      # Stage 1a rewrote the migrations into a clean SaaS baseline (decision
+      # 4.7). Its first migration must refuse a database that already holds
+      # data; the data is carried across by the legacy import instead.
+      - name: The baseline refuses the dataset's database
+        run: |
+          if php artisan migrate --database=dataset_testing --no-interaction; then
+            echo "::error::The baseline migrated over a database that already has tables; the empty-database guard should have refused it."
+            exit 1
+          fi
+          echo "Refused, as it should be."
+
+      - name: Build the baseline in an empty database
+        run: |
+          mysql -h 127.0.0.1 -uroot -proot -e "CREATE DATABASE pos_saas_rehearsal_testing"
+          php artisan migrate --database=rehearsal_testing --no-interaction
 
       - name: Check no table lost rows
         run: |

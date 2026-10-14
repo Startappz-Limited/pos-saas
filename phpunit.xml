@@ -17,6 +17,9 @@
             <!-- Re-records the flat API contract fixtures; run it on purpose by
                  naming this group (see tests/Feature/FlatApiContractTest.php). -->
             <group>api-contract-record</group>
+            <!-- Re-records the legacy schema fixtures (tests/Fixtures/legacy-schema);
+                 see tests/Feature/MigrationBaselineTest.php. -->
+            <group>legacy-schema-record</group>
         </exclude>
     </groups>
     <source>

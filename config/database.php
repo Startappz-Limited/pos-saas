@@ -210,6 +210,21 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Empty-Database Guard
+    |--------------------------------------------------------------------------
+    |
+    | The migrations are a clean SaaS baseline (decision 4.7). Their first
+    | migration refuses to run on a database that already has tables, so the
+    | baseline is never built over existing data; that data is carried across
+    | with the legacy import instead. Set to true only to build over tables
+    | you have decided to keep.
+    |
+    */
+
+    'baseline_force' => (bool) env('DB_BASELINE_FORCE', false),
+
+    /*
+    |--------------------------------------------------------------------------
     | Redis Databases
     |--------------------------------------------------------------------------
     |
