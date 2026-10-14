@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -34,6 +35,10 @@ class AuthController extends Controller
         }
 
         $token = $user->createToken($request->device_name)->plainTextToken;
+
+        // A legacy token acts on the user's default business (decision 4.8);
+        // the roles and permissions returned are the ones held there.
+        app(TenantContext::class)->set($user->canEnterBusiness($user->default_business_id) ? $user->default_business_id : null);
 
         return response()->json([
             'success' => true,

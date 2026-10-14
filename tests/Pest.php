@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Business;
+use App\Models\Role;
 use App\Models\Shop;
 use App\Models\User;
 use App\Support\Tenancy\TenantContext;
@@ -64,6 +65,17 @@ pest()->beforeEach(function () {
 function testBusiness(): Business
 {
     return app(TenantContext::class)->business();
+}
+
+/**
+ * A shared role template (business_id NULL) that every business can assign,
+ * as the seeded roles are (Spatie teams, stage 1a). A role created while a
+ * business is set belongs to that business only.
+ */
+function sharedRole(string $name): Role
+{
+    return Role::withoutGlobalScopes()->whereNull('business_id')->where('name', $name)->where('guard_name', 'web')->first()
+        ?? Role::create(['name' => $name, 'guard_name' => 'web', 'business_id' => null]);
 }
 
 /**

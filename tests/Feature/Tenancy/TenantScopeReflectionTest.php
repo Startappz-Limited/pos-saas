@@ -6,6 +6,7 @@ use App\Models\CreditAccount;
 use App\Models\Customer;
 use App\Models\Product;
 use App\Models\SaleItem;
+use App\Models\Scopes\BusinessOrSharedScope;
 use App\Models\Scopes\BusinessScope;
 use App\Models\Scopes\ShopAccessScope;
 use Illuminate\Contracts\Routing\UrlRoutable;
@@ -65,7 +66,7 @@ it('scopes every model that has shop_id or business_id', function () {
 
         $scopes = array_keys($model->getGlobalScopes());
 
-        if (in_array('business_id', $columns, true) && ! in_array(BusinessScope::class, $scopes, true)) {
+        if (in_array('business_id', $columns, true) && ! array_intersect([BusinessScope::class, BusinessOrSharedScope::class], $scopes)) {
             $missing[] = "{$class}: has business_id but no BusinessScope";
         }
 

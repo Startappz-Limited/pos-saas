@@ -12,11 +12,6 @@ class ExpenseCategoryPolicy
      */
     public function before(User $user, string $ability): ?bool
     {
-        // Super-admin has unrestricted access
-        if ($user->hasRole('super-admin')) {
-            return true;
-        }
-
         // Full-access permission grants all abilities
         if ($user->can('expense-categories.full-access')) {
             return true;

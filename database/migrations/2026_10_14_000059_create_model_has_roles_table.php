@@ -12,7 +12,9 @@ return new class extends Migration
             $table->unsignedBigInteger('role_id');
             $table->string('model_type');
             $table->unsignedBigInteger('model_id');
-            $table->primary(['role_id', 'model_id', 'model_type']);
+            // The business the role is held in (Spatie teams, stage 1a).
+            $table->foreignId('business_id')->constrained()->cascadeOnDelete();
+            $table->primary(['business_id', 'role_id', 'model_id', 'model_type']);
             $table->index(['model_id', 'model_type']);
             $table->foreign('role_id')->references('id')->on('roles')->cascadeOnDelete();
         });

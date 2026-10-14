@@ -14,6 +14,7 @@ use App\Models\SaleReturn;
 use App\Models\Shop;
 use App\Models\SocialAccount;
 use App\Models\StockAdjustment;
+use App\Models\User;
 use App\Observers\ProductObserver;
 use App\Policies\BaileysSessionPolicy;
 use App\Policies\CampaignPolicy;
@@ -70,9 +71,12 @@ class AppServiceProvider extends ServiceProvider
         $this->enforceHttps();
         $this->definePasswordPolicy();
 
-        // Super-admin bypasses all permission checks
+        // The business owner may do everything in their business. Roles are
+        // per business (Spatie teams), so this never reaches another business.
+        // The owner is the super-admin role until Phase 3 splits platform
+        // operator and business owner (User::isBusinessOwner).
         Gate::before(function ($user, $ability) {
-            return $user->hasRole('super-admin') ? true : null;
+            return $user instanceof User && $user->isBusinessOwner() ? true : null;
         });
 
         // Register Policies

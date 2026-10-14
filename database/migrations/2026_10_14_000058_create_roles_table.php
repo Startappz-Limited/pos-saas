@@ -10,11 +10,14 @@ return new class extends Migration
     {
         Schema::create('roles', function (Blueprint $table) {
             $table->id();
+            // Spatie teams on business_id (stage 1a): NULL for the role
+            // templates every business assigns, a business id for its own roles.
+            $table->foreignId('business_id')->nullable()->constrained()->cascadeOnDelete();
             $table->uuid('uuid');
             $table->string('name');
             $table->string('guard_name');
             $table->timestamps();
-            $table->unique(['name', 'guard_name']);
+            $table->unique(['business_id', 'name', 'guard_name']);
             $table->unique('uuid');
         });
     }

@@ -70,7 +70,8 @@ Phase 1 doesn't start until these are answered:
       (stock, registers, sync columns) is written here too, because the migrations are rewritten once.
       See "Phase 1 schema" below.
       *Steps 1–2:* 84 consolidated `create_*` migrations, proved identical to `main`'s schema (step 1), then the SaaS schema written into them; the guard is `0001_01_01_000000_guard_empty_database` (`DB_BASELINE_FORCE`). Every legacy column is kept, so the import carries every value (`MigrationBaselineTest`). Still to come with their steps: Spatie team columns, one credit account per customer.
-- [ ] **Seeders:** platform essentials only (permissions, role templates, plans).
+- [x] **Seeders:** platform essentials only (permissions, role templates, plans).
+      *Steps 2 and 10:* `DatabaseSeeder` seeds permissions and the role templates (shared by every business, created with no business set); the demo seeders are removed. **Plans** are seeded in Phase 4, where the `plans` table is created.
 
 ### Tenant layer
 - [x] `Business` model and `BusinessMembership`.
@@ -103,8 +104,10 @@ Phase 1 doesn't start until these are answered:
       *Step 3.* Both scoped by business; `Shop` also by shop access.
 
 ### Roles
-- [ ] Spatie `teams => true` with `team_foreign_key = business_id`.
-- [ ] Review the 12 direct `hasRole('super-admin')` checks alongside the switch to teams.
+- [x] Spatie `teams => true` with `team_foreign_key = business_id`.
+      *Step 10:* `config/permission.php`; `roles.business_id` (NULL for the shared templates), `business_id` in the primary key of `model_has_roles` and `model_has_permissions`. `TenantContext::set()` sets Spatie's team and clears roles and permissions already loaded on the signed-in user. Roles show the shared templates plus the business's own (`BusinessOrSharedScope`). `RolesPerBusinessTest`.
+- [x] Review the 12 direct `hasRole('super-admin')` checks alongside the switch to teams.
+      *Step 10:* the 10 checks in `CustomerPolicy` and the one in `ExpenseCategoryPolicy` repeated `Gate::before`, which runs first; removed. `Gate::before` now asks `User::isBusinessOwner()` (super-admin in the current business until Phase 3), so Phase 3's platform operator / owner split changes one place. Name-based uses stay: role protection in `RoleController`/`RolePolicy`, the manager dropdown in `ShopController` and the two webhook jobs (both resolve per business through Spatie; the jobs only once stage 1c gives them a business).
 
 ### Flat API compatibility
 - [ ] Default-business resolution for legacy tokens.
@@ -115,7 +118,8 @@ Phase 1 doesn't start until these are answered:
       *Stage 1a step 2.* Also `currency` and `timezone`.
 - [x] `business_user` (status, invited by, joined at); `users.default_business_id`.
       *Stage 1a step 2.*
-- [ ] Spatie `teams => true` with `team_foreign_key = business_id` (roles per business).
+- [x] Spatie `teams => true` with `team_foreign_key = business_id` (roles per business).
+      *Step 10.*
 - [x] `business_id` on shops, products and the 7 lists.
       *Stage 1a step 2.* Also on `product_variations` (per-business SKU and barcode), `sales`, `sale_payments` and `cash_registers` (for their `client_uuid` keys).
 - [x] `business_id` on `customers`; customers become business-wide (Open question 3), with customer codes

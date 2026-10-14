@@ -31,6 +31,14 @@ class TenantContext
     public function set(Business|int|null $business): void
     {
         $this->business = is_int($business) ? Business::findOrFail($business) : $business;
+
+        // Roles and permissions are held per business (Spatie teams). Relations
+        // already loaded for another business must not answer for this one.
+        setPermissionsTeamId($this->business?->id);
+
+        if (($user = Auth::user()) instanceof User) {
+            $user->unsetRelation('roles')->unsetRelation('permissions');
+        }
     }
 
     public function forget(): void
@@ -65,6 +73,27 @@ class TenantContext
     {
         $previous = $this->business;
         $this->set($business);
+
+        try {
+            return $callback();
+        } finally {
+            $this->set($previous);
+        }
+    }
+
+    /**
+     * Runs $callback with no business set, then restores the previous one:
+     * for platform-wide records, such as the seeded role templates.
+     *
+     * @template T
+     *
+     * @param  Closure(): T  $callback
+     * @return T
+     */
+    public function withoutBusiness(Closure $callback): mixed
+    {
+        $previous = $this->business;
+        $this->set(null);
 
         try {
             return $callback();

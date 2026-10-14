@@ -6,7 +6,6 @@ use App\Models\Business;
 use App\Models\CashRegister;
 use App\Models\Customer;
 use App\Models\Product;
-use App\Models\Role;
 use App\Models\Sale;
 use App\Models\Shop;
 use App\Models\Supplier;
@@ -31,15 +30,18 @@ final class TwoBusinesses
 
     public static function create(): self
     {
-        Role::findOrCreate('super-admin', 'web');
-        Role::findOrCreate('cashier', 'web');
+        // Shared templates, assigned per business (Spatie teams).
+        sharedRole('super-admin');
+        sharedRole('cashier');
 
         $a = self::business('Business A', 'Alpha');
         $b = self::business('Business B', 'Bravo');
 
         $both = User::factory()->memberOf($a->business)->create(['name' => 'Member of Both']);
         $both->joinBusiness($b->business);
-        $both->assignRole('cashier');
+        foreach ([$a->business, $b->business] as $business) {
+            app(TenantContext::class)->run($business, fn () => $both->assignRole('cashier'));
+        }
         $both->shops()->attach([$a->shops[0]->id, $b->shops[0]->id]);
 
         return new self($a, $b, $both);

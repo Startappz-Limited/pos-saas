@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\Role;
+use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Seeder;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\PermissionRegistrar;
@@ -45,20 +46,24 @@ class RoleSeeder extends Seeder
             ],
         ];
 
-        foreach ($roles as $roleData) {
-            Role::firstOrCreate(
-                ['name' => $roleData['name']],
-                ['guard_name' => 'web']
-            );
-        }
+        // The seeded roles are templates shared by every business (no
+        // business_id), whichever business is current (Spatie teams, stage 1a).
+        app(TenantContext::class)->withoutBusiness(function () use ($roles): void {
+            foreach ($roles as $roleData) {
+                Role::firstOrCreate(
+                    ['name' => $roleData['name']],
+                    ['guard_name' => 'web']
+                );
+            }
 
-        // Assign permissions to roles
-        $this->assignSuperAdminPermissions();
-        $this->assignManagerPermissions();
-        $this->assignCashierPermissions();
-        $this->assignInventoryClerkPermissions();
-        $this->assignAccountantPermissions();
-        $this->assignCustomerPermissions();
+            // Assign permissions to roles
+            $this->assignSuperAdminPermissions();
+            $this->assignManagerPermissions();
+            $this->assignCashierPermissions();
+            $this->assignInventoryClerkPermissions();
+            $this->assignAccountantPermissions();
+            $this->assignCustomerPermissions();
+        });
 
         $this->command->info('✅ Created '.count($roles).' roles and assigned permissions successfully!');
     }

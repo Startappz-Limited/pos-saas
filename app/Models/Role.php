@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\Auditable;
+use App\Models\Scopes\BusinessOrSharedScope;
 use Illuminate\Support\Str;
 use Spatie\Permission\Models\Role as SpatieRole;
 
@@ -16,6 +17,7 @@ class Role extends SpatieRole
      * @var array<int, string>
      */
     protected $fillable = [
+        'business_id',
         'uuid',
         'name',
         'guard_name',
@@ -27,6 +29,10 @@ class Role extends SpatieRole
     protected static function boot(): void
     {
         parent::boot();
+
+        // Shared role templates (business_id NULL) plus the current
+        // business's own roles (Spatie teams, stage 1a).
+        static::addGlobalScope(new BusinessOrSharedScope);
 
         static::creating(function (self $role) {
             if (empty($role->uuid)) {
