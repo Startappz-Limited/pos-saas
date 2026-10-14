@@ -77,21 +77,26 @@ Phase 1 doesn't start until these are answered:
       *Stage 1a step 2.* `app/Models/Business.php`, `BusinessMembership.php`; a new business gets its default sale source (Walk-in).
 - [x] `TenantContext`: current business from the session or token; set explicitly for jobs and commands.
       *Stage 1a step 2.* `app/Support/Tenancy/TenantContext.php` (`set`, `run`, `bypass`), set by `ResolveTenant` after authentication; `BelongsToBusiness` refuses a record with no business (`MissingTenantContext`). `TenantContextTest`.
-- [ ] `BelongsToBusiness` and `BelongsToShop` traits; `BusinessScope` and `ShopAccessScope`.
+- [x] `BelongsToBusiness` and `BelongsToShop` traits; `BusinessScope` and `ShopAccessScope`.
+      *Step 3.* `app/Models/Concerns/BelongsToShop.php`, `app/Models/Scopes/{BusinessScope,ShopAccessScope}.php`. With no business set: strict mode (local, testing) throws; a signed-in user gets no rows; code with no user runs unscoped and is logged until 1c. Shop access is a fresh subquery per query. Unauthenticated routes (webhooks, signed links) bind across businesses and then act for the record's business (`ResolvesTenantFromRouteBinding`); the WhatsApp gateway listener does the same by session key.
 - [ ] A viewer-aware `exists` rule (replaces `exists:table,id`).
 - [ ] A per-tenant unique rule that **ignores soft-deleted rows**.
 - [ ] Route model binding by uuid on unscoped models.
 
 ### Test fixture
-- [ ] **The two-business test fixture**, with a user who belongs to both.
+- [x] **The two-business test fixture**, with a user who belongs to both.
+      *Step 3.* `tests/Support/TwoBusinesses.php`: A and B, each with two shops (the same codes), an owner, a cashier assigned to one shop, a customer, product, supplier and sale; plus a member of both.
 - [ ] Existing tests adapted to it.
 
 ### Models
-- [ ] Every model with `shop_id` (about 42) and the 7 list models get their scope.
-- [ ] `Customer` uses `BelongsToBusiness` (business-wide), not `BelongsToShop` (Open question 3).
+- [x] Every model with `shop_id` (about 42) and the 7 list models get their scope.
+      *Step 3.* 31 shop-owned models get `BelongsToShop`; alerts, alert rules, campaigns and saved reports (optional shop) also get `business_id` and `BelongsToBusiness`; `Shop` is limited to accessible shops on its own id. Exceptions, with reasons, in the reflection test: `SaleItem` (its `shop_id` is the product's shop; reached through the sale), `BusinessMembership`, `AuditLog` (1c).
+- [x] `Customer` uses `BelongsToBusiness` (business-wide), not `BelongsToShop` (Open question 3).
+      *Step 3.* Scoped by business only.
 - [ ] `User`: memberships, current and default business, **default-deny** shops (no assignment means no
       access).
-- [ ] `Product` and `Shop`.
+- [x] `Product` and `Shop`.
+      *Step 3.* Both scoped by business; `Shop` also by shop access.
 
 ### Roles
 - [ ] Spatie `teams => true` with `team_foreign_key = business_id`.
@@ -165,7 +170,8 @@ No tenancy package is needed; scoping is built in-house (4.1).
 
 ## Acceptance criteria
 
-- [ ] A reflection test: every model with `shop_id` or `business_id` has its scope.
+- [x] A reflection test: every model with `shop_id` or `business_id` has its scope.
+      *Step 3.* `tests/Feature/Tenancy/TenantScopeReflectionTest.php` (removing a scope from `Expense` fails it).
 - [ ] Scope unit tests: owner, staff, no assignment, switching business.
 - [ ] Per-tenant unique keys: both businesses can use the same codes, and a soft-deleted code can be
       reused.

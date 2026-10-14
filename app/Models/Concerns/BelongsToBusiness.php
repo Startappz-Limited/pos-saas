@@ -3,13 +3,15 @@
 namespace App\Models\Concerns;
 
 use App\Models\Business;
+use App\Models\Scopes\BusinessScope;
 use App\Models\Shop;
 use App\Support\Tenancy\MissingTenantContext;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
- * A record owned by one business (decision 4.1).
+ * A record owned by one business (decision 4.1). Queries see only the current
+ * business's records (BusinessScope).
  *
  * On create, business_id is taken from the record's parent when it has one
  * (its shop, by default; models override inferBusinessId()), otherwise from
@@ -18,8 +20,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 trait BelongsToBusiness
 {
+    use ResolvesTenantFromRouteBinding;
+
     public static function bootBelongsToBusiness(): void
     {
+        static::addGlobalScope(new BusinessScope);
+
         static::creating(function (self $model): void {
             if (! empty($model->business_id)) {
                 return;

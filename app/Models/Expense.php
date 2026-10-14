@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\ExpenseStatus;
 use App\Models\Concerns\Auditable;
+use App\Models\Concerns\BelongsToShop;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -15,6 +16,7 @@ use Illuminate\Support\Str;
 class Expense extends Model
 {
     use Auditable;
+    use BelongsToShop;
     use HasFactory, SoftDeletes;
 
     protected $fillable = [

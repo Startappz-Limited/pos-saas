@@ -29,7 +29,9 @@ describe('records', function () {
     it('gives a new business its default sale source', function () {
         $business = Business::factory()->create();
 
-        expect(SaleSource::where('business_id', $business->id)->pluck('name')->all())->toBe(['Walk-in']);
+        $sources = app(TenantContext::class)->run($business, fn () => SaleSource::pluck('name')->all());
+
+        expect($sources)->toBe(['Walk-in']);
     });
 
     it('places a record in its parent\'s business, not the current one', function () {

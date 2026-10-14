@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\UserStatus;
 use App\Models\Concerns\Auditable;
+use App\Support\Tenancy\TenantContext;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -276,17 +277,30 @@ class User extends Authenticatable
         return $this->shops()->exists();
     }
 
+    /**
+     * Whether the user may work in $shopId: one of the current business's
+     * shops they may access (TenantContext::accessibleShopIdsFor). With no
+     * business set, no shop.
+     */
     public function canAccessShop(?int $shopId): bool
     {
         if ($shopId === null) {
             return ! $this->hasShopRestrictions();
         }
 
-        if (! $this->hasShopRestrictions()) {
-            return true;
-        }
+        $tenant = app(TenantContext::class);
 
-        return $this->assignedShopIds()->contains((int) $shopId);
+        return $tenant->has() && in_array((int) $shopId, $tenant->accessibleShopIdsFor($this), true);
+    }
+
+    /**
+     * An owner sees every shop of the business (decision 4.4). Until Phase 3
+     * splits the platform operator from business owners, the owner is the
+     * super-admin role.
+     */
+    public function isBusinessOwner(): bool
+    {
+        return $this->hasRole('super-admin');
     }
 
     /**

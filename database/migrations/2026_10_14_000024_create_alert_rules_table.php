@@ -10,6 +10,7 @@ return new class extends Migration
     {
         Schema::create('alert_rules', function (Blueprint $table) {
             $table->id();
+            $table->foreignId('business_id')->constrained()->comment('Rows with no shop apply to the whole business');
             $table->uuid('uuid');
             $table->unsignedBigInteger('shop_id')->nullable();
             $table->string('name');

@@ -6,6 +6,7 @@ use App\Enums\AbandonedCartStatus;
 use App\Enums\AlertCategory;
 use App\Enums\AlertSeverity;
 use App\Enums\AlertType;
+use App\Models\Concerns\BelongsToShop;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -26,6 +27,7 @@ use Illuminate\Support\Str;
  */
 class AbandonedCart extends Model
 {
+    use BelongsToShop;
     use HasFactory, SoftDeletes;
 
     protected $fillable = [

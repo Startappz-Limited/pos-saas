@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Models\Concerns\Auditable;
 use App\Models\Concerns\BelongsToBusiness;
+use App\Models\Concerns\BelongsToShop;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -15,6 +16,7 @@ class Sale extends Model
 {
     use Auditable;
     use BelongsToBusiness;
+    use BelongsToShop;
     use HasFactory;
 
     protected $fillable = [

@@ -112,9 +112,12 @@ describe('access', function () {
     it('refuses every action on another shop\'s cart', function (string $method, string $suffix) {
         Sanctum::actingAs($this->user);
 
+        // Not found rather than forbidden: a cart in a shop the user can't
+        // access is outside their scope, so its existence isn't revealed
+        // (stage 1a).
         $this->json($method, "/api/abandoned-carts/{$this->foreignCart->uuid}{$suffix}", [
             'message' => 'x', 'title' => 'x', 'scheduled_at' => now()->addDay()->toIso8601String(), 'payment_method' => 'cash', 'status' => 'lost',
-        ])->assertForbidden();
+        ])->assertNotFound();
     })->with([
         'show' => ['GET', ''],
         'update' => ['PATCH', ''],
@@ -245,7 +248,8 @@ describe('follow-up', function () {
 
         $foreignReminder = $this->foreignCart->logActivity('Not yours', '', type: AlertType::CART_REMINDER);
 
-        $this->postJson("/api/abandoned-carts/{$this->cart->uuid}/reminders/{$foreignReminder->uuid}/resolve")->assertForbidden();
+        // Out of the user's shops, so not found (stage 1a scopes).
+        $this->postJson("/api/abandoned-carts/{$this->cart->uuid}/reminders/{$foreignReminder->uuid}/resolve")->assertNotFound();
         $this->postJson("/api/abandoned-carts/{$this->cart->uuid}/reminders/{$reminder['uuid']}/resolve")->assertOk();
 
         expect(Alert::where('uuid', $reminder['uuid'])->value('is_resolved'))->toBeTruthy();
@@ -476,7 +480,8 @@ describe('web screens', function () {
         $this->actingAs($viewer);
 
         $this->get(route('abandoned-carts.show', $this->cart))->assertOk()->assertDontSee('SECRET-TOKEN');
-        $this->get(route('abandoned-carts.show', $this->foreignCart))->assertForbidden();
+        // Out of the user's shops, so not found (stage 1a scopes).
+        $this->get(route('abandoned-carts.show', $this->foreignCart))->assertNotFound();
     });
 
     it('converts from the cart page and lands on the sale', function () {

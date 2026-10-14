@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\ShopStatus;
 use App\Models\Concerns\Auditable;
 use App\Models\Concerns\BelongsToBusiness;
+use App\Models\Scopes\ShopAccessScope;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -59,6 +60,10 @@ class Shop extends Model
     protected static function boot(): void
     {
         parent::boot();
+
+        // Only the shops the viewer may access (decision 4.4); the business
+        // itself is limited by BelongsToBusiness.
+        static::addGlobalScope(new ShopAccessScope('id'));
 
         static::creating(function (self $shop) {
             if (empty($shop->uuid)) {

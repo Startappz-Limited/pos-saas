@@ -3,7 +3,14 @@
 namespace App\Support\Tenancy;
 
 use App\Models\Business;
+use App\Models\User;
 use Closure;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Query\Builder as QueryBuilder;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 /**
  * The business the current request, job or command acts for (decision 4.3).
@@ -19,6 +26,8 @@ class TenantContext
 
     private int $bypassDepth = 0;
 
+    private bool $warnedUnscoped = false;
+
     public function set(Business|int|null $business): void
     {
         $this->business = is_int($business) ? Business::findOrFail($business) : $business;
@@ -26,7 +35,7 @@ class TenantContext
 
     public function forget(): void
     {
-        $this->business = null;
+        $this->set(null);
     }
 
     public function business(): ?Business
@@ -88,5 +97,84 @@ class TenantContext
     public function bypassing(): bool
     {
         return $this->bypassDepth > 0;
+    }
+
+    /**
+     * Whether a tenant scope should filter by the current business. With no
+     * business set: in strict mode (local, testing) the query is refused; a
+     * signed-in user gets no rows; code with no signed-in user (jobs,
+     * commands, until stage 1c) runs unscoped and is logged.
+     */
+    public function guardMissing(Builder $builder, Model $model): bool
+    {
+        if ($this->has()) {
+            return true;
+        }
+
+        if (config('tenancy.strict')) {
+            throw MissingTenantContext::forModel(class_basename($model));
+        }
+
+        if (Auth::hasUser()) {
+            $builder->whereRaw('1 = 0');
+
+            return false;
+        }
+
+        if (! $this->warnedUnscoped) {
+            $this->warnedUnscoped = true;
+            Log::warning('Tenant data queried with no business set; running unscoped.', ['model' => $model::class]);
+        }
+
+        return false;
+    }
+
+    /**
+     * The current business's shops $user may access (decision 4.4), as a
+     * subquery of shop ids: every shop for an owner or for code with no
+     * signed-in user; otherwise the shops assigned to the user. A member with
+     * no assignment in this business sees every shop unless default-deny is
+     * on. Built fresh for each query, so shops and assignments made earlier in
+     * the same request count.
+     */
+    public function accessibleShopsQuery(?User $user): QueryBuilder
+    {
+        $businessId = $this->id();
+        $query = DB::table('shops')->select('shops.id')->where('shops.business_id', $businessId);
+
+        if ($user === null || $user->isBusinessOwner()) {
+            return $query;
+        }
+
+        return $query->where(function (QueryBuilder $where) use ($user, $businessId): void {
+            $where->whereIn('shops.id', DB::table('shop_user')->select('shop_user.shop_id')->where('shop_user.user_id', $user->id));
+
+            if (! config('tenancy.default_deny')) {
+                $where->orWhereNotExists(fn (QueryBuilder $assigned) => $assigned->selectRaw('1')
+                    ->from('shop_user as assigned')
+                    ->join('shops as assigned_shop', 'assigned_shop.id', '=', 'assigned.shop_id')
+                    ->where('assigned.user_id', $user->id)
+                    ->where('assigned_shop.business_id', $businessId));
+            }
+        });
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function accessibleShopIdsFor(?User $user): array
+    {
+        return $this->accessibleShopsQuery($user)->pluck('id')->map(fn ($id): int => (int) $id)->all();
+    }
+
+    /**
+     * The signed-in user whose shop access the scopes apply; null for code
+     * with no signed-in user.
+     */
+    public function viewer(): ?User
+    {
+        $user = Auth::user();
+
+        return $user instanceof User ? $user : null;
     }
 }

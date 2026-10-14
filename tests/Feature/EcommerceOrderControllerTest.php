@@ -172,7 +172,8 @@ test('allocated user cannot view orders from another shop', function () {
     $this->user->shops()->sync([$shop->id]);
     $order = EcommerceOrder::factory()->for($otherShop)->create();
 
-    $this->get(route('ecommerce-orders.show', $order))->assertForbidden();
+    // Outside the user's shops, so not found (stage 1a scopes).
+    $this->get(route('ecommerce-orders.show', $order))->assertNotFound();
 });
 
 test('allocated user cannot refresh orders for another shop', function () {
