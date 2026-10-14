@@ -120,6 +120,24 @@ return [
             'engine' => null,
         ],
 
+        // Target of the legacy-import rehearsal (saas:import-legacy): a freshly
+        // migrated SaaS baseline the legacy data is imported into.
+        'import_testing' => [
+            'driver' => 'mysql',
+            'host' => env('DB_TEST_HOST', '127.0.0.1'),
+            'port' => env('DB_TEST_PORT', '3306'),
+            'database' => env('DB_IMPORT_DATABASE', 'pos_saas_import_testing'),
+            'username' => env('DB_TEST_USERNAME', 'root'),
+            'password' => env('DB_TEST_PASSWORD', ''),
+            'unix_socket' => '',
+            'charset' => 'utf8mb4',
+            'collation' => 'utf8mb4_unicode_ci',
+            'prefix' => '',
+            'prefix_indexes' => true,
+            'strict' => true,
+            'engine' => null,
+        ],
+
         /*
          * Scratch database for building the live-like dataset (dataset:build
          * only builds into an empty _testing database).

@@ -110,7 +110,8 @@ Phase 1 doesn't start until these are answered:
       *Step 10:* the 10 checks in `CustomerPolicy` and the one in `ExpenseCategoryPolicy` repeated `Gate::before`, which runs first; removed. `Gate::before` now asks `User::isBusinessOwner()` (super-admin in the current business until Phase 3), so Phase 3's platform operator / owner split changes one place. Name-based uses stay: role protection in `RoleController`/`RolePolicy`, the manager dropdown in `ShopController` and the two webhook jobs (both resolve per business through Spatie; the jobs only once stage 1c gives them a business).
 
 ### Flat API compatibility
-- [ ] Default-business resolution for legacy tokens.
+- [x] Default-business resolution for legacy tokens.
+      *Steps 2 and 10:* `ResolveTenant` acts on the user's default business for API tokens (the membership is re-checked on every request); `POST /api/login` sets it before returning roles. `TenantContextTest` (API token), `RolesPerBusinessTest` (sign-in); the flat API contract passes unchanged at every step.
 
 ## Phase 1 schema (written in 1a)
 

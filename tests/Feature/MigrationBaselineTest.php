@@ -8,21 +8,21 @@ use Illuminate\Support\Facades\Schema;
 /**
  * The consolidated migrations (stage 1a, decision 4.7).
  *
- * tests/Fixtures/legacy-schema/{sqlite,mysql}.json hold the schema main's
+ * database/legacy/schema-{sqlite,mysql}.json hold the schema main's
  * 104 migrations built (main at 1aea0e3). Step 1 proved the consolidated
  * migrations built exactly that schema; the SaaS baseline adds to it and must
  * keep every legacy column (until stage 1b moves stock), so the legacy import
- * can carry every value across. The import checks its source against them.
+ * can carry every value across. The legacy import (saas:import-legacy) checks its source against them.
  *
- * The fixtures were recorded with main's migrations, once per engine:
- *   php artisan test --group=legacy-schema-record
- *   vendor/bin/pest --configuration=phpunit.mysql.xml --group=legacy-schema-record
+ * They were recorded once, from main's migrations on each engine (stage 1a
+ * step 1), and must not be re-recorded: the migrations now build the SaaS
+ * schema.
  */
-const LEGACY_SCHEMA_DIR = __DIR__.'/../Fixtures/legacy-schema';
+const LEGACY_SCHEMA_DIR = __DIR__.'/../../database/legacy';
 
 function legacySchemaFixture(): string
 {
-    return LEGACY_SCHEMA_DIR.'/'.DB::getDriverName().'.json';
+    return LEGACY_SCHEMA_DIR.'/schema-'.DB::getDriverName().'.json';
 }
 
 /**
@@ -106,10 +106,3 @@ describe('the empty-database guard', function () {
             ->and(Schema::connection('guard_testing')->hasTable('sales'))->toBeTrue();
     });
 });
-
-it('records the legacy schema', function () {
-    @mkdir(LEGACY_SCHEMA_DIR, 0755, true);
-    file_put_contents(legacySchemaFixture(), json_encode(SchemaSnapshot::of(), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)."\n");
-
-    expect(file_exists(legacySchemaFixture()))->toBeTrue();
-})->group('legacy-schema-record');
