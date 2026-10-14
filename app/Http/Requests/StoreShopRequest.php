@@ -4,7 +4,9 @@ namespace App\Http\Requests;
 
 use App\Enums\ShopStatus;
 use App\Enums\TaxClass;
+use App\Models\Shop;
 use App\Rules\KraPin;
+use App\Rules\UniqueForTenant;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -28,7 +30,7 @@ class StoreShopRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:255'],
-            'code' => ['required', 'string', 'max:50', 'unique:shops,code', 'regex:/^[A-Z0-9-]+$/'],
+            'code' => ['required', 'string', 'max:50', new UniqueForTenant(Shop::class, 'code'), 'regex:/^[A-Z0-9-]+$/'],
             'description' => ['nullable', 'string', 'max:1000'],
             'phone' => ['nullable', 'string', 'max:20'],
             'email' => ['nullable', 'email', 'max:255'],

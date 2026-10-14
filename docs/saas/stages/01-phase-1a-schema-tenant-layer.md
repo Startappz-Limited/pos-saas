@@ -80,7 +80,8 @@ Phase 1 doesn't start until these are answered:
 - [x] `BelongsToBusiness` and `BelongsToShop` traits; `BusinessScope` and `ShopAccessScope`.
       *Step 3.* `app/Models/Concerns/BelongsToShop.php`, `app/Models/Scopes/{BusinessScope,ShopAccessScope}.php`. With no business set: strict mode (local, testing) throws; a signed-in user gets no rows; code with no user runs unscoped and is logged until 1c. Shop access is a fresh subquery per query. Unauthenticated routes (webhooks, signed links) bind across businesses and then act for the record's business (`ResolvesTenantFromRouteBinding`); the WhatsApp gateway listener does the same by session key.
 - [ ] A viewer-aware `exists` rule (replaces `exists:table,id`).
-- [ ] A per-tenant unique rule that **ignores soft-deleted rows**.
+- [x] A per-tenant unique rule that **ignores soft-deleted rows**.
+      *Step 5:* `app/Rules/UniqueForTenant.php` replaces the 24 `unique:` rules on tenant tables (shop code, product slug/SKU/barcode, category name/slug, attribute name/slug, supplier code, sale source name). The credit-account rule changes with one account per customer.
 - [ ] Route model binding by uuid on unscoped models.
 
 ### Test fixture
@@ -175,8 +176,9 @@ No tenancy package is needed; scoping is built in-house (4.1).
       *Step 3.* `tests/Feature/Tenancy/TenantScopeReflectionTest.php` (removing a scope from `Expense` fails it).
 - [x] Scope unit tests: owner, staff, no assignment, switching business.
       *Steps 3–4:* `TenantScopeTest` (owner, staff, no assignment, a member of two businesses switching, web session switch).
-- [ ] Per-tenant unique keys: both businesses can use the same codes, and a soft-deleted code can be
+- [x] Per-tenant unique keys: both businesses can use the same codes, and a soft-deleted code can be
       reused.
+      *Step 5:* `PerTenantUniqueKeysTest` on both engines: same codes in two businesses; duplicates refused within one (shop, product, variation, customer, supplier, sale source, invoice number); soft-deleted codes reused (shop, product, customer, supplier, category); the rule and the supplier form agree.
 - [x] The migration guard refuses a non-empty database unless forced.
       *Step 1:* `MigrationBaselineTest` (refuses, empty, already built, forced); CI checks it refuses `main`'s dataset.
 - [ ] A customer created in one shop is visible in every shop of the same business and in no other

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\SaleSource;
+use App\Rules\UniqueForTenant;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -22,7 +23,7 @@ class SaleSourceController extends Controller
     public function store(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'name' => ['required', 'string', 'max:255', 'unique:sale_sources,name'],
+            'name' => ['required', 'string', 'max:255', new UniqueForTenant(SaleSource::class, 'name')],
             'description' => ['nullable', 'string', 'max:500'],
         ]);
 
