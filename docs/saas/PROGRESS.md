@@ -336,6 +336,12 @@ columns; `down()` restores them as totals), `000003` (default registers, session
   no new routes, forms or endpoints, so validation, CSRF and honeypot are untouched; the flat API keeps
   its shape (contract test). Items that contradict CLAUDE.md's "two-standard reality" (UUID keys,
   `HasUuids`) don't apply to this repo's existing modules.
+- **CI migration rehearsal fixed (`666da88`):** it was written for the stage 1a PR (pre-SaaS base: the
+  guard must refuse the dataset, then the import). With 1a merged the dataset is built on the baseline,
+  so `migrate` rightly applied only 1b's migrations and the job failed. It now runs in `additive` mode
+  against a base with the baseline: this branch's migrations on the dataset, failing if any table loses
+  rows. Run locally the same way (dataset built with `main` at scale 0.25): 5,412 rows before, 5,613
+  after (191 opening cost layers, 6 registers, 4 migration rows), none lost.
 - **CLAUDE.md and the `pos-domain-rules` skill** now describe the ledger, FIFO costing, registers and
   per-register invoice numbers, replacing the "no StockMovement for sales / no FIFO" corrections.
 
