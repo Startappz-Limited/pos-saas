@@ -89,12 +89,16 @@ class CreditTransaction extends Model
         return 'uuid';
     }
 
+    /**
+     * A globally unique number, like the other generated numbers (stage 1a):
+     * the date and a random suffix. It used to be today's count plus one,
+     * counted through the shop-access scope, so two shops (or two businesses)
+     * each issued -00001 against the global unique key, and two sales at once
+     * read the same count.
+     */
     public static function generateTransactionNumber(): string
     {
-        $date = now()->format('ymd');
-        $sequence = self::whereDate('created_at', today())->count() + 1;
-
-        return 'CTX-'.$date.'-'.str_pad((string) $sequence, 5, '0', STR_PAD_LEFT);
+        return 'CTX-'.now()->format('ymd').'-'.strtoupper(Str::random(6));
     }
 
     public function creditAccount(): BelongsTo
