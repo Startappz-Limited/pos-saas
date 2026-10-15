@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\AuditEvent;
 use App\Enums\AuditStatus;
+use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
@@ -42,6 +43,7 @@ class AuditLog extends Model
         'method',
         'tags',
         'shop_id',
+        'business_id',
         'created_at',
     ];
 
@@ -54,6 +56,7 @@ class AuditLog extends Model
             'event' => AuditEvent::class,
             'status' => AuditStatus::class,
             'created_at' => 'datetime',
+            'business_id' => 'integer',
         ];
     }
 
@@ -73,6 +76,19 @@ class AuditLog extends Model
     public function getRouteKeyName(): string
     {
         return 'uuid';
+    }
+
+    /**
+     * Only the current business's rows bind (stage 1c): no model scope reaches
+     * the audit connection, and business owners pass every policy, so another
+     * business's row is a 404 here rather than a policy decision.
+     */
+    public function resolveRouteBinding($value, $field = null): ?Model
+    {
+        return $this->newQuery()
+            ->where($field ?? $this->getRouteKeyName(), $value)
+            ->where('business_id', app(TenantContext::class)->id() ?? 0)
+            ->first();
     }
 
     /**

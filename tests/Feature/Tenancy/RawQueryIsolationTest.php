@@ -141,3 +141,21 @@ it('checks stock and takes snapshots only for the business\'s shops', function (
     expect(app(CheckLowStockLevels::class)->execute($bShop))->toBeEmpty()
         ->and(app(CreateInventorySnapshot::class)->execute($bShop))->toBeEmpty();
 });
+
+it('keeps the report and VAT CSV exports within the business', function (string $method, string $route, array $parameters) {
+    foreach ([[$this->fixture->a->owner, false], [$this->fixture->b->owner, true]] as [$owner, $shows]) {
+        signInWeb($owner);
+        $csv = $this->call($method, route($route, $parameters))->assertOk()->streamedContent();
+
+        expect(str_contains($csv, (string) MARKER))->toBe($shows);
+    }
+})->with([
+    'reports CSV' => ['POST', 'reports.export', ['report' => 'dashboard', 'format' => 'csv']],
+    'VAT CSV' => ['GET', 'reports.vat.export', ['start_date' => now()->startOfMonth()->toDateString(), 'end_date' => now()->endOfMonth()->toDateString()]],
+]);
+
+it('refuses another business\'s customer purchase history PDF', function () {
+    signInWeb($this->fixture->a->owner);
+
+    $this->get(route('customers.purchases.pdf', $this->fixture->b->customer))->assertNotFound();
+});

@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\AuditLog;
 use App\Models\User;
+use App\Support\Tenancy\TenantContext;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
@@ -12,8 +13,9 @@ use Illuminate\Support\Collection;
  * Read-only access to the audit trail.
  *
  * The application only ever writes audit rows through the AuditLogger listener;
- * everything here is a query. Shop scoping is applied here because audit rows live
- * on a separate connection and cannot be joined to `shops`.
+ * everything here is a query. Business and shop scoping are applied here because
+ * audit rows live on a separate connection, where no model scope or join to
+ * `shops` reaches.
  */
 class AuditService
 {
@@ -148,18 +150,23 @@ class AuditService
     }
 
     /**
-     * Restrict to the shops the user may see. Rows with no shop context are
-     * system-wide and stay visible.
+     * Restrict to the current business (stage 1c), failing closed when none is
+     * set, then to the shops the user may access in it. Rows with no shop
+     * context are business-wide and stay visible within the business.
      *
      * @param  Builder<AuditLog>  $query
      */
     private function applyShopScope(Builder $query, User $user): void
     {
-        if (! $user->hasShopRestrictions()) {
+        $tenant = app(TenantContext::class);
+
+        $query->where('business_id', $tenant->id() ?? 0);
+
+        if ($user->isBusinessOwner()) {
             return;
         }
 
-        $shopIds = $user->assignedShopIds()->all();
+        $shopIds = $tenant->accessibleShopIdsFor($user);
 
         $query->where(function (Builder $q) use ($shopIds): void {
             $q->whereNull('shop_id')->orWhereIn('shop_id', $shopIds);

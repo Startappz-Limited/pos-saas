@@ -40,6 +40,9 @@ const ALLOWED_RAW_QUERIES = [
     'app/Services/Stock/StockQuery.php' => [4, 'correlated to a scoped product or variation; the viewer\'s shops'],
     'app/Support/Tenancy/TenantContext.php' => [2, 'builds the accessible-shops subquery itself'],
 
+    // Platform-wide repairs.
+    'app/Console/Commands/BackfillAuditBusiness.php' => [3, 'maps audit rows of every business to their business, from shops and records'],
+
     // Not tenant data.
     'app/Console/Commands/BuildDatasetCommand.php' => [1, 'row counts of a _testing dataset database'],
 ];

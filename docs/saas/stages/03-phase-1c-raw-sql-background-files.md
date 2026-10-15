@@ -68,8 +68,10 @@ No open question blocks this stage.
       *Step 1: the report always names the viewer's accessible shops; an empty list is no shops.*
 
 ### Exports and audit
-- [ ] CSV and PDF exports scoped.
-- [ ] `AuditService`: audit rows gain `business_id`; reads scoped.
+- [x] CSV and PDF exports scoped.
+      *Step 2: report, VAT and audit CSVs from scoped services; PDFs from scoped records; tested with two businesses.*
+- [x] `AuditService`: audit rows gain `business_id`; reads scoped.
+      *Step 2: audit migration `2026_10_16_000001`, captured on write, reads and route binding limited to the business; `audit:backfill-business` for older rows.*
 
 ### Background work
 - [ ] The 10 jobs carry the business.

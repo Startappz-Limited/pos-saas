@@ -35,5 +35,6 @@ class AuditableEvent
         public readonly ?string $userEmail = null,
         public readonly ?int $shopId = null,
         public readonly ?array $tags = null,
+        public readonly ?int $businessId = null,
     ) {}
 }

@@ -4,6 +4,7 @@ namespace App\Listeners;
 
 use App\Enums\AuditEvent;
 use App\Events\AuditableEvent;
+use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 use Spatie\Permission\Events\PermissionAttached;
@@ -62,6 +63,8 @@ class AuditAuthorizationChanges
             userName: auth()->user()?->name,
             userEmail: auth()->user()?->email,
             tags: ['authorization'],
+            // Roles are granted per business (Spatie teams on business_id).
+            businessId: app(TenantContext::class)->id(),
         );
     }
 
