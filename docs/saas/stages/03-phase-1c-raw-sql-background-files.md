@@ -86,8 +86,10 @@ No open question blocks this stage.
       *Step 4: `TenantContext::cacheKey()`; `CacheKeyScopeTest` requires it wherever the cache is used.*
 
 ### E-commerce stock push
-- [ ] Triggered by per-shop stock changes, since `ProductObserver` only watches `Product::updated`.
-- [ ] Each shop's store gets that shop's stock.
+- [x] Triggered by per-shop stock changes, since `ProductObserver` only watches `Product::updated`.
+      *Step 5: the stock ledger queues `PushShopStockJob` on every change, after commit.*
+- [x] Each shop's store gets that shop's stock.
+      *Step 5: the push sends the shop's ledger quantity to that shop's stores only; `ShopStockPushTest`.*
 
 ### Signed links
 - [ ] Invoice, statement and order-invoice links become temporary (`temporarySignedRoute`).
