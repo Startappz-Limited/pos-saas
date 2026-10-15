@@ -436,6 +436,17 @@ Stage 1c adds no migration to the main database. It adds one to the audit databa
 - **CLAUDE.md** describes `restrictToShops()`, `User::inCurrentBusiness()`, `cacheKey()`, `TenantFiles`,
   queued work carrying its business, `RunsForBusiness`, expiring document links and the new commands.
 
+### After the stage: duplicate credit transaction numbers
+
+The CI dataset build failed on a credit sale: `Duplicate entry 'CTX-260718-00001'`. A credit transaction
+number was today's count plus one, and since stage 1a that count ran through the shop-access scope, so a
+cashier who sees one shop issued a number another shop held (and two sales at once could read the same
+count). Numbers are now the date plus a random suffix, like the other generated numbers;
+`CreditTransactionNumberTest` fails on the old code. Checks: SQLite 1,277 passed, 59 skipped; MySQL 8
+1,287 passed, 49 skipped. **The bug is on `main` too**, and the rehearsal job builds its dataset with
+`main`'s code, so the fix is also on its own branch, `fix/credit-transaction-number` from `main`, to merge
+first.
+
 ### Follow-ups
 
 - **Missing views (already on `main`):** `sales.dailyReport` and `sales.profitReport` render
