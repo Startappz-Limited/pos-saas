@@ -234,9 +234,9 @@ describe('invoice numbering', function () {
         $numbers = Sale::orderBy('id')->pluck('invoice_number')->all();
 
         expect($numbers)->toBe([
-            'INV-NRB-'.now()->format('Y').'-000001',
-            'INV-NRB-'.now()->format('Y').'-000002',
-            'INV-NRB-'.now()->format('Y').'-000003',
+            'INV-NRB-R1-'.now()->format('Y').'-000001',
+            'INV-NRB-R1-'.now()->format('Y').'-000002',
+            'INV-NRB-R1-'.now()->format('Y').'-000003',
         ]);
     });
 
@@ -265,7 +265,7 @@ describe('invoice numbering', function () {
         $year = now()->format('Y');
 
         expect(Sale::orderBy('id')->pluck('invoice_number')->all())
-            ->toBe(["INV-NRB-{$year}-000001", "INV-MSA-{$year}-000001"]);
+            ->toBe(["INV-NRB-R1-{$year}-000001", "INV-MSA-R1-{$year}-000001"]);
     });
 });
 

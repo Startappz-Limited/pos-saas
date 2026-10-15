@@ -159,7 +159,7 @@ class SaleController extends Controller
                 'customer_tax_pin' => $validated['customer_tax_pin']
                     ?? ($validated['customer_id'] ?? null ? Customer::find($validated['customer_id'])?->tax_pin : null),
                 'delivery_company_id' => $validated['delivery_company_id'] ?? null,
-                'invoice_number' => app(InvoiceNumberService::class)->next($shop ?? $shopId),
+                'invoice_number' => app(InvoiceNumberService::class)->next($shop ?? $shopId, $activeRegister->register_id),
                 'sale_type' => 'regular',
                 'subtotal' => $totals->subtotal,
                 'discount_amount' => $totals->discountAmount,

@@ -110,16 +110,27 @@ fails a sale at the till.
 
 Numbers now come from `invoice_sequences` via
 [`InvoiceNumberService`](../app/Services/InvoiceNumberService.php), which takes the row with
-`lockForUpdate()` inside the sale's own transaction so concurrent registers queue instead of both
+`lockForUpdate()` inside the sale's own transaction so concurrent sales queue instead of both
 claiming the same number.
 
+Since SaaS stage 1b each **register** (till) has its own series (decision 4.9), keyed
+`r{register id}:{period}`, so a till can number its sales without asking any other. A sale is
+numbered by the register its cash session runs on; the legacy calls, which name no register, land on
+the shop's default register `R1`. Numbers are unique per business (`(business_id, invoice_number)`):
+shop codes are unique within a business, register codes within a shop.
+
 ```
-INV-NRB-2026-000123
- │   │    │     └── zero-padded counter (INVOICE_PAD)
- │   │    └──────── reset period (INVOICE_RESET=yearly)
- │   └───────────── shop code (INVOICE_INCLUDE_SHOP_CODE)
- └───────────────── INVOICE_PREFIX
+INV-NRB-R1-2026-000123
+ │   │   │   │     └── zero-padded counter (INVOICE_PAD)
+ │   │   │   └──────── reset period (INVOICE_RESET=yearly)
+ │   │   └──────────── register code
+ │   └──────────────── shop code (INVOICE_INCLUDE_SHOP_CODE)
+ └──────────────────── INVOICE_PREFIX
 ```
+
+Migration `2026_10_15_000004` made each shop's existing series its default register's, so the count
+carries on at `R1` (`INV-NRB-2026-000123` is followed by `INV-NRB-R1-2026-000124`). Concurrency is
+tested on MySQL 8 by [InvoiceNumberConcurrencyTest](../tests/Feature/Stock/InvoiceNumberConcurrencyTest.php).
 
 Existing `INV-XXXXXXXX` numbers are left alone.
 

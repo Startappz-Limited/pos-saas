@@ -136,7 +136,7 @@ jobs:
         run: |
           cp .env.example .env
           php artisan key:generate --ansi
-          mysql -h 127.0.0.1 -u root -proot -e "CREATE DATABASE IF NOT EXISTS pos_saas_rehearsal_testing; CREATE DATABASE IF NOT EXISTS pos_saas_dataset_testing;"
+          mysql -h 127.0.0.1 -u root -proot -e "CREATE DATABASE IF NOT EXISTS pos_saas_rehearsal_testing; CREATE DATABASE IF NOT EXISTS pos_saas_dataset_testing; CREATE DATABASE IF NOT EXISTS pos_saas_concurrency_testing;"
 
       # Pest directly: `php artisan test` always adds --configuration=phpunit.xml
       # itself, and PHPUnit 12 refuses a second --configuration.
