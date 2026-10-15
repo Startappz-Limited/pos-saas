@@ -292,3 +292,70 @@ passed, 58 skipped; MySQL 8 1,211 passed, 49 skipped**.
 | 5. Profit from FIFO cost | `d61d62c` | `FifoProfitTest` (2) | 1,230 passed, 58 skipped | 1,239 passed, 49 skipped (8.5 min) | `sales:recompute-profit` costs a line from its FIFO allocations; a known layer cost is never replaced by today's price, and an allocation whose layer cost was unknown takes the purchase cost entered since, which is also written to the rest of that layer so later sales are costed. Lines with no allocations (sold before FIFO, or imported) use the product's current cost as before. `docs/purchase-costs.md` updated. **Local MySQL runs now use `phpunit.mysql.local.xml`** (untracked, in `.git/info/exclude`): `.env` was changed to the host-side port 3307 (kept, at your request), and inside lerd's container the server is on 3306; the copy only forces that port |
 | 6. Registers; sessions on a register | `6864ed8` | `RegistersTest` (5) | 1,235 passed, 58 skipped | 1,244 passed, 49 skipped (8.5 min) | `Register` model (shop-scoped, uuid route key) and factory; every shop gets a default register (`R1`, "Main till") when created; migration `2026_10_15_000003` gives every existing shop its default register and places every existing cash session on it (refusing to finish if one can't be placed). A cash session (`CashRegister`) always runs on a register: `openRegister()`/`getActiveRegister()` take a register and default to the shop's default one, so legacy cash-register and sale calls land there; sessions on different registers of one shop run side by side. `cash_registers.register_id` stays nullable in the schema (its `nullOnDelete` key), but every session gets one |
 | 7. Invoice numbers per register | _this commit_ | `InvoiceNumbersTest` (3), `InvoiceNumberConcurrencyTest` (1, MySQL only) | 1,238 passed, 59 skipped | 1,248 passed, 49 skipped (8.7 min) | `InvoiceNumberService::next($shop, $register)`: each register numbers in its own series (`r{register id}:{year}`), `INV-{shop}-{register}-{year}-{n}`, under the same row lock, and notes the number on `registers.last_invoice_number`; no register named means the shop's default. All four sale paths pass the register their cash session runs on. Migration `2026_10_15_000004` carries each shop's existing series on at its default register (`INV-NRB-2026-000123` is followed by `INV-NRB-R1-2026-000124`). **The concurrency test found a deadlock that was already on `main`:** a locking read of a series row that didn't exist yet took a gap lock, two registers then deadlocked inserting into the gap, MySQL rolled one sale's transaction back, and the old retry loop swallowed the error and carried on outside any transaction. The row is now created by an upsert before it is locked, and no database error is swallowed. The test runs 6 processes (3 per register) claiming 120 numbers together on a scratch database (`concurrency_testing`, created by the test and in CI); each series comes out 1–60 with no collision or gap (passed 4 runs in a row). Rehearsed migrations 000003 and 000004 on `import_testing` (13 shops → 13 default registers, 11 sessions all placed; the legacy data has no invoice series). Tests adapted (2 files): expected numbers carry the register code. `docs/vat.md` updated |
+
+### Differences from the stage file
+
+- **`sale_item_stock_allocations` is kept, unused** (decided 15 October 2026): `cost_allocations`
+  records what each sale line consumed, so the third table has no job in the agreed design.
+- **`cash_registers.register_id` stays nullable in the schema** (its key is `nullOnDelete`), but every
+  session gets a register: the model defaults it, and migration `2026_10_15_000003` places every
+  existing session and refuses to finish otherwise.
+- **Each shop's existing invoice series carries on at its default register** (migration
+  `2026_10_15_000004`) rather than restarting at 1, so a shop's count never goes backwards.
+- **The invoice row lock is kept, but the series row is now created before it is locked.** The stage
+  file asks to keep the lock; the concurrency test showed that the old way of creating a new series
+  (a locking read of a missing row, then insert, swallowing the error) deadlocked two registers and lost
+  the sale's transaction. This was already on `main`.
+- **The concurrency test needs a scratch database** (`concurrency_testing`, default
+  `pos_saas_concurrency_testing`): processes can't see rows inside the suite's per-test transaction.
+  The test creates and migrates it; CI creates it with the other scratch databases.
+
+### Moving UAT onto stage 1b (for you to run; nothing here has touched UAT)
+
+After stage 1b merges, four additive migrations apply on top of the stage 1a baseline:
+`2026_10_15_000001` (rebuilds the empty cost tables; refuses if they hold rows), `000002` (moves product
+and variation stock into `shop_variation` with opening cost layers, then **drops** the three legacy stock
+columns; `down()` restores them as totals), `000003` (default registers, sessions placed) and `000004`
+(invoice series onto default registers).
+
+1. Snapshot first: `php artisan db:snapshot`.
+2. Rehearse on a copy: `php artisan db:restore-snapshot FILE --database=rehearsal_testing --yes`, then
+   `php artisan migrate --database=rehearsal_testing`. Rehearsed here on `import_testing` (the legacy
+   import): stock 804 across 10 layers with no mismatch, 13 default registers, all 11 sessions placed.
+3. Then run `php artisan migrate` on UAT yourself.
+
+### End of stage 1b (15 October 2026)
+
+- **Checks on the whole branch:** SQLite 1,238 passed, 59 skipped; MySQL 8 1,248 passed, 49 skipped
+  (the flat API contract test runs within it); Pint passes on every changed file
+  (`pint --test --diff=origin/main`).
+- **Acceptance criteria:** all ticked with evidence in the stage file; hotspots for the stock source,
+  sale paths, costing, registers and the legacy default ticked in saas-plan.md section 2.
+- **PR checklist (`.ai/general/PR_CHECKLIST.md`):** no debug code, secrets or `env()` outside config in
+  the diff; the four migrations are anonymous with `up()` and `down()` and carry existing data across;
+  no new routes, forms or endpoints, so validation, CSRF and honeypot are untouched; the flat API keeps
+  its shape (contract test). Items that contradict CLAUDE.md's "two-standard reality" (UUID keys,
+  `HasUuids`) don't apply to this repo's existing modules.
+- **CLAUDE.md and the `pos-domain-rules` skill** now describe the ledger, FIFO costing, registers and
+  per-register invoice numbers, replacing the "no StockMovement for sales / no FIFO" corrections.
+
+### Follow-ups
+
+- **E-commerce stock push on per-shop stock changes:** `ProductObserver` pushes on `Product::updated`;
+  sales and intake change `shop_variation` through the ledger and touch no product, so they push
+  nothing. This is the 1c hotspot "E-commerce stock push triggered by per-shop stock changes".
+- **Choosing a register:** the existing app can't name one, so every web and API sale lands on `R1`;
+  picking a register (and pairing devices) comes with `/api/v1` and sync (Phase 6).
+- **Sale transactions don't retry on a deadlock** (`DB::transaction` with one attempt, with sync jobs
+  dispatched inside): a deadlock fails the sale cleanly. The known invoice deadlock is fixed; the stock
+  ledger locks one `shop_variation` row per line, in line order, so two sales of the same items in
+  different orders can still deadlock.
+- **Scratch tables to remove:** `zz_probe_0`, `zz_probe_1`, `zz_probe_2` in
+  `pos_saas_rehearsal_testing` (empty, created by mistake during step 4; the safety hook blocks dropping
+  them from here).
+- **`.env` `DB_TEST_PORT=3307`** (the host port, kept at your request) means artisan inside lerd's
+  container can't reach MySQL through `.env`. The local MySQL suite runs with an untracked
+  `phpunit.mysql.local.xml` that forces 3306; the rehearsal in step 7 ran through a scratchpad bootstrap
+  that does the same.
+- **`mobile:contract-diff` not run** (no Flutter app on this machine); no routes changed, and the flat
+  API contract test passed at every step.

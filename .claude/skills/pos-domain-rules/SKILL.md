@@ -52,72 +52,41 @@ base query).
 Guardrails already encoded in policy, not schema: `SalePolicy::update()` restricts edits to a time window
 after creation, and deletion is admin-only. Preserve those when adding sale mutations.
 
-## 🔴 How stock is *actually* mutated
+## How stock is mutated (since SaaS stage 1b)
 
-This is the single most important correction in this document.
+Stock lives **per shop and per variation** in `shop_variation` (`(shop_id, variation_id)`); every product
+has a hidden default variation. The old `products.stock_quantity`, `product_variations.stock_quantity`
+and `shop_product.stock_quantity` columns are **gone**: `stock_quantity` on Product and ProductVariation is
+a computed attribute (`HasShopStock`) — the shop the request names, else the viewer's accessible shops —
+and setting it moves the product's own shop to that figure through the ledger.
 
-**`CLAUDE.md` says stock changes flow through `InventoryService`/`StockMovement`. They do not — not for
-sales.** The sale path decrements the column directly and writes **no** `StockMovement` row:
+**One service changes stock: `App\Services\Stock\StockLedger`.** It locks the `shop_variation` row,
+changes it by a delta, writes a `StockMovement`, and creates or consumes FIFO cost layers.
 
-```php
-// SaleController.php:322 and Api/SaleController.php:205
-$variation->decrement('stock_quantity', $item['quantity']);
-$product->decrement('stock_quantity', $item['quantity']);
-```
+| Operation | Ledger call |
+|---|---|
+| Sale (all four paths) | `sellItem($saleItem, $variation)` per line, then `recostSale($saleId)` |
+| Customer return, restockable items | `receive()` at the sold `unit_cost` (`ReturnService::receiveReturn`) |
+| Stock intake | `receive()` at the PO line cost, else `fallbackCost()` |
+| Stock adjustment | `StockAdjustmentService` → ledger; refuses to go negative |
+| Purchase return to supplier | `consume()` preferring the intake's layer |
+| E-commerce sync, product edits | `setLevel()` |
 
-What that means in practice:
+Never write a second stock-mutation path, and never update `shop_variation.stock_quantity` directly. Sales
+made **before** stage 1b have no `StockMovement` rows, so the ledger is complete only from the cut-over.
 
-| Operation | Writes a `StockMovement`? | Mutates `stock_quantity` via |
-|---|---|---|
-| Sale | **No** | direct `decrement()` |
-| Return / refund | **No** — nothing restocks | nothing |
-| Stock intake | Yes | `RecordStockMovement` |
-| Stock adjustment | Yes | `RecordStockMovement` |
-| Purchase return to supplier | Yes (`MarkPurchaseReturnShippedAction`) | `RecordStockMovement` |
+## How COGS is captured — FIFO per shop and variation
 
-So:
-- **`stock_movements` is not a complete ledger.** It has no sale or customer-return rows, and
-  `quantity_before`/`quantity_after` on the rows it does have will disagree with reality whenever sales
-  happened in between. Never present it as a reconciliation source, and never compute current stock by
-  summing it.
-- **`StockMovementType::SALE` and `::RETURN` cases exist but nothing writes them** — they are referenced
-  only inside the `StockMovement` model.
-- **An approved/received customer return does not put stock back.** `ReturnService` moves the return
-  through its statuses and creates a `Refund`, but no code path restocks. If you are asked why stock is
-  short after returns, this is why. Treat adding it as a deliberate feature, not a bug fix, because it
-  changes inventory numbers.
-
-⚠️ **Concurrency nuance, and it runs counter to intuition:** `decrement()` compiles to
-`UPDATE … SET stock_quantity = stock_quantity - n`, which is **atomic and safe** under concurrent sales.
-`RecordStockMovement` instead reads `getCurrentQuantity()` and then writes an **absolute** value — so two
-simultaneous intakes or adjustments on the same product can silently clobber each other. The "proper"
-service is the racy one. If you touch `RecordStockMovement`, wrap the read+write in a transaction with
-`lockForUpdate()`, or switch to an atomic delta.
-
-Never write a third stock-mutation path. Pick the existing one for the operation type and match it.
-
-## 🔴 How COGS is captured — there is no FIFO
-
-Cost is a **snapshot of the product's current `cost_price` at the moment of sale**, copied onto the line:
-
-```php
-// SaleController.php:298
-$unitCost = $variation ? $variation->cost_price : $product->cost_price;
-```
-
-`sale_items` stores `unit_cost`, `total_cost`, `profit`, `profit_margin`; `sales` stores `total_cost` and
-`total_profit`. Because the cost is snapshotted, later `cost_price` edits do **not** retroactively change
-historical profit — that part is correct and worth preserving.
-
-But the layered-costing subsystem is **entirely unused scaffolding**:
-- `cost_layers` and `cost_allocations` tables exist (migrations dated 2026_02_04).
-- `CostLayer`, `CostAllocation`, and `SaleItemStockAllocation` models are empty.
-- `CostingService` is empty; `CostLayerController` is empty but has 3 routes.
-- The `CostingMethod` enum (`fifo`, `lifo`, `average`, `specific`) is **referenced nowhere in the app**.
-
-So the effective costing method is "current standard cost", and nothing selects between methods. Do not
-describe the system as FIFO, do not read cost from `cost_layers` (they are empty), and if asked to
-implement real layered costing, treat it as a new subsystem with a migration plan for historical data.
+- Intake, restocked returns, upward adjustments and opening stock create **cost layers**
+  (`cost_layers`); consumption takes the oldest layer first and records `cost_allocations`.
+- A sale line's cost is the sum of its allocations; `sale_items.unit_cost` is that over the quantity, and
+  `total_profit = total_amount − tax_amount − total_cost`.
+- **Below zero** (offline sales are always accepted): the shortfall is allocated **provisionally** at
+  `fallbackCost()` and re-costed when stock arrives, which updates the sale's cost and profit.
+- A layer with unknown cost (NULL) costs 0 until a purchase cost is entered; `sales:recompute-profit`
+  then fills the allocation and the rest of that layer. See [docs/purchase-costs.md](../../../docs/purchase-costs.md).
+- `CostingService`, the `CostingMethod` enum and `sale_item_stock_allocations` remain **unused**.
+- Design and settled cases: [docs/saas/fifo-analysis.md](../../../docs/saas/fifo-analysis.md).
 
 ## 🔴 Per-line shop attribution
 
@@ -174,6 +143,12 @@ models are **stubs**, so features implied by those tables aren't wired.
 A credit sale is a `completed` sale with `payment_status` of `unpaid`/`partial` — the two axes again.
 
 ## Cash register reconciliation
+
+Despite its name, `CashRegister` (`cash_registers`) is a **cash session**. Since SaaS stage 1b every
+session runs on a `Register` (a till; `cash_registers.register_id`), and every shop has a default register
+`R1` created with the shop. `openRegister()`/`getActiveRegister()` take a register and default to `R1`,
+so the legacy calls land there. Each register numbers its invoices in its own series
+(`InvoiceNumberService::next($shop, $session->register_id)`).
 
 `CashRegister` carries `opening_balance`, `closing_balance`, `expected_balance`, `variance`, plus
 `closing_notes`, and has both `sales()` and `expenses()` relations. Expenses can be **paid out of the
