@@ -39,6 +39,12 @@ class LegacyImport
     /** Tables whose rows are rebuilt rather than copied. */
     private const REBUILT_TABLES = ['credit_accounts'];
 
+    /**
+     * Legacy tables no legacy code ever wrote, rebuilt in the SaaS schema
+     * (FIFO costing, stage 1b): not carried, and refused if they hold rows.
+     */
+    private const NEVER_WRITTEN_TABLES = ['cost_layers', 'cost_allocations'];
+
     private const CHUNK = 500;
 
     private Connection $source;
@@ -91,6 +97,13 @@ class LegacyImport
         $sourceTables = SchemaSnapshot::tables($this->source->getName());
         foreach ($this->legacySchema as $table => $definition) {
             if (in_array($table, self::SKIPPED_TABLES, true)) {
+                continue;
+            }
+            if (in_array($table, self::NEVER_WRITTEN_TABLES, true)) {
+                if (in_array($table, $sourceTables, true) && $this->source->table($table)->exists()) {
+                    return "The source's {$table} holds rows; no legacy code wrote that table, so they can't be carried across.";
+                }
+
                 continue;
             }
             if (! in_array($table, $sourceTables, true)) {
@@ -177,7 +190,7 @@ class LegacyImport
             $problems[] = "credit_accounts: expected {$accounts} after {$merged} merges, found ".$this->target->table('credit_accounts')->count();
         }
 
-        foreach (['sales.total_amount', 'sale_payments.amount', 'expenses.amount', 'credit_transactions.debit', 'credit_transactions.credit', 'credit_accounts.current_balance', 'products.stock_quantity'] as $sum) {
+        foreach (['sales.total_amount', 'sale_payments.amount', 'expenses.amount', 'credit_transactions.debit', 'credit_transactions.credit', 'credit_accounts.current_balance'] as $sum) {
             [$table, $column] = explode('.', $sum);
             $from = round((float) $this->source->table($table)->sum($column), 2);
             $to = round((float) $this->target->table($table)->sum($column), 2);
@@ -191,6 +204,14 @@ class LegacyImport
         $placedStock = (int) $this->target->table('shop_variation')->sum('stock_quantity');
         if ($legacyStock !== $placedStock) {
             $problems[] = "stock: {$legacyStock} units in the source, {$placedStock} placed in shops";
+        }
+
+        // FIFO layers add up to stock: layers hold what's above zero, and
+        // provisional shortfalls cover what's below it.
+        $layered = (int) $this->target->table('cost_layers')->sum('remaining_quantity')
+            - (int) $this->target->table('cost_allocations')->where('is_provisional', true)->sum('quantity_allocated');
+        if ($layered !== $placedStock) {
+            $problems[] = "cost layers: {$layered} units, stock: {$placedStock}";
         }
 
         $balances = fn (Connection $db) => $db->table('credit_accounts')->groupBy('customer_id')
@@ -220,7 +241,7 @@ class LegacyImport
     private function copiedTables(): array
     {
         return collect(array_keys($this->legacySchema))
-            ->reject(fn (string $table): bool => in_array($table, [...self::SKIPPED_TABLES, ...self::REBUILT_TABLES], true))
+            ->reject(fn (string $table): bool => in_array($table, [...self::SKIPPED_TABLES, ...self::REBUILT_TABLES, ...self::NEVER_WRITTEN_TABLES], true))
             ->values()
             ->all();
     }
@@ -313,12 +334,17 @@ class LegacyImport
     private function defaultVariationsAndStock(): void
     {
         $oldestShop = $this->target->table('shops')->orderBy('id')->value('id');
-        $listed = $this->target->table('shop_product')->orderBy('shop_id')->get(['product_id', 'shop_id', 'stock_quantity'])->groupBy('product_id');
+        // The legacy stock figures come from the source: the SaaS schema has
+        // no stock columns on products and variations (stage 1b).
+        $listed = $this->source->table('shop_product')->orderBy('shop_id')->get(['product_id', 'shop_id', 'stock_quantity'])->groupBy('product_id');
+        $productStock = $this->source->table('products')->pluck('stock_quantity', 'id');
+        $variationStock = $this->source->table('product_variations')->pluck('stock_quantity', 'id');
 
         $this->target->table('products')->orderBy('id')
-            ->select(['id', 'uuid', 'shop_id', 'stock_quantity', 'cost_price', 'selling_price', 'wholesale_price', 'tax_class', 'status'])
-            ->chunk(self::CHUNK, function (Collection $products) use ($oldestShop, $listed): void {
+            ->select(['id', 'uuid', 'shop_id', 'cost_price', 'selling_price', 'wholesale_price', 'tax_class', 'status'])
+            ->chunk(self::CHUNK, function (Collection $products) use ($oldestShop, $listed, $productStock, $variationStock): void {
                 foreach ($products as $product) {
+                    $product->stock_quantity = (int) ($productStock[$product->id] ?? 0);
                     $defaultId = $this->target->table('product_variations')->insertGetId([
                         'business_id' => $this->businessId,
                         'uuid' => (string) Str::uuid(),
@@ -352,13 +378,14 @@ class LegacyImport
                     }
 
                     $shops = $pivot->pluck('shop_id')->push($ownShop)->map(fn ($id) => (int) $id)->unique();
-                    $variations = $this->target->table('product_variations')->where('product_id', $product->id)->get(['id', 'stock_quantity']);
+                    $variations = $this->target->table('product_variations')->where('product_id', $product->id)->get(['id', 'cost_price']);
                     $rows = [];
                     foreach ($shops as $shopId) {
                         foreach ($variations as $variation) {
                             $stock = 0;
                             if ($shopId === (int) $ownShop) {
-                                $stock = (int) $variation->id === $defaultId ? (int) $product->stock_quantity : (int) $variation->stock_quantity;
+                                $stock = (int) $variation->id === $defaultId ? (int) $product->stock_quantity : (int) ($variationStock[$variation->id] ?? 0);
+                                $this->openingCost($shopId, $product, $variation, $stock);
                             }
                             $rows[] = [
                                 'shop_id' => $shopId,
@@ -373,6 +400,55 @@ class LegacyImport
                     $this->target->table('shop_variation')->insert($rows);
                 }
             });
+    }
+
+    /**
+     * FIFO cost for imported stock: an opening layer at the variation's cost
+     * (a default variation's is its product's), so layers add up to stock. A
+     * negative figure becomes a provisional shortfall the next delivery
+     * settles, as a sale below zero would.
+     */
+    private function openingCost(int $shopId, object $product, object $variation, int $stock): void
+    {
+        if ($stock === 0) {
+            return;
+        }
+
+        $cost = $variation->cost_price ?? $product->cost_price;
+        $now = now();
+        $common = [
+            'uuid' => (string) Str::uuid(),
+            'business_id' => $this->businessId,
+            'shop_id' => $shopId,
+            'product_id' => $product->id,
+            'variation_id' => $variation->id,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ];
+
+        if ($stock > 0) {
+            $this->target->table('cost_layers')->insert([...$common,
+                'source_type' => 'opening',
+                'unit_cost' => $cost,
+                'original_quantity' => $stock,
+                'remaining_quantity' => $stock,
+                'received_at' => $now,
+            ]);
+
+            return;
+        }
+
+        $this->target->table('cost_allocations')->insert([...$common,
+            'consumer_type' => 'opening',
+            'consumer_id' => $variation->id,
+            'quantity_allocated' => -$stock,
+            'unit_cost' => $cost,
+            'total_cost' => $cost === null ? null : round(-$stock * (float) $cost, 2),
+            'is_provisional' => true,
+            'provisional_unit_cost' => $cost,
+            'allocated_at' => $now,
+        ]);
+        $this->notes[] = "Product {$product->id}: stock {$stock} in shop {$shopId} imported as below zero; the next delivery settles it.";
     }
 
     // --- safety and checks ------------------------------------------------
@@ -392,7 +468,7 @@ class LegacyImport
     private function noteExtraColumns(): void
     {
         foreach ($this->legacySchema as $table => $definition) {
-            if (in_array($table, self::SKIPPED_TABLES, true)) {
+            if (in_array($table, [...self::SKIPPED_TABLES, ...self::NEVER_WRITTEN_TABLES], true)) {
                 continue;
             }
             $extra = array_diff($this->source->getSchemaBuilder()->getColumnListing($table), array_keys($definition['columns']));

@@ -7,6 +7,7 @@ use App\Models\Product;
 use App\Models\ProductEcommerceSync;
 use App\Models\Shop;
 use App\Observers\ProductObserver;
+use App\Services\Stock\StockLedger;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Crypt;
@@ -227,7 +228,6 @@ class ShopifyProductSyncService
                     'category_id' => $this->resolveCategoryFromShopify($shopifyProduct),
                     'cost_price' => $this->resolvePurchaseCost($variant),
                     'selling_price' => $variant['price'] ?? 0,
-                    'stock_quantity' => $variant['inventory_quantity'] ?? 0,
                     'track_stock' => ($variant['inventory_management'] ?? null) === 'shopify',
                     'status' => $shopifyProduct['status'] === 'active' ? 'active' : 'inactive',
                 ];
@@ -254,7 +254,6 @@ class ShopifyProductSyncService
                     'name' => $productName,
                     'description' => strip_tags($shopifyProduct['body_html'] ?? ''),
                     'selling_price' => $variant['price'] ?? 0,
-                    'stock_quantity' => $variant['inventory_quantity'] ?? 0,
                     'track_stock' => ($variant['inventory_management'] ?? null) === 'shopify',
                     'status' => $shopifyProduct['status'] === 'active' ? 'active' : 'inactive',
                 ];
@@ -285,7 +284,6 @@ class ShopifyProductSyncService
 
             // Attach product to shop via pivot table
             $pivot = [
-                'stock_quantity' => intval($variant['inventory_quantity'] ?? 0),
                 'selling_price' => $variant['price'] ?? null,
                 'is_active' => ($shopifyProduct['status'] ?? '') === 'active',
             ];
@@ -299,6 +297,15 @@ class ShopifyProductSyncService
 
             $product->shops()->syncWithoutDetaching([$shop->id => $pivot]);
             $product->syncShopVariationRows();
+
+            // The store's figure is this shop's stock (stage 1b: stock per
+            // shop), when the platform manages inventory; otherwise it reports
+            // nothing meaningful and the shop's own stock stands.
+            if (($variant['inventory_management'] ?? null) === 'shopify') {
+                app(StockLedger::class)->setLevel($shop->id, $product->defaultVariation()->firstOrFail(), intval($variant['inventory_quantity'] ?? 0), [
+                    'notes' => 'Stock from the online store.',
+                ]);
+            }
 
             // Create or update sync record
             $sync = ProductEcommerceSync::updateOrCreate(
@@ -370,7 +377,7 @@ class ShopifyProductSyncService
                                 ? (string) $options['compare_at_price']
                                 : null,
                             'inventory_management' => $product->track_stock ? 'shopify' : null,
-                            'inventory_quantity' => $product->stock_quantity,
+                            'inventory_quantity' => app(StockLedger::class)->quantity($shop->id, $product->defaultVariation()->firstOrFail()->id),
                         ],
                     ],
                 ],
@@ -517,7 +524,7 @@ class ShopifyProductSyncService
             ])->post("https://{$shopDomain}/admin/api/2024-01/inventory_levels/set.json", [
                 'location_id' => $locationId,
                 'inventory_item_id' => $inventoryItemId,
-                'available' => $product->stock_quantity,
+                'available' => app(StockLedger::class)->quantity($shop->id, $product->defaultVariation()->firstOrFail()->id),
             ]);
 
             if (! $response->successful()) {

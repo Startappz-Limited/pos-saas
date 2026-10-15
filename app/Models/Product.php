@@ -6,6 +6,7 @@ use App\Enums\ProductStatus;
 use App\Enums\TaxClass;
 use App\Models\Concerns\Auditable;
 use App\Models\Concerns\BelongsToBusiness;
+use App\Models\Concerns\HasShopStock;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -22,6 +23,7 @@ class Product extends Model
     use Auditable;
     use BelongsToBusiness;
     use HasFactory, HasUuids, SoftDeletes;
+    use HasShopStock;
 
     protected $fillable = [
         'business_id',
@@ -59,7 +61,6 @@ class Product extends Model
             'selling_price' => 'decimal:2',
             'wholesale_price' => 'decimal:2',
             'tax_class' => TaxClass::class,
-            'stock_quantity' => 'integer',
             'reorder_level' => 'integer',
             'track_stock' => 'boolean',
             'has_variations' => 'boolean',
@@ -134,8 +135,39 @@ class Product extends Model
     public function shops(): BelongsToMany
     {
         return $this->belongsToMany(Shop::class, 'shop_product')
-            ->withPivot(['stock_quantity', 'reorder_level', 'cost_price', 'selling_price', 'wholesale_price', 'is_active'])
+            ->withPivot(['reorder_level', 'cost_price', 'selling_price', 'wholesale_price', 'is_active'])
+            // pivot.stock_quantity: the shop's stock of the product, from
+            // per-shop stock (stage 1b, decision 4.8), as the flat API returns.
+            ->select('shops.*')
+            ->selectSub(fn ($query) => $query->from('shop_variation')
+                // An integer, as the column was (MySQL sums decimals as strings).
+                ->selectRaw('cast(coalesce(sum(shop_variation.stock_quantity), 0) as signed)')
+                ->whereColumn('shop_variation.shop_id', 'shop_product.shop_id')
+                ->whereColumn('shop_variation.product_id', 'shop_product.product_id'), 'pivot_stock_quantity')
             ->withTimestamps();
+    }
+
+    /**
+     * The shop that holds a stock figure set on the product: its own shop,
+     * else the first shop it's listed in, else its business's first shop.
+     */
+    public function stockShopId(): ?int
+    {
+        $shopId = $this->shop_id
+            ?? DB::table('shop_product')->where('product_id', $this->id)->orderBy('shop_id')->value('shop_id')
+            ?? DB::table('shops')->where('business_id', $this->business_id)->whereNull('deleted_at')->orderBy('id')->value('id');
+
+        return $shopId === null ? null : (int) $shopId;
+    }
+
+    protected function stockKey(): string
+    {
+        return 'product_id';
+    }
+
+    protected function stockVariation(): ?ProductVariation
+    {
+        return $this->defaultVariation()->first();
     }
 
     /**
@@ -253,7 +285,7 @@ class Product extends Model
 
     public function scopeLowStock($query)
     {
-        return $query->whereColumn('stock_quantity', '<=', 'reorder_level');
+        return $query->whereStock('<=', 'reorder_level');
     }
 
     public function scopeByCategory($query, int $categoryId)

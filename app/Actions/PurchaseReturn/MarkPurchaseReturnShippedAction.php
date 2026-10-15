@@ -2,15 +2,16 @@
 
 namespace App\Actions\PurchaseReturn;
 
-use App\Actions\RecordStockMovement;
 use App\Enums\PurchaseReturnStatus;
 use App\Enums\StockMovementType;
+use App\Models\ProductVariation;
 use App\Models\PurchaseReturn;
+use App\Services\Stock\StockLedger;
 use Illuminate\Support\Facades\DB;
 
 class MarkPurchaseReturnShippedAction
 {
-    public function __construct(private RecordStockMovement $recordStockMovement) {}
+    public function __construct(private StockLedger $ledger) {}
 
     public function execute(PurchaseReturn $purchaseReturn, int $userId, ?string $shipmentReference = null): PurchaseReturn
     {
@@ -19,30 +20,28 @@ class MarkPurchaseReturnShippedAction
         }
 
         return DB::transaction(function () use ($purchaseReturn, $userId, $shipmentReference): PurchaseReturn {
-            $purchaseReturn->load(['items.product', 'items.productVariation']);
+            $purchaseReturn->load(['items.product']);
 
             foreach ($purchaseReturn->items as $item) {
-                $currentStock = $item->productVariation
-                    ? (int) $item->productVariation->stock_quantity
-                    : (int) $item->product->stock_quantity;
+                $variation = $item->product_variation_id
+                    ? ProductVariation::withoutGlobalScope(ProductVariation::HIDE_DEFAULT)->findOrFail($item->product_variation_id)
+                    : $item->product->defaultVariation()->firstOrFail();
+                $currentStock = $this->ledger->quantity((int) $purchaseReturn->shop_id, $variation->id);
 
                 if ($currentStock < $item->quantity) {
                     throw new \Exception("Cannot return {$item->product->name}: only {$currentStock} units are available in stock.");
                 }
 
-                $this->recordStockMovement->execute([
-                    'shop_id' => $purchaseReturn->shop_id,
-                    'product_id' => $item->product_id,
-                    'variation_id' => $item->product_variation_id,
-                    'movement_type' => StockMovementType::SUPPLIER_RETURN->value,
-                    'quantity' => $item->quantity,
-                    'unit_cost' => $item->unit_cost,
-                    'reference_type' => PurchaseReturn::class,
-                    'reference_uuid' => $purchaseReturn->uuid,
+                // The returned intake's own cost layer goes first (stage 1b).
+                $intakeLayer = $item->stock_intake_id
+                    ? DB::table('cost_layers')->where('stock_intake_id', $item->stock_intake_id)->where('variation_id', $variation->id)->value('id')
+                    : null;
+
+                $this->ledger->consume((int) $purchaseReturn->shop_id, $variation, (int) $item->quantity, StockMovementType::SUPPLIER_RETURN, $item, [
+                    'reference' => $purchaseReturn,
                     'notes' => "Returned to supplier via {$purchaseReturn->return_number}.",
-                    'created_by' => $userId,
-                    'updated_by' => $userId,
-                ]);
+                    'user_id' => $userId,
+                ], $intakeLayer);
             }
 
             $purchaseReturn->update([

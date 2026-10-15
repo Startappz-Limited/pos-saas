@@ -332,7 +332,7 @@ class PurchaseReturnController extends Controller
         $selectedIds = $purchaseReturn?->items->pluck('stock_intake_id')->filter() ?? collect();
 
         return StockIntake::completed()
-            ->with(['purchaseOrder', 'purchaseOrderItem', 'supplier:id,name', 'shop:id,name', 'product:id,name,sku,cost_price', 'productVariation:id,name,sku,cost_price,stock_quantity'])
+            ->with(['purchaseOrder', 'purchaseOrderItem', 'supplier:id,name', 'shop:id,name', 'product:id,name,sku,cost_price', 'productVariation:id,name,sku,cost_price'])
             ->where('quantity_accepted', '>', 0)
             ->when($selectedIds->isNotEmpty(), fn ($query) => $query->orWhereIn('id', $selectedIds))
             ->latest('completed_at')

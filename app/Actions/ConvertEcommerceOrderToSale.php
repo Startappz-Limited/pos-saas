@@ -13,6 +13,7 @@ use App\Models\User;
 use App\Services\Integration\ShopifyOrderSyncService;
 use App\Services\Integration\WooCommerceOrderSyncService;
 use App\Services\InvoiceNumberService;
+use App\Services\Stock\StockLedger;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -133,7 +134,11 @@ class ConvertEcommerceOrderToSale
                 'walk_in_customer_phone' => $order->customer_phone,
                 'walk_in_customer_email' => $order->customer_email,
                 'delivery_company_id' => $data['delivery_company_id'] ?? null,
-                'invoice_number' => app(InvoiceNumberService::class)->next($shopId),
+                'invoice_number' => app(InvoiceNumberService::class)->next(
+                    $shopId,
+                    // The till the session runs on numbers the sale.
+                    DB::table('cash_registers')->where('id', $registerId)->value('register_id'),
+                ),
                 'sale_type' => 'regular',
                 'subtotal' => $subtotal,
                 'discount_amount' => $discountAmount,
@@ -187,7 +192,7 @@ class ConvertEcommerceOrderToSale
                 $profit = $lineTotal - $totalItemCost;
                 $profitMargin = $lineTotal > 0 ? ($profit / $lineTotal) * 100 : 0;
 
-                SaleItem::create([
+                $saleItem = SaleItem::create([
                     'uuid' => (string) Str::uuid(),
                     'sale_id' => $sale->id,
                     'product_id' => $productId,
@@ -203,13 +208,15 @@ class ConvertEcommerceOrderToSale
                     'status' => 'completed',
                 ]);
 
-                // Decrement stock for matched products
-                if ($variation) {
-                    $variation->decrement('stock_quantity', $quantity);
-                } elseif ($product) {
-                    $product->decrement('stock_quantity', $quantity);
+                // Take the stock for matched products from the shop, costed
+                // oldest layers first.
+                if ($product) {
+                    app(StockLedger::class)->sellItem($saleItem, $variation ?? $product->defaultVariation()->firstOrFail());
                 }
             }
+            // FIFO cost and profit onto the sale held in memory (a reload would
+            // turn the response's money fields into strings on MySQL).
+            $sale->forceFill(app(StockLedger::class)->recostSale($sale->id))->syncOriginal();
 
             // Mark the order as converted
             $order->markConverted($sale, $user);

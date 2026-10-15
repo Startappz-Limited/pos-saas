@@ -3,10 +3,10 @@
 #   sqlite              Pint and the full suite on SQLite.
 #   mysql               The full suite on MySQL 8, including the flat API contract
 #                       (tests/Fixtures/api-contract) and the live-like dataset tests.
-#   migration-rehearsal Builds the live-like dataset, runs this branch's migrations on
-#                       it and checks no table lost rows. From stage 1a the dataset is
-#                       built with the base branch's code first, so this is the gate
-#                       for schema changes.
+#   migration-rehearsal Builds the live-like dataset with the base branch's code, then
+#                       runs this branch's migrations on it and checks no table lost
+#                       rows. Against a pre-SaaS base (the stage 1a PR) it instead checks
+#                       the baseline refuses that database and imports it.
 #
 # Needs the repository secret COMPOSER_AUTH (Settings → Secrets and variables →
 # Actions) to install the private startappz/wa-gateway-laravel package:
@@ -136,7 +136,7 @@ jobs:
         run: |
           cp .env.example .env
           php artisan key:generate --ansi
-          mysql -h 127.0.0.1 -u root -proot -e "CREATE DATABASE IF NOT EXISTS pos_saas_rehearsal_testing; CREATE DATABASE IF NOT EXISTS pos_saas_dataset_testing;"
+          mysql -h 127.0.0.1 -u root -proot -e "CREATE DATABASE IF NOT EXISTS pos_saas_rehearsal_testing; CREATE DATABASE IF NOT EXISTS pos_saas_dataset_testing; CREATE DATABASE IF NOT EXISTS pos_saas_concurrency_testing;"
 
       # Pest directly: `php artisan test` always adds --configuration=phpunit.xml
       # itself, and PHPUnit 12 refuses a second --configuration.
@@ -188,6 +188,14 @@ jobs:
       # The dataset is built with the base branch's code and schema when it has
       # dataset:build (stage 1a onwards); in stage 0 the base doesn't, so this
       # branch builds it and the rehearsal only proves the dataset loads.
+      #
+      # The mode says how the data reaches this branch's schema:
+      #   import    the base is pre-SaaS: the baseline must refuse its database,
+      #             and the data crosses by the one-off legacy import (the stage
+      #             1a pull request);
+      #   additive  the base already has the SaaS baseline (stage 1a merged):
+      #             this branch's new migrations run on the dataset itself, and
+      #             no table may lose rows.
       - name: Choose the code to build the dataset with
         id: base
         run: |
@@ -199,6 +207,13 @@ jobs:
           else
             echo "dir=." >> "$GITHUB_OUTPUT"
             echo "$BASE has no dataset:build yet; building with this branch"
+          fi
+          if git cat-file -e "$BASE:database/migrations/0001_01_01_000000_guard_empty_database.php" 2>/dev/null; then
+            echo "mode=additive" >> "$GITHUB_OUTPUT"
+            echo "$BASE has the SaaS baseline: rehearsing this branch's migrations on its dataset"
+          else
+            echo "mode=import" >> "$GITHUB_OUTPUT"
+            echo "$BASE is pre-SaaS: rehearsing the baseline guard and the legacy import"
           fi
 
       - name: Install dependencies (dataset code)
@@ -231,6 +246,7 @@ jobs:
       # 4.7). Its first migration must refuse a database that already holds
       # data; the data is carried across by the legacy import instead.
       - name: The baseline refuses the dataset's database
+        if: steps.base.outputs.mode == 'import'
         run: |
           if php artisan migrate --database=dataset_testing --no-interaction; then
             echo "::error::The baseline migrated over a database that already has tables; the empty-database guard should have refused it."
@@ -239,6 +255,7 @@ jobs:
           echo "Refused, as it should be."
 
       - name: Build the baseline in an empty database
+        if: steps.base.outputs.mode == 'import'
         run: |
           mysql -h 127.0.0.1 -uroot -proot -e "CREATE DATABASE pos_saas_import_testing"
           php artisan migrate --database=import_testing --no-interaction
@@ -248,10 +265,11 @@ jobs:
       # The command verifies counts, money totals, credit balances, stock and
       # references, and fails on any mismatch.
       - name: Import the dataset into the baseline
+        if: steps.base.outputs.mode == 'import'
         run: php artisan saas:import-legacy --from=dataset_testing --database=import_testing --business-name="Live-like Retail"
 
       - name: Upload the import report
-        if: always()
+        if: always() && steps.base.outputs.mode == 'import'
         uses: actions/upload-artifact@v4
         with:
           name: import-report
@@ -260,6 +278,7 @@ jobs:
 
       # The import only reads its source: the dataset must be untouched.
       - name: Check the dataset is unchanged
+        if: steps.base.outputs.mode == 'import'
         run: |
           php artisan tinker --execute="require '.github/scripts/table-counts.php';" > /tmp/counts-after.json
           php -r '
@@ -267,4 +286,32 @@ jobs:
             $after = json_decode(file_get_contents("/tmp/counts-after.json"), true);
             if ($before !== $after) { fwrite(STDERR, "The dataset changed during the rehearsal.\n"); exit(1); }
             echo count($before)." tables, ".array_sum($before)." rows, unchanged.\n";
+          '
+
+      # After stage 1a, schema changes are additive migrations that carry the
+      # data across (the migrations check their own totals, e.g. stock moved
+      # into shop_variation). Run them on the dataset built with the base.
+      - name: Run this branch's migrations on the dataset
+        if: steps.base.outputs.mode == 'additive'
+        run: php artisan migrate --database=dataset_testing --no-interaction
+
+      # Live-data rule: a migration may add rows (registers, cost layers) but
+      # never lose them, and never drop a table that held rows.
+      - name: Check no table lost rows
+        if: steps.base.outputs.mode == 'additive'
+        run: |
+          php artisan tinker --execute="require '.github/scripts/table-counts.php';" > /tmp/counts-after.json
+          php -r '
+            $before = json_decode(file_get_contents("/tmp/counts-before.json"), true);
+            $after = json_decode(file_get_contents("/tmp/counts-after.json"), true);
+            $lost = [];
+            foreach ($before as $table => $rows) {
+              if (! array_key_exists($table, $after)) {
+                if ($rows > 0) { $lost[] = "$table dropped with $rows rows"; }
+              } elseif ($after[$table] < $rows) {
+                $lost[] = "$table: $rows -> {$after[$table]}";
+              }
+            }
+            if ($lost !== []) { fwrite(STDERR, "Rows lost:\n  ".implode("\n  ", $lost)."\n"); exit(1); }
+            echo count($before)." tables, ".array_sum($before)." rows before, ".array_sum($after)." after; none lost.\n";
           '

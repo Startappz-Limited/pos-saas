@@ -22,6 +22,7 @@ class CashRegister extends Model
         'business_id',
         'uuid',
         'shop_id',
+        'register_id',
         'user_id',
         'register_number',
         'register_date',
@@ -71,6 +72,12 @@ class CashRegister extends Model
         parent::boot();
 
         static::creating(function ($model) {
+            // A session always runs on a register: the shop's default one
+            // unless the caller names another (stage 1b, decision 4.8).
+            if (empty($model->register_id) && ! empty($model->shop_id)) {
+                $model->register_id = Register::defaultFor((int) $model->shop_id)->id;
+            }
+
             if (empty($model->uuid)) {
                 $model->uuid = (string) Str::uuid();
             }
@@ -86,6 +93,14 @@ class CashRegister extends Model
     }
 
     // Relationships
+    /**
+     * The till this session runs on.
+     */
+    public function register(): BelongsTo
+    {
+        return $this->belongsTo(Register::class);
+    }
+
     public function shop(): BelongsTo
     {
         return $this->belongsTo(Shop::class);
@@ -179,13 +194,19 @@ class CashRegister extends Model
     }
 
     /**
-     * Get the active register for a shop
+     * Today's open session on a register: the given one, else the shop's
+     * default register, which is where legacy calls land (stage 1b, 4.8).
      */
-    public static function getActiveRegister($shopId = null): ?self
+    public static function getActiveRegister($shopId = null, ?int $registerId = null): ?self
     {
         $shopId = $shopId ?? auth()->user()->shop_id ?? Shop::first()?->id;
+        if ($shopId === null) {
+            return null;
+        }
+        $registerId ??= Register::defaultFor((int) $shopId)->id;
 
         return self::where('shop_id', $shopId)
+            ->where('register_id', $registerId)
             ->where('status', 'open')
             ->whereDate('register_date', today())
             ->first();
@@ -194,13 +215,15 @@ class CashRegister extends Model
     /**
      * Open a new register for today
      */
-    public static function openRegister($shopId = null, $openingBalance = 0, $notes = null, $expenseOpeningBalance = 0): self
+    public static function openRegister($shopId = null, $openingBalance = 0, $notes = null, $expenseOpeningBalance = 0, ?int $registerId = null): self
     {
         $shopId = $shopId ?? auth()->user()->shop_id ?? Shop::first()?->id;
         $userId = auth()->id();
+        $registerId ??= Register::defaultFor((int) $shopId)->id;
 
-        // Close any open registers from previous days
+        // Close any sessions left open on this register from previous days
         self::where('shop_id', $shopId)
+            ->where('register_id', $registerId)
             ->where('status', 'open')
             ->where('register_date', '<', today())
             ->each(fn ($register) => $register->closeRegister());
@@ -209,6 +232,7 @@ class CashRegister extends Model
 
         return self::create([
             'shop_id' => $shopId,
+            'register_id' => $registerId,
             'user_id' => $userId,
             'register_number' => $registerNumber,
             'register_date' => today(),

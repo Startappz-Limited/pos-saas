@@ -47,12 +47,10 @@ class BackfillShopProductPivot extends Command
             // `regular_price`/`compare_at_price` are pre-discount SELLING prices,
             // and using them as a cost put products underwater on every sale.
             $costPrice = $product->hasPurchaseCost() ? $product->cost_price : null;
-            $stockQty = $platformData['stock_quantity'] ?? $platformData['inventory_quantity'] ?? $product->stock_quantity;
 
             DB::table('shop_product')->insert([
                 'shop_id' => $sync->shop_id,
                 'product_id' => $product->id,
-                'stock_quantity' => (int) $stockQty,
                 'cost_price' => $costPrice ? (float) $costPrice : null,
                 'selling_price' => $sellingPrice ? (float) $sellingPrice : null,
                 'is_active' => $product->status->value === 'active',

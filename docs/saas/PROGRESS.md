@@ -270,3 +270,98 @@ templates) and a first user may serve UAT better; the import is there for any da
   three, `LiveLikeDatasetTest > builds the same data every time` reports that `users` differs between the
   two builds. Six back-to-back builds in isolation were identical, and so were the instrumented full
   runs. The test now prints the differing rows and columns; investigate from that output next time.
+
+## Stage 1b (Phase 1b): Stock, sales, registers, invoice numbers
+
+Branch: `saas/phase-1b-stock-sales-registers` (from `main` at `92409f6`, the merge of stage 1a). Plan:
+the stage file itself.
+
+### Starting result
+
+`main` at `92409f6` (the same tree as `2e2fcad`, verified at the end of stage 1a): **SQLite 1,202
+passed, 58 skipped; MySQL 8 1,211 passed, 49 skipped**.
+
+### Steps
+
+| Step | Commit | Tests added | Suite (SQLite) | Suite (MySQL 8) | Notes |
+|---|---|---|---|---|---|
+| 1. FIFO analysis and agreed design | `63c6cca` | none (documents) | unchanged | unchanged | `docs/saas/fifo-analysis.md`: the earlier plan (Modules 08, 20), what was built (nothing beyond empty tables and models), where they differ (no `stock_batches`; no cost on `stock_intakes`; no variations), the SaaS mapping, and the cases the earlier plan didn't cover. Decided 15 October 2026: negative stock re-costed on arrival; restockable returns become a layer at the sold cost; `sale_item_stock_allocations` kept, unused; legacy stock columns dropped in 1b. Recorded in `pos-saas-plan.md` |
+| 2. Cost tables and the stock service | `67ecf30` | `StockLedgerTest` (9); `LegacyImportTest` +opening layers | 1,211 passed, 58 skipped | 1,220 passed, 49 skipped (11 min) | Migration `2026_10_15_000001`: `cost_layers` and `cost_allocations` rebuilt for the agreed design (per shop and variation, business, source and consumer, provisional allocations); they were empty everywhere, and the migration refuses to run otherwise. Models `CostLayer`, `CostAllocation`, `ShopVariation` (tenant-scoped). `App\Services\Stock\StockLedger`: `receive()` (a layer, which first settles units sold below zero and re-costs their sales), `consume()` (oldest layers first, a preferred layer first, a provisional shortfall below zero), `sellItem()`/`recostSale()` (a line's cost and profit from what it consumed, net of VAT), `fallbackCost()`. Each change locks the `shop_variation` row and moves it by a delta. No callers yet. The legacy import now reads stock from the source and gives every imported figure an opening layer (a negative one, a provisional shortfall), and checks layers add up to stock; the never-written costing tables aren't carried |
+| 3. Every sale path, writer and reader on per-shop stock | `6344205` | `SalePathsStockTest` (5), `StockWritersAndReadersTest` (9) | 1,225 passed, 58 skipped | 1,234 passed, 49 skipped (8 min) | **Sale paths:** web and API `SaleController`, `ConvertEcommerceOrderToSale`, `ConvertAbandonedCartToSale` take each line's stock from its shop through `StockLedger::sellItem()` (a movement per line, FIFO cost; below zero accepted and costed provisionally), then `recostSale()` sets the sale's FIFO cost and profit (set on the sale in memory so the API's money fields stay numbers). **Writers:** intake completion (into the intake's shop, for its variation, layered at the purchase order line's cost; it used to add a variation's intake to the product), stock adjustments (into the adjustment's shop), purchase returns (the returned intake's layer first), `RecordStockMovement` (through the ledger: no more read-then-write race), restockable customer returns (**restocked on receipt for the first time**, at the sold cost), and the Woo/Shopify product sync (the store's figure is the syncing shop's stock, when the platform manages inventory; pushes send that shop's stock). **Readers:** low-stock alerts (per shop: the stage 0 follow-up), inventory snapshots (per shop, valued at FIFO cost), `InventoryService::getCurrentInventory`, `ProductService`, the dashboard. **Compatibility:** `stock_quantity` on products and variations is computed from per-shop stock (the request's shop, else the viewer's shops; `withStockOnHand()` loads it in one query) and still settable (it moves the product's own shop through the ledger), so forms, the flat API and factories keep working. Tests adapted (2): stock is per shop, so the intake test puts product and intake in one shop; the e-commerce pivot tests read the shop's stock rather than the pivot column |
+| 4. Legacy stock moved, columns dropped | `bad94f3` | `StockMoveMigrationTest` (2); `StockWritersAndReadersTest` +1 (pivot stock) | 1,228 passed, 58 skipped | 1,237 passed, 49 skipped (8.5 min) | Migration `2026_10_15_000002`: every `products.stock_quantity` (through the default variation) and `product_variations.stock_quantity` figure goes to the product's own shop in `shop_variation`, with an opening FIFO layer at the variation's cost (a negative figure: a provisional shortfall); missing default variations are created; the totals are checked before `products.stock_quantity`, `product_variations.stock_quantity` and `shop_product.stock_quantity` are dropped. `down()` restores the columns as totals across shops. The flat API's `shops[].pivot.stock_quantity` is now each shop's stock of the product (a subquery on the relation; integer). The dataset's second-shop stock goes through the ledger. **Found on MySQL:** dropping the `shop_product (product_id, stock_quantity)` index failed because it also served the `product_id` foreign key; every test then re-ran the failing migration, which looked like a hang. The FK gets its own index first. Rehearsed again: the old development database copy imports and verifies on the new schema (some of its stock is below zero; it arrives as provisional shortfalls). The legacy schema test lists the three columns as moved, and the import test gives its source the legacy columns |
+| 5. Profit from FIFO cost | `d61d62c` | `FifoProfitTest` (2) | 1,230 passed, 58 skipped | 1,239 passed, 49 skipped (8.5 min) | `sales:recompute-profit` costs a line from its FIFO allocations; a known layer cost is never replaced by today's price, and an allocation whose layer cost was unknown takes the purchase cost entered since, which is also written to the rest of that layer so later sales are costed. Lines with no allocations (sold before FIFO, or imported) use the product's current cost as before. `docs/purchase-costs.md` updated. **Local MySQL runs now use `phpunit.mysql.local.xml`** (untracked, in `.git/info/exclude`): `.env` was changed to the host-side port 3307 (kept, at your request), and inside lerd's container the server is on 3306; the copy only forces that port |
+| 6. Registers; sessions on a register | `6864ed8` | `RegistersTest` (5) | 1,235 passed, 58 skipped | 1,244 passed, 49 skipped (8.5 min) | `Register` model (shop-scoped, uuid route key) and factory; every shop gets a default register (`R1`, "Main till") when created; migration `2026_10_15_000003` gives every existing shop its default register and places every existing cash session on it (refusing to finish if one can't be placed). A cash session (`CashRegister`) always runs on a register: `openRegister()`/`getActiveRegister()` take a register and default to the shop's default one, so legacy cash-register and sale calls land there; sessions on different registers of one shop run side by side. `cash_registers.register_id` stays nullable in the schema (its `nullOnDelete` key), but every session gets one |
+| 7. Invoice numbers per register | _this commit_ | `InvoiceNumbersTest` (3), `InvoiceNumberConcurrencyTest` (1, MySQL only) | 1,238 passed, 59 skipped | 1,248 passed, 49 skipped (8.7 min) | `InvoiceNumberService::next($shop, $register)`: each register numbers in its own series (`r{register id}:{year}`), `INV-{shop}-{register}-{year}-{n}`, under the same row lock, and notes the number on `registers.last_invoice_number`; no register named means the shop's default. All four sale paths pass the register their cash session runs on. Migration `2026_10_15_000004` carries each shop's existing series on at its default register (`INV-NRB-2026-000123` is followed by `INV-NRB-R1-2026-000124`). **The concurrency test found a deadlock that was already on `main`:** a locking read of a series row that didn't exist yet took a gap lock, two registers then deadlocked inserting into the gap, MySQL rolled one sale's transaction back, and the old retry loop swallowed the error and carried on outside any transaction. The row is now created by an upsert before it is locked, and no database error is swallowed. The test runs 6 processes (3 per register) claiming 120 numbers together on a scratch database (`concurrency_testing`, created by the test and in CI); each series comes out 1–60 with no collision or gap (passed 4 runs in a row). Rehearsed migrations 000003 and 000004 on `import_testing` (13 shops → 13 default registers, 11 sessions all placed; the legacy data has no invoice series). Tests adapted (2 files): expected numbers carry the register code. `docs/vat.md` updated |
+
+### Differences from the stage file
+
+- **`sale_item_stock_allocations` is kept, unused** (decided 15 October 2026): `cost_allocations`
+  records what each sale line consumed, so the third table has no job in the agreed design.
+- **`cash_registers.register_id` stays nullable in the schema** (its key is `nullOnDelete`), but every
+  session gets a register: the model defaults it, and migration `2026_10_15_000003` places every
+  existing session and refuses to finish otherwise.
+- **Each shop's existing invoice series carries on at its default register** (migration
+  `2026_10_15_000004`) rather than restarting at 1, so a shop's count never goes backwards.
+- **The invoice row lock is kept, but the series row is now created before it is locked.** The stage
+  file asks to keep the lock; the concurrency test showed that the old way of creating a new series
+  (a locking read of a missing row, then insert, swallowing the error) deadlocked two registers and lost
+  the sale's transaction. This was already on `main`.
+- **The concurrency test needs a scratch database** (`concurrency_testing`, default
+  `pos_saas_concurrency_testing`): processes can't see rows inside the suite's per-test transaction.
+  The test creates and migrates it; CI creates it with the other scratch databases.
+
+### Moving UAT onto stage 1b (for you to run; nothing here has touched UAT)
+
+After stage 1b merges, four additive migrations apply on top of the stage 1a baseline:
+`2026_10_15_000001` (rebuilds the empty cost tables; refuses if they hold rows), `000002` (moves product
+and variation stock into `shop_variation` with opening cost layers, then **drops** the three legacy stock
+columns; `down()` restores them as totals), `000003` (default registers, sessions placed) and `000004`
+(invoice series onto default registers).
+
+1. Snapshot first: `php artisan db:snapshot`.
+2. Rehearse on a copy: `php artisan db:restore-snapshot FILE --database=rehearsal_testing --yes`, then
+   `php artisan migrate --database=rehearsal_testing`. Rehearsed here on `import_testing` (the legacy
+   import): stock 804 across 10 layers with no mismatch, 13 default registers, all 11 sessions placed.
+3. Then run `php artisan migrate` on UAT yourself.
+
+### End of stage 1b (15 October 2026)
+
+- **Checks on the whole branch:** SQLite 1,238 passed, 59 skipped; MySQL 8 1,248 passed, 49 skipped
+  (the flat API contract test runs within it); Pint passes on every changed file
+  (`pint --test --diff=origin/main`).
+- **Acceptance criteria:** all ticked with evidence in the stage file; hotspots for the stock source,
+  sale paths, costing, registers and the legacy default ticked in saas-plan.md section 2.
+- **PR checklist (`.ai/general/PR_CHECKLIST.md`):** no debug code, secrets or `env()` outside config in
+  the diff; the four migrations are anonymous with `up()` and `down()` and carry existing data across;
+  no new routes, forms or endpoints, so validation, CSRF and honeypot are untouched; the flat API keeps
+  its shape (contract test). Items that contradict CLAUDE.md's "two-standard reality" (UUID keys,
+  `HasUuids`) don't apply to this repo's existing modules.
+- **CI migration rehearsal fixed (`666da88`):** it was written for the stage 1a PR (pre-SaaS base: the
+  guard must refuse the dataset, then the import). With 1a merged the dataset is built on the baseline,
+  so `migrate` rightly applied only 1b's migrations and the job failed. It now runs in `additive` mode
+  against a base with the baseline: this branch's migrations on the dataset, failing if any table loses
+  rows. Run locally the same way (dataset built with `main` at scale 0.25): 5,412 rows before, 5,613
+  after (191 opening cost layers, 6 registers, 4 migration rows), none lost.
+- **CLAUDE.md and the `pos-domain-rules` skill** now describe the ledger, FIFO costing, registers and
+  per-register invoice numbers, replacing the "no StockMovement for sales / no FIFO" corrections.
+
+### Follow-ups
+
+- **E-commerce stock push on per-shop stock changes:** `ProductObserver` pushes on `Product::updated`;
+  sales and intake change `shop_variation` through the ledger and touch no product, so they push
+  nothing. This is the 1c hotspot "E-commerce stock push triggered by per-shop stock changes".
+- **Choosing a register:** the existing app can't name one, so every web and API sale lands on `R1`;
+  picking a register (and pairing devices) comes with `/api/v1` and sync (Phase 6).
+- **Sale transactions don't retry on a deadlock** (`DB::transaction` with one attempt, with sync jobs
+  dispatched inside): a deadlock fails the sale cleanly. The known invoice deadlock is fixed; the stock
+  ledger locks one `shop_variation` row per line, in line order, so two sales of the same items in
+  different orders can still deadlock.
+- **Scratch tables to remove:** `zz_probe_0`, `zz_probe_1`, `zz_probe_2` in
+  `pos_saas_rehearsal_testing` (empty, created by mistake during step 4; the safety hook blocks dropping
+  them from here).
+- **`.env` `DB_TEST_PORT=3307`** (the host port, kept at your request) means artisan inside lerd's
+  container can't reach MySQL through `.env`. The local MySQL suite runs with an untracked
+  `phpunit.mysql.local.xml` that forces 3306; the rehearsal in step 7 ran through a scratchpad bootstrap
+  that does the same.
+- **`mobile:contract-diff` not run** (no Flutter app on this machine); no routes changed, and the flat
+  API contract test passed at every step.

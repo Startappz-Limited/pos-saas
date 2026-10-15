@@ -35,13 +35,34 @@ const INTENDED_COLUMN_CHANGES = [
     'expense_approval_history.user_id' => 'nullable',
 ];
 
+/**
+ * Legacy tables no legacy code ever wrote, rebuilt for the SaaS design: the
+ * FIFO costing tables (stage 1b). They hold no data to carry.
+ */
+const REBUILT_LEGACY_TABLES = ['cost_layers', 'cost_allocations'];
+
+/**
+ * Legacy columns whose data moved elsewhere: stock moved into shop_variation
+ * (stage 1b, migration 2026_10_15_000002, which checks the totals; the legacy
+ * import places it there too). shop_product's held an online store's figure,
+ * never the POS stock.
+ */
+const MOVED_LEGACY_COLUMNS = ['products.stock_quantity', 'product_variations.stock_quantity', 'shop_product.stock_quantity'];
+
 it('keeps every legacy table and column, so the import can carry all data across', function () {
     $legacy = json_decode(file_get_contents(legacySchemaFixture()), true);
     $current = SchemaSnapshot::of();
     $lost = [];
 
     foreach ($legacy as $table => $definition) {
+        if (in_array($table, REBUILT_LEGACY_TABLES, true)) {
+            continue;
+        }
+
         foreach ($definition['columns'] as $column => $was) {
+            if (in_array("{$table}.{$column}", MOVED_LEGACY_COLUMNS, true)) {
+                continue;
+            }
             $now = $current[$table]['columns'][$column] ?? null;
 
             if ($now === null) {

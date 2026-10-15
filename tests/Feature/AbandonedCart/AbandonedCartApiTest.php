@@ -349,7 +349,7 @@ describe('converting to a sale', function () {
             ->and((float) $sale->taxable_amount)->toBe(1000.0)
             ->and((float) $sale->total_profit)->toBe(400.0)
             ->and($sale->tax_inclusive)->toBeTrue()
-            ->and($sale->invoice_number)->toBe("INV-NRB-{$year}-000001")
+            ->and($sale->invoice_number)->toBe("INV-NRB-R1-{$year}-000001")
             ->and($sale->source->name)->toBe('Abandoned Cart')
             ->and($sale->customer_id)->toBe($customer->id)
             ->and($sale->payment_status)->toBe('paid')
@@ -361,7 +361,7 @@ describe('converting to a sale', function () {
             ->and($cart->converted_by)->toBe($this->user->id);
 
         Queue::assertPushed(AbandonedCartWriteBackJob::class, fn ($job) => $job->status === 'recovered'
-            && $job->reference === "INV-NRB-{$year}-000001");
+            && $job->reference === "INV-NRB-R1-{$year}-000001");
     });
 
     it('uses the existing Abandoned Cart sale source rather than creating another', function () {

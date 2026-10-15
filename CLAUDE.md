@@ -96,8 +96,8 @@ silently mixing patterns (see the skill's `CONFLICT:` protocol).
   [pos-domain-rules](.claude/skills/pos-domain-rules/SKILL.md).
   ✅ Previously-dead controllers are now implemented: `AlertController` (8 routes),
   `LowStockAlertController` (was 3 of 8 methods), `PaymentController` (reads `sale_payments`),
-  `AuditLogController` + `AuditService`. `CostLayerController` and its 3 routes were **removed** —
-  `cost_layers`/`cost_allocations` are unused scaffolding.
+  `AuditLogController` + `AuditService`. `CostLayerController` and its 3 routes were **removed**;
+  since SaaS stage 1b `cost_layers`/`cost_allocations` hold the FIFO layers, written by `StockLedger`.
 - **Actions** — 88 single-purpose operations in [app/Actions/](app/Actions/) (flat, plus domain subfolders
   such as `Product/`, `Shop/`, `PurchaseOrder/`, `Campaign/`, `Social/`, `Baileys/`).
 - **FormRequests** — almost every store/update has a FormRequest in [app/Http/Requests/](app/Http/Requests/);
@@ -144,7 +144,10 @@ silently mixing patterns (see the skill's `CONFLICT:` protocol).
     place, and why, to `tests/Unit/TenantScopeBypassTest.php`. Raw `DB::table()` queries aren't scoped:
     filter by business and accessible shops by hand (stage 1c does the existing 34 files).
   - **Products** always have a hidden default variation; per-shop stock rows live in `shop_variation`
-    (`(shop_id, variation_id)`). A customer has **one** credit account, business-wide.
+    (`(shop_id, variation_id)`), the **only** stock source (stage 1b). `stock_quantity` on Product and
+    ProductVariation is a computed attribute (`HasShopStock`): the request's shop, else the viewer's
+    accessible shops; `withStockOnHand()` loads it in one query. Every stock change goes through
+    `App\Services\Stock\StockLedger` (see Money/stock below). A customer has **one** credit account, business-wide.
   - **Tests** run inside a "Test Business" (`tests/Pest.php`); use `tests/Support/TwoBusinesses.php` for
     isolation, `assignToNewShops($user)` for staff of the scenario's shops, `sharedRole('name')` for roles.
   - The legacy `auth()->user()->shop_id ?? Shop::first()?->id` fallbacks still exist; they are now limited to
@@ -324,15 +327,18 @@ per-policy super-admin bypasses. Treat `.claude/` as authoritative for Claude Co
   inclusive and exclusive pricing do not add up the same way. **Profit is net of VAT**:
   `total_profit = total_amount - tax_amount - total_cost`. Read
   [docs/vat.md](docs/vat.md) before touching tax, sale totals or invoice numbering.
-- **Invoice numbers** come from `InvoiceNumberService` (gapless per-shop sequence in
-  `invoice_sequences`), never `Str::random()`.
+- **Invoice numbers** come from `InvoiceNumberService` (a gapless series per **register** in
+  `invoice_sequences`, `INV-{shop}-{register}-{year}-{n}`, unique per business), never `Str::random()`.
+  Pass the register the sale's cash session runs on (`$session->register_id`); none means the shop's
+  default register `R1`.
 - **Money/stock**: amounts are `decimal(10,2)`; stock quantities are integers.
-  ⚠️ **Correction to a long-standing claim in this file:** stock changes do **not** all flow through
-  `InventoryService`/`StockMovement`. The sale path calls `$product->decrement('stock_quantity', …)`
-  directly and writes **no** `StockMovement` row; customer returns don't restock at all. Only intake,
-  adjustments, and purchase returns use `RecordStockMovement`. COGS is the product's **current
-  `cost_price` snapshotted onto `sale_items.unit_cost`** — there is no FIFO, and `cost_layers`,
-  `cost_allocations`, `CostingService` and the `CostingMethod` enum are unused scaffolding.
+  **Since SaaS stage 1b every stock change goes through `StockLedger`** (`receive`, `consume`,
+  `sellItem`, `setLevel`): it locks the `shop_variation` row, changes it by a delta, writes a
+  `StockMovement`, and creates or consumes FIFO cost layers per shop and variation. All four sale paths
+  call `sellItem()` then `recostSale()`; restockable customer returns go back in at the sold cost.
+  **Never write stock any other way.** COGS is the FIFO cost of the layers a line consumed; a sale below
+  zero is costed provisionally (`fallbackCost()`) and re-costed when stock arrives. `CostingService`,
+  the `CostingMethod` enum and `sale_item_stock_allocations` remain unused.
   **Read [pos-domain-rules](.claude/skills/pos-domain-rules/SKILL.md) before touching stock, cost,
   returns, credit, registers, or per-shop attribution.**
 - **AI calls** go through `AiManager` (respect per-shop provider); **e-commerce/WhatsApp** go through their
@@ -423,8 +429,9 @@ Reported from evidence in the repo — not invented:
   ⚠️ The engine stays **off** until a shop is flagged `vat_registered`, and switching a shop to
   **exclusive** pricing needs a paired Flutter change — the app computes the displayed total locally.
 - ✅ **FIXED — invoice numbers were random.** `'INV-'.Str::random(8)` on a `unique` column: not a
-  serial number, and a collision would fail a sale at the till. Now a gapless per-shop sequence
-  (`invoice_sequences` + `InvoiceNumberService`), e.g. `INV-NRB-2026-000123`.
+  serial number, and a collision would fail a sale at the till. Now a gapless sequence
+  (`invoice_sequences` + `InvoiceNumberService`), per register since stage 1b:
+  `INV-NRB-R1-2026-000123`. Tested concurrently on MySQL (`InvoiceNumberConcurrencyTest`).
 - ✅ **FIXED — `UpdateShopAction` replaced `settings` wholesale**, so saving one settings panel would
   drop every other section (sale-notification switches, integrations). It now merges into the stored
   blob before `processIntegrations` prunes disabled integrations.
@@ -433,12 +440,10 @@ Reported from evidence in the repo — not invented:
   queryable via `Customer::wherePhone()`. Backfill historic rows with
   `php artisan customers:normalize-phones --apply`. Use `App\Support\PhoneNumber` for any new
   number handling.
-- 🔴 **Customer returns never restock inventory**, and sales write no `StockMovement` row — so
-  `stock_movements` is not a complete ledger and cannot be used to reconcile stock. See
-  [pos-domain-rules](.claude/skills/pos-domain-rules/SKILL.md).
-- **`RecordStockMovement` has a lost-update race**: it reads `getCurrentQuantity()` then writes an absolute
-  value, so concurrent intakes/adjustments on one product can clobber each other. (The sale path's
-  `decrement()` is atomic and safe.) Needs `lockForUpdate()` or an atomic delta.
+- ✅ **FIXED (SaaS stage 1b) — stock had no single ledger.** Sales wrote no `StockMovement`, customer
+  returns never restocked, and `RecordStockMovement` had a lost-update race. All stock now moves
+  through `StockLedger` (row lock + delta), with a movement per change; sales before stage 1b still
+  have no movement rows.
 - **Security baseline items still pending** (per `.ai/general/SECURITY_ENFORCEMENT.md`): no security-headers
   middleware, `Password::defaults()` not applied, HTTPS not forced in production, honeypot missing from most
   forms.

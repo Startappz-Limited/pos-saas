@@ -229,17 +229,19 @@ answered before Phase 1** (Open question 1):
       sale source name).
       **Done (stage 1a):** unique per business in the schema and `UniqueForTenant`.
 - [x] Invoice numbers unique **per business** (`(business_id, invoice_number)`), not system-wide.
-      **Done (stage 1a)** in the schema; numbering moves to per-register series in 1b.
-- [ ] **One stock source, per shop and per sellable item, variants included** (4.2);
+      **Done (stage 1a)** in the schema; **per-register series done (stage 1b).**
+- [x] **One stock source, per shop and per sellable item, variants included** (4.2);
       `products.stock_quantity` and `product_variations.stock_quantity` stop being stock figures.
       **Schema done (stage 1a):** `shop_variation` keyed on `(shop_id, variation_id)`, a default variation per product. The legacy columns stay until 1b moves the code (decided 14 October 2026).
-- [ ] All four sale paths and every stock writer and reader moved to that source; a `StockMovement` per
-      sale.
-- [ ] The unused FIFO costing tables dropped or adopted (Open question 5); profit uses the per-shop cost.
+      **Done (stage 1b):** the code moved and the legacy columns dropped; stock is a computed attribute.
+- [x] All four sale paths and every stock writer and reader moved to that source; a `StockMovement` per
+      sale. **Done (stage 1b):** through `StockLedger`.
+- [x] The unused FIFO costing tables dropped or adopted (Open question 5); profit uses the per-shop cost.
+      **Done (stage 1b):** adopted, FIFO per shop and variation (`docs/saas/fifo-analysis.md`).
 - [x] Per-tenant unique keys that allow a soft-deleted code to be reused (19 soft-deleting models).
       **Done (stage 1a):** a generated `alive` column in each key.
-- [ ] Registers (devices) separate from cash sessions.
-      **Schema done (stage 1a):** `registers`, `cash_registers.register_id`; model and code in 1b.
+- [x] Registers (devices) separate from cash sessions.
+      **Schema done (stage 1a):** `registers`, `cash_registers.register_id`; **model and code done (stage 1b).**
 - [ ] Sync support: `client_uuid`, `updated_at` indexes and a deletions log for every synced table;
       last-sync time per register.
       **Partly done (stage 1a):** `client_uuid` keys and `sync_deletions`; `updated_at` indexes and the writes come with sync (Phase 6).
@@ -297,7 +299,9 @@ answered before Phase 1** (Open question 1):
       two-business fixture comes with Phase 2.
       **Two-business fixture done (stage 1a):** `tests/Support/TwoBusinesses.php`.
 - [ ] A CI job on the target database (MySQL or MariaDB) for raw SQL, locks and the isolation suite.
-- [ ] Legacy flat-API clients with no register or shop context get a defined default (4.8).
+- [x] Legacy flat-API clients with no register or shop context get a defined default (4.8).
+      **Done (stage 1b):** the shop's default register `R1`; stock from the request's shop, else the
+      viewer's accessible shops.
 
 ## 3. Final Feature Gap Analysis
 
@@ -728,6 +732,20 @@ answered.
     series without collisions, tested concurrently on the target database.
   - A legacy cash-register and sale call lands on the shop's default register.
   - The flat API contract tests pass; the full suite is green on both databases.
+
+**FIFO costing design (agreed 15 October 2026; analysis in [fifo-analysis.md](fifo-analysis.md)):**
+- `cost_layers` and `cost_allocations` are adopted, per shop and per variation, with `business_id`, the
+  layer's source and the allocation's consumer (sale item, adjustment item, purchase-return item).
+  `sale_item_stock_allocations` stays, unused.
+- One shared stock service changes stock: it locks the `shop_variation` row, changes it by a delta, writes
+  the `StockMovement`, and creates or consumes layers, oldest first.
+- Layers come from completed intakes (at the purchase-order line's cost, else the variation's), upward
+  adjustments, restockable sale returns (at the cost the item was sold at) and opening stock. Sales,
+  downward adjustments and purchase returns consume them.
+- Sales below zero are accepted; the shortfall is costed provisionally and re-costed when stock arrives,
+  updating those sales' cost and profit.
+- `sale_items.unit_cost` comes from the allocations; profit and `RecomputeSaleProfit` use it.
+- The legacy stock columns are dropped in 1b, after the data move.
 
 #### Phase 1c: Raw SQL, background work, files
 

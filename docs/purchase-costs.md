@@ -85,9 +85,15 @@ php artisan tinker --execute="file_put_contents('costs-backup.json', DB::table('
 ### `php artisan sales:recompute-profit`
 
 Re-derives `unit_cost`, `total_cost`, `profit` and `profit_margin` on existing `sale_items`, then
-`total_cost` and `total_profit` on their `sales`, using each product's **current** purchase cost. This
-is what corrects historic reports after you enter the real costs — the sale-time snapshot does not
-update itself.
+`total_cost` and `total_profit` on their `sales`. This is what corrects historic reports after you
+enter the real costs.
+
+- **Sales made since stage 1b (FIFO costing):** a line costs what its FIFO layers cost
+  (`cost_allocations`). A layer whose cost was unknown takes the purchase cost entered since, and so
+  does the rest of that layer, so later sales from that stock are costed too. A known layer cost is
+  never replaced by today's price.
+- **Older sales (and imported ones)** have no allocations and use each product's **current** purchase
+  cost, as before.
 
 ```bash
 php artisan sales:recompute-profit           # dry run: show the before/after totals

@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\ProductStatus;
 use App\Enums\TaxClass;
 use App\Models\Concerns\BelongsToBusiness;
+use App\Models\Concerns\HasShopStock;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -14,6 +15,8 @@ use Illuminate\Support\Str;
 
 class ProductVariation extends Model
 {
+    use HasShopStock;
+
     public const HIDE_DEFAULT = 'hide-default-variation';
 
     use BelongsToBusiness;
@@ -47,7 +50,6 @@ class ProductVariation extends Model
             'selling_price' => 'decimal:2',
             'wholesale_price' => 'decimal:2',
             'tax_class' => TaxClass::class,
-            'stock_quantity' => 'integer',
         ];
     }
 
@@ -95,7 +97,7 @@ class ProductVariation extends Model
 
     public function scopeInStock($query)
     {
-        return $query->where('stock_quantity', '>', 0);
+        return $query->whereStock('>', 0);
     }
 
     // Helper methods
@@ -142,5 +144,23 @@ class ProductVariation extends Model
     protected function inferBusinessId(): ?int
     {
         return empty($this->product_id) ? null : Product::withoutGlobalScopes()->whereKey($this->product_id)->value('business_id');
+    }
+
+    protected function stockKey(): string
+    {
+        return 'variation_id';
+    }
+
+    /**
+     * A figure set on a variation is held in its product's own shop.
+     */
+    protected function stockShopId(): ?int
+    {
+        return Product::withoutGlobalScopes()->find($this->product_id)?->stockShopId();
+    }
+
+    protected function stockVariation(): ?ProductVariation
+    {
+        return $this;
     }
 }

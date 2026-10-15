@@ -7,6 +7,7 @@ use App\Models\Product;
 use App\Models\ProductEcommerceSync;
 use App\Models\Shop;
 use App\Observers\ProductObserver;
+use App\Services\Stock\StockLedger;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Crypt;
@@ -229,7 +230,6 @@ class WooCommerceProductSyncService
                     'category_id' => $this->resolveCategoryFromWooCommerce($wcProduct['categories'] ?? []),
                     'cost_price' => $this->resolvePurchaseCost($wcProduct),
                     'selling_price' => floatval($wcProduct['price'] ?? 0) ?: 0,
-                    'stock_quantity' => intval($wcProduct['stock_quantity'] ?? 0),
                     'track_stock' => $wcProduct['manage_stock'] ?? false,
                     'status' => $wcProduct['status'] === 'publish' ? 'active' : 'inactive',
                 ];
@@ -256,7 +256,6 @@ class WooCommerceProductSyncService
                     'name' => $wcProduct['name'],
                     'description' => strip_tags($wcProduct['description'] ?? ''),
                     'selling_price' => floatval($wcProduct['price'] ?? 0) ?: 0,
-                    'stock_quantity' => intval($wcProduct['stock_quantity'] ?? 0),
                     'track_stock' => $wcProduct['manage_stock'] ?? false,
                     'status' => $wcProduct['status'] === 'publish' ? 'active' : 'inactive',
                 ];
@@ -289,12 +288,20 @@ class WooCommerceProductSyncService
             // Attach product to shop via pivot table
             $product->shops()->syncWithoutDetaching([
                 $shop->id => [
-                    'stock_quantity' => intval($wcProduct['stock_quantity'] ?? 0),
                     'selling_price' => floatval($wcProduct['price'] ?? 0) ?: null,
                     'is_active' => ($wcProduct['status'] ?? '') === 'publish',
                 ],
             ]);
             $product->syncShopVariationRows();
+
+            // The store's figure is this shop's stock (stage 1b: stock per
+            // shop), when the platform manages inventory; otherwise it reports
+            // nothing meaningful and the shop's own stock stands.
+            if ((bool) ($wcProduct['manage_stock'] ?? false)) {
+                app(StockLedger::class)->setLevel($shop->id, $product->defaultVariation()->firstOrFail(), intval($wcProduct['stock_quantity'] ?? 0), [
+                    'notes' => 'Stock from the online store.',
+                ]);
+            }
 
             // Create or update sync record
             $sync = ProductEcommerceSync::updateOrCreate(
@@ -359,7 +366,7 @@ class WooCommerceProductSyncService
                 'regular_price' => (string) $product->selling_price,
                 'description' => $product->description ?? '',
                 'manage_stock' => $product->track_stock,
-                'stock_quantity' => $product->stock_quantity,
+                'stock_quantity' => app(StockLedger::class)->quantity($shop->id, $product->defaultVariation()->firstOrFail()->id),
                 'status' => $product->isActive() ? 'publish' : 'draft',
             ];
 
@@ -452,7 +459,7 @@ class WooCommerceProductSyncService
 
             $response = Http::withBasicAuth($consumerKey, $consumerSecret)
                 ->put("{$storeUrl}/wp-json/wc/v3/products/{$sync->platform_product_id}", [
-                    'stock_quantity' => $product->stock_quantity,
+                    'stock_quantity' => app(StockLedger::class)->quantity($shop->id, $product->defaultVariation()->firstOrFail()->id),
                     'manage_stock' => $product->track_stock,
                 ]);
 

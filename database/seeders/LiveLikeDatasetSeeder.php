@@ -38,6 +38,7 @@ use App\Models\Supplier;
 use App\Models\User;
 use App\Services\Integration\ShopifyOrderSyncService;
 use App\Services\Integration\WooCommerceOrderSyncService;
+use App\Services\Stock\StockLedger;
 use App\Services\StockAdjustmentService;
 use App\Support\Dataset\Determinism;
 use App\Support\Tenancy\TenantContext;
@@ -283,11 +284,18 @@ class LiveLikeDatasetSeeder extends Seeder
             }
 
             if ($i % 5 !== 0) {
-                $product->shops()->attach($shop->id, ['stock_quantity' => fake()->numberBetween(50, 400), 'reorder_level' => 10]);
+                // The listing's stock was an online store's figure; per-shop
+                // stock lives in shop_variation (stage 1b). Drawn anyway, so
+                // the rest of the dataset keeps its random sequence.
+                fake()->numberBetween(50, 400);
+                $product->shops()->attach($shop->id, ['reorder_level' => 10]);
             }
             if ($i % 7 === 0) {
+                // A second shop also holds some of it.
                 $other = $this->shops[($i + 2) % $this->shops->count()];
-                $product->shops()->syncWithoutDetaching([$other->id => ['stock_quantity' => fake()->numberBetween(20, 200), 'reorder_level' => 10]]);
+                $product->shops()->syncWithoutDetaching([$other->id => ['reorder_level' => 10]]);
+                $product->syncShopVariationRows();
+                app(StockLedger::class)->setLevel($other->id, $product->defaultVariation()->firstOrFail(), fake()->numberBetween(20, 200));
             }
 
             $this->catalogue[$shop->id] = ($this->catalogue[$shop->id] ?? collect())->push($product);

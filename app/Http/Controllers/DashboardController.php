@@ -177,9 +177,12 @@ class DashboardController extends Controller
         // Low Stock Products — scoped to the product's owning shop.
         $lowStockProductsQuery = Product::query()
             ->where('products.status', 'active')
-            ->select('products.id', 'products.name', 'products.sku', 'products.stock_quantity')
-            ->whereRaw('products.stock_quantity <= products.reorder_level')
-            ->orderBy('products.stock_quantity', 'asc')
+            ->select('products.id', 'products.name', 'products.sku')
+            // Per-shop stock (stage 1b): the dashboard's shop, else the
+            // shops the viewer may access.
+            ->withStockOnHand()
+            ->whereStock('<=', 'reorder_level')
+            ->orderBy('stock_on_hand', 'asc')
             ->take(5);
 
         $this->applyShopFilter($lowStockProductsQuery, $user, $selectedShopId, 'products.shop_id');

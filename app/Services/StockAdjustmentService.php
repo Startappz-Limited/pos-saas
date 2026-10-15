@@ -3,15 +3,20 @@
 namespace App\Services;
 
 use App\Enums\AdjustmentType;
+use App\Enums\StockMovementType;
+use App\Models\CostLayer;
 use App\Models\Product;
 use App\Models\StockAdjustment;
 use App\Models\StockAdjustmentItem;
+use App\Services\Stock\StockLedger;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 
 class StockAdjustmentService
 {
+    public function __construct(private StockLedger $ledger) {}
+
     public function getAllAdjustments(
         int $perPage = 15,
         ?string $search = null,
@@ -105,8 +110,8 @@ class StockAdjustmentService
     {
         $product = Product::findOrFail($itemData['product_id']);
 
-        // Get current stock quantity
-        $currentStock = $product->stock_quantity ?? 0;
+        // The adjustment's shop's stock of the product (stage 1b: per-shop stock).
+        $currentStock = $this->ledger->quantity((int) $adjustment->shop_id, $product->defaultVariation()->firstOrFail()->id);
         $quantityChange = (int) $itemData['quantity_change'];
 
         // Calculate quantity after based on adjustment type
@@ -163,21 +168,30 @@ class StockAdjustmentService
         }
 
         return DB::transaction(function () use ($adjustment) {
-            // Apply stock changes to products
+            // Apply the changes to the adjustment's shop through the shared
+            // stock service: increases become a FIFO layer at the fallback
+            // cost, decreases consume layers oldest first (stage 1b).
             foreach ($adjustment->items as $item) {
                 $product = $item->product;
-                $currentStock = $product->stock_quantity ?? 0;
+                $variation = $product->defaultVariation()->firstOrFail();
+                $shopId = (int) $adjustment->shop_id;
+                $quantity = (int) $item->quantity_change;
+                $context = ['reference' => $adjustment, 'notes' => "Stock adjustment {$adjustment->adjustment_number}.", 'user_id' => $adjustment->approved_by];
 
-                $newStock = $adjustment->type === AdjustmentType::INCREASE
-                    ? $currentStock + $item->quantity_change
-                    : $currentStock - $item->quantity_change;
+                if ($adjustment->type === AdjustmentType::INCREASE) {
+                    $this->ledger->receive($shopId, $variation, $quantity, $this->ledger->fallbackCost($shopId, $variation), StockMovementType::ADJUSTMENT_ADD, [
+                        ...$context, 'source_type' => CostLayer::SOURCE_ADJUSTMENT, 'source_id' => $adjustment->id,
+                    ]);
+
+                    continue;
+                }
 
                 // Ensure stock doesn't go negative
-                if ($newStock < 0) {
+                if ($this->ledger->quantity($shopId, $variation->id) - $quantity < 0) {
                     throw new \Exception("Cannot complete adjustment: would result in negative stock for {$product->name}.");
                 }
 
-                $product->update(['stock_quantity' => $newStock]);
+                $this->ledger->consume($shopId, $variation, $quantity, StockMovementType::ADJUSTMENT_REMOVE, $item, $context);
             }
 
             $adjustment->update(['status' => 'completed']);

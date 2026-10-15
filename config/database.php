@@ -139,6 +139,28 @@ return [
         ],
 
         /*
+         * Scratch database for tests that need several processes to see the
+         * same committed rows (InvoiceNumberConcurrencyTest): the suite's own
+         * database runs each test in a transaction no other process can see.
+         * The test migrates it itself; it only ever holds test rows.
+         */
+        'concurrency_testing' => [
+            'driver' => 'mysql',
+            'host' => env('DB_TEST_HOST', '127.0.0.1'),
+            'port' => env('DB_TEST_PORT', '3306'),
+            'database' => env('DB_CONCURRENCY_DATABASE', 'pos_saas_concurrency_testing'),
+            'username' => env('DB_TEST_USERNAME', 'root'),
+            'password' => env('DB_TEST_PASSWORD', ''),
+            'unix_socket' => '',
+            'charset' => 'utf8mb4',
+            'collation' => 'utf8mb4_unicode_ci',
+            'prefix' => '',
+            'prefix_indexes' => true,
+            'strict' => true,
+            'engine' => null,
+        ],
+
+        /*
          * Scratch database for building the live-like dataset (dataset:build
          * only builds into an empty _testing database).
          */

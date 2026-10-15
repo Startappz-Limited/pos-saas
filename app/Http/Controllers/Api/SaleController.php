@@ -18,6 +18,7 @@ use App\Models\SaleItem;
 use App\Models\SalePayment;
 use App\Models\Shop;
 use App\Services\InvoiceNumberService;
+use App\Services\Stock\StockLedger;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -158,7 +159,7 @@ class SaleController extends Controller
                 'customer_tax_pin' => $validated['customer_tax_pin']
                     ?? ($validated['customer_id'] ?? null ? Customer::find($validated['customer_id'])?->tax_pin : null),
                 'delivery_company_id' => $validated['delivery_company_id'] ?? null,
-                'invoice_number' => app(InvoiceNumberService::class)->next($shop ?? $shopId),
+                'invoice_number' => app(InvoiceNumberService::class)->next($shop ?? $shopId, $activeRegister->register_id),
                 'sale_type' => 'regular',
                 'subtotal' => $totals->subtotal,
                 'discount_amount' => $totals->discountAmount,
@@ -190,7 +191,7 @@ class SaleController extends Controller
                 $variation = isset($item['variation_id']) ? $variationsById[$item['variation_id']] ?? null : null;
                 $line = $totals->line($index);
 
-                SaleItem::create([
+                $saleItem = SaleItem::create([
                     'uuid' => (string) Str::uuid(),
                     'sale_id' => $sale->id,
                     'product_id' => $item['product_id'],
@@ -210,13 +211,12 @@ class SaleController extends Controller
                     'status' => 'completed',
                 ]);
 
-                // Update stock
-                if ($variation) {
-                    $variation->decrement('stock_quantity', $item['quantity']);
-                } else {
-                    $product->decrement('stock_quantity', $item['quantity']);
-                }
+                // Take the stock from the line's shop, costed oldest layers first.
+                app(StockLedger::class)->sellItem($saleItem, $variation ?? $product->defaultVariation()->firstOrFail());
             }
+            // FIFO cost and profit onto the sale held in memory (a reload would
+            // turn the response's money fields into strings on MySQL).
+            $sale->forceFill(app(StockLedger::class)->recostSale($sale->id))->syncOriginal();
 
             // Post the debt to the customer's credit account, exactly as the web
             // POS does. Inside the sale's transaction so the two can never disagree.

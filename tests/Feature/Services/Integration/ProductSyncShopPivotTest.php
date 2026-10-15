@@ -5,6 +5,7 @@ use App\Models\Shop;
 use App\Services\Integration\ImageDownloadService;
 use App\Services\Integration\ShopifyProductSyncService;
 use App\Services\Integration\WooCommerceProductSyncService;
+use App\Services\Stock\StockLedger;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Http;
 
@@ -65,7 +66,7 @@ test('woocommerce sync attaches product to shop in pivot table', function () {
     // Verify the product is attached to the shop via pivot table
     $pivotRecord = $product->shops()->where('shops.id', $this->shop->id)->first();
     expect($pivotRecord)->not->toBeNull()
-        ->and($pivotRecord->pivot->stock_quantity)->toBe(15)
+        ->and(app(StockLedger::class)->quantity($this->shop->id, $product->defaultVariation->id))->toBe(15)
         ->and((float) $pivotRecord->pivot->selling_price)->toBe(20.00)
         ->and((bool) $pivotRecord->pivot->is_active)->toBeTrue();
 
@@ -115,7 +116,7 @@ test('shopify sync attaches product to shop in pivot table', function () {
     // Verify the product is attached to the shop via pivot table
     $pivotRecord = $product->shops()->where('shops.id', $this->shop->id)->first();
     expect($pivotRecord)->not->toBeNull()
-        ->and($pivotRecord->pivot->stock_quantity)->toBe(25)
+        ->and(app(StockLedger::class)->quantity($this->shop->id, $product->defaultVariation->id))->toBe(25)
         ->and((float) $pivotRecord->pivot->selling_price)->toBe(30.00)
         ->and((bool) $pivotRecord->pivot->is_active)->toBeTrue();
 
@@ -129,11 +130,12 @@ test('shopify sync attaches product to shop in pivot table', function () {
 test('woocommerce sync updates pivot data on re-sync', function () {
     $product = Product::factory()->create(['sku' => 'WC-RESYNC-001']);
     $product->shops()->attach($this->shop->id, [
-        'stock_quantity' => 5,
         'selling_price' => 10.00,
         'cost_price' => 8.00,
         'is_active' => true,
     ]);
+    // The shop holds 5 before the re-sync (stock lives per shop, stage 1b).
+    app(StockLedger::class)->setLevel($this->shop->id, $product->defaultVariation, 5);
 
     Http::fake([
         '*/wp-json/wc/v3/products*' => Http::response([
@@ -160,7 +162,7 @@ test('woocommerce sync updates pivot data on re-sync', function () {
 
     $pivotRecord = $product->shops()->where('shops.id', $this->shop->id)->first();
     expect($pivotRecord)->not->toBeNull()
-        ->and($pivotRecord->pivot->stock_quantity)->toBe(99)
+        ->and(app(StockLedger::class)->quantity($this->shop->id, $product->defaultVariation->id))->toBe(99)
         ->and((float) $pivotRecord->pivot->selling_price)->toBe(40.00);
 
     // A re-sync refreshes stock and price but must leave the shop's own

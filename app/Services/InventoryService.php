@@ -5,7 +5,8 @@ namespace App\Services;
 use App\Actions\CreateInventorySnapshot;
 use App\Models\InventorySnapshot;
 use App\Models\Product;
-use App\Models\ProductVariation;
+use App\Models\ShopVariation;
+use App\Models\StockMovement;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 
@@ -88,51 +89,44 @@ class InventoryService
     }
 
     /**
-     * Get current inventory levels.
+     * The shop's current stock of every tracked item (stage 1b: per-shop
+     * stock). A row's own reorder level and prices (shop_variation) win over
+     * the variation's and the product's.
      */
     public function getCurrentInventory(int $shopId): Collection
     {
-        $products = Product::where('track_stock', true)->get();
-        $inventory = collect();
+        $products = Product::where('track_stock', true)->get()->keyBy('id');
 
-        foreach ($products as $product) {
-            if ($product->has_variations) {
-                $variations = ProductVariation::where('product_id', $product->id)->get();
-                foreach ($variations as $variation) {
-                    $inventory->push([
-                        'product_id' => $product->id,
-                        'product_name' => $product->name,
-                        'variation_id' => $variation->id,
-                        'variation_name' => $variation->name,
-                        'sku' => $variation->sku,
-                        'quantity' => $variation->stock_quantity,
-                        'reorder_level' => $variation->reorder_level,
-                        'is_low_stock' => $variation->stock_quantity <= $variation->reorder_level,
-                        'cost_price' => $variation->cost_price,
-                        'selling_price' => $variation->selling_price,
-                        'total_cost_value' => $variation->stock_quantity * $variation->cost_price,
-                        'total_retail_value' => $variation->stock_quantity * $variation->selling_price,
-                    ]);
-                }
-            } else {
-                $inventory->push([
+        return ShopVariation::query()
+            ->where('shop_id', $shopId)
+            ->whereIn('product_id', $products->keys())
+            ->with('variation')
+            ->get()
+            ->filter(fn (ShopVariation $row): bool => $row->variation !== null && $row->variation->is_default === ! $products[$row->product_id]->has_variations)
+            ->map(function (ShopVariation $row) use ($products): array {
+                $product = $products[$row->product_id];
+                $variation = $row->variation;
+                $simple = $variation->is_default;
+                $reorder = $row->reorder_level ?? $product->reorder_level;
+                $cost = $row->cost_price ?? ($simple ? $product->cost_price : $variation->cost_price);
+                $price = $row->selling_price ?? ($simple ? $product->selling_price : $variation->selling_price);
+
+                return [
                     'product_id' => $product->id,
                     'product_name' => $product->name,
-                    'variation_id' => null,
-                    'variation_name' => null,
-                    'sku' => $product->sku,
-                    'quantity' => $product->stock_quantity,
-                    'reorder_level' => $product->reorder_level,
-                    'is_low_stock' => $product->stock_quantity <= $product->reorder_level,
-                    'cost_price' => $product->cost_price,
-                    'selling_price' => $product->selling_price,
-                    'total_cost_value' => $product->stock_quantity * $product->cost_price,
-                    'total_retail_value' => $product->stock_quantity * $product->selling_price,
-                ]);
-            }
-        }
-
-        return $inventory;
+                    'variation_id' => $simple ? null : $variation->id,
+                    'variation_name' => $simple ? null : $variation->name,
+                    'sku' => $simple ? $product->sku : $variation->sku,
+                    'quantity' => $row->stock_quantity,
+                    'reorder_level' => $reorder,
+                    'is_low_stock' => $row->stock_quantity <= $reorder,
+                    'cost_price' => $cost,
+                    'selling_price' => $price,
+                    'total_cost_value' => $row->stock_quantity * (float) $cost,
+                    'total_retail_value' => $row->stock_quantity * (float) $price,
+                ];
+            })
+            ->values();
     }
 
     /**
@@ -140,7 +134,7 @@ class InventoryService
      */
     public function getProductMovementHistory(int $productId, ?int $variationId = null, int $perPage = 15): LengthAwarePaginator
     {
-        $query = \App\Models\StockMovement::with(['shop', 'product', 'variation', 'creator'])
+        $query = StockMovement::with(['shop', 'product', 'variation', 'creator'])
             ->forProduct($productId);
 
         if ($variationId) {
