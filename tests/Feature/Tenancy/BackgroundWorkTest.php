@@ -7,6 +7,7 @@ use App\Models\Business;
 use App\Models\CampaignPost;
 use App\Models\Customer;
 use App\Models\Shop;
+use App\Support\Tenancy\MissingTenantContext;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Bus\Queueable;
 use Illuminate\Console\Scheduling\Schedule;
@@ -120,4 +121,11 @@ it('never takes another business\'s WhatsApp media for an orphan', function () {
 
     expect(Storage::disk('public')->exists("baileys/{$session->uuid}/in/kept.jpg"))->toBeTrue()
         ->and(Storage::disk('public')->allFiles('baileys'))->toBe(["baileys/{$session->uuid}/in/kept.jpg"]);
+});
+
+it('keys cached values by business, and refuses a key with no business', function () {
+    $key = fn ($business) => app(TenantContext::class)->run($business, fn () => app(TenantContext::class)->cacheKey('sms_settings'));
+
+    expect($key($this->fixture->a->business))->not->toBe($key($this->fixture->b->business))
+        ->and(fn () => app(TenantContext::class)->cacheKey('sms_settings'))->toThrow(MissingTenantContext::class);
 });

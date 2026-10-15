@@ -6,6 +6,7 @@ use App\Enums\BaileysChatType;
 use App\Enums\BaileysMessageType;
 use App\Models\BaileysMessage;
 use App\Models\BaileysSession;
+use App\Support\Tenancy\TenantContext;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -172,6 +173,6 @@ class BaileysMediaService
 
     protected function usageCacheKey(int $shopId): string
     {
-        return "baileys:media-usage:{$shopId}";
+        return app(TenantContext::class)->cacheKey("baileys:media-usage:{$shopId}");
     }
 }

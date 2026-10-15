@@ -82,7 +82,8 @@ No open question blocks this stage.
       *Step 3: the 8 commands on tenant data, through `RunsForBusiness`; the others are platform tools.*
 
 ### Cache
-- [ ] Every cache key includes the business.
+- [x] Every cache key includes the business.
+      *Step 4: `TenantContext::cacheKey()`; `CacheKeyScopeTest` requires it wherever the cache is used.*
 
 ### E-commerce stock push
 - [ ] Triggered by per-shop stock changes, since `ProductObserver` only watches `Product::updated`.

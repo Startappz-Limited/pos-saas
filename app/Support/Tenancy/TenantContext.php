@@ -155,6 +155,20 @@ class TenantContext
     }
 
     /**
+     * A cache key for the current business (stage 1c): every cached value
+     * belongs to one business, so the key names it. Refused with no business
+     * set, like the scopes.
+     */
+    public function cacheKey(string $key): string
+    {
+        if (! $this->has()) {
+            throw MissingTenantContext::forModel("cache key {$key}");
+        }
+
+        return "business:{$this->id()}:{$key}";
+    }
+
+    /**
      * Runs $callback once for each business that takes background work, acting
      * for it (stage 1c): scheduler sweeps. A failure in one business is
      * reported and the others still run.
