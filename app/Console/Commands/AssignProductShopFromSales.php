@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Console\Concerns\RunsForBusiness;
 use App\Models\Product;
 use App\Models\Shop;
 use App\Support\Tenancy\TenantContext;
@@ -10,6 +11,8 @@ use Illuminate\Support\Facades\DB;
 
 class AssignProductShopFromSales extends Command
 {
+    use RunsForBusiness;
+
     protected $signature = 'products:assign-shop-from-sales
         {--dry-run : Preview the changes without writing anything}
         {--reattribute-items : After assigning, re-stamp sale_items.shop_id from each product\'s resolved shop}
@@ -18,7 +21,7 @@ class AssignProductShopFromSales extends Command
 
     protected $description = 'Set each product\'s owning shop based on which shop its past sales were made under (the mode of sales.shop_id across the product\'s sale lines).';
 
-    public function handle(): int
+    public function handleForBusiness(): int
     {
         $dryRun = (bool) $this->option('dry-run');
 

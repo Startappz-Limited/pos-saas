@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Actions\RecordCreditSale;
 use App\Actions\SettleCreditSalePayment;
+use App\Console\Concerns\RunsForBusiness;
 use App\Models\Sale;
 use Illuminate\Console\Command;
 use Illuminate\Database\Eloquent\Collection;
@@ -20,13 +21,15 @@ use Illuminate\Support\Facades\DB;
  */
 class BackfillCreditLedger extends Command
 {
+    use RunsForBusiness;
+
     protected $signature = 'credit:backfill
         {--shop= : Restrict to one shop id}
         {--dry-run : Report what would be posted without writing}';
 
     protected $description = 'Post historic credit sales and their payments to the credit ledger';
 
-    public function handle(RecordCreditSale $recordCreditSale, SettleCreditSalePayment $settlePayment): int
+    public function handleForBusiness(RecordCreditSale $recordCreditSale, SettleCreditSalePayment $settlePayment): int
     {
         $dryRun = (bool) $this->option('dry-run');
         $shopId = $this->option('shop') ? (int) $this->option('shop') : null;

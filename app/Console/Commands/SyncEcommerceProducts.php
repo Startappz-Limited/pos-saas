@@ -4,11 +4,14 @@ namespace App\Console\Commands;
 
 use App\Actions\Product\SyncProductFromEcommerce;
 use App\Actions\Product\SyncProductToEcommerce;
+use App\Console\Concerns\RunsForBusiness;
 use App\Models\Shop;
 use Illuminate\Console\Command;
 
 class SyncEcommerceProducts extends Command
 {
+    use RunsForBusiness;
+
     /**
      * The name and signature of the console command.
      *
@@ -30,7 +33,7 @@ class SyncEcommerceProducts extends Command
     /**
      * Execute the console command.
      */
-    public function handle(
+    public function handleForBusiness(
         SyncProductFromEcommerce $syncFrom,
         SyncProductToEcommerce $syncTo
     ): int {

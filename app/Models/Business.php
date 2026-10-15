@@ -66,6 +66,16 @@ class Business extends Model
         return $this->status === self::STATUS_ACTIVE;
     }
 
+    /**
+     * Whether scheduled sweeps run for this business (stage 1c): only an
+     * active one. Suspended and closing businesses are skipped; read-only
+     * (lapsed) businesses join them when billing arrives (Phase 4).
+     */
+    public function runsBackgroundWork(): bool
+    {
+        return $this->isActive();
+    }
+
     public function shops(): HasMany
     {
         return $this->hasMany(Shop::class);

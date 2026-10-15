@@ -74,9 +74,12 @@ No open question blocks this stage.
       *Step 2: audit migration `2026_10_16_000001`, captured on write, reads and route binding limited to the business; `audit:backfill-business` for older rows.*
 
 ### Background work
-- [ ] The 10 jobs carry the business.
-- [ ] The scheduler runs per business and skips suspended or read-only businesses.
-- [ ] The 9 commands take `--business`.
+- [x] The 10 jobs carry the business.
+      *Step 3: the business travels in every queued payload's hidden context and is restored by the worker.*
+- [x] The scheduler runs per business and skips suspended or read-only businesses.
+      *Step 3: `TenantContext::eachBusiness()` over active businesses (`Business::runsBackgroundWork()`; read-only comes with billing in Phase 4).*
+- [x] The 9 commands take `--business`.
+      *Step 3: the 8 commands on tenant data, through `RunsForBusiness`; the others are platform tools.*
 
 ### Cache
 - [ ] Every cache key includes the business.

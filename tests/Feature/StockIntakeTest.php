@@ -40,8 +40,12 @@ test('authorized user can create stock intake', function () {
     $this->user->givePermissionTo('stock_intakes.create');
 
     $purchaseOrder = PurchaseOrder::factory()->ordered()->create();
+    // Enough ordered to receive 50: the factory orders 10–1000 at random, and
+    // receiving more than remains is a validation error, which also redirects.
     $item = PurchaseOrderItem::factory()->create([
         'purchase_order_id' => $purchaseOrder->id,
+        'quantity_ordered' => 100,
+        'quantity_remaining' => 100,
     ]);
 
     $data = [
@@ -54,7 +58,7 @@ test('authorized user can create stock intake', function () {
 
     $response = $this->post(route('stock-intakes.store'), $data);
 
-    $response->assertRedirect();
+    $response->assertSessionHasNoErrors()->assertRedirect();
     $this->assertDatabaseHas('stock_intakes', [
         'purchase_order_item_id' => $item->id,
         'quantity_received' => 50,

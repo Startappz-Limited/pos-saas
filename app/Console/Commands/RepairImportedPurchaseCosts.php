@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Console\Concerns\RunsForBusiness;
 use App\Models\Product;
 use App\Models\ProductVariation;
 use Illuminate\Console\Command;
@@ -22,6 +23,7 @@ use Illuminate\Support\Facades\DB;
 class RepairImportedPurchaseCosts extends Command
 {
     use ConfirmableTrait;
+    use RunsForBusiness;
 
     protected $signature = 'products:repair-purchase-cost
                             {--apply : Write the changes (defaults to a dry run)}
@@ -31,7 +33,7 @@ class RepairImportedPurchaseCosts extends Command
 
     protected $description = 'Clear purchase costs that were derived from a selling price by the e-commerce importers';
 
-    public function handle(): int
+    public function handleForBusiness(): int
     {
         $apply = (bool) $this->option('apply');
         $operator = $this->option('strict') ? '>' : '>=';

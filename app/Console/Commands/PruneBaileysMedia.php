@@ -2,11 +2,13 @@
 
 namespace App\Console\Commands;
 
+use App\Console\Concerns\RunsForBusiness;
 use App\Models\BaileysMessage;
 use App\Models\BaileysSession;
 use App\Services\BaileysMediaService;
 use Illuminate\Console\Command;
 use Illuminate\Contracts\Filesystem\Filesystem;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 
 /**
@@ -18,6 +20,8 @@ use Illuminate\Support\Facades\Storage;
  */
 class PruneBaileysMedia extends Command
 {
+    use RunsForBusiness;
+
     protected $signature = 'baileys:prune-media
         {--days= : Delete media older than this many days (defaults to config baileys.media.retention_days)}
         {--shop= : Restrict to a single shop id}
@@ -26,7 +30,7 @@ class PruneBaileysMedia extends Command
 
     protected $description = 'Delete expired inbound Baileys (WhatsApp) media files and clear their message references';
 
-    public function handle(BaileysMediaService $media): int
+    public function handleForBusiness(BaileysMediaService $media): int
     {
         $days = (int) ($this->option('days') ?? config('baileys.media.retention_days', 30));
 
@@ -114,15 +118,24 @@ class PruneBaileysMedia extends Command
      */
     protected function pruneOrphans(Filesystem $disk, bool $dryRun): array
     {
-        $knownUuids = BaileysSession::query()->pluck('uuid')->flip();
+        // The media directory holds every business's sessions, and this runs
+        // for one business (stage 1c): a directory is an orphan only when no
+        // business has its session, and a session of another business is left
+        // to that business's run.
+        $everySession = DB::table('baileys_sessions')->pluck('uuid')->flip();
+        $ownSessions = BaileysSession::query()->pluck('id', 'uuid');
         $files = 0;
         $bytes = 0;
 
         foreach ($disk->directories(BaileysMediaService::ROOT) as $directory) {
             $uuid = basename($directory);
 
+            if ($everySession->has($uuid) && ! $ownSessions->has($uuid)) {
+                continue;
+            }
+
             // The whole session is gone — so is its media.
-            if (! $knownUuids->has($uuid)) {
+            if (! $everySession->has($uuid)) {
                 foreach ($disk->allFiles($directory) as $file) {
                     $bytes += $disk->size($file);
                     $files++;
@@ -137,9 +150,8 @@ class PruneBaileysMedia extends Command
                 continue;
             }
 
-            $session = BaileysSession::query()->where('uuid', $uuid)->first();
             $referenced = BaileysMessage::query()
-                ->where('baileys_session_id', $session->id)
+                ->where('baileys_session_id', $ownSessions[$uuid])
                 ->whereNotNull('media_url')
                 ->pluck('media_url')
                 ->map(fn (string $url): ?string => $this->pathFromUrl($url))

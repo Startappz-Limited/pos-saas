@@ -41,6 +41,7 @@ const ALLOWED_RAW_QUERIES = [
     'app/Support/Tenancy/TenantContext.php' => [2, 'builds the accessible-shops subquery itself'],
 
     // Platform-wide repairs.
+    'app/Console/Commands/PruneBaileysMedia.php' => [1, 'every business\'s session uuids, so another business\'s media is never taken for an orphan'],
     'app/Console/Commands/BackfillAuditBusiness.php' => [3, 'maps audit rows of every business to their business, from shops and records'],
 
     // Not tenant data.
