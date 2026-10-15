@@ -729,6 +729,20 @@ answered.
   - A legacy cash-register and sale call lands on the shop's default register.
   - The flat API contract tests pass; the full suite is green on both databases.
 
+**FIFO costing design (agreed 15 October 2026; analysis in [fifo-analysis.md](fifo-analysis.md)):**
+- `cost_layers` and `cost_allocations` are adopted, per shop and per variation, with `business_id`, the
+  layer's source and the allocation's consumer (sale item, adjustment item, purchase-return item).
+  `sale_item_stock_allocations` stays, unused.
+- One shared stock service changes stock: it locks the `shop_variation` row, changes it by a delta, writes
+  the `StockMovement`, and creates or consumes layers, oldest first.
+- Layers come from completed intakes (at the purchase-order line's cost, else the variation's), upward
+  adjustments, restockable sale returns (at the cost the item was sold at) and opening stock. Sales,
+  downward adjustments and purchase returns consume them.
+- Sales below zero are accepted; the shortfall is costed provisionally and re-costed when stock arrives,
+  updating those sales' cost and profit.
+- `sale_items.unit_cost` comes from the allocations; profit and `RecomputeSaleProfit` use it.
+- The legacy stock columns are dropped in 1b, after the data move.
+
 #### Phase 1c: Raw SQL, background work, files
 
 - **Files and modules:**

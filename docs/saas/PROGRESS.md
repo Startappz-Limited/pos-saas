@@ -270,3 +270,19 @@ templates) and a first user may serve UAT better; the import is there for any da
   three, `LiveLikeDatasetTest > builds the same data every time` reports that `users` differs between the
   two builds. Six back-to-back builds in isolation were identical, and so were the instrumented full
   runs. The test now prints the differing rows and columns; investigate from that output next time.
+
+## Stage 1b (Phase 1b): Stock, sales, registers, invoice numbers
+
+Branch: `saas/phase-1b-stock-sales-registers` (from `main` at `92409f6`, the merge of stage 1a). Plan:
+the stage file itself.
+
+### Starting result
+
+`main` at `92409f6` (the same tree as `2e2fcad`, verified at the end of stage 1a): **SQLite 1,202
+passed, 58 skipped; MySQL 8 1,211 passed, 49 skipped**.
+
+### Steps
+
+| Step | Commit | Tests added | Suite (SQLite) | Suite (MySQL 8) | Notes |
+|---|---|---|---|---|---|
+| 1. FIFO analysis and agreed design | _this commit_ | none (documents) | unchanged | unchanged | `docs/saas/fifo-analysis.md`: the earlier plan (Modules 08, 20), what was built (nothing beyond empty tables and models), where they differ (no `stock_batches`; no cost on `stock_intakes`; no variations), the SaaS mapping, and the cases the earlier plan didn't cover. Decided 15 October 2026: negative stock re-costed on arrival; restockable returns become a layer at the sold cost; `sale_item_stock_allocations` kept, unused; legacy stock columns dropped in 1b. Recorded in `pos-saas-plan.md` |
