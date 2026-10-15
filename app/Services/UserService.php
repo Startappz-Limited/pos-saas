@@ -7,6 +7,7 @@ use App\Actions\DeleteUserAction;
 use App\Actions\UpdateUserAction;
 use App\Enums\UserStatus;
 use App\Models\User;
+use App\Support\Tenancy\TenantFiles;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Storage;
@@ -90,9 +91,7 @@ class UserService
         // Handle profile photo upload if provided
         if (isset($data['profile_photo']) && $data['profile_photo']) {
             // Delete old photo
-            if ($user->profile_photo) {
-                Storage::disk('public')->delete($user->profile_photo);
-            }
+            $this->deleteProfilePhoto($user);
             $data['profile_photo'] = $this->uploadProfilePhoto($data['profile_photo']);
         }
 
@@ -112,9 +111,7 @@ class UserService
     public function delete(User $user): bool
     {
         // Delete profile photo
-        if ($user->profile_photo) {
-            Storage::disk('public')->delete($user->profile_photo);
-        }
+        $this->deleteProfilePhoto($user);
 
         return $this->deleteUserAction->execute($user);
     }
@@ -160,7 +157,20 @@ class UserService
      */
     private function uploadProfilePhoto($file): string
     {
-        return $file->store('profile-photos', 'public');
+        // Private, under the business's folder and within its quota (stage 1c).
+        return app(TenantFiles::class)->storePrivate($file, 'profile-photos', 'profile_photo');
+    }
+
+    /**
+     * Removes the user's photo, wherever it is: private, or public from
+     * before stage 1c.
+     */
+    private function deleteProfilePhoto(User $user): void
+    {
+        if ($user->profile_photo) {
+            Storage::disk(TenantFiles::PRIVATE_DISK)->delete($user->profile_photo);
+            Storage::disk(TenantFiles::PUBLIC_DISK)->delete($user->profile_photo);
+        }
     }
 
     /**

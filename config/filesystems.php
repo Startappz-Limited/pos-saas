@@ -47,6 +47,21 @@ return [
             'report' => false,
         ],
 
+        /*
+         * Business files that must not be publicly reachable (stage 1c):
+         * WhatsApp media and profile photos, under {business uuid}/. Outside
+         * the public web root; served only through the authorized
+         * tenant-files.show route.
+         */
+        'tenant' => [
+            'driver' => 'local',
+            'root' => storage_path('app/tenant'),
+            'visibility' => 'private',
+            'serve' => false,
+            'throw' => false,
+            'report' => false,
+        ],
+
         's3' => [
             'driver' => 's3',
             'key' => env('AWS_ACCESS_KEY_ID'),

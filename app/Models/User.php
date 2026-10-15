@@ -188,7 +188,11 @@ class User extends Authenticatable
     public function getProfilePhotoUrlAttribute(): string
     {
         if ($this->profile_photo) {
-            return asset('storage/'.$this->profile_photo);
+            // Private since stage 1c ({business uuid}/profile-photos/...),
+            // served to members of that business; public before.
+            return str_contains($this->profile_photo, '/profile-photos/')
+                ? route('tenant-files.show', ['path' => $this->profile_photo])
+                : asset('storage/'.$this->profile_photo);
         }
 
         // Default avatar using UI Avatars

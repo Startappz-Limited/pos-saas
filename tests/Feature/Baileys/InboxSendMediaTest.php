@@ -22,6 +22,7 @@ beforeEach(function () {
     $this->actingAs($user);
 
     Storage::fake('public');
+    Storage::fake('tenant');
     Http::fake([
         'gateway.test/sessions/*/messages/media' => Http::response(['wa_message_id' => 'WAID-MEDIA'], 200),
     ]);
@@ -44,7 +45,8 @@ it('uploads an image, stores it, and ships base64 to the bridge', function () {
 
     $msg = BaileysMessage::query()->where('baileys_chat_id', $chat->id)->latest('id')->first();
     expect($msg)->not->toBeNull()
-        ->and($msg->media_url)->toContain('storage/baileys/'.$session->uuid);
+        // Private, under the business's folder (stage 1c).
+        ->and($msg->media_url)->toContain('/files/'.testBusiness()->uuid.'/baileys/'.$session->uuid);
 
     Http::assertSent(function ($r) {
         return str_contains($r->url(), '/messages/media')

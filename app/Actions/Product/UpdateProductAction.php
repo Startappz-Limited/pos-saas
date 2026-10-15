@@ -5,6 +5,7 @@ namespace App\Actions\Product;
 use App\Actions\Product\Concerns\GuardsPurchaseCost;
 use App\Enums\ProductStatus;
 use App\Models\Product;
+use App\Support\Tenancy\TenantFiles;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -30,7 +31,9 @@ class UpdateProductAction
                     Storage::disk('public')->delete($product->image);
                 }
 
-                $data['image'] = $data['image']->store('products', 'public');
+                // Under the business's folder, within its quota (stage 1c); public,
+                // since the app and the online stores load product images unsigned.
+                $data['image'] = app(TenantFiles::class)->storePublic($data['image'], 'products');
             } elseif (blank($data['image'])) {
                 unset($data['image']);
             }

@@ -16,7 +16,14 @@ beforeEach(function () {
     config()->set('baileys.media.retention_days', 30);
 
     Storage::fake('public');
+    Storage::fake('tenant');
 });
+
+/** The session's media folder: private, inside its business's folder. */
+function mediaDir(BaileysSession $session): string
+{
+    return testBusiness()->uuid.'/baileys/'.$session->uuid;
+}
 
 /** A signed gateway delivery of one inbound media message, each with its own delivery id. */
 function postMediaWebhook(BaileysSession $session, string $chatJid, string $bytes, array $overrides = [])
@@ -58,7 +65,10 @@ it('stores media from a private chat and records its size', function () {
 
     expect($message->media_url)->toContain('baileys/'.$session->uuid.'/in/')
         ->and($message->media_size)->toBe(500)
-        ->and(Storage::disk('public')->allFiles('baileys/'.$session->uuid.'/in'))->toHaveCount(1);
+        // Private, under the business's folder (stage 1c); nothing public.
+        ->and($message->media_url)->toContain('/files/'.testBusiness()->uuid.'/')
+        ->and(Storage::disk('public')->allFiles())->toBeEmpty()
+        ->and(Storage::disk('tenant')->allFiles(mediaDir($session).'/in'))->toHaveCount(1);
 });
 
 it('records the message but drops media from status broadcasts', function () {
@@ -71,7 +81,7 @@ it('records the message but drops media from status broadcasts', function () {
     expect($message->media_url)->toBeNull()
         ->and($message->media_size)->toBeNull()
         ->and($message->payload['media_skipped'])->toBe('chat_type_not_allowed')
-        ->and(Storage::disk('public')->allFiles('baileys'))->toBeEmpty();
+        ->and(Storage::disk('tenant')->allFiles())->toBeEmpty();
 });
 
 it('drops media from group chats when groups are not an allowed chat type', function () {
@@ -80,7 +90,7 @@ it('drops media from group chats when groups are not an allowed chat type', func
     postMediaWebhook($session, '120363000000000000@g.us', str_repeat('a', 500))->assertOk();
 
     expect(BaileysMessage::sole()->payload['media_skipped'])->toBe('chat_type_not_allowed')
-        ->and(Storage::disk('public')->allFiles('baileys'))->toBeEmpty();
+        ->and(Storage::disk('tenant')->allFiles())->toBeEmpty();
 });
 
 it('drops media over the size cap', function () {
@@ -92,7 +102,7 @@ it('drops media over the size cap', function () {
 
     expect($message->media_url)->toBeNull()
         ->and($message->payload['media_skipped'])->toBe('too_large')
-        ->and(Storage::disk('public')->allFiles('baileys'))->toBeEmpty();
+        ->and(Storage::disk('tenant')->allFiles())->toBeEmpty();
 });
 
 it('drops media once the shop is over its quota', function () {
@@ -108,7 +118,7 @@ it('drops media once the shop is over its quota', function () {
     expect($messages[0]->media_url)->not->toBeNull()
         ->and($messages[1]->media_url)->toBeNull()
         ->and($messages[1]->payload['media_skipped'])->toBe('quota_exceeded')
-        ->and(Storage::disk('public')->allFiles('baileys/'.$session->uuid.'/in'))->toHaveCount(1);
+        ->and(Storage::disk('tenant')->allFiles(mediaDir($session).'/in'))->toHaveCount(1);
 });
 
 it('keeps the message without a file when the gateway sends no bytes (media over 5 MB)', function () {
@@ -125,7 +135,7 @@ it('keeps the message without a file when the gateway sends no bytes (media over
     expect($message->type->value)->toBe('video')
         ->and($message->media_url)->toBeNull()
         ->and($message->media_mime)->toBe('video/mp4')
-        ->and(Storage::disk('public')->allFiles('baileys'))->toBeEmpty();
+        ->and(Storage::disk('tenant')->allFiles())->toBeEmpty();
 });
 
 it('prunes expired media files and clears their references', function () {
@@ -138,17 +148,17 @@ it('prunes expired media files and clears their references', function () {
     $message = BaileysMessage::sole();
     $message->forceFill(['created_at' => now()->subDays(45)])->save();
 
-    $path = 'baileys/'.$session->uuid.'/in/'.basename(parse_url($message->media_url, PHP_URL_PATH));
-    Storage::disk('public')->assertExists($path);
+    $path = mediaDir($session).'/in/'.basename(parse_url($message->media_url, PHP_URL_PATH));
+    Storage::disk('tenant')->assertExists($path);
 
     // Dry run touches nothing.
     test()->artisan('baileys:prune-media --dry-run')->assertSuccessful();
-    Storage::disk('public')->assertExists($path);
+    Storage::disk('tenant')->assertExists($path);
     expect($message->fresh()->media_url)->not->toBeNull();
 
     test()->artisan('baileys:prune-media')->assertSuccessful();
 
-    Storage::disk('public')->assertMissing($path);
+    Storage::disk('tenant')->assertMissing($path);
     expect($message->fresh()->media_url)->toBeNull()
         ->and($message->fresh()->media_size)->toBeNull()
         ->and($message->fresh()->content)->toBe('proof of payment');
@@ -159,9 +169,9 @@ it('deletes a session\'s media directory when the session is deleted', function 
 
     postMediaWebhook($session, '254712345678@s.whatsapp.net', str_repeat('a', 500))->assertOk();
 
-    expect(Storage::disk('public')->allFiles('baileys/'.$session->uuid))->toHaveCount(1);
+    expect(Storage::disk('tenant')->allFiles(mediaDir($session)))->toHaveCount(1);
 
     $session->delete();
 
-    expect(Storage::disk('public')->allFiles('baileys/'.$session->uuid))->toBeEmpty();
+    expect(Storage::disk('tenant')->allFiles(mediaDir($session)))->toBeEmpty();
 });

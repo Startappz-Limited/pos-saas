@@ -18,4 +18,18 @@ return [
 
     'strict' => (bool) env('TENANCY_STRICT', in_array(env('APP_ENV'), ['local', 'testing'], true)),
 
+    /*
+    |--------------------------------------------------------------------------
+    | File storage quota
+    |--------------------------------------------------------------------------
+    |
+    | Bytes each business may store across its files (stage 1c): product
+    | images, profile photos, WhatsApp media. A business can be given its own
+    | limit in businesses.settings['files_quota_bytes']; plans set it in
+    | Phase 4. Zero or less means no limit.
+    |
+    */
+
+    'files_quota_bytes' => (int) env('TENANT_FILES_QUOTA_BYTES', 2 * 1024 * 1024 * 1024),
+
 ];

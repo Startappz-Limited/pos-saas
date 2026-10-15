@@ -10,12 +10,15 @@ use App\Http\Controllers\Controller;
 use App\Models\BaileysChat;
 use App\Models\BaileysMessage;
 use App\Models\BaileysSession;
+use App\Services\BaileysMediaService;
 use App\Support\BaileysJid;
+use App\Support\Tenancy\TenantFiles;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -131,13 +134,15 @@ class InboxController extends Controller
             default => BaileysMessageType::Document,
         };
 
-        $folder = 'baileys/'.$session->uuid;
-        $path = $file->store($folder, 'public');
-        $url = asset('storage/'.$path);
+        // Private, under the business's folder and within its quota (stage 1c);
+        // the inbox shows it through tenant-files.show.
+        $files = app(TenantFiles::class);
+        $path = $files->storePrivate($file, BaileysMediaService::ROOT.'/'.$session->uuid, 'file');
+        $url = $files->url($path);
 
         // Read bytes for inline (base64) delivery to the gateway so it never
-        // has to fetch our public URL (firewalls / DNS / TLS issues).
-        $bytes = @file_get_contents($file->getRealPath() ?: storage_path('app/public/'.$path));
+        // has to fetch our URL (firewalls / DNS / TLS issues, and it's private).
+        $bytes = @file_get_contents($file->getRealPath() ?: Storage::disk(TenantFiles::PRIVATE_DISK)->path($path));
         $base64 = $bytes !== false ? base64_encode($bytes) : null;
 
         $message = $action->execute(

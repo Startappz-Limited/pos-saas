@@ -2,9 +2,9 @@
 
 namespace App\Services\Integration;
 
+use App\Support\Tenancy\TenantFiles;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 class ImageDownloadService
@@ -70,11 +70,14 @@ class ImageDownloadService
             $extension = $this->getImageExtension($imageUrl, $response->header('Content-Type'));
 
             // Generate unique filename
-            $filename = Str::random(40) . '.' . $extension;
-            $path = "{$directory}/{$filename}";
+            $filename = Str::random(40).'.'.$extension;
 
-            // Save to storage
-            Storage::disk('public')->put($path, $imageContent);
+            // Under the business's folder, within its quota (stage 1c).
+            $path = app(TenantFiles::class)->putIfRoom("{$directory}/{$filename}", $imageContent, TenantFiles::PUBLIC_DISK);
+
+            if ($path === null) {
+                Log::warning('Image not downloaded: the business is over its file quota', ['url' => $imageUrl]);
+            }
 
             return $path;
         } catch (\Exception $e) {

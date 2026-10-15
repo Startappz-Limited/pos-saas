@@ -6,6 +6,7 @@ use App\Console\Concerns\RunsForBusiness;
 use App\Models\BaileysMessage;
 use App\Models\BaileysSession;
 use App\Services\BaileysMediaService;
+use App\Support\Tenancy\TenantFiles;
 use Illuminate\Console\Command;
 use Illuminate\Contracts\Filesystem\Filesystem;
 use Illuminate\Support\Facades\DB;
@@ -52,7 +53,6 @@ class PruneBaileysMedia extends Command
             $shopId ? " for shop {$shopId}" : '',
         ));
 
-        $disk = Storage::disk('public');
         $deleted = 0;
         $bytes = 0;
         $touchedShops = [];
@@ -62,13 +62,15 @@ class PruneBaileysMedia extends Command
             ->where('created_at', '<', $cutoff)
             ->when($shopId, fn ($q) => $q->where('shop_id', $shopId))
             ->select(['id', 'shop_id', 'media_url', 'media_size'])
-            ->chunkById(500, function ($messages) use ($disk, $dryRun, &$deleted, &$bytes, &$touchedShops): void {
+            ->chunkById(500, function ($messages) use ($dryRun, &$deleted, &$bytes, &$touchedShops): void {
                 $ids = [];
 
                 foreach ($messages as $message) {
-                    $path = $this->pathFromUrl($message->media_url);
+                    // Private since stage 1c, public before.
+                    [$diskName, $path] = BaileysMediaService::locate($message->media_url) ?? [null, null];
+                    $disk = $diskName !== null ? Storage::disk($diskName) : null;
 
-                    if ($path && $disk->exists($path)) {
+                    if ($disk !== null && $disk->exists($path)) {
                         $bytes += (int) ($message->media_size ?: $disk->size($path));
 
                         if (! $dryRun) {
@@ -91,9 +93,16 @@ class PruneBaileysMedia extends Command
             });
 
         if ($this->option('orphans')) {
-            [$orphanFiles, $orphanBytes] = $this->pruneOrphans($disk, $dryRun);
-            $deleted += $orphanFiles;
-            $bytes += $orphanBytes;
+            // This business's private folder, and the public one media lived
+            // in before stage 1c (shared by every business).
+            foreach ([
+                [Storage::disk(TenantFiles::PRIVATE_DISK), app(TenantFiles::class)->path(BaileysMediaService::ROOT)],
+                [Storage::disk(TenantFiles::PUBLIC_DISK), BaileysMediaService::ROOT],
+            ] as [$disk, $root]) {
+                [$orphanFiles, $orphanBytes] = $this->pruneOrphans($disk, $root, $dryRun);
+                $deleted += $orphanFiles;
+                $bytes += $orphanBytes;
+            }
         }
 
         foreach (array_keys($touchedShops) as $touchedShopId) {
@@ -116,7 +125,7 @@ class PruneBaileysMedia extends Command
      *
      * @return array{0: int, 1: int}
      */
-    protected function pruneOrphans(Filesystem $disk, bool $dryRun): array
+    protected function pruneOrphans(Filesystem $disk, string $root, bool $dryRun): array
     {
         // The media directory holds every business's sessions, and this runs
         // for one business (stage 1c): a directory is an orphan only when no
@@ -127,7 +136,7 @@ class PruneBaileysMedia extends Command
         $files = 0;
         $bytes = 0;
 
-        foreach ($disk->directories(BaileysMediaService::ROOT) as $directory) {
+        foreach ($disk->directories($root) as $directory) {
             $uuid = basename($directory);
 
             if ($everySession->has($uuid) && ! $ownSessions->has($uuid)) {
@@ -154,7 +163,7 @@ class PruneBaileysMedia extends Command
                 ->where('baileys_session_id', $ownSessions[$uuid])
                 ->whereNotNull('media_url')
                 ->pluck('media_url')
-                ->map(fn (string $url): ?string => $this->pathFromUrl($url))
+                ->map(fn (string $url): ?string => BaileysMediaService::locate($url)[1] ?? null)
                 ->filter()
                 ->flip();
 
@@ -173,28 +182,6 @@ class PruneBaileysMedia extends Command
         }
 
         return [$files, $bytes];
-    }
-
-    /**
-     * media_url is stored as a full asset URL; recover the disk path from it.
-     */
-    protected function pathFromUrl(?string $url): ?string
-    {
-        if (! $url) {
-            return null;
-        }
-
-        $path = parse_url($url, PHP_URL_PATH) ?: $url;
-        $marker = '/storage/';
-        $position = strpos($path, $marker);
-
-        if ($position === false) {
-            return null;
-        }
-
-        $relative = ltrim(substr($path, $position + strlen($marker)), '/');
-
-        return str_starts_with($relative, BaileysMediaService::ROOT.'/') ? $relative : null;
     }
 
     protected function humanBytes(int $bytes): string

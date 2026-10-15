@@ -96,9 +96,12 @@ No open question blocks this stage.
       *Step 6: `DocumentLinks::signed()`, 30 days by default (`DOCUMENT_LINK_DAYS`); an expired link is refused (tested).*
 
 ### Files
-- [ ] A private disk with `{business_uuid}/…` paths, served through authorized routes.
-- [ ] A per-tenant quota.
-- [ ] Product images, profile photos and Baileys media moved onto it.
+- [x] A private disk with `{business_uuid}/…` paths, served through authorized routes.
+      *Step 7: the `tenant` disk and `TenantFiles`; served by `tenant-files.show` to members only. Product images stay public under the prefix (decided 15 October 2026: the Flutter app and the stores load them unsigned).*
+- [x] A per-tenant quota.
+      *Step 7: `TENANT_FILES_QUOTA_BYTES` (2 GB), per-business override in settings.*
+- [x] Product images, profile photos and Baileys media moved onto it.
+      *Step 7: new files land there; `files:move-to-business` moves existing ones (dry run first, originals kept until `--delete-originals`).*
 
 ## Schema
 
