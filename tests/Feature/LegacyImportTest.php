@@ -162,6 +162,8 @@ it('gives every product a default variation and places its stock in its own shop
         // No shop of its own: its first listed shop holds it, which is noted.
         ->and($stock(41))->toBe([[21, true, 6]])
         ->and($stock(42))->toBe([[20, false, 5], [20, true, 0]])
+        // FIFO: an opening layer for each figure, at the variation's cost.
+        ->and($target->table('cost_layers')->where('source_type', 'opening')->orderBy('variation_id')->pluck('remaining_quantity')->map(fn ($q) => (int) $q)->sort()->values()->all())->toBe([5, 6, 10])
         // The legacy columns are kept as they were.
         ->and($target->table('products')->where('id', 41)->value('stock_quantity'))->toBe(6)
         ->and(collect($import->notes)->filter(fn ($note) => str_starts_with($note, 'Product 41:'))->values()->all())->toBe([
