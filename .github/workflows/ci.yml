@@ -225,13 +225,15 @@ jobs:
           cp .env.example .env
           php artisan key:generate --ansi
 
+      # Built with the base's code, so the data is what the base would hold.
+      # When the base can't build it (a bug on the base that this branch may
+      # be fixing), the next steps build it with this branch's code instead,
+      # with a warning, so a fix is never blocked by the bug it fixes.
       - name: Build the live-like dataset
+        id: build
+        continue-on-error: true
         working-directory: ${{ steps.base.outputs.dir }}
         run: php artisan dataset:build --database=dataset_testing --scale=0.25
-
-      - name: Count rows before migrating
-        working-directory: ${{ steps.base.outputs.dir }}
-        run: php artisan tinker --execute="require '.github/scripts/table-counts.php';" > /tmp/counts-before.json
 
       - name: Install dependencies (this branch)
         if: steps.base.outputs.dir != '.'
@@ -241,6 +243,20 @@ jobs:
           composer install --no-interaction --prefer-dist --no-progress
           cp .env.example .env
           php artisan key:generate --ansi
+
+      - name: Build the dataset with this branch instead
+        if: steps.build.outcome == 'failure'
+        run: |
+          if [ "${{ steps.base.outputs.dir }}" = "." ] || [ "${{ steps.base.outputs.mode }}" = "import" ]; then
+            echo "::error::The dataset could not be built (see the step above)."
+            exit 1
+          fi
+          echo "::warning::The base branch's code could not build the dataset (see the failed step above); building it with this branch's code, so the rehearsal runs on data this branch wrote."
+          mysql -h 127.0.0.1 -uroot -proot -e "DROP DATABASE IF EXISTS pos_saas_dataset_testing; CREATE DATABASE pos_saas_dataset_testing;"
+          php artisan dataset:build --database=dataset_testing --scale=0.25
+
+      - name: Count rows before migrating
+        run: php artisan tinker --execute="require '.github/scripts/table-counts.php';" > /tmp/counts-before.json
 
       # Stage 1a rewrote the migrations into a clean SaaS baseline (decision
       # 4.7). Its first migration must refuse a database that already holds
