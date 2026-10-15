@@ -38,4 +38,17 @@ return [
 
     'include_shop_code' => (bool) env('INVOICE_INCLUDE_SHOP_CODE', true),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Document link lifetime
+    |--------------------------------------------------------------------------
+    |
+    | Invoice, statement and order-invoice links sent to customers open
+    | without signing in, so they are signed and expire after this many days
+    | (stage 1c). After that the customer asks for a new copy.
+    |
+    */
+
+    'document_link_days' => (int) env('DOCUMENT_LINK_DAYS', 30),
+
 ];

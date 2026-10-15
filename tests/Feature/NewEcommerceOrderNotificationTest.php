@@ -171,7 +171,9 @@ it('generates correct whatsapp template message', function () {
         ->and($button['index'])->toBe(0)
         ->and($button['parameters'][0]['text'])->not->toStartWith('http')
         ->and($button['parameters'][0]['text'])->toContain($this->order->uuid)
-        ->and($button['parameters'][0]['text'])->toContain('invoice?signature=');
+        // Signed and expiring (stage 1c).
+        ->and($button['parameters'][0]['text'])->toContain('invoice?expires=')
+        ->and($button['parameters'][0]['text'])->toContain('&signature=');
 });
 
 it('includes order data in array representation', function () {
@@ -235,7 +237,7 @@ it('falls back to shop contact info when no manager is defined', function () {
     $reflection = new ReflectionMethod($job, 'notifyShopUsers');
     $reflection->invoke($job, $order);
 
-    $fallbackLog = collect($logMessages)->first(fn($log) => str_contains($log['message'], 'Order notification sent to shop contact info'));
+    $fallbackLog = collect($logMessages)->first(fn ($log) => str_contains($log['message'], 'Order notification sent to shop contact info'));
 
     expect($fallbackLog)->not->toBeNull()
         ->and($fallbackLog['level'])->toBe('info');
@@ -324,7 +326,7 @@ it('falls back to SMS when WhatsApp fails', function () {
 
     $channel->send($notifiable, $notification);
 
-    $fallbackLog = collect($logMessages)->first(fn($log) => str_contains($log['message'], 'falling back to SMS'));
+    $fallbackLog = collect($logMessages)->first(fn ($log) => str_contains($log['message'], 'falling back to SMS'));
 
     expect($fallbackLog)->not->toBeNull();
 
@@ -354,7 +356,7 @@ it('does not send SMS when WhatsApp succeeds', function () {
 
     $channel->send($notifiable, $notification);
 
-    $fallbackLog = collect($logMessages)->first(fn($log) => str_contains($log['message'], 'falling back to SMS'));
+    $fallbackLog = collect($logMessages)->first(fn ($log) => str_contains($log['message'], 'falling back to SMS'));
 
     expect($fallbackLog)->toBeNull();
 
@@ -391,7 +393,7 @@ it('logs warning when no manager and no shop contact info', function () {
     $reflection = new ReflectionMethod($job, 'notifyShopUsers');
     $reflection->invoke($job, $order);
 
-    $warningLog = collect($logMessages)->first(fn($log) => str_contains($log['message'], 'No recipients for order notification'));
+    $warningLog = collect($logMessages)->first(fn ($log) => str_contains($log['message'], 'No recipients for order notification'));
 
     expect($warningLog)->not->toBeNull()
         ->and($warningLog['level'])->toBe('warning');

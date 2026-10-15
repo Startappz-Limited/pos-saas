@@ -6,11 +6,11 @@ use App\Models\EcommerceOrder;
 use App\Notifications\Channels\SmsChannel;
 use App\Notifications\Channels\WhatsAppChannel;
 use App\Notifications\Messages\WhatsAppTemplateMessage;
+use App\Support\DocumentLinks;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
-use Illuminate\Support\Facades\URL;
 
 class NewEcommerceOrderNotification extends Notification implements ShouldQueue
 {
@@ -49,7 +49,7 @@ class NewEcommerceOrderNotification extends Notification implements ShouldQueue
             ->line("A new order has been received from your **{$order->platform}** store.")
             ->line("**Order:** {$order->order_number}")
             ->line("**Customer:** {$order->customer_name}")
-            ->line("**Total:** {$order->currency} " . number_format($order->total, 2))
+            ->line("**Total:** {$order->currency} ".number_format($order->total, 2))
             ->line("**Items ({$order->items->count()}):**");
 
         foreach ($order->items as $item) {
@@ -69,8 +69,8 @@ class NewEcommerceOrderNotification extends Notification implements ShouldQueue
         $order = $this->order;
 
         return "New order {$order->order_number} from {$order->customer_name}. "
-            . "Total: {$order->currency} " . number_format($order->total, 2) . '. '
-            . ucfirst($order->platform) . " - {$order->shop->name}";
+            ."Total: {$order->currency} ".number_format($order->total, 2).'. '
+            .ucfirst($order->platform)." - {$order->shop->name}";
     }
 
     /**
@@ -82,7 +82,7 @@ class NewEcommerceOrderNotification extends Notification implements ShouldQueue
         $order->loadMissing('items');
 
         $itemsSummary = $order->items
-            ->map(fn($item) => "{$item->name} x{$item->quantity}")
+            ->map(fn ($item) => "{$item->name} x{$item->quantity}")
             ->implode(', ');
 
         return (new WhatsAppTemplateMessage(
@@ -92,7 +92,7 @@ class NewEcommerceOrderNotification extends Notification implements ShouldQueue
             $order->shop->name,
             $order->order_number,
             $order->customer_name,
-            $order->currency . ' ' . number_format($order->total, 2),
+            $order->currency.' '.number_format($order->total, 2),
             (string) $order->items->count(),
             $itemsSummary,
         ])->buttonUrl(0, $this->getInvoiceUrlSuffix($order));
@@ -106,14 +106,14 @@ class NewEcommerceOrderNotification extends Notification implements ShouldQueue
      */
     private function getInvoiceUrlSuffix(EcommerceOrder $order): string
     {
-        $signedUrl = URL::signedRoute('orders.invoice-pdf', $order);
+        $signedUrl = DocumentLinks::signed('orders.invoice-pdf', $order);
         $parsed = parse_url($signedUrl);
 
         $path = ltrim($parsed['path'] ?? '', '/');
         $suffix = str($path)->after('orders/')->toString();
 
         if (! empty($parsed['query'])) {
-            $suffix .= '?' . $parsed['query'];
+            $suffix .= '?'.$parsed['query'];
         }
 
         return $suffix;

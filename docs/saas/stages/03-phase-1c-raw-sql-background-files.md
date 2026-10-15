@@ -92,7 +92,8 @@ No open question blocks this stage.
       *Step 5: the push sends the shop's ledger quantity to that shop's stores only; `ShopStockPushTest`.*
 
 ### Signed links
-- [ ] Invoice, statement and order-invoice links become temporary (`temporarySignedRoute`).
+- [x] Invoice, statement and order-invoice links become temporary (`temporarySignedRoute`).
+      *Step 6: `DocumentLinks::signed()`, 30 days by default (`DOCUMENT_LINK_DAYS`); an expired link is refused (tested).*
 
 ### Files
 - [ ] A private disk with `{business_uuid}/…` paths, served through authorized routes.

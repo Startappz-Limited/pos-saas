@@ -5,10 +5,10 @@ namespace App\Actions;
 use App\Actions\Baileys\NotifyCustomerOfCreditStatement;
 use App\Models\CreditAccount;
 use App\Models\Sale;
+use App\Support\DocumentLinks;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Str;
 
 /**
@@ -83,7 +83,7 @@ class GenerateCreditStatementPdf
      */
     public function signedUrl(CreditAccount $creditAccount): string
     {
-        return URL::signedRoute('credit-accounts.statement-pdf', $creditAccount);
+        return DocumentLinks::signed('credit-accounts.statement-pdf', $creditAccount);
     }
 
     /**
