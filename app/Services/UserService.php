@@ -25,6 +25,7 @@ class UserService
     public function getPaginated(array $filters = [], int $perPage = 15): LengthAwarePaginator
     {
         $query = User::query()
+            ->inCurrentBusiness()
             ->with(['roles'])
             ->latest();
 
@@ -135,7 +136,7 @@ class UserService
     {
         $thirtyDaysAgo = now()->subDays(30);
 
-        $stats = User::query()->selectRaw("
+        $stats = User::query()->inCurrentBusiness()->selectRaw("
             COUNT(*) as total,
             SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) as active,
             SUM(CASE WHEN status = 'inactive' THEN 1 ELSE 0 END) as inactive,
@@ -167,8 +168,9 @@ class UserService
      */
     public function search(string $query, int $limit = 10): Collection
     {
-        return User::where('name', 'like', "%{$query}%")
-            ->orWhere('email', 'like', "%{$query}%")
+        return User::query()
+            ->inCurrentBusiness()
+            ->where(fn ($q) => $q->where('name', 'like', "%{$query}%")->orWhere('email', 'like', "%{$query}%"))
             ->active()
             ->limit($limit)
             ->get();
@@ -180,6 +182,7 @@ class UserService
     public function getByRole(string $role): Collection
     {
         return User::role($role)
+            ->inCurrentBusiness()
             ->active()
             ->orderBy('name')
             ->get();

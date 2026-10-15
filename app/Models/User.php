@@ -157,6 +157,16 @@ class User extends Authenticatable
     }
 
     /**
+     * Scope: members of the current business. Users carry no tenant scope
+     * (one login can belong to several businesses), so every user listing
+     * applies this (stage 1c). With no business set, nobody.
+     */
+    public function scopeInCurrentBusiness($query)
+    {
+        return $query->whereHas('memberships', fn ($membership) => $membership->where('business_id', app(TenantContext::class)->id() ?? 0));
+    }
+
+    /**
      * Scope: Suspended users
      */
     public function scopeSuspended($query)

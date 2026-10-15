@@ -159,6 +159,61 @@ class TenantContext
     }
 
     /**
+     * Limits a query-builder query (DB::table, which no model scope reaches)
+     * to the shops the viewer may access in the current business, by its
+     * shop column (stage 1c). With no business set it behaves as the model
+     * scopes do: refused in strict mode, no rows for a signed-in user.
+     */
+    public function restrictToShops(QueryBuilder $query, string $column): QueryBuilder
+    {
+        if ($this->bypassing() || ! $this->guardMissingQuery($query, $column)) {
+            return $query;
+        }
+
+        return $query->whereIn($column, $this->accessibleShopsQuery($this->viewer()));
+    }
+
+    /**
+     * Limits a query-builder query to the current business, by its business
+     * column (stage 1c), for business-wide rows with no shop.
+     */
+    public function restrictToBusiness(QueryBuilder $query, string $column): QueryBuilder
+    {
+        if ($this->bypassing() || ! $this->guardMissingQuery($query, $column)) {
+            return $query;
+        }
+
+        return $query->where($column, $this->id());
+    }
+
+    /**
+     * guardMissing() for a query-builder query.
+     */
+    private function guardMissingQuery(QueryBuilder $query, string $column): bool
+    {
+        if ($this->has()) {
+            return true;
+        }
+
+        if (config('tenancy.strict')) {
+            throw MissingTenantContext::forModel($column);
+        }
+
+        if (Auth::hasUser()) {
+            $query->whereRaw('1 = 0');
+
+            return false;
+        }
+
+        if (! $this->warnedUnscoped) {
+            $this->warnedUnscoped = true;
+            Log::warning('Tenant data queried with no business set; running unscoped.', ['column' => $column]);
+        }
+
+        return false;
+    }
+
+    /**
      * The current business's shops $user may access (decision 4.4), as a
      * subquery of shop ids: every shop for an owner or for code with no
      * signed-in user; otherwise only the shops assigned to the user, so no

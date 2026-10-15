@@ -71,6 +71,7 @@ class AbandonedCartController extends Controller
         $cart = $abandonedCart;
         $canSeeLink = $request->user()->can('viewRecoveryLink', $cart);
         $staff = User::query()
+            ->inCurrentBusiness()
             ->where(fn ($q) => $q->whereHas('shops', fn ($s) => $s->where('shops.id', $cart->shop_id))->orWhereDoesntHave('shops'))
             ->orderBy('name')
             ->get(['id', 'name']);

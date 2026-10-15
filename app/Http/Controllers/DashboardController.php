@@ -10,6 +10,7 @@ use App\Models\Sale;
 use App\Models\SalePayment;
 use App\Models\Shop;
 use App\Models\User;
+use App\Support\Tenancy\TenantContext;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder as EloquentBuilder;
 use Illuminate\Database\Query\Builder as QueryBuilder;
@@ -59,7 +60,7 @@ class DashboardController extends Controller
         if ($selectedShopId !== null) {
             $saleStats = DB::table('sale_items')
                 ->join('sales', 'sales.id', '=', 'sale_items.sale_id')
-                ->where('sale_items.shop_id', $selectedShopId)
+                ->tap(fn ($query) => $this->applyShopFilter($query, $user, $selectedShopId, 'sale_items.shop_id'))
                 ->selectRaw("
                     COALESCE(SUM(CASE WHEN sales.status = 'completed' AND sales.created_at BETWEEN ? AND ? THEN sale_items.line_total ELSE 0 END), 0) as current_sales,
                     COALESCE(SUM(CASE WHEN sales.status = 'completed' AND sales.created_at BETWEEN ? AND ? THEN sale_items.unit_cost * sale_items.quantity ELSE 0 END), 0) as current_cost,
@@ -263,7 +264,7 @@ class DashboardController extends Controller
             $itemMonthExpression = $this->monthExpression('sales.created_at');
             $monthlySales = DB::table('sale_items')
                 ->join('sales', 'sales.id', '=', 'sale_items.sale_id')
-                ->where('sale_items.shop_id', $selectedShopId)
+                ->tap(fn ($query) => $this->applyShopFilter($query, $user, $selectedShopId, 'sale_items.shop_id'))
                 ->where('sales.created_at', '>=', $twelveMonthsAgo)
                 ->selectRaw("{$itemMonthExpression} as month, COALESCE(SUM(CASE WHEN sales.status = 'completed' THEN sale_items.line_total ELSE 0 END), 0) as total")
                 ->groupByRaw($itemMonthExpression)
@@ -330,12 +331,14 @@ class DashboardController extends Controller
         ?int $shopId,
         string $column = 'shop_id'
     ): EloquentBuilder|QueryBuilder {
-        if ($shopId !== null) {
-            return $query->where($column, $shopId);
+        // DB::table() reaches no model scope: limit it to the viewer's shops in
+        // the current business (stage 1c); Eloquent queries carry the scope.
+        if ($query instanceof QueryBuilder) {
+            app(TenantContext::class)->restrictToShops($query, $column);
         }
 
-        if ($user->hasShopRestrictions()) {
-            return $query->whereIn($column, $user->assignedShopIds());
+        if ($shopId !== null) {
+            return $query->where($column, $shopId);
         }
 
         return $query;

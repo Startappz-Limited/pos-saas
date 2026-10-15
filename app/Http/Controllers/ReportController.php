@@ -48,11 +48,12 @@ class ReportController extends Controller
             ? Shop::query()->select('id', 'name')->orderBy('name', 'asc')->get()
             : $request->user()->shops()->select('shops.id', 'shops.name')->orderBy('shops.name', 'asc')->get();
 
-        $allowedShopIds = $request->user()->can('reports.full-access')
-            ? []
-            : $allowedShops->pluck('id')->all();
+        // Always an explicit list (stage 1c): an empty one means no shops, not
+        // all of them. Shop queries carry the tenant scope, so full access is
+        // every shop the viewer may access in the current business.
+        $allowedShopIds = $allowedShops->pluck('id')->map(fn ($id): int => (int) $id)->all();
 
-        if (! empty($validated['shop_id']) && ! empty($allowedShopIds) && ! in_array((int) $validated['shop_id'], $allowedShopIds, true)) {
+        if (! empty($validated['shop_id']) && ! in_array((int) $validated['shop_id'], $allowedShopIds, true)) {
             abort(403);
         }
 

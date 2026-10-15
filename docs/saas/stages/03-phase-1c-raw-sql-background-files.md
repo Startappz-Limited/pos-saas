@@ -59,9 +59,13 @@ No open question blocks this stage.
 ## Work
 
 ### Raw SQL
-- [ ] **All 34 files** listed above filter by business and allowed shops, including the models,
+- [x] **All 34 files** listed above filter by business and allowed shops, including the models,
       controllers, services, observer, listener and form request outside the report code.
-- [ ] "Empty list means all" filters removed (`ReportService`).
+      *Step 1: raw clauses on Eloquent queries keep the tenant scope; query-builder reads go through
+      `TenantContext::restrictToShops()`; users through `User::inCurrentBusiness()`. `RawQueryScopeTest`
+      lists every query-builder use with its reason; `RawQueryIsolationTest` (two businesses).*
+- [x] "Empty list means all" filters removed (`ReportService`).
+      *Step 1: the report always names the viewer's accessible shops; an empty list is no shops.*
 
 ### Exports and audit
 - [ ] CSV and PDF exports scoped.

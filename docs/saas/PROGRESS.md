@@ -365,3 +365,19 @@ columns; `down()` restores them as totals), `000003` (default registers, session
   that does the same.
 - **`mobile:contract-diff` not run** (no Flutter app on this machine); no routes changed, and the flat
   API contract test passed at every step.
+
+## Stage 1c (Phase 1c): Raw SQL, background work, files
+
+Branch: `saas/phase-1c-raw-sql-background-files` (from `main` at `89e145d`, the merge of stage 1b). Plan:
+the stage file itself.
+
+### Starting result
+
+`main` at `89e145d` (the same tree as `2bb2139`, verified at the end of stage 1b): **SQLite 1,238
+passed, 59 skipped; MySQL 8 1,248 passed, 49 skipped**.
+
+### Steps
+
+| Step | Commit | Tests added | Suite (SQLite) | Suite (MySQL 8) | Notes |
+|---|---|---|---|---|---|
+| 1. Raw SQL and the "empty means all" filter | _this commit_ | `RawQueryIsolationTest` (10, two businesses), `RawQueryScopeTest` (2) | 1,250 passed, 59 skipped | 1,260 passed, 49 skipped | **Reviewed all 34 files.** Raw clauses on Eloquent queries keep the model's tenant scope (the models, `CustomerController`, `PaymentController`, `CampaignController`, `AlertController`, `LowStockAlertController`, `AttributeController`, `ExpenseController`, most services, `ProductObserver`, the Baileys listener; `StorePurchaseReturnRequest` reads child rows by validated ids). The gap is the query builder (`DB::table`), which no scope reaches: `TenantContext::restrictToShops()`/`restrictToBusiness()` now limit such queries to the viewer's shops in the current business, with the model scopes' missing-business guard. Applied to every listing and aggregate read: the four `applyShopFilter` helpers (sales, e-commerce orders web and API, dashboard; an owner used to get **no filter at all**, so totals counted every business), the dashboard's selected-shop queries, the flat API reports, `VatReportService`, `ReportService`, low-stock checks, inventory snapshots, `products:assign-shop-from-sales`. **"Empty means all" removed:** `ReportController` always passes the viewer's accessible shops and `ReportService` always applies them (an empty list is no shops; a sale with no lines counts by its own shop). **Users** carry no tenant scope (one login, several businesses), and every user listing showed every business's users: a `User::inCurrentBusiness()` scope now limits `UserService` (list, search, statistics, by role), the shop manager and staff pickers and the abandoned-cart staff list; `search()` also had its `orWhere` escaping `active()`. Internal reads and writes by id (stock ledger, invoice series, default register) stay as they are. `RawQueryScopeTest` lists every file using the query builder with its count and reason, so a new raw query fails until it is listed. On the old code 6 of the 10 isolation tests fail (dashboard, reports, sales statistics, VAT, e-commerce statistics, users). Test adapted (1): the attribution test names the report's shops |

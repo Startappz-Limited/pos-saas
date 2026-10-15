@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Enums\TaxClass;
 use App\Models\Shop;
+use App\Support\Tenancy\TenantContext;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\DB;
 
@@ -140,6 +141,7 @@ class VatReportService
     private function creditNoteTax(?Shop $shop, CarbonInterface $from, CarbonInterface $to): array
     {
         $rows = DB::table('return_items')
+            ->tap(fn ($query) => app(TenantContext::class)->restrictToShops($query, 'returns.shop_id'))
             ->join('returns', 'returns.id', '=', 'return_items.return_id')
             ->join('sale_items', 'sale_items.id', '=', 'return_items.sale_item_id')
             ->join('sales', 'sales.id', '=', 'sale_items.sale_id')
@@ -193,6 +195,7 @@ class VatReportService
     private function saleItemQuery(?Shop $shop, CarbonInterface $from, CarbonInterface $to)
     {
         return DB::table('sale_items')
+            ->tap(fn ($query) => app(TenantContext::class)->restrictToShops($query, 'sale_items.shop_id'))
             ->join('sales', 'sales.id', '=', 'sale_items.sale_id')
             ->whereNull('sales.deleted_at')
             ->where('sales.status', 'completed')

@@ -47,7 +47,7 @@ class ShopController extends Controller
     {
         $this->authorize('create', Shop::class);
 
-        $managers = User::select('id', 'name')->whereHas('roles', function ($query) {
+        $managers = User::select('id', 'name')->inCurrentBusiness()->whereHas('roles', function ($query) {
             $query->whereIn('name', ['super-admin', 'manager']);
         })->get();
 
@@ -91,7 +91,7 @@ class ShopController extends Controller
 
         $shop->load(['users']);
 
-        $managers = User::select('id', 'name')->whereHas('roles', function ($query) {
+        $managers = User::select('id', 'name')->inCurrentBusiness()->whereHas('roles', function ($query) {
             $query->whereIn('name', ['super-admin', 'manager']);
         })->get();
 
@@ -172,7 +172,7 @@ class ShopController extends Controller
         $this->authorize('update', $shop);
 
         $shop->load('users');
-        $availableUsers = User::whereDoesntHave('shops', function ($query) use ($shop) {
+        $availableUsers = User::inCurrentBusiness()->whereDoesntHave('shops', function ($query) use ($shop) {
             $query->where('shops.id', $shop->id);
         })->get();
 

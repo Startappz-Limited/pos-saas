@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Models\Product;
 use App\Models\Shop;
+use App\Support\Tenancy\TenantContext;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
@@ -25,6 +26,7 @@ class AssignProductShopFromSales extends Command
         // plus the most recent sale date for tie-breaking.
         $tallyQuery = DB::table('sale_items')
             ->join('sales', 'sales.id', '=', 'sale_items.sale_id')
+            ->tap(fn ($query) => app(TenantContext::class)->restrictToShops($query, 'sales.shop_id'))
             ->whereNotNull('sales.shop_id')
             ->selectRaw('sale_items.product_id')
             ->selectRaw('sales.shop_id')
@@ -127,6 +129,7 @@ class AssignProductShopFromSales extends Command
 
         if ($this->option('reattribute-items')) {
             $affected = DB::table('sale_items')
+                ->tap(fn ($query) => app(TenantContext::class)->restrictToShops($query, 'sale_items.shop_id'))
                 ->whereExists(function ($query): void {
                     $query->selectRaw('1')
                         ->from('products')

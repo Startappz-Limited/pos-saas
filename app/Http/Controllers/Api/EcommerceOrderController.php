@@ -16,6 +16,7 @@ use App\Models\Alert;
 use App\Models\EcommerceOrder;
 use App\Models\Shop;
 use App\Models\User;
+use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -34,7 +35,7 @@ class EcommerceOrderController extends Controller
 
         $query = EcommerceOrder::query()
             ->visibleTo($user)
-            ->when($selectedShopId, fn($query): mixed => $query->where('shop_id', $selectedShopId))
+            ->when($selectedShopId, fn ($query): mixed => $query->where('shop_id', $selectedShopId))
             ->with(['shop', 'sale'])
             ->withCount('items')
             ->latest('platform_created_at');
@@ -148,7 +149,7 @@ class EcommerceOrderController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'success' => true,
-                'message' => 'Order status updated locally, but platform sync failed: ' . $e->getMessage(),
+                'message' => 'Order status updated locally, but platform sync failed: '.$e->getMessage(),
                 'data' => $order,
             ]);
         }
@@ -178,7 +179,7 @@ class EcommerceOrderController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to convert order: ' . $e->getMessage(),
+                'message' => 'Failed to convert order: '.$e->getMessage(),
             ], 500);
         }
     }
@@ -193,7 +194,7 @@ class EcommerceOrderController extends Controller
 
         $alert = Alert::create([
             'shop_id' => $order->shop_id,
-            'title' => 'Note on Order #' . $order->order_number,
+            'title' => 'Note on Order #'.$order->order_number,
             'message' => $request->message,
             'type' => AlertType::ORDER_NOTE,
             'severity' => AlertSeverity::LOW,
@@ -266,12 +267,12 @@ class EcommerceOrderController extends Controller
 
     private function applyShopFilter(QueryBuilder $query, User $user, ?int $shopId = null): QueryBuilder
     {
+        // DB::table() reaches no model scope: limit it to the viewer's shops in
+        // the current business (stage 1c); no assigned shop means none.
+        app(TenantContext::class)->restrictToShops($query, 'shop_id');
+
         if ($shopId !== null) {
             return $query->where('shop_id', $shopId);
-        }
-
-        if ($user->hasShopRestrictions()) {
-            return $query->whereIn('shop_id', $user->assignedShopIds());
         }
 
         return $query;

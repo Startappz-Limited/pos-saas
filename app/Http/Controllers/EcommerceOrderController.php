@@ -19,6 +19,7 @@ use App\Models\Product;
 use App\Models\SaleSource;
 use App\Models\Shop;
 use App\Models\User;
+use App\Support\Tenancy\TenantContext;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
@@ -47,7 +48,7 @@ class EcommerceOrderController extends Controller
 
         $query = EcommerceOrder::query()
             ->visibleTo($user)
-            ->when($selectedShopId, fn($query): mixed => $query->where('shop_id', $selectedShopId))
+            ->when($selectedShopId, fn ($query): mixed => $query->where('shop_id', $selectedShopId))
             ->with(['shop', 'sale'])
             ->withCount('items')
             ->latest('platform_created_at');
@@ -159,7 +160,7 @@ class EcommerceOrderController extends Controller
 
             return back()->with('success', 'Order status updated and synced to platform.');
         } catch (\Exception $e) {
-            return back()->with('warning', 'Order status updated locally, but platform sync failed: ' . $e->getMessage());
+            return back()->with('warning', 'Order status updated locally, but platform sync failed: '.$e->getMessage());
         }
     }
 
@@ -205,7 +206,7 @@ class EcommerceOrderController extends Controller
                 ->route('sales.show', $sale)
                 ->with('success', "Order {$order->order_number} has been converted to sale {$sale->invoice_number}.");
         } catch (\Exception $e) {
-            return back()->with('error', 'Failed to convert order: ' . $e->getMessage());
+            return back()->with('error', 'Failed to convert order: '.$e->getMessage());
         }
     }
 
@@ -222,7 +223,7 @@ class EcommerceOrderController extends Controller
 
         Alert::create([
             'shop_id' => $order->shop_id,
-            'title' => 'Note on Order #' . $order->order_number,
+            'title' => 'Note on Order #'.$order->order_number,
             'message' => $request->message,
             'type' => AlertType::ORDER_NOTE,
             'severity' => AlertSeverity::LOW,
@@ -322,12 +323,12 @@ class EcommerceOrderController extends Controller
 
     private function applyShopFilter(QueryBuilder $query, User $user, ?int $shopId = null): QueryBuilder
     {
+        // DB::table() reaches no model scope: limit it to the viewer's shops in
+        // the current business (stage 1c); no assigned shop means none.
+        app(TenantContext::class)->restrictToShops($query, 'shop_id');
+
         if ($shopId !== null) {
             return $query->where('shop_id', $shopId);
-        }
-
-        if ($user->hasShopRestrictions()) {
-            return $query->whereIn('shop_id', $user->assignedShopIds());
         }
 
         return $query;
