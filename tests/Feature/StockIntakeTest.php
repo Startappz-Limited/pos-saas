@@ -156,8 +156,12 @@ test('can complete stock intake', function () {
     Permission::create(['name' => 'stock_intakes.complete']);
     $this->user->givePermissionTo('stock_intakes.complete');
 
-    $product = Product::factory()->create(['stock_quantity' => 100]);
+    // Stock is held per shop (stage 1b): the product's 100 units and the
+    // intake are in the same shop.
+    $shop = Shop::factory()->create();
+    $product = Product::factory()->create(['shop_id' => $shop->id, 'stock_quantity' => 100]);
     $stockIntake = StockIntake::factory()->pending()->create([
+        'shop_id' => $shop->id,
         'product_id' => $product->id,
         'quantity_accepted' => 50,
     ]);

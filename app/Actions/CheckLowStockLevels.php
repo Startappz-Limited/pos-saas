@@ -2,9 +2,8 @@
 
 namespace App\Actions;
 
-use App\Models\Product;
-use App\Models\ProductVariation;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 class CheckLowStockLevels
 {
@@ -13,56 +12,41 @@ class CheckLowStockLevels
     ) {}
 
     /**
-     * Check low stock levels for a shop and create alerts.
+     * Checks the shop's stock and raises an alert for every item at or below
+     * its reorder level (stage 1b: per-shop stock).
+     *
+     * A row's own reorder level (shop_variation) wins, else its product's. A
+     * simple product is checked through its default variation and alerted
+     * without a variation, as before; a product with variations is checked per
+     * variation. Only this shop's stock counts.
      */
     public function execute(int $shopId, ?int $userId = null): Collection
     {
-        $alerts = collect();
-
-        // Check simple products
-        $products = Product::where('track_stock', true)
-            ->where('has_variations', false)
-            ->whereColumn('stock_quantity', '<=', 'reorder_level')
-            ->get();
-
-        foreach ($products as $product) {
-            $alert = $this->createAlert->execute([
-                'shop_id' => $shopId,
-                'product_id' => $product->id,
-                'variation_id' => null,
-                'current_quantity' => $product->stock_quantity,
-                'threshold_quantity' => $product->reorder_level,
-                'created_by' => $userId ?? 1,
+        $low = DB::table('shop_variation')
+            ->join('products', 'products.id', '=', 'shop_variation.product_id')
+            ->join('product_variations', 'product_variations.id', '=', 'shop_variation.variation_id')
+            ->where('shop_variation.shop_id', $shopId)
+            ->where('products.track_stock', true)
+            ->whereNull('products.deleted_at')
+            // Simple products through their default variation; the others per variation.
+            ->whereRaw('product_variations.is_default = case when products.has_variations = 1 then 0 else 1 end')
+            ->whereRaw('shop_variation.stock_quantity <= coalesce(shop_variation.reorder_level, products.reorder_level)')
+            ->orderBy('shop_variation.id')
+            ->get([
+                'shop_variation.product_id',
+                'shop_variation.variation_id',
+                'shop_variation.stock_quantity',
+                'product_variations.is_default',
+                DB::raw('coalesce(shop_variation.reorder_level, products.reorder_level) as threshold'),
             ]);
 
-            $alerts->push($alert);
-        }
-
-        // Check product variations. Variations have no reorder level of their
-        // own: a variation is low when its stock is at or below its product's
-        // reorder level. (Comparing with a bare `reorder_level` failed on MySQL
-        // and MariaDB, where product_variations has no such column.)
-        $variations = ProductVariation::with('product')
-            ->whereHas('product', function ($query) {
-                $query->where('track_stock', true)
-                    ->where('has_variations', true)
-                    ->whereColumn('product_variations.stock_quantity', '<=', 'products.reorder_level');
-            })
-            ->get();
-
-        foreach ($variations as $variation) {
-            $alert = $this->createAlert->execute([
-                'shop_id' => $shopId,
-                'product_id' => $variation->product_id,
-                'variation_id' => $variation->id,
-                'current_quantity' => $variation->stock_quantity,
-                'threshold_quantity' => $variation->product->reorder_level,
-                'created_by' => $userId ?? 1,
-            ]);
-
-            $alerts->push($alert);
-        }
-
-        return $alerts;
+        return $low->map(fn (object $row) => $this->createAlert->execute([
+            'shop_id' => $shopId,
+            'product_id' => $row->product_id,
+            'variation_id' => $row->is_default ? null : $row->variation_id,
+            'current_quantity' => (int) $row->stock_quantity,
+            'threshold_quantity' => (int) $row->threshold,
+            'created_by' => $userId ?? 1,
+        ]));
     }
 }

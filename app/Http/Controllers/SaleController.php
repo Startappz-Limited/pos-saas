@@ -23,6 +23,7 @@ use App\Models\Shop;
 use App\Models\User;
 use App\Rules\UniqueForTenant;
 use App\Services\InvoiceNumberService;
+use App\Services\Stock\StockLedger;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Database\Query\Builder as QueryBuilder;
@@ -118,7 +119,9 @@ class SaleController extends Controller
             ->orderBy('name')
             ->get();
 
-        $products = Product::with('variations')
+        // Per-shop stock for each card in one query (stage 1b).
+        $products = Product::with(['variations' => fn ($query) => $query->withStockOnHand()])
+            ->withStockOnHand()
             ->where('status', 'active')
             ->orderBy('name')
             ->get();
@@ -307,7 +310,7 @@ class SaleController extends Controller
                 $variation = isset($item['variation_id']) ? $variationsById[$item['variation_id']] ?? null : null;
                 $line = $totals->line($index);
 
-                SaleItem::create([
+                $saleItem = SaleItem::create([
                     'uuid' => (string) Str::uuid(),
                     'sale_id' => $sale->id,
                     'product_id' => $item['product_id'],
@@ -327,13 +330,12 @@ class SaleController extends Controller
                     'status' => 'completed',
                 ]);
 
-                // Update stock
-                if ($variation) {
-                    $variation->decrement('stock_quantity', $item['quantity']);
-                } else {
-                    $product->decrement('stock_quantity', $item['quantity']);
-                }
+                // Take the stock from the line's shop, costed oldest layers first.
+                app(StockLedger::class)->sellItem($saleItem, $variation ?? $product->defaultVariation()->firstOrFail());
             }
+            // FIFO cost and profit onto the sale held in memory (a reload would
+            // turn the response's money fields into strings on MySQL).
+            $sale->forceFill(app(StockLedger::class)->recostSale($sale->id))->syncOriginal();
 
             // Post the debt to the customer's credit account. Inside the sale's
             // own transaction so the sale and the debt it creates can never
@@ -437,7 +439,8 @@ class SaleController extends Controller
             ->where('status', 'active')
             ->orderBy('name')
             ->get();
-        $products = Product::select('id', 'name', 'sku', 'selling_price', 'cost_price', 'stock_quantity', 'status')
+        $products = Product::select('id', 'name', 'sku', 'selling_price', 'cost_price', 'status')
+            ->withStockOnHand()
             ->where('status', 'active')
             ->orderBy('name')
             ->get();

@@ -3,78 +3,49 @@
 namespace App\Actions;
 
 use App\Enums\StockMovementType;
+use App\Models\CostLayer;
+use App\Models\Product;
+use App\Models\ProductVariation;
 use App\Models\StockMovement;
+use App\Services\Stock\StockLedger;
 
+/**
+ * Records a manual stock movement (stage 1b): the change goes through the
+ * shared stock service, so the shop's stock moves by a delta under a row lock
+ * (no lost updates) and FIFO layers follow. Additions become a layer at the
+ * given cost (else the fallback cost); deductions consume layers oldest first.
+ */
 class RecordStockMovement
 {
-    /**
-     * Record a stock movement transaction.
-     */
+    public function __construct(private StockLedger $ledger) {}
+
     public function execute(array $data): StockMovement
     {
-        // Get current stock quantity
-        $currentQuantity = $this->getCurrentQuantity($data);
-
-        // Calculate new quantity
-        $movementType = StockMovementType::from($data['movement_type']);
-        $quantityChange = $data['quantity'];
-
-        $newQuantity = $movementType->isAddition()
-            ? $currentQuantity + $quantityChange
-            : $currentQuantity - $quantityChange;
-
-        // Create movement record
-        $movement = StockMovement::create([
-            'uuid' => $data['uuid'] ?? null,
-            'shop_id' => $data['shop_id'],
-            'product_id' => $data['product_id'],
-            'variation_id' => $data['variation_id'] ?? null,
-            'stock_batch_id' => $data['stock_batch_id'] ?? null,
-            'movement_type' => $data['movement_type'],
-            'quantity' => $quantityChange,
-            'quantity_before' => $currentQuantity,
-            'quantity_after' => $newQuantity,
-            'unit_cost' => $data['unit_cost'] ?? null,
-            'reference_type' => $data['reference_type'] ?? null,
-            'reference_uuid' => $data['reference_uuid'] ?? null,
+        $type = StockMovementType::from($data['movement_type']);
+        $variation = ! empty($data['variation_id'])
+            ? ProductVariation::withoutGlobalScope(ProductVariation::HIDE_DEFAULT)->findOrFail($data['variation_id'])
+            : Product::findOrFail($data['product_id'])->defaultVariation()->firstOrFail();
+        $shopId = (int) $data['shop_id'];
+        $context = [
             'notes' => $data['notes'] ?? null,
-            'created_by' => $data['created_by'],
-            'updated_by' => $data['updated_by'] ?? $data['created_by'],
-        ]);
+            'user_id' => $data['created_by'] ?? null,
+        ];
 
-        // Update product/variation stock quantity
-        $this->updateStockQuantity($data, $newQuantity);
-
-        return $movement->fresh();
-    }
-
-    /**
-     * Get current stock quantity.
-     */
-    protected function getCurrentQuantity(array $data): int
-    {
-        if (isset($data['variation_id']) && $data['variation_id']) {
-            $variation = \App\Models\ProductVariation::find($data['variation_id']);
-
-            return $variation?->stock_quantity ?? 0;
-        }
-
-        $product = \App\Models\Product::find($data['product_id']);
-
-        return $product?->stock_quantity ?? 0;
-    }
-
-    /**
-     * Update stock quantity on product or variation.
-     */
-    protected function updateStockQuantity(array $data, int $newQuantity): void
-    {
-        if (isset($data['variation_id']) && $data['variation_id']) {
-            \App\Models\ProductVariation::where('id', $data['variation_id'])
-                ->update(['stock_quantity' => $newQuantity]);
+        if ($type->isAddition()) {
+            $unitCost = isset($data['unit_cost']) ? (float) $data['unit_cost'] : $this->ledger->fallbackCost($shopId, $variation);
+            $change = $this->ledger->receive($shopId, $variation, (int) $data['quantity'], $unitCost, $type, [...$context, 'source_type' => CostLayer::SOURCE_ADJUSTMENT]);
         } else {
-            \App\Models\Product::where('id', $data['product_id'])
-                ->update(['stock_quantity' => $newQuantity]);
+            $change = $this->ledger->consume($shopId, $variation, (int) $data['quantity'], $type, $variation, $context);
         }
+
+        // The caller's own reference (e.g. a supplier return document).
+        if (! empty($data['reference_type']) || ! empty($data['reference_uuid'])) {
+            $change->movement->update([
+                'reference_type' => $data['reference_type'] ?? null,
+                'reference_uuid' => $data['reference_uuid'] ?? null,
+            ]);
+        }
+
+        return $change->movement->fresh();
     }
 }

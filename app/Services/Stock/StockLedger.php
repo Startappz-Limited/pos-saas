@@ -125,12 +125,33 @@ class StockLedger
     }
 
     /**
+     * Moves a shop's stock of a variation to $target (a figure set on a
+     * product or variation): the difference is received at the fallback cost
+     * or written off, oldest layers first.
+     */
+    public function setLevel(int $shopId, ProductVariation $variation, int $target, array $context = []): ?StockChange
+    {
+        return DB::transaction(function () use ($shopId, $variation, $target, $context): ?StockChange {
+            $delta = $target - $this->lockStock($shopId, $variation);
+
+            return match (true) {
+                $delta > 0 => $this->receive($shopId, $variation, $delta, $this->fallbackCost($shopId, $variation), StockMovementType::ADJUSTMENT_ADD, [...$context, 'source_type' => CostLayer::SOURCE_ADJUSTMENT]),
+                $delta < 0 => $this->consume($shopId, $variation, -$delta, StockMovementType::ADJUSTMENT_REMOVE, $variation, $context),
+                default => null,
+            };
+        });
+    }
+
+    /**
      * Takes a sale line's stock from its shop and sets its cost and profit
      * from the layers it consumed. Call recostSale() once all lines are done.
      */
     public function sellItem(SaleItem $item, ProductVariation $variation, array $context = []): StockChange
     {
-        $change = $this->consume((int) $item->shop_id, $variation, (int) $item->quantity, StockMovementType::SALE, $item, $context);
+        // A line's own shop (its product's), else its sale's: converted online
+        // orders record no shop on their lines.
+        $shopId = (int) ($item->shop_id ?? DB::table('sales')->where('id', $item->sale_id)->value('shop_id'));
+        $change = $this->consume($shopId, $variation, (int) $item->quantity, StockMovementType::SALE, $item, ['reference' => $context['reference'] ?? $item->sale, ...$context]);
         $this->applyItemCost($item->id, $change->totalCost);
 
         return $change;
@@ -164,21 +185,27 @@ class StockLedger
      * Updates a sale's cost and profit from its lines (after selling them, or
      * after a provisional cost is re-costed).
      */
-    public function recostSale(int $saleId): void
+    /**
+     * @return array{total_cost: float, total_profit: float} the figures written,
+     *                                                       to set on a sale held in memory
+     */
+    public function recostSale(int $saleId): array
     {
         $sale = DB::table('sales')->where('id', $saleId)->first(['total_amount', 'tax_amount']);
         if ($sale === null) {
-            return;
+            return ['total_cost' => 0.0, 'total_profit' => 0.0];
         }
 
         $totalCost = round((float) DB::table('sale_items')->where('sale_id', $saleId)->sum('total_cost'), 2);
-
-        DB::table('sales')->where('id', $saleId)->update([
+        $figures = [
             'total_cost' => $totalCost,
             // Profit is net of VAT (docs/vat.md).
             'total_profit' => round((float) $sale->total_amount - (float) $sale->tax_amount - $totalCost, 2),
-            'updated_at' => now(),
-        ]);
+        ];
+
+        DB::table('sales')->where('id', $saleId)->update([...$figures, 'updated_at' => now()]);
+
+        return $figures;
     }
 
     // --- internals -----------------------------------------------------------

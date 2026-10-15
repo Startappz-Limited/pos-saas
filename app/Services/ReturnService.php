@@ -4,11 +4,16 @@ namespace App\Services;
 
 use App\Enums\ReturnReason;
 use App\Enums\ReturnStatus;
+use App\Enums\StockMovementType;
+use App\Models\CostLayer;
+use App\Models\Product;
+use App\Models\ProductVariation;
 use App\Models\Refund;
 use App\Models\ReturnItem;
 use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Models\SaleReturn;
+use App\Services\Stock\StockLedger;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -218,12 +223,33 @@ class ReturnService
             throw new \Exception('Return must be approved before items can be received.');
         }
 
-        $saleReturn->update([
-            'status' => ReturnStatus::RECEIVED,
-            'received_at' => now(),
-        ]);
+        return DB::transaction(function () use ($saleReturn): SaleReturn {
+            $saleReturn->update([
+                'status' => ReturnStatus::RECEIVED,
+                'received_at' => now(),
+            ]);
 
-        return $saleReturn->fresh();
+            // Restockable items go back into the shop's stock as a FIFO layer
+            // at the cost they were sold at (stage 1b, agreed design).
+            foreach ($saleReturn->items()->with('saleItem')->get() as $item) {
+                if (! $item->is_restockable || ! $item->saleItem) {
+                    continue;
+                }
+
+                $variation = $item->saleItem->variation_id
+                    ? ProductVariation::withoutGlobalScope(ProductVariation::HIDE_DEFAULT)->findOrFail($item->saleItem->variation_id)
+                    : Product::findOrFail($item->product_id)->defaultVariation()->firstOrFail();
+
+                app(StockLedger::class)->receive((int) $saleReturn->shop_id, $variation, (int) $item->quantity, (float) $item->saleItem->unit_cost, StockMovementType::RETURN, [
+                    'source_type' => CostLayer::SOURCE_SALE_RETURN,
+                    'source_id' => $saleReturn->id,
+                    'reference' => $saleReturn,
+                    'notes' => "Customer return {$saleReturn->return_number}.",
+                ]);
+            }
+
+            return $saleReturn->fresh();
+        });
     }
 
     public function inspectReturn(SaleReturn $saleReturn, int $userId, ?string $inspectionNotes = null): SaleReturn

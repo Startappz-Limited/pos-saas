@@ -19,7 +19,7 @@ use Illuminate\Support\Str;
 beforeEach(function () {
     $this->ledger = app(StockLedger::class);
     $this->shop = Shop::factory()->create();
-    $this->product = Product::factory()->create(['shop_id' => $this->shop->id, 'cost_price' => 40]);
+    $this->product = Product::factory()->create(['shop_id' => $this->shop->id, 'cost_price' => 40, 'stock_quantity' => 0]);
     $this->variation = $this->product->defaultVariation;
 });
 
@@ -165,7 +165,7 @@ it('re-costs part of a shortfall when too little stock arrives', function () {
 });
 
 it('carries an unknown cost as unknown, counting it as zero for profit', function () {
-    $product = Product::factory()->create(['shop_id' => $this->shop->id, 'cost_price' => null]);
+    $product = Product::factory()->create(['shop_id' => $this->shop->id, 'cost_price' => null, 'stock_quantity' => 0]);
     $this->ledger->receive($this->shop->id, $product->defaultVariation, 4, null, StockMovementType::INTAKE);
     $item = saleLine($product, $this->shop, 2);
 

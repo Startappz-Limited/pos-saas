@@ -16,6 +16,7 @@ use App\Models\SaleSource;
 use App\Models\User;
 use App\Services\Integration\AbandonedCartWriteBack;
 use App\Services\InvoiceNumberService;
+use App\Services\Stock\StockLedger;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -133,7 +134,7 @@ class ConvertAbandonedCartToSale
                 $variation = $item['variation_id'] ? ($variationsById[$item['variation_id']] ?? null) : null;
                 $line = $totals->line($index);
 
-                SaleItem::create([
+                $saleItem = SaleItem::create([
                     'uuid' => (string) Str::uuid(),
                     'sale_id' => $sale->id,
                     'product_id' => $product->id,
@@ -153,12 +154,12 @@ class ConvertAbandonedCartToSale
                     'status' => 'completed',
                 ]);
 
-                if ($variation) {
-                    $variation->decrement('stock_quantity', $item['quantity']);
-                } else {
-                    $product->decrement('stock_quantity', $item['quantity']);
-                }
+                // Take the stock from the line's shop, costed oldest layers first.
+                app(StockLedger::class)->sellItem($saleItem, $variation ?? $product->defaultVariation()->firstOrFail());
             }
+            // FIFO cost and profit onto the sale held in memory (a reload would
+            // turn the response's money fields into strings on MySQL).
+            $sale->forceFill(app(StockLedger::class)->recostSale($sale->id))->syncOriginal();
 
             $cart->markConverted($sale, $user);
             $cart->logActivity(

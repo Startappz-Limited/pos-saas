@@ -7,8 +7,10 @@ use App\Actions\Product\DeleteProductAction;
 use App\Actions\Product\UpdateProductAction;
 use App\Enums\ProductStatus;
 use App\Models\Product;
+use App\Services\Stock\StockQuery;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Facades\DB;
 
 class ProductService
 {
@@ -20,7 +22,7 @@ class ProductService
 
     public function getAllProducts(int $perPage = 15, ?string $search = null, ?string $status = null, ?int $categoryId = null, ?int $shopId = null): LengthAwarePaginator
     {
-        $query = Product::query()->with(['category', 'creator', 'updater', 'shops']);
+        $query = Product::query()->with(['category', 'creator', 'updater', 'shops'])->withStockOnHand();
 
         if ($search) {
             $query->where(function ($q) use ($search) {
@@ -54,7 +56,8 @@ class ProductService
             ->lowStock()
             ->active()
             ->with('category')
-            ->orderBy('stock_quantity')
+            ->withStockOnHand()
+            ->orderBy('stock_on_hand')
             ->paginate($perPage);
     }
 
@@ -119,7 +122,11 @@ class ProductService
             'out_of_stock' => Product::outOfStock()->count(),
             'discontinued' => Product::discontinued()->count(),
             'low_stock' => Product::lowStock()->count(),
-            'total_stock_value' => Product::active()->sum('stock_quantity'),
+            // Units in the shops the viewer may access (per-shop stock, stage 1b).
+            'total_stock_value' => (int) DB::table('shop_variation')
+                ->whereIn('product_id', Product::active()->select('products.id'))
+                ->whereIn('shop_id', app(StockQuery::class)->shops())
+                ->sum('stock_quantity'),
         ];
     }
 }
