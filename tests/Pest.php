@@ -1,5 +1,10 @@
 <?php
 
+use App\Models\Business;
+use App\Models\Role;
+use App\Models\Shop;
+use App\Models\User;
+use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -39,6 +44,54 @@ pest()->beforeEach(function () {
         DB::connection('audit')->table('audit_logs')->delete();
     }
 })->in('Feature');
+
+/*
+|--------------------------------------------------------------------------
+| The test business
+|--------------------------------------------------------------------------
+|
+| Every shop, product, list and customer belongs to a business (stage 1a). Each
+| feature test runs inside one: records created without a business join it,
+| and users created by the factory become its members with it as their
+| default, so their requests act on it. Tests about several businesses build
+| their own on top (tests/Support/TwoBusinesses.php).
+|
+*/
+
+pest()->beforeEach(function () {
+    app(TenantContext::class)->set(Business::factory()->create(['name' => 'Test Business']));
+})->in('Feature');
+
+function testBusiness(): Business
+{
+    return app(TenantContext::class)->business();
+}
+
+/**
+ * A shared role template (business_id NULL) that every business can assign,
+ * as the seeded roles are (Spatie teams, stage 1a). A role created while a
+ * business is set belongs to that business only.
+ */
+function sharedRole(string $name): Role
+{
+    return Role::withoutGlobalScopes()->whereNull('business_id')->where('name', $name)->where('guard_name', 'web')->first()
+        ?? Role::create(['name' => $name, 'guard_name' => 'web', 'business_id' => null]);
+}
+
+/**
+ * Shop access is default-deny (stage 1a): staff see only the shops assigned
+ * to them. For tests about staff working in the shops the scenario creates,
+ * this assigns $user to the business's shops and to every shop the test
+ * creates from now on. Tests about shops the user may NOT access assign shops
+ * explicitly instead.
+ */
+function assignToNewShops(User $user): User
+{
+    $user->shops()->syncWithoutDetaching(Shop::pluck('id')->all());
+    Shop::created(fn (Shop $shop) => $user->shops()->syncWithoutDetaching([$shop->id]));
+
+    return $user;
+}
 
 /*
 |--------------------------------------------------------------------------

@@ -48,8 +48,8 @@ class InboxController extends Controller
         $messages = collect();
 
         if ($session && $request->filled('chat')) {
-            $activeChat = $chats->firstWhere('id', $request->integer('chat'))
-                ?? BaileysChat::query()->where('baileys_session_id', $session->id)->find($request->integer('chat'));
+            $activeChat = $chats->firstWhere('uuid', $request->query('chat'))
+                ?? BaileysChat::query()->where('baileys_session_id', $session->id)->where('uuid', $request->query('chat'))->first();
 
             if ($activeChat) {
                 $messages = BaileysMessage::query()
@@ -207,7 +207,7 @@ class InboxController extends Controller
 
         return redirect()->route('baileys.inbox.index', [
             'session' => $session->uuid,
-            'chat' => $chat->id,
+            'chat' => $chat->uuid,
         ]);
     }
 

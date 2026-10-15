@@ -8,7 +8,8 @@ use Database\Seeders\PermissionSeeder;
 
 beforeEach(function () {
     $this->seed(PermissionSeeder::class);
-    $user = User::factory()->create();
+    // Staff working in the shops each test creates (shop access is default-deny).
+    $user = assignToNewShops(User::factory()->create());
     $user->givePermissionTo(['baileys.view', 'baileys.send', 'baileys.manage']);
     $this->actingAs($user);
 });
@@ -32,7 +33,7 @@ it('creates a chat for a phone number from the inbox', function () {
 
     $response->assertRedirect(route('baileys.inbox.index', [
         'session' => $session->uuid,
-        'chat' => $chat->id,
+        'chat' => $chat->uuid,
     ]));
 });
 

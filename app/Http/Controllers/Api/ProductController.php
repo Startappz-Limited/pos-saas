@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Product;
+use App\Rules\UniqueForTenant;
 use App\Services\ProductService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -33,7 +34,7 @@ class ProductController extends Controller
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
-            'sku' => ['nullable', 'string', 'max:100', 'unique:products,sku'],
+            'sku' => ['nullable', 'string', 'max:100', new UniqueForTenant(Product::class, 'sku')],
             'category_id' => ['nullable', 'exists:categories,id'],
             'supplier_id' => ['nullable', 'exists:suppliers,id'],
             'barcode' => ['nullable', 'string', 'max:100'],
@@ -73,7 +74,7 @@ class ProductController extends Controller
         $validated = $request->validate([
             'name' => ['sometimes', 'required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
-            'sku' => ['nullable', 'string', 'max:100', 'unique:products,sku,' . $product->id],
+            'sku' => ['nullable', 'string', 'max:100', (new UniqueForTenant(Product::class, 'sku'))->ignore($product)],
             'category_id' => ['nullable', 'exists:categories,id'],
             'supplier_id' => ['nullable', 'exists:suppliers,id'],
             'barcode' => ['nullable', 'string', 'max:100'],

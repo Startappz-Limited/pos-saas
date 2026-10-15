@@ -4,6 +4,8 @@ namespace App\Http\Requests;
 
 use App\Enums\ProductStatus;
 use App\Enums\TaxClass;
+use App\Models\Product;
+use App\Rules\UniqueForTenant;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -18,16 +20,16 @@ class StoreProductRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:255'],
-            'slug' => ['nullable', 'string', 'max:255', 'unique:products,slug', 'regex:/^[a-z0-9-]+$/'],
+            'slug' => ['nullable', 'string', 'max:255', new UniqueForTenant(Product::class, 'slug'), 'regex:/^[a-z0-9-]+$/'],
             'description' => ['nullable', 'string'],
-            'sku' => ['nullable', 'string', 'max:255', 'unique:products,sku'],
+            'sku' => ['nullable', 'string', 'max:255', new UniqueForTenant(Product::class, 'sku')],
             'category_id' => ['required', 'exists:categories,id'],
             'supplier_id' => ['nullable', 'exists:suppliers,id'],
             'shop_id' => ['required', 'exists:shops,id'],
             'sync_shops' => ['nullable', 'boolean'],
             'shop_ids' => ['nullable', 'array'],
             'shop_ids.*' => ['integer', 'exists:shops,id'],
-            'barcode' => ['nullable', 'string', 'max:255', 'unique:products,barcode'],
+            'barcode' => ['nullable', 'string', 'max:255', new UniqueForTenant(Product::class, 'barcode')],
             'cost_price' => ['nullable', 'numeric', 'min:0'],
             'selling_price' => ['required', 'numeric', 'min:0'],
             'wholesale_price' => ['nullable', 'numeric', 'min:0'],

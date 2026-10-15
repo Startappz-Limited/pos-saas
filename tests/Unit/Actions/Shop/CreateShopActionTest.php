@@ -1,11 +1,17 @@
 <?php
 
 use App\Actions\Shop\CreateShopAction;
+use App\Models\Business;
 use App\Models\Shop;
+use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Crypt;
+use Tests\TestCase;
 
-uses(Tests\TestCase::class, RefreshDatabase::class);
+uses(TestCase::class, RefreshDatabase::class);
+
+// A shop belongs to a business; these run in one, as a signed-in request does.
+beforeEach(fn () => app(TenantContext::class)->set(Business::factory()->create()));
 
 test('creates shop without integration config', function () {
     $action = app(CreateShopAction::class);

@@ -2,7 +2,7 @@
 
 /*
  * Prints the row count of every table on a connection as JSON, for the CI
- * migration rehearsal (counts before migrating must equal counts after).
+ * rehearsal (the dataset must be unchanged after the legacy import reads it).
  *
  * Usage: php artisan tinker --execute="require '.github/scripts/table-counts.php';" CONNECTION
  * The connection comes from TABLE_COUNTS_CONNECTION (defaults to dataset_testing).

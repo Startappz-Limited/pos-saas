@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Attribute;
+use App\Rules\UniqueForTenant;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
@@ -62,8 +63,8 @@ class AttributeController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'name' => 'required|string|max:255|unique:attributes,name',
-            'slug' => 'nullable|string|max:255|unique:attributes,slug',
+            'name' => ['required', 'string', 'max:255', new UniqueForTenant(Attribute::class, 'name')],
+            'slug' => ['nullable', 'string', 'max:255', new UniqueForTenant(Attribute::class, 'slug')],
             'description' => 'nullable|string',
             'values' => 'nullable|string',
             'type' => 'required|in:dropdown,radio,checkbox,color,button',
@@ -108,8 +109,8 @@ class AttributeController extends Controller
     public function update(Request $request, Attribute $attribute)
     {
         $validated = $request->validate([
-            'name' => 'required|string|max:255|unique:attributes,name,' . $attribute->id,
-            'slug' => 'nullable|string|max:255|unique:attributes,slug,' . $attribute->id,
+            'name' => ['required', 'string', 'max:255', (new UniqueForTenant(Attribute::class, 'name'))->ignore($attribute)],
+            'slug' => ['nullable', 'string', 'max:255', (new UniqueForTenant(Attribute::class, 'slug'))->ignore($attribute)],
             'description' => 'nullable|string',
             'values' => 'nullable|string',
             'type' => 'required|in:dropdown,radio,checkbox,color,button',

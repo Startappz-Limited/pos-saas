@@ -3,17 +3,21 @@
 namespace App\Models;
 
 use App\Enums\BaileysChatType;
+use App\Models\Concerns\BelongsToShop;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Str;
 
 class BaileysChat extends Model
 {
+    use BelongsToShop;
     use HasFactory;
 
     protected $fillable = [
+        'uuid',
         'baileys_session_id',
         'shop_id',
         'jid',
@@ -28,6 +32,23 @@ class BaileysChat extends Model
         'is_muted',
         'metadata',
     ];
+
+    protected static function booted(): void
+    {
+        static::creating(function (self $chat): void {
+            if (empty($chat->uuid)) {
+                $chat->uuid = (string) Str::uuid();
+            }
+        });
+    }
+
+    /**
+     * Bound by uuid in routes, not by its sequential id (stage 1a).
+     */
+    public function getRouteKeyName(): string
+    {
+        return 'uuid';
+    }
 
     /**
      * @return array<string, string>

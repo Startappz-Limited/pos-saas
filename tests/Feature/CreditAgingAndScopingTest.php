@@ -1,12 +1,15 @@
 <?php
 
 use App\Enums\CreditTransactionType;
+use App\Models\Business;
 use App\Models\CreditAccount;
 use App\Models\CreditTransaction;
 use App\Models\Customer;
+use App\Models\Role;
 use App\Models\Shop;
 use App\Models\User;
 use App\Services\CreditAccountService;
+use App\Support\Tenancy\TenantContext;
 use Spatie\Permission\Models\Permission;
 
 beforeEach(function () {
@@ -123,13 +126,31 @@ describe('cross-shop isolation on the credit accounts screen', function () {
         ]);
     });
 
-    it('hides another shop\'s credit accounts from a shop-assigned user', function () {
+    it('shows a shop-assigned user the business\'s accounts, and no other business\'s', function () {
+        // A customer has one credit account serving every shop of the
+        // business (stage 1a), so it isn't hidden by the shop it was opened in.
+        $otherBusiness = Business::factory()->create();
+        $foreignAccount = app(TenantContext::class)->run($otherBusiness, function () {
+            $shop = Shop::factory()->create();
+
+            return CreditAccount::create([
+                'customer_id' => Customer::factory()->forShop($shop)->create(['customer_type' => 'wholesale', 'allow_credit' => true])->id,
+                'shop_id' => $shop->id,
+                'credit_limit' => 100,
+                'current_balance' => 0,
+                'status' => 'active',
+                'payment_terms_days' => 30,
+                'grace_period_days' => 7,
+            ]);
+        });
+
         $response = $this->actingAs($this->user)->get(route('credit-accounts.index'));
 
         $response->assertOk();
 
-        expect($response->viewData('accounts')->pluck('id')->all())
-            ->toBe([$this->account->id]);
+        expect($response->viewData('accounts')->pluck('id')->sort()->values()->all())
+            ->toBe(collect([$this->account->id, $this->otherAccount->id])->sort()->values()->all())
+            ->not->toContain($foreignAccount->id);
     });
 
     it('rejects an explicit shop_id the user cannot access', function () {
@@ -138,8 +159,11 @@ describe('cross-shop isolation on the credit accounts screen', function () {
             ->assertForbidden();
     });
 
-    it('still shows every shop to an unrestricted user', function () {
+    it('still shows every shop to the business owner', function () {
+        // Default-deny (stage 1a): reaching every shop takes being the owner;
+        // a full-access permission alone no longer does.
         $admin = User::factory()->create();
+        $admin->assignRole(Role::findOrCreate('super-admin', 'web'));
         $admin->givePermissionTo('credit-sales.full-access');
 
         $response = $this->actingAs($admin)->get(route('credit-accounts.index'));

@@ -167,7 +167,8 @@ describe('the VAT report screen', function () {
 
         $this->actingAs($this->user)
             ->get(route('reports.vat', ['shop_id' => $other->id]))
-            ->assertForbidden();
+            // Fails validation: exists: rules respect shop access (stage 1a).
+            ->assertSessionHasErrors('shop_id');
     });
 
     it('exports a CSV', function () {

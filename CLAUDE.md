@@ -121,8 +121,34 @@ silently mixing patterns (see the skill's `CONFLICT:` protocol).
   pivot writes, so no model event fires.
   See the [laravel-audit](.claude/skills/laravel-audit/SKILL.md) skill.
 - **Models are flat** in [app/Models/](app/Models/); soft deletes + `created_by`/`updated_by` tracking are common.
-- **Multi-shop scoping** — most queries are scoped by shop, typically
-  `auth()->user()->shop_id ?? Shop::first()?->id`. Always scope shop-owned data; never leak cross-shop rows.
+- **Multi-tenancy (SaaS stage 1a)** — the app is multi-tenant: **Business → Shop**, one login with
+  memberships in several businesses (`business_user`, `users.default_business_id`). See
+  [docs/saas/](docs/saas/) for the plan and stages.
+  - **The current business** is `App\Support\Tenancy\TenantContext`, set by `ResolveTenant` after
+    authentication (web: the session's business, re-checked against membership; API tokens: the user's
+    default business). Code with no signed-in user (jobs, commands, webhooks) must set it:
+    `app(TenantContext::class)->run($business, fn () => …)`. Stage 1c makes every job and command do so.
+  - **Every tenant model carries a global scope**: `BelongsToBusiness` (`BusinessScope`) for business-owned
+    models (shops, products, variations, the 7 lists, customers, credit accounts…), `BelongsToShop`
+    (`ShopAccessScope`) for shop-owned ones. A **new model with `business_id` or `shop_id` must use one**
+    (`TenantScopeReflectionTest` fails otherwise). With no business set: local/testing throw
+    `MissingTenantContext`; production gives a signed-in user no rows.
+  - **Shop access is default-deny**: the owner sees every shop of the business; other members only their
+    assigned shops; none assigned means none. The owner is `super-admin` **in the current business** until
+    Phase 3 (`User::isBusinessOwner()`, `Gate::before`). Roles are per business (Spatie teams on
+    `business_id`); seeded roles are shared templates (`business_id` NULL).
+  - **Validation**: `exists:` rules are viewer-aware automatically (`TenantPresenceVerifier`). For
+    uniqueness use `new UniqueForTenant(Model::class, 'code')`, **not** `unique:` (keys are per business and
+    ignore soft-deleted rows).
+  - **Never lift the scopes** with `withoutGlobalScopes()` or `TenantContext::bypass()` without adding the
+    place, and why, to `tests/Unit/TenantScopeBypassTest.php`. Raw `DB::table()` queries aren't scoped:
+    filter by business and accessible shops by hand (stage 1c does the existing 34 files).
+  - **Products** always have a hidden default variation; per-shop stock rows live in `shop_variation`
+    (`(shop_id, variation_id)`). A customer has **one** credit account, business-wide.
+  - **Tests** run inside a "Test Business" (`tests/Pest.php`); use `tests/Support/TwoBusinesses.php` for
+    isolation, `assignToNewShops($user)` for staff of the scenario's shops, `sharedRole('name')` for roles.
+  - The legacy `auth()->user()->shop_id ?? Shop::first()?->id` fallbacks still exist; they are now limited to
+    the user's accessible shops.
 
 ## Coding standards to follow
 
@@ -219,6 +245,11 @@ php artisan db:snapshot   # read-only snapshot of the .env database → storage/
 php artisan db:restore-snapshot FILE --database=rehearsal_testing --yes   # only into a _testing database
 php artisan migrate --database=rehearsal_testing   # rehearse migrations on the scratch database first
 php artisan migrate       # apply migrations to the .env database (UAT): the user runs this, after a snapshot
+# ⚠️ Since SaaS stage 1a the migrations are a clean baseline: their first migration REFUSES a database
+# that already has tables (DB_BASELINE_FORCE overrides). Pre-SaaS data crosses by the one-off import
+# into a freshly migrated database — the legacy database is only read (rehearse into import_testing):
+php artisan saas:import-legacy --from=dataset_testing --database=import_testing --business-name="Name"
+# After stage 1a merges, schema changes are additive migrations again, each carrying data across.
 # ⚠️ The audit trail lives on a SEPARATE connection with its OWN migration
 # repository, so plain `migrate` does NOT create it. Every environment must run:
 php artisan migrate --database=audit --path=database/migrations/audit

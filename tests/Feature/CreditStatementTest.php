@@ -195,7 +195,7 @@ describe('sending from the mobile app', function () {
         Queue::assertNothingPushed();
     });
 
-    it('403s, never 401s, for another shop\'s customer', function () {
+    it('403s, never 401s, for a customer whose account was opened in another shop', function () {
         $otherShop = Shop::factory()->create();
         $otherCustomer = Customer::factory()->forShop($otherShop)->create([
             'customer_type' => 'wholesale',
@@ -211,6 +211,8 @@ describe('sending from the mobile app', function () {
             'grace_period_days' => 7,
         ]);
 
+        // The account serves every shop (stage 1a), but the statement goes out
+        // from the shop it was opened in, which this user can't access.
         $this->postJson("/api/customers/{$otherCustomer->uuid}/send-statement")
             ->assertForbidden();
 

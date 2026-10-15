@@ -37,6 +37,8 @@ test('reports index returns shop filtered profitability with wholesale metrics',
     $shopB = Shop::factory()->create(['name' => 'West']);
 
     $user->givePermissionTo(['reports.view', 'reports.full-access']);
+    // Works in the shops the test creates (shop access is default-deny).
+    assignToNewShops($user);
     actingAs($user);
 
     $wholesaleCustomer = Customer::create([
@@ -168,6 +170,8 @@ test('reports index filters by customer segment wholesale', function () {
     $shop = Shop::factory()->create();
 
     $user->givePermissionTo(['reports.view', 'reports.full-access']);
+    // Works in the shops the test creates (shop access is default-deny).
+    assignToNewShops($user);
     actingAs($user);
 
     $wholesaleCustomer = Customer::create([

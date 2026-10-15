@@ -12,7 +12,8 @@ use function Pest\Laravel\get;
 function actingAsCustomerViewer(): User
 {
     /** @var User $user */
-    $user = User::factory()->create();
+    // Works in the shops each test creates (shop access is default-deny).
+    $user = assignToNewShops(User::factory()->create());
     collect(['customers.view', 'customers.update', 'customers.delete', 'customers.activate', 'customers.deactivate'])
         ->each(fn (string $permission): Permission => Permission::findOrCreate($permission));
     $user->givePermissionTo('customers.view');

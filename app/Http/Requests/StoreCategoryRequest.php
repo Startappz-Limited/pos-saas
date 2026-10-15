@@ -3,6 +3,8 @@
 namespace App\Http\Requests;
 
 use App\Enums\CategoryStatus;
+use App\Models\Category;
+use App\Rules\UniqueForTenant;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -16,8 +18,8 @@ class StoreCategoryRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'name' => ['required', 'string', 'max:255', 'unique:categories,name'],
-            'slug' => ['nullable', 'string', 'max:255', 'unique:categories,slug', 'regex:/^[a-z0-9-]+$/'],
+            'name' => ['required', 'string', 'max:255', new UniqueForTenant(Category::class, 'name')],
+            'slug' => ['nullable', 'string', 'max:255', new UniqueForTenant(Category::class, 'slug'), 'regex:/^[a-z0-9-]+$/'],
             'description' => ['nullable', 'string'],
             'parent_id' => ['nullable', 'exists:categories,id'],
             'image' => ['nullable', 'string', 'max:255'],

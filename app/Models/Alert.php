@@ -5,6 +5,8 @@ namespace App\Models;
 use App\Enums\AlertCategory;
 use App\Enums\AlertSeverity;
 use App\Enums\AlertType;
+use App\Models\Concerns\BelongsToBusiness;
+use App\Models\Concerns\BelongsToShop;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
@@ -12,7 +14,15 @@ use Illuminate\Support\Str;
 
 class Alert extends Model
 {
+    use BelongsToShop;
+
+    /** Rows with no shop apply to the whole business. */
+    protected static bool $shopOptional = true;
+
+    use BelongsToBusiness;
+
     protected $fillable = [
+        'business_id',
         'uuid',
         'shop_id',
         'title',

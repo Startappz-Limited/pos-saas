@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToBusiness;
+use Database\Factories\AttributeFactory;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -9,7 +11,9 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Attribute extends Model
 {
-    /** @use HasFactory<\Database\Factories\AttributeFactory> */
+    use BelongsToBusiness;
+
+    /** @use HasFactory<AttributeFactory> */
     use HasFactory, HasUuids, SoftDeletes;
 
     protected function casts(): array

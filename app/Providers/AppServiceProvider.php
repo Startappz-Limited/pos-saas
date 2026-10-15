@@ -14,6 +14,7 @@ use App\Models\SaleReturn;
 use App\Models\Shop;
 use App\Models\SocialAccount;
 use App\Models\StockAdjustment;
+use App\Models\User;
 use App\Observers\ProductObserver;
 use App\Policies\BaileysSessionPolicy;
 use App\Policies\CampaignPolicy;
@@ -25,6 +26,8 @@ use App\Policies\SalePolicy;
 use App\Policies\ShopPolicy;
 use App\Policies\SocialAccountPolicy;
 use App\Policies\StockAdjustmentPolicy;
+use App\Support\Tenancy\TenantContext;
+use App\Support\Tenancy\TenantPresenceVerifier;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\Paginator;
@@ -48,7 +51,12 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        // The business the current request, job or command acts for; reset
+        // between requests and queued jobs (stage 1a).
+        $this->app->scoped(TenantContext::class);
+
+        // exists: and unique: rules respect the tenant scopes (stage 1a).
+        $this->app->extend('validation.presence', fn ($verifier, $app) => new TenantPresenceVerifier($app['db']));
     }
 
     /**
@@ -63,9 +71,12 @@ class AppServiceProvider extends ServiceProvider
         $this->enforceHttps();
         $this->definePasswordPolicy();
 
-        // Super-admin bypasses all permission checks
+        // The business owner may do everything in their business. Roles are
+        // per business (Spatie teams), so this never reaches another business.
+        // The owner is the super-admin role until Phase 3 splits platform
+        // operator and business owner (User::isBusinessOwner).
         Gate::before(function ($user, $ability) {
-            return $user->hasRole('super-admin') ? true : null;
+            return $user instanceof User && $user->isBusinessOwner() ? true : null;
         });
 
         // Register Policies

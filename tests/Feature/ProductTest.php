@@ -11,7 +11,8 @@ use Illuminate\Support\Facades\Storage;
 use Spatie\Permission\Models\Permission;
 
 beforeEach(function () {
-    $this->user = User::factory()->create();
+    // Works in the shops each test creates (shop access is default-deny).
+    $this->user = assignToNewShops(User::factory()->create());
     $this->actingAs($this->user);
 
     // Create permissions

@@ -12,6 +12,7 @@ use App\Models\BaileysMessage;
 use App\Models\BaileysSession;
 use App\Models\Customer;
 use App\Services\BaileysMediaService;
+use App\Support\Tenancy\TenantContext;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -252,9 +253,19 @@ class HandleGatewayWebhooks
         };
     }
 
+    /**
+     * The session the event is for. Gateway events arrive with no signed-in
+     * user, so the session is found across businesses by its platform-wide
+     * key, and the rest of the event is handled for its business (stage 1a).
+     */
     protected function session(GatewayEvent $event): ?BaileysSession
     {
-        $session = BaileysSession::query()->where('session_key', $event->sessionKey)->first();
+        $tenant = app(TenantContext::class);
+        $session = $tenant->bypass(fn () => BaileysSession::query()->where('session_key', $event->sessionKey)->first());
+
+        if ($session && ($businessId = $session->owningBusinessId()) !== null) {
+            $tenant->set($businessId);
+        }
 
         if (! $session) {
             Log::info('Chatway Gateway event for an unknown session ignored', [

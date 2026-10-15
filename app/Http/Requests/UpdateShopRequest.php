@@ -4,7 +4,9 @@ namespace App\Http\Requests;
 
 use App\Enums\ShopStatus;
 use App\Enums\TaxClass;
+use App\Models\Shop;
 use App\Rules\KraPin;
+use App\Rules\UniqueForTenant;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -32,7 +34,7 @@ class UpdateShopRequest extends FormRequest
                 'required',
                 'string',
                 'max:50',
-                Rule::unique('shops', 'code')->ignore($this->shop),
+                (new UniqueForTenant(Shop::class, 'code'))->ignore($this->shop),
                 'regex:/^[A-Z0-9-]+$/',
             ],
             'description' => ['nullable', 'string', 'max:1000'],

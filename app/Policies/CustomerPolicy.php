@@ -12,10 +12,6 @@ class CustomerPolicy
      */
     public function viewAny(User $user): bool
     {
-        if ($user->hasRole('super-admin')) {
-            return true;
-        }
-
         return $user->hasPermissionTo('customers.view');
     }
 
@@ -24,10 +20,6 @@ class CustomerPolicy
      */
     public function view(User $user, Customer $customer): bool
     {
-        if ($user->hasRole('super-admin')) {
-            return true;
-        }
-
         return $user->hasPermissionTo('customers.view');
     }
 
@@ -36,10 +28,6 @@ class CustomerPolicy
      */
     public function create(User $user): bool
     {
-        if ($user->hasRole('super-admin')) {
-            return true;
-        }
-
         return $user->hasPermissionTo('customers.create');
     }
 
@@ -48,10 +36,6 @@ class CustomerPolicy
      */
     public function update(User $user, Customer $customer): bool
     {
-        if ($user->hasRole('super-admin')) {
-            return true;
-        }
-
         return $user->hasPermissionTo('customers.update');
     }
 
@@ -60,10 +44,6 @@ class CustomerPolicy
      */
     public function delete(User $user, Customer $customer): bool
     {
-        if ($user->hasRole('super-admin')) {
-            return true;
-        }
-
         return $user->hasPermissionTo('customers.delete');
     }
 
@@ -72,10 +52,6 @@ class CustomerPolicy
      */
     public function activate(User $user, Customer $customer): bool
     {
-        if ($user->hasRole('super-admin')) {
-            return true;
-        }
-
         return $user->hasPermissionTo('customers.activate');
     }
 
@@ -84,10 +60,6 @@ class CustomerPolicy
      */
     public function deactivate(User $user, Customer $customer): bool
     {
-        if ($user->hasRole('super-admin')) {
-            return true;
-        }
-
         return $user->hasPermissionTo('customers.deactivate');
     }
 
@@ -96,10 +68,6 @@ class CustomerPolicy
      */
     public function manageCredit(User $user, Customer $customer): bool
     {
-        if ($user->hasRole('super-admin')) {
-            return true;
-        }
-
         return $user->hasPermissionTo('customers.manage-credit');
     }
 
@@ -108,10 +76,6 @@ class CustomerPolicy
      */
     public function restore(User $user, Customer $customer): bool
     {
-        if ($user->hasRole('super-admin')) {
-            return true;
-        }
-
         return $user->hasPermissionTo('customers.delete');
     }
 
@@ -120,10 +84,6 @@ class CustomerPolicy
      */
     public function forceDelete(User $user, Customer $customer): bool
     {
-        if ($user->hasRole('super-admin')) {
-            return true;
-        }
-
         return $user->hasPermissionTo('customers.delete');
     }
 }

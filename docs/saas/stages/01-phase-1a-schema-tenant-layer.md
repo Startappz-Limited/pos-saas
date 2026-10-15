@@ -66,68 +66,102 @@ Phase 1 doesn't start until these are answered:
 ## Work
 
 ### Migrations and seeders
-- [ ] **Migrations rewritten** (decision 4.7), with the empty-database guard. The schema for 1b and 1c
+- [x] **Migrations rewritten** (decision 4.7), with the empty-database guard. The schema for 1b and 1c
       (stock, registers, sync columns) is written here too, because the migrations are rewritten once.
       See "Phase 1 schema" below.
-- [ ] **Seeders:** platform essentials only (permissions, role templates, plans).
+      *Steps 1–2:* 84 consolidated `create_*` migrations, proved identical to `main`'s schema (step 1), then the SaaS schema written into them; the guard is `0001_01_01_000000_guard_empty_database` (`DB_BASELINE_FORCE`). Every legacy column is kept, so the import carries every value (`MigrationBaselineTest`). Still to come with their steps: Spatie team columns, one credit account per customer.
+- [x] **Seeders:** platform essentials only (permissions, role templates, plans).
+      *Steps 2 and 10:* `DatabaseSeeder` seeds permissions and the role templates (shared by every business, created with no business set); the demo seeders are removed. **Plans** are seeded in Phase 4, where the `plans` table is created.
 
 ### Tenant layer
-- [ ] `Business` model and `BusinessMembership`.
-- [ ] `TenantContext`: current business from the session or token; set explicitly for jobs and commands.
-- [ ] `BelongsToBusiness` and `BelongsToShop` traits; `BusinessScope` and `ShopAccessScope`.
-- [ ] A viewer-aware `exists` rule (replaces `exists:table,id`).
-- [ ] A per-tenant unique rule that **ignores soft-deleted rows**.
-- [ ] Route model binding by uuid on unscoped models.
+- [x] `Business` model and `BusinessMembership`.
+      *Stage 1a step 2.* `app/Models/Business.php`, `BusinessMembership.php`; a new business gets its default sale source (Walk-in).
+- [x] `TenantContext`: current business from the session or token; set explicitly for jobs and commands.
+      *Stage 1a step 2.* `app/Support/Tenancy/TenantContext.php` (`set`, `run`, `bypass`), set by `ResolveTenant` after authentication; `BelongsToBusiness` refuses a record with no business (`MissingTenantContext`). `TenantContextTest`.
+- [x] `BelongsToBusiness` and `BelongsToShop` traits; `BusinessScope` and `ShopAccessScope`.
+      *Step 3.* `app/Models/Concerns/BelongsToShop.php`, `app/Models/Scopes/{BusinessScope,ShopAccessScope}.php`. With no business set: strict mode (local, testing) throws; a signed-in user gets no rows; code with no user runs unscoped and is logged until 1c. Shop access is a fresh subquery per query. Unauthenticated routes (webhooks, signed links) bind across businesses and then act for the record's business (`ResolvesTenantFromRouteBinding`); the WhatsApp gateway listener does the same by session key.
+- [x] A viewer-aware `exists` rule (replaces `exists:table,id`).
+      *Step 6:* rather than a new rule in 123 places, `exists:` itself is viewer-aware: `app/Support/Tenancy/TenantPresenceVerifier.php` (bound as Laravel's validation presence verifier) checks tenant tables through the models' tenant scopes, child tables through their visible parent, and `users` as members of the business. Soft-deleted rows still count, as before. It covers every existing and future `exists:` rule. `ViewerAwareExistsTest` (fails without the verifier).
+- [x] A per-tenant unique rule that **ignores soft-deleted rows**.
+      *Step 5:* `app/Rules/UniqueForTenant.php` replaces the 24 `unique:` rules on tenant tables (shop code, product slug/SKU/barcode, category name/slug, attribute name/slug, supplier code, sale source name). The credit-account rule changes with one account per customer.
+- [x] Route model binding by uuid on unscoped models.
+      *Step 7:* the unscoped models bound in routes (`User`, `Role`, `AuditLog`) already bound by uuid; the one model bound by its sequential id, `BaileysChat` (`{chat}`), gains a `uuid` and binds by it (inbox links, redirect and stream URL too). A test in `TenantScopeReflectionTest` fails if any route binds a model by a sequential id.
 
 ### Test fixture
-- [ ] **The two-business test fixture**, with a user who belongs to both.
-- [ ] Existing tests adapted to it.
+- [x] **The two-business test fixture**, with a user who belongs to both.
+      *Step 3.* `tests/Support/TwoBusinesses.php`: A and B, each with two shops (the same codes), an owner, a cashier assigned to one shop, a customer, product, supplier and sale; plus a member of both.
+- [x] Existing tests adapted to it.
+      *Steps 2–10:* every feature test runs in a test business; tests whose meaning changed were adapted (records outside the user's shops are 404; default-deny; one credit account per customer), each listed in PROGRESS.md.
 
 ### Models
-- [ ] Every model with `shop_id` (about 42) and the 7 list models get their scope.
-- [ ] `Customer` uses `BelongsToBusiness` (business-wide), not `BelongsToShop` (Open question 3).
-- [ ] `User`: memberships, current and default business, **default-deny** shops (no assignment means no
+- [x] Every model with `shop_id` (about 42) and the 7 list models get their scope.
+      *Step 3.* 31 shop-owned models get `BelongsToShop`; alerts, alert rules, campaigns and saved reports (optional shop) also get `business_id` and `BelongsToBusiness`; `Shop` is limited to accessible shops on its own id. Exceptions, with reasons, in the reflection test: `SaleItem` (its `shop_id` is the product's shop; reached through the sale), `BusinessMembership`, `AuditLog` (1c).
+- [x] `Customer` uses `BelongsToBusiness` (business-wide), not `BelongsToShop` (Open question 3).
+      *Step 3.* Scoped by business only.
+- [x] `User`: memberships, current and default business, **default-deny** shops (no assignment means no
       access).
-- [ ] `Product` and `Shop`.
+      *Steps 2 and 4.* Memberships and default business (step 2); shop access is default-deny: an owner sees every shop of the business, other members only their assigned shops, no assignment means none (`TenantContext::accessibleShopsQuery`, `User::canAccessShop`). "Owner" is the `super-admin` role until Phase 3 splits platform operator and business owner.
+- [x] `Product` and `Shop`.
+      *Step 3.* Both scoped by business; `Shop` also by shop access.
 
 ### Roles
-- [ ] Spatie `teams => true` with `team_foreign_key = business_id`.
-- [ ] Review the 12 direct `hasRole('super-admin')` checks alongside the switch to teams.
+- [x] Spatie `teams => true` with `team_foreign_key = business_id`.
+      *Step 10:* `config/permission.php`; `roles.business_id` (NULL for the shared templates), `business_id` in the primary key of `model_has_roles` and `model_has_permissions`. `TenantContext::set()` sets Spatie's team and clears roles and permissions already loaded on the signed-in user. Roles show the shared templates plus the business's own (`BusinessOrSharedScope`). `RolesPerBusinessTest`.
+- [x] Review the 12 direct `hasRole('super-admin')` checks alongside the switch to teams.
+      *Step 10:* the 10 checks in `CustomerPolicy` and the one in `ExpenseCategoryPolicy` repeated `Gate::before`, which runs first; removed. `Gate::before` now asks `User::isBusinessOwner()` (super-admin in the current business until Phase 3), so Phase 3's platform operator / owner split changes one place. Name-based uses stay: role protection in `RoleController`/`RolePolicy`, the manager dropdown in `ShopController` and the two webhook jobs (both resolve per business through Spatie; the jobs only once stage 1c gives them a business).
 
 ### Flat API compatibility
-- [ ] Default-business resolution for legacy tokens.
+- [x] Default-business resolution for legacy tokens.
+      *Steps 2 and 10:* `ResolveTenant` acts on the user's default business for API tokens (the membership is re-checked on every request); `POST /api/login` sets it before returning roles. `TenantContextTest` (API token), `RolesPerBusinessTest` (sign-in); the flat API contract passes unchanged at every step.
 
 ## Phase 1 schema (written in 1a)
 
-- [ ] `businesses` (uuid, name, settings, status).
-- [ ] `business_user` (status, invited by, joined at); `users.default_business_id`.
-- [ ] Spatie `teams => true` with `team_foreign_key = business_id` (roles per business).
-- [ ] `business_id` on shops, products and the 7 lists.
-- [ ] `business_id` on `customers`; customers become business-wide (Open question 3), with customer codes
+- [x] `businesses` (uuid, name, settings, status).
+      *Stage 1a step 2.* Also `currency` and `timezone`.
+- [x] `business_user` (status, invited by, joined at); `users.default_business_id`.
+      *Stage 1a step 2.*
+- [x] Spatie `teams => true` with `team_foreign_key = business_id` (roles per business).
+      *Step 10.*
+- [x] `business_id` on shops, products and the 7 lists.
+      *Stage 1a step 2.* Also on `product_variations` (per-business SKU and barcode), `sales`, `sale_payments` and `cash_registers` (for their `client_uuid` keys).
+- [x] `business_id` on `customers`; customers become business-wide (Open question 3), with customer codes
       unique per business; `customers.shop_id` kept.
-- [ ] Credit accounts: **one per customer** (unique on the customer), replacing one per shop.
-- [ ] **A default variation for every product**; per-shop stock, reorder level and price and cost
+      *Stage 1a step 2.* Unique `(business_id, code)` among rows not soft-deleted.
+- [x] Credit accounts: **one per customer** (unique on the customer), replacing one per shop.
+      *Step 8:* `credit_accounts` unique on `customer_id`, with `business_id`; the account is business-scoped (it serves every shop) and keeps `shop_id` as the shop it was opened in. `CreditAccountService` finds and opens accounts by customer; `StoreCreditAccountRequest` checks one per customer.
+- [x] **A default variation for every product**; per-shop stock, reorder level and price and cost
       overrides keyed on `(shop_id, variation_id)` (4.2).
-- [ ] FIFO costing tables (`cost_layers`, `cost_allocations`, `sale_item_stock_allocations`) **kept** in
+      *Steps 2 and 9:* `is_default` with one default per product (generated `default_marker` column, unique with `product_id`); `shop_variation` keyed on `(shop_id, variation_id)`. A new product creates its default variation (`Product::createDefaultVariation`, reserved SKU `DEFAULT-{uuid}`), and every variation gets a row in each of the product's shops (`Product::syncShopVariationRows`, also after shop assignments change). A global scope keeps the default out of variation lists, API responses and validation; `defaultVariation()` and `sellableVariations()` reach it. Rows start at zero stock: stage 1b moves stock onto them.
+- [x] FIFO costing tables (`cost_layers`, `cost_allocations`, `sale_item_stock_allocations`) **kept** in
       the rewritten schema (Open question 5); their final columns follow the Phase 1b analysis, so leave
       room to adjust them there.
-- [ ] `registers` (shop, name, code, device id, paired at, last synced at, last invoice number);
+      *Stage 1a step 2.* Unchanged.
+- [x] `registers` (shop, name, code, device id, paired at, last synced at, last invoice number);
       `cash_registers` becomes register sessions with a register reference.
-- [ ] `client_uuid` plus a unique `(business_id, client_uuid)` on sales, sale payments, customers and
+      *Stage 1a step 2.* `cash_registers.register_id` (nullable until 1b moves the code).
+- [x] `client_uuid` plus a unique `(business_id, client_uuid)` on sales, sale payments, customers and
       register sessions.
-- [ ] `sync_deletions` (business, entity, id, deleted at), written for soft and hard deletes.
-- [ ] Per-tenant unique keys, including SKU and barcode on variations; `sales` unique on
+      *Stage 1a step 2.*
+- [x] `sync_deletions` (business, entity, id, deleted at), written for soft and hard deletes.
+      *Stage 1a step 2.* Writing it on deletes comes with sync (Phase 6).
+- [x] Per-tenant unique keys, including SKU and barcode on variations; `sales` unique on
       `(business_id, invoice_number)`.
-- [ ] **Invoice series per register** (`registers.code`, a per-register sequence) so tills can number
+      *Stage 1a step 2.* Keys on soft-deleting tables include a generated `alive` column (NULL once deleted), so a deleted code can be reused.
+- [x] **Invoice series per register** (`registers.code`, a per-register sequence) so tills can number
       sales offline (4.9).
-- [ ] `businesses.currency` and `businesses.timezone`, plus an optional shop timezone (the `shops` table
+      *Stage 1a step 2.* `registers.code` and `registers.last_invoice_number`; numbering moves in 1b.
+- [x] `businesses.currency` and `businesses.timezone`, plus an optional shop timezone (the `shops` table
       has none today); amounts never assume KES (4.9).
-- [ ] Review flags: `customers.needs_review` (possible duplicate) and a flag for sales with an implausible
+      *Stage 1a step 2.*
+- [x] Review flags: `customers.needs_review` (possible duplicate) and a flag for sales with an implausible
       recorded time.
-- [ ] **Per-shop stock keyed by variation** (4.2); `products.stock_quantity` and
+      *Stage 1a step 2.* `sales.needs_review`.
+- [x] **Per-shop stock keyed by variation** (4.2); `products.stock_quantity` and
       `product_variations.stock_quantity` removed as stored figures.
-- [ ] Foreign keys from cash sessions and other business records to `users` no longer cascade on delete
+      *Stage 1a step 2.* `shop_variation` (unique `(shop_id, variation_id)`). **Departure (decided 14 October 2026):** the legacy stock columns stay until stage 1b moves their writers and readers, then 1b drops them with a migration that carries the data across.
+- [x] Foreign keys from cash sessions and other business records to `users` no longer cascade on delete
       (9 tables cascade today).
+      *Stage 1a step 2.* `cash_registers.user_id` and `expense_approval_history.user_id` now `nullOnDelete`. The other 7 cascades are on rows owned by the user (shop assignments, notification preferences and logs, saved reports, widgets, exports, alert recipients) and stay.
 
 ## Decisions made 12 October 2026 (were pending)
 
@@ -148,17 +182,25 @@ No tenancy package is needed; scoping is built in-house (4.1).
 
 ## Acceptance criteria
 
-- [ ] A reflection test: every model with `shop_id` or `business_id` has its scope.
-- [ ] Scope unit tests: owner, staff, no assignment, switching business.
-- [ ] Per-tenant unique keys: both businesses can use the same codes, and a soft-deleted code can be
+- [x] A reflection test: every model with `shop_id` or `business_id` has its scope.
+      *Step 3.* `tests/Feature/Tenancy/TenantScopeReflectionTest.php` (removing a scope from `Expense` fails it).
+- [x] Scope unit tests: owner, staff, no assignment, switching business.
+      *Steps 3–4:* `TenantScopeTest` (owner, staff, no assignment, a member of two businesses switching, web session switch).
+- [x] Per-tenant unique keys: both businesses can use the same codes, and a soft-deleted code can be
       reused.
-- [ ] The migration guard refuses a non-empty database unless forced.
-- [ ] A customer created in one shop is visible in every shop of the same business and in no other
+      *Step 5:* `PerTenantUniqueKeysTest` on both engines: same codes in two businesses; duplicates refused within one (shop, product, variation, customer, supplier, sale source, invoice number); soft-deleted codes reused (shop, product, customer, supplier, category); the rule and the supplier form agree.
+- [x] The migration guard refuses a non-empty database unless forced.
+      *Step 1:* `MigrationBaselineTest` (refuses, empty, already built, forced); CI checks it refuses `main`'s dataset.
+- [x] A customer created in one shop is visible in every shop of the same business and in no other
       business; customer codes are unique per business.
-- [ ] A customer has at most one credit account.
-- [ ] Creating a product creates its default variation; per-shop stock rows are keyed on shop and
+      *Steps 3, 5 and 8:* `BusinessCustomersTest` (a branch cashier sees a customer created in the main shop; another business gets 404; a duplicate code in one business is refused), `PerTenantUniqueKeysTest`.
+- [x] A customer has at most one credit account.
+      *Step 8:* `BusinessCustomersTest`: credit sales in two shops share one account; a second account is refused by the service and by the database.
+- [x] Creating a product creates its default variation; per-shop stock rows are keyed on shop and
       variation.
-- [ ] The flat API contract tests pass; the full suite is green on SQLite and MySQL 8.
+      *Step 9:* `DefaultVariationTest` (default created; hidden from lists and the flat API; one per product; rows per shop and variation, including for a variation added later).
+- [x] The flat API contract tests pass; the full suite is green on SQLite and MySQL 8.
+      *End of stage:* SQLite 1,202 passed, 58 skipped; MySQL 8 1,211 passed, 49 skipped (contract tests included, fixtures unchanged).
 
 ## Risks (Phase 1, leakage)
 
@@ -171,6 +213,9 @@ No tenancy package is needed; scoping is built in-house (4.1).
 
 ## Definition of done
 
-- [ ] Acceptance criteria met, with tests.
-- [ ] Pint, the full suite (SQLite and MySQL 8) and the flat API contract tests pass.
-- [ ] Hotspot checklist items for schema, tenant layer and default-deny ticked in saas-plan.md section 2.
+- [x] Acceptance criteria met, with tests.
+      *End of stage:* each criterion above with its test.
+- [x] Pint, the full suite (SQLite and MySQL 8) and the flat API contract tests pass.
+      *End of stage:* `pint --test --diff=origin/main` passes; suites as above.
+- [x] Hotspot checklist items for schema, tenant layer and default-deny ticked in saas-plan.md section 2.
+      *End of stage:* 9 items ticked in section 2; partly done items (stock source, registers, sync, roles, tokens, fixture) annotated with what remains and where.

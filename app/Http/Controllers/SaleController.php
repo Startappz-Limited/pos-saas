@@ -21,6 +21,7 @@ use App\Models\SalePayment;
 use App\Models\SaleSource;
 use App\Models\Shop;
 use App\Models\User;
+use App\Rules\UniqueForTenant;
 use App\Services\InvoiceNumberService;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
@@ -636,7 +637,7 @@ class SaleController extends Controller
     public function storeSaleSource(Request $request)
     {
         $validated = $request->validate([
-            'name' => 'required|string|max:255|unique:sale_sources,name',
+            'name' => ['required', 'string', 'max:255', new UniqueForTenant(SaleSource::class, 'name')],
             'description' => 'nullable|string|max:500',
         ]);
 

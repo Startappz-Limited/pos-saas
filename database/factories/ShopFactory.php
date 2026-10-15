@@ -3,12 +3,13 @@
 namespace Database\Factories;
 
 use App\Enums\ShopStatus;
+use App\Models\Shop;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Str;
 
 /**
- * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\Shop>
+ * @extends Factory<Shop>
  */
 class ShopFactory extends Factory
 {
@@ -24,7 +25,8 @@ class ShopFactory extends Factory
         return [
             'uuid' => Str::uuid(),
             'name' => $name,
-            'code' => strtoupper(Str::slug($name, '-')),
+            // Company names repeat; a suffix keeps codes unique per business.
+            'code' => strtoupper(Str::slug($name, '-').'-'.Str::random(4)),
             'description' => fake()->optional()->paragraph(),
             'phone' => fake()->phoneNumber(),
             'email' => fake()->companyEmail(),

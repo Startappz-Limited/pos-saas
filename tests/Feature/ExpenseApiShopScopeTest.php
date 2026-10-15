@@ -8,13 +8,13 @@ use App\Models\Shop;
 use App\Models\User;
 
 /**
- * `User::shop_id` is an accessor over the `shop_user` pivot, so it returns null
- * for any user with no shop attached — and a large share of real accounts have
- * none. Every sibling API controller falls back to `Shop::first()?->id`;
- * Api\ExpenseController did not, which meant those users saw an empty expense
- * list, got a 500 on create (expenses.shop_id is NOT NULL), and a 403 on show.
+ * `User::shop_id` is an accessor over the `shop_user` pivot, so it is null for
+ * a user with no shop attached. Before stage 1a such a user could reach every
+ * shop (fail-open), and Api\ExpenseController broke for them (empty list, 500
+ * on create, 403 on show). Shop access is now default-deny (decision 4.4): a
+ * member with no shop reaches none, and the controller says so cleanly.
  *
- * These tests act as a user with NO shop assigned — the broken case.
+ * These tests act as a user with NO shop assigned.
  */
 beforeEach(function () {
     $this->shop = Shop::factory()->create();
@@ -45,17 +45,29 @@ function makeExpense(int $shopId, int $userId, int $categoryId, string $title): 
     ]);
 }
 
-it('lists expenses for a user with no shop assigned', function () {
+it('lists no expenses for a user with no shop assigned', function () {
     makeExpense($this->shop->id, $this->user->id, $this->category->id, 'Printer paper');
 
     $response = $this->getJson('/api/expenses')->assertOk();
 
-    expect($response->json('data'))->toHaveCount(1)
-        ->and($response->json('data.0.title'))->toBe('Printer paper');
+    expect($response->json('data'))->toBeEmpty();
 });
 
-it('creates an expense for a user with no shop assigned', function () {
-    // Previously wrote shop_id = null into a NOT NULL column → 500.
+it('refuses, without a 500, to create an expense for a user with no shop assigned', function () {
+    // Once wrote shop_id = null into a NOT NULL column → 500.
+    $this->postJson('/api/expenses', [
+        'category_id' => $this->category->id,
+        'title' => 'Cleaning supplies',
+        'amount' => 450,
+        'expense_date' => today()->toDateString(),
+    ])->assertStatus(422);
+
+    $this->assertDatabaseMissing('expenses', ['title' => 'Cleaning supplies']);
+});
+
+it('creates an expense in the shop of a user who has one', function () {
+    $this->user->shops()->attach($this->shop);
+
     $this->postJson('/api/expenses', [
         'category_id' => $this->category->id,
         'title' => 'Cleaning supplies',
@@ -63,19 +75,13 @@ it('creates an expense for a user with no shop assigned', function () {
         'expense_date' => today()->toDateString(),
     ])->assertCreated();
 
-    $this->assertDatabaseHas('expenses', [
-        'title' => 'Cleaning supplies',
-        'shop_id' => $this->shop->id,
-    ]);
+    $this->assertDatabaseHas('expenses', ['title' => 'Cleaning supplies', 'shop_id' => $this->shop->id]);
 });
 
-it('allows showing an expense for a user with no shop assigned', function () {
+it('does not show a shop\'s expense to a user with no shop assigned', function () {
     $expense = makeExpense($this->shop->id, $this->user->id, $this->category->id, 'Fuel');
 
-    // authorizeShopAccess() compared against null, so this always aborted 403.
-    $this->getJson("/api/expenses/{$expense->uuid}")
-        ->assertOk()
-        ->assertJsonPath('data.title', 'Fuel');
+    $this->getJson("/api/expenses/{$expense->uuid}")->assertNotFound();
 });
 
 it('returns a summary for a user with no shop assigned', function () {

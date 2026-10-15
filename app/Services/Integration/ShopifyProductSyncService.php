@@ -298,6 +298,7 @@ class ShopifyProductSyncService
             }
 
             $product->shops()->syncWithoutDetaching([$shop->id => $pivot]);
+            $product->syncShopVariationRows();
 
             // Create or update sync record
             $sync = ProductEcommerceSync::updateOrCreate(

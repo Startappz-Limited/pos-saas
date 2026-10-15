@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\CreditTransactionType;
 use App\Models\Concerns\Auditable;
+use App\Models\Concerns\BelongsToShop;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -14,6 +15,7 @@ use Illuminate\Support\Str;
 class CreditTransaction extends Model
 {
     use Auditable;
+    use BelongsToShop;
     use HasFactory;
 
     protected $fillable = [

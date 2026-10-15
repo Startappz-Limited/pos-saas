@@ -26,8 +26,9 @@ function grantReturnPermissions(User $user, array $permissions): void
 
 function actingAsReturnUser(array $permissions): User
 {
+    // Works in the shops each test creates (shop access is default-deny).
     /** @var User $user */
-    $user = User::factory()->create();
+    $user = assignToNewShops(User::factory()->create());
 
     grantReturnPermissions($user, $permissions);
     actingAs($user);

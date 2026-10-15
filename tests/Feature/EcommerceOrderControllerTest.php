@@ -8,7 +8,9 @@ use App\Models\User;
 use Spatie\Permission\Models\Permission;
 
 beforeEach(function () {
-    $this->user = User::factory()->create();
+    // Staff working in the shops each test creates (shop access is
+    // default-deny); the cross-shop tests narrow it with sync().
+    $this->user = assignToNewShops(User::factory()->create());
     $this->actingAs($this->user);
 
     Permission::create(['name' => 'ecommerce-orders.view']);
@@ -172,7 +174,8 @@ test('allocated user cannot view orders from another shop', function () {
     $this->user->shops()->sync([$shop->id]);
     $order = EcommerceOrder::factory()->for($otherShop)->create();
 
-    $this->get(route('ecommerce-orders.show', $order))->assertForbidden();
+    // Outside the user's shops, so not found (stage 1a scopes).
+    $this->get(route('ecommerce-orders.show', $order))->assertNotFound();
 });
 
 test('allocated user cannot refresh orders for another shop', function () {
@@ -180,8 +183,10 @@ test('allocated user cannot refresh orders for another shop', function () {
     $otherShop = Shop::factory()->create();
     $this->user->shops()->sync([$shop->id]);
 
+    // A shop the user can't access fails validation (stage 1a: exists: rules
+    // respect shop access), before the controller's own check.
     $this->post(route('ecommerce-orders.refresh'), ['shop_id' => $otherShop->id])
-        ->assertForbidden();
+        ->assertSessionHasErrors('shop_id');
 });
 
 test('index page searches by order number', function () {

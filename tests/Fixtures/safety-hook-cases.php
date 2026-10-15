@@ -32,6 +32,8 @@ return [
         'Artisan::call rollback in tinker' => "php artisan tinker --execute=\"Artisan::call('migrate:rollback', ['--step' => 1]);\"",
         'restoring a snapshot into the .env database' => 'php artisan db:restore-snapshot storage/app/snapshots/fitness.sql.gz --yes',
         'restoring a snapshot into a live connection' => 'php artisan db:restore-snapshot snap.sql.gz --database=mysql --yes',
+        'legacy import into the .env database' => 'php artisan saas:import-legacy --from=rehearsal_testing --business-name=Acme',
+        'legacy import into a live connection' => 'php artisan saas:import-legacy --from=rehearsal_testing --database=mysql --business-name=Acme',
 
         // destructive SQL against a live database
         'drop table' => 'mysql -e "DROP TABLE sales"',
@@ -61,6 +63,7 @@ return [
         'Artisan::call in tinker on a test connection' => "php artisan tinker --execute=\"Artisan::call('migrate', ['--database' => 'rehearsal_testing']);\"",
         'snapshot the .env database (read-only)' => 'php artisan db:snapshot',
         'restore a snapshot into a test connection' => 'php artisan db:restore-snapshot snap.sql.gz --database=rehearsal_testing --yes',
+        'legacy import from the development database into a test connection' => 'php artisan saas:import-legacy --from=mysql --database=import_testing --business-name=Acme',
         'delete with where' => 'mysql pos_saas_dev -e "DELETE FROM sessions WHERE last_activity < 1"',
         'unrelated command' => 'git status',
     ],

@@ -2,6 +2,7 @@
 
 use App\Support\DatabaseSnapshot;
 use Database\Seeders\LiveLikeDatasetSeeder;
+use Illuminate\Contracts\Process\ProcessResult;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Process;
@@ -51,6 +52,61 @@ function datasetFingerprint(): array
     return $sums;
 }
 
+/**
+ * Every row of every table, by table and id (small at the test's scale).
+ *
+ * @return array<string, array<int|string, array<string, mixed>>>
+ */
+function datasetRows(): array
+{
+    $db = DB::connection('dataset_testing');
+
+    return collect(Schema::connection('dataset_testing')->getTableListing($db->getDatabaseName(), false))
+        ->mapWithKeys(fn (string $table): array => [$table => $db->table($table)->get()
+            ->map(fn (object $row): array => (array) $row)
+            ->keyBy(fn (array $row, int $index) => $row['id'] ?? $index)
+            ->all()])
+        ->all();
+}
+
+/**
+ * The first few differing rows and columns of $tables, so a failure says
+ * what changed between builds.
+ *
+ * @param  array<string, array<int|string, array<string, mixed>>>  $first
+ * @param  array<string, array<int|string, array<string, mixed>>>  $second
+ * @param  list<string>  $tables
+ */
+function datasetDifferences(array $first, array $second, array $tables): string
+{
+    $lines = [];
+
+    foreach ($tables as $table) {
+        foreach ($first[$table] ?? [] as $id => $row) {
+            foreach ($row as $column => $value) {
+                if (($second[$table][$id][$column] ?? null) !== $value && count($lines) < 10) {
+                    $lines[] = "{$table} #{$id} {$column}: ".json_encode($value).' then '.json_encode($second[$table][$id][$column] ?? null);
+                }
+            }
+        }
+        if (count($first[$table] ?? []) !== count($second[$table] ?? [])) {
+            $lines[] = "{$table}: ".count($first[$table] ?? []).' rows then '.count($second[$table] ?? []);
+        }
+    }
+
+    return implode("\n", $lines);
+}
+
+/**
+ * Builds the dataset as its own process, exactly as `php artisan
+ * dataset:build` is run.
+ */
+function buildDatasetProcess(): ProcessResult
+{
+    return Process::path(base_path())->timeout(900)
+        ->run([PHP_BINARY, 'artisan', 'dataset:build', '--database=dataset_testing', '--scale='.DATASET_SCALE]);
+}
+
 function emptyDatasetDatabase(): void
 {
     Schema::connection('dataset_testing')->dropAllTables();
@@ -76,23 +132,24 @@ describe('building on MySQL', function () {
         // Each build is its own process, exactly as `php artisan dataset:build`
         // is run: within one PHP process, state held over from a first build
         // (static caches) changes a second one's random sequence.
-        $build = fn () => Process::path(base_path())->timeout(900)
-            ->run([PHP_BINARY, 'artisan', 'dataset:build', '--database=dataset_testing', '--scale='.DATASET_SCALE]);
-
-        expect($build()->successful())->toBeTrue();
+        expect(buildDatasetProcess()->successful())->toBeTrue();
         $first = datasetFingerprint();
+        $firstRows = datasetRows();
 
         emptyDatasetDatabase();
-        expect($build()->successful())->toBeTrue();
+        expect(buildDatasetProcess()->successful())->toBeTrue();
         $second = datasetFingerprint();
 
         $differing = array_keys(array_diff_assoc($first, $second));
-        expect($differing)->toBe([], 'Tables that differ between builds: '.implode(', ', $differing))
+        expect($differing)->toBe([], 'Tables that differ between builds: '.implode(', ', $differing)."\n".datasetDifferences($firstRows, datasetRows(), $differing))
             ->and($second)->toBe($first);
     });
 
     it('covers what a system in use holds', function () {
-        $this->artisan('dataset:build', ['--database' => 'dataset_testing', '--scale' => DATASET_SCALE])->assertSuccessful();
+        // Its own process, like the build above: run in-process, the command
+        // would leave the test on the dataset connection and its guard, and
+        // the test's own transaction would never be rolled back.
+        expect(buildDatasetProcess()->successful())->toBeTrue();
         $db = DB::connection('dataset_testing');
 
         // Several shops; staff assigned to some shops, to two, and to none.

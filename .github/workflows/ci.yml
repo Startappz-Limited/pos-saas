@@ -227,20 +227,44 @@ jobs:
           cp .env.example .env
           php artisan key:generate --ansi
 
-      - name: Run this branch's migrations on the dataset
-        run: php artisan migrate --database=dataset_testing --no-interaction
+      # Stage 1a rewrote the migrations into a clean SaaS baseline (decision
+      # 4.7). Its first migration must refuse a database that already holds
+      # data; the data is carried across by the legacy import instead.
+      - name: The baseline refuses the dataset's database
+        run: |
+          if php artisan migrate --database=dataset_testing --no-interaction; then
+            echo "::error::The baseline migrated over a database that already has tables; the empty-database guard should have refused it."
+            exit 1
+          fi
+          echo "Refused, as it should be."
 
-      - name: Check no table lost rows
+      - name: Build the baseline in an empty database
+        run: |
+          mysql -h 127.0.0.1 -uroot -proot -e "CREATE DATABASE pos_saas_import_testing"
+          php artisan migrate --database=import_testing --no-interaction
+
+      # The data crosses by the one-off import (stage 1a): the dataset, built
+      # with the base branch's code, goes into the baseline as one business.
+      # The command verifies counts, money totals, credit balances, stock and
+      # references, and fails on any mismatch.
+      - name: Import the dataset into the baseline
+        run: php artisan saas:import-legacy --from=dataset_testing --database=import_testing --business-name="Live-like Retail"
+
+      - name: Upload the import report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: import-report
+          path: storage/app/imports/
+          if-no-files-found: ignore
+
+      # The import only reads its source: the dataset must be untouched.
+      - name: Check the dataset is unchanged
         run: |
           php artisan tinker --execute="require '.github/scripts/table-counts.php';" > /tmp/counts-after.json
           php -r '
             $before = json_decode(file_get_contents("/tmp/counts-before.json"), true);
             $after = json_decode(file_get_contents("/tmp/counts-after.json"), true);
-            $lost = [];
-            foreach ($before as $table => $rows) {
-                $now = $after[$table] ?? 0;
-                if ($now < $rows) { $lost[] = "$table: $rows -> $now"; }
-            }
-            if ($lost) { fwrite(STDERR, "Rows lost by the migration:\n".implode("\n", $lost)."\n"); exit(1); }
-            echo count($before)." tables, ".array_sum($before)." rows before; no table lost rows.\n";
+            if ($before !== $after) { fwrite(STDERR, "The dataset changed during the rehearsal.\n"); exit(1); }
+            echo count($before)." tables, ".array_sum($before)." rows, unchanged.\n";
           '

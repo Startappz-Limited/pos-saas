@@ -30,7 +30,8 @@ class StoreCreditAccountRequest extends FormRequest
                 Rule::exists('customers', 'id')
                     ->where('customer_type', 'wholesale')
                     ->where('allow_credit', true),
-                Rule::unique('credit_accounts', 'customer_id')->where(fn ($query) => $query->where('shop_id', $this->input('shop_id'))),
+                // One account per customer, serving every shop (stage 1a).
+                Rule::unique('credit_accounts', 'customer_id'),
             ],
             'shop_id' => ['required', 'exists:shops,id'],
             'credit_limit' => ['required', 'numeric', 'min:0'],

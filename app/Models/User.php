@@ -4,9 +4,12 @@ namespace App\Models;
 
 use App\Enums\UserStatus;
 use App\Models\Concerns\Auditable;
+use App\Support\Tenancy\TenantContext;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Collection;
@@ -36,6 +39,7 @@ class User extends Authenticatable
         'date_of_birth',
         'profile_photo',
         'status',
+        'default_business_id',
         'created_by',
         'updated_by',
     ];
@@ -184,6 +188,66 @@ class User extends Authenticatable
     /**
      * Relationship: Shops the user belongs to
      */
+    /**
+     * The businesses this login belongs to (decision 4.4).
+     */
+    public function businesses(): BelongsToMany
+    {
+        return $this->belongsToMany(Business::class)
+            ->using(BusinessMembership::class)
+            ->withPivot(['status', 'invited_by', 'joined_at'])
+            ->withTimestamps();
+    }
+
+    public function memberships(): HasMany
+    {
+        return $this->hasMany(BusinessMembership::class);
+    }
+
+    /**
+     * The business a sign-in opens when it's still usable.
+     */
+    public function defaultBusiness(): BelongsTo
+    {
+        return $this->belongsTo(Business::class, 'default_business_id');
+    }
+
+    /**
+     * Whether this login has an active membership in an active business.
+     */
+    public function canEnterBusiness(Business|int|null $business): bool
+    {
+        $businessId = $business instanceof Business ? $business->id : $business;
+
+        if ($businessId === null) {
+            return false;
+        }
+
+        return $this->memberships()
+            ->where('business_id', $businessId)
+            ->where('status', BusinessMembership::STATUS_ACTIVE)
+            ->whereHas('business', fn ($query) => $query->where('status', Business::STATUS_ACTIVE))
+            ->exists();
+    }
+
+    /**
+     * Adds an active membership in $business, and makes it the default
+     * business when the user has none.
+     */
+    public function joinBusiness(Business $business, ?User $invitedBy = null): BusinessMembership
+    {
+        $membership = BusinessMembership::firstOrCreate(
+            ['business_id' => $business->id, 'user_id' => $this->id],
+            ['status' => BusinessMembership::STATUS_ACTIVE, 'invited_by' => $invitedBy?->id, 'joined_at' => now()],
+        );
+
+        if ($this->default_business_id === null) {
+            $this->forceFill(['default_business_id' => $business->id])->saveQuietly();
+        }
+
+        return $membership;
+    }
+
     public function shops(): BelongsToMany
     {
         return $this->belongsToMany(Shop::class, 'shop_user')
@@ -213,17 +277,31 @@ class User extends Authenticatable
         return $this->shops()->exists();
     }
 
+    /**
+     * Whether the user may work in $shopId: one of the current business's
+     * shops they may access (TenantContext::accessibleShopIdsFor). With no
+     * business set, no shop; a member with no assigned shop, none.
+     */
     public function canAccessShop(?int $shopId): bool
     {
+        // "Every shop" (no shop named): only an owner (default-deny, 4.4).
         if ($shopId === null) {
-            return ! $this->hasShopRestrictions();
+            return app(TenantContext::class)->has() && $this->isBusinessOwner();
         }
 
-        if (! $this->hasShopRestrictions()) {
-            return true;
-        }
+        $tenant = app(TenantContext::class);
 
-        return $this->assignedShopIds()->contains((int) $shopId);
+        return $tenant->has() && in_array((int) $shopId, $tenant->accessibleShopIdsFor($this), true);
+    }
+
+    /**
+     * An owner sees every shop of the business (decision 4.4). Until Phase 3
+     * splits the platform operator from business owners, the owner is the
+     * super-admin role.
+     */
+    public function isBusinessOwner(): bool
+    {
+        return $this->hasRole('super-admin');
     }
 
     /**

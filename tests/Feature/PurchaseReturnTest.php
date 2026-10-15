@@ -23,7 +23,8 @@ use Illuminate\Support\Str;
 use Spatie\Permission\Models\Permission;
 
 beforeEach(function () {
-    $this->user = User::factory()->create();
+    // Staff working in the shops each test creates (shop access is default-deny).
+    $this->user = assignToNewShops(User::factory()->create());
     $this->actingAs($this->user);
 });
 

@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Role;
 use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Models\Shop;
@@ -43,10 +44,13 @@ test('dashboard rejects inaccessible shop filters for allocated users', function
         ->assertForbidden();
 });
 
-test('dashboard allows unallocated users to filter any shop', function () {
+test('dashboard lets the business owner filter any shop', function () {
+    // Default-deny (stage 1a): an unallocated member sees no shop; the owner
+    // sees every shop of the business.
     $shop = Shop::factory()->create();
     $otherShop = Shop::factory()->create();
     $user = User::factory()->create();
+    $user->assignRole(Role::findOrCreate('super-admin', 'web'));
 
     $ownSale = Sale::factory()->create([
         'shop_id' => $shop->id,

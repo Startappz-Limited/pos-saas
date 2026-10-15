@@ -12,6 +12,8 @@ use Spatie\Permission\Models\Permission;
 beforeEach(function () {
     $this->shop = Shop::factory()->create();
     $this->user = User::factory()->create();
+    // Staff in this shop (shop access is default-deny).
+    $this->user->shops()->attach($this->shop);
     $this->actingAs($this->user);
 
     Permission::create(['name' => 'sales.view']);
@@ -172,7 +174,8 @@ test('allocated user cannot view sales from another shop', function () {
     $otherShop = Shop::factory()->create();
     $sale = Sale::factory()->create(['shop_id' => $otherShop->id]);
 
-    $this->get(route('sales.show', $sale))->assertForbidden();
+    // Outside the user's shops, so not found (stage 1a scopes).
+    $this->get(route('sales.show', $sale))->assertNotFound();
 });
 
 test('allocated user cannot complete sales from another shop', function () {
@@ -182,7 +185,7 @@ test('allocated user cannot complete sales from another shop', function () {
     $otherShop = Shop::factory()->create();
     $sale = Sale::factory()->create(['shop_id' => $otherShop->id]);
 
-    $this->post(route('sales.complete', $sale))->assertForbidden();
+    $this->post(route('sales.complete', $sale))->assertNotFound();
 });
 
 test('credit sale requires a wholesale customer', function () {

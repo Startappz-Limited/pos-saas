@@ -59,6 +59,7 @@ class BackfillShopProductPivot extends Command
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);
+            $product->syncShopVariationRows();
             $attached++;
         }
 

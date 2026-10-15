@@ -54,8 +54,8 @@ names_live_db() {
 # "php artisan migrate:status" and "php artisan test" only read or use the
 # test configuration; everything else under migrate/db: changes a database.
 artisan_changes_db() {
-  printf '%s' "$norm" | grep -Eq 'artisan [^;&|]*(migrate(:fresh|:refresh|:reset|:rollback|:install)?( |$|;|&)|db:wipe|db:seed|db:restore-snapshot|dataset:build)' \
-    || printf '%s' "$norm" | grep -Eq 'artisan::call\(\\?["'"'"'](migrate|db:wipe|db:seed|db:restore-snapshot|dataset:build)'
+  printf '%s' "$norm" | grep -Eq 'artisan [^;&|]*(migrate(:fresh|:refresh|:reset|:rollback|:install)?( |$|;|&)|db:wipe|db:seed|db:restore-snapshot|dataset:build|saas:import-legacy)' \
+    || printf '%s' "$norm" | grep -Eq 'artisan::call\(\\?["'"'"'](migrate|db:wipe|db:seed|db:restore-snapshot|dataset:build|saas:import-legacy)'
 }
 
 # On the command line (--database=x_testing) or in an Artisan::call() array

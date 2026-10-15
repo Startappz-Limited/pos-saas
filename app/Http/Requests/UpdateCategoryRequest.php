@@ -3,6 +3,8 @@
 namespace App\Http\Requests;
 
 use App\Enums\CategoryStatus;
+use App\Models\Category;
+use App\Rules\UniqueForTenant;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -18,8 +20,8 @@ class UpdateCategoryRequest extends FormRequest
         $categoryId = $this->route('category')->id;
 
         return [
-            'name' => ['sometimes', 'required', 'string', 'max:255', Rule::unique('categories', 'name')->ignore($categoryId)],
-            'slug' => ['nullable', 'string', 'max:255', Rule::unique('categories', 'slug')->ignore($categoryId), 'regex:/^[a-z0-9-]+$/'],
+            'name' => ['sometimes', 'required', 'string', 'max:255', (new UniqueForTenant(Category::class, 'name'))->ignore($categoryId)],
+            'slug' => ['nullable', 'string', 'max:255', (new UniqueForTenant(Category::class, 'slug'))->ignore($categoryId), 'regex:/^[a-z0-9-]+$/'],
             'description' => ['nullable', 'string'],
             'parent_id' => ['nullable', 'exists:categories,id', function ($attribute, $value, $fail) use ($categoryId) {
                 if ($value == $categoryId) {

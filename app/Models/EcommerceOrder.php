@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\AlertType;
 use App\Enums\EcommerceOrderStatus;
+use App\Models\Concerns\BelongsToShop;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -15,6 +16,7 @@ use Illuminate\Support\Str;
 
 class EcommerceOrder extends Model
 {
+    use BelongsToShop;
     use HasFactory, SoftDeletes;
 
     protected $fillable = [
