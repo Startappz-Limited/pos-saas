@@ -386,4 +386,68 @@ passed, 59 skipped; MySQL 8 1,248 passed, 49 skipped**.
 | 4. Cache keys per business | `14d9a1d` | `CacheKeyScopeTest` (1), `BackgroundWorkTest` +1 | 1,265 passed, 59 skipped | 1,278 passed, 49 skipped (this run overlapped the start of step 5; step 5's full run re-verifies both) | `TenantContext::cacheKey()` prefixes the current business and refuses with none. The two global SMS keys (`sms_settings`, `sms_query_parameters`, kept a year) and the Baileys media-usage key now use it; `CacheKeyScopeTest` fails on any file that uses the cache without it. **Found:** `SMSservice` reads `App\Models\Setting`, which doesn't exist (no model, no `settings` table), so on a cache miss SMS sending fails: the SMS fallback can't be working today. Not fixed here; per-business SMS settings are Phase 6 |
 | 5. E-commerce stock push per shop | `c47a438` | `ShopStockPushTest` (3) | 1,270 passed, 59 skipped (step 6's clean run) | 1,280 passed, 49 skipped | Every stock change goes through the ledger, so the ledger now queues `PushShopStockJob` for the shop whose stock changed, after the change commits, when that shop has a WooCommerce or Shopify store connected. The job sends that shop's own figure (`syncInventory`, which reads the shop's ledger quantity) to that shop's stores only, and is unique per shop and product while waiting, so a burst of sales sends the latest figure once. Not while a store's own figures are being written in (`ProductObserver::$syncInProgress`), so a store never gets its change echoed back. `ProductObserver` still pushes product details on `Product::updated`. Products with variations push their default variation only, as `syncInventory` always has (follow-up) |
 | 6. Temporary signed links | `7d423eb` | `SaleInvoiceDeliveryTest` +2 | 1,270 passed, 59 skipped | 1,280 passed, 49 skipped (a clean run of steps 4–6 together) | Invoice, statement and order-invoice links (`sales.invoice-pdf`, `credit-accounts.statement-pdf`, `orders.invoice-pdf`) used `signedRoute` and never expired; they now come from `App\Support\DocumentLinks::signed()`, a `temporarySignedRoute` valid for `config('invoicing.document_link_days')` (`DOCUMENT_LINK_DAYS`, default **30**). An expired link gets the `signed` middleware's 403. The WhatsApp order template's button suffix now carries `expires=` before the signature. Links already sent stay valid (they carry no expiry); new ones expire. `.env.example` gains the key and its invoice-format comment is corrected to the per-register form. Test adapted (1): the order notification asserts the new suffix |
-| 7. Business files: private disk, prefix, quota, move | _this commit_ | `TenantFilesTest` (6); media tests adapted (2 files) | 1,276 passed, 59 skipped | 1,286 passed, 49 skipped | `App\Support\Tenancy\TenantFiles` puts every file under `{business uuid}/` and enforces a per-business quota (`TENANT_FILES_QUOTA_BYTES`, default **2 GB**; `businesses.settings['files_quota_bytes']` overrides; usage cached per business). A new private `tenant` disk (`storage/app/tenant`, outside the web root) holds **WhatsApp media** (inbound and inbox uploads) and **profile photos**, served only through the signed-in `tenant-files.show` route (`/files/{path}`): another business's file, a path outside the folder (`..`), or WhatsApp media of a session in a shop the viewer can't access is a 404. **Product images stay public** under `{business uuid}/products/` (decided 15 October 2026): the shipped Flutter app builds `{base_url}{image}` without an auth header and the online stores fetch them. Over quota: an upload is a validation error; inbound WhatsApp media and downloaded platform images are skipped and logged. `baileys:prune-media` prunes both the private folder and the legacy public one (still guarded against other businesses' sessions). **Existing files:** `php artisan files:move-to-business --business=<id>` (dry run; `--apply` copies, checks each copy and repoints the record; `--delete-originals` afterwards removes originals whose copy matches). A profile photo belongs to the business it was uploaded in (a member of several sees it only there) |
+| 7. Business files: private disk, prefix, quota, move | `0e0d14f` | `TenantFilesTest` (6); media tests adapted (2 files) | 1,276 passed, 59 skipped | 1,286 passed, 49 skipped | `App\Support\Tenancy\TenantFiles` puts every file under `{business uuid}/` and enforces a per-business quota (`TENANT_FILES_QUOTA_BYTES`, default **2 GB**; `businesses.settings['files_quota_bytes']` overrides; usage cached per business). A new private `tenant` disk (`storage/app/tenant`, outside the web root) holds **WhatsApp media** (inbound and inbox uploads) and **profile photos**, served only through the signed-in `tenant-files.show` route (`/files/{path}`): another business's file, a path outside the folder (`..`), or WhatsApp media of a session in a shop the viewer can't access is a 404. **Product images stay public** under `{business uuid}/products/` (decided 15 October 2026): the shipped Flutter app builds `{base_url}{image}` without an auth header and the online stores fetch them. Over quota: an upload is a validation error; inbound WhatsApp media and downloaded platform images are skipped and logged. `baileys:prune-media` prunes both the private folder and the legacy public one (still guarded against other businesses' sessions). **Existing files:** `php artisan files:move-to-business --business=<id>` (dry run; `--apply` copies, checks each copy and repoints the record; `--delete-originals` afterwards removes originals whose copy matches). A profile photo belongs to the business it was uploaded in (a member of several sees it only there) |
+
+### Differences from the stage file
+
+- **Product images stay public** (decided 15 October 2026), under `{business uuid}/products/`: the shipped
+  Flutter app builds `{base_url}{image}` without an auth header and the online stores fetch them. WhatsApp
+  media and profile photos are private as the stage file says.
+- **User listings are scoped too** (not in the stage file's list): users carry no tenant scope, and the
+  users page, its search and statistics, and the manager and staff pickers showed every business's users.
+- **8 commands take `--business`, not 9**: the 8 that work on tenant data. The others are platform tools
+  (dataset, snapshots, legacy import, contract diff, audit backfill).
+- **Code with no business is refused in production too.** Stage 1a let jobs and commands run unscoped,
+  with a warning, until this stage; with jobs, the scheduler and commands acting for a business, the
+  fallback became a refusal.
+- **Audit:** the audit database's part in the business export and closure erasure, and **notifications:**
+  their links switching to their business, come with the closure flow and the business switcher (Phase 3).
+- **Two leaks found outside the listed work:** another business's audit row opened by uuid (owners pass
+  every policy), and the Baileys orphan sweep, which run per business would have deleted every other
+  business's media.
+
+### Moving UAT onto stage 1c (for you to run; nothing here has touched UAT)
+
+Stage 1c adds no migration to the main database. It adds one to the audit database, and moves files.
+
+1. **Stop the queue workers and let `jobs` drain** (`select queue, count(*) from jobs group by queue;`):
+   jobs queued before this stage carry no business and are refused.
+2. Snapshot: `php artisan db:snapshot`, and copy `database/audit.sqlite` and `storage/app/public`.
+3. Audit column: `php artisan migrate --database=audit --path=database/migrations/audit`, then
+   `php artisan audit:backfill-business` (dry run) and `--apply`.
+4. Files: `php artisan files:move-to-business --business=<id>` (dry run), then `--apply`. Check product
+   images, profile photos and the WhatsApp inbox, then `--apply --delete-originals`.
+5. Make sure `storage/app/tenant` is writable and included in backups.
+6. Restart the workers (with the full `--queue=` list) and the scheduler.
+
+### End of stage 1c (16 October 2026)
+
+- **Checks on the whole branch:** SQLite 1,276 passed, 59 skipped; MySQL 8 1,286 passed, 49 skipped
+  (the flat API contract test runs within it); Pint passes on every changed file
+  (`pint --test --diff=origin/main`).
+- **Acceptance criteria:** all ticked with evidence in the stage file; hotspots for queries, background
+  work, cache and files ticked in saas-plan.md section 2 (audit export and notification links noted as
+  partly done).
+- **PR checklist (`.ai/general/PR_CHECKLIST.md`):** no debug code, secrets or `env()` outside config; the
+  one migration (audit connection) is anonymous with `up()` and `down()` and additive; the new route
+  (`tenant-files.show`) is authenticated and authorized by business, shop and path; validation goes through
+  the existing FormRequests (quota errors are validation errors); the flat API keeps its shape (contract
+  test). `.env.example` gains `DOCUMENT_LINK_DAYS`; `TENANT_FILES_QUOTA_BYTES` has a config default.
+- **CLAUDE.md** describes `restrictToShops()`, `User::inCurrentBusiness()`, `cacheKey()`, `TenantFiles`,
+  queued work carrying its business, `RunsForBusiness`, expiring document links and the new commands.
+
+### Follow-ups
+
+- **Missing views (already on `main`):** `sales.dailyReport` and `sales.profitReport` render
+  `sales.daily-report` and `sales.profit-report`, which don't exist: both pages are a 500.
+- **SMS can't be working (already on `main`):** `SMSservice` reads `App\Models\Setting`, which doesn't
+  exist; per-business SMS settings are Phase 6.
+- **Profile photos in the Flutter app:** a new photo's `profile_photo` is a private path, served only to a
+  signed-in web session. If the app shows avatars from `{base_url}{profile_photo}`, they won't load;
+  check with `mobile:contract-diff` where the app is (not on this machine).
+- **Stores get a product's default variation only:** `syncInventory` has always pushed the default
+  variation; per-variation pushes need the platforms' variant ids.
+- **File columns with no upload code yet** (expense receipts, purchase order and intake attachments,
+  category images, report exports): when they gain uploads, use `TenantFiles`.
+- **`mobile:contract-diff` not run** (no Flutter app on this machine); no routes in `routes/api.php`
+  changed, and the flat API contract test passed at every step.

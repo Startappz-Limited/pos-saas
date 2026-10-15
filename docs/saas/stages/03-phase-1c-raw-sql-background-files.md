@@ -109,12 +109,18 @@ None beyond what 1a wrote (audit rows gain `business_id` on the audit connection
 
 ## Acceptance criteria
 
-- [ ] Raw SQL paths and reports tested with two businesses, **on MySQL 8**.
-- [ ] Jobs and commands run for one named business only.
-- [ ] A stock change in shop A updates shop A's online store and no other.
-- [ ] An expired signed link is refused.
-- [ ] Uploaded files land under the business prefix and aren't publicly reachable.
-- [ ] The flat API contract tests pass; the full suite is green on both databases.
+- [x] Raw SQL paths and reports tested with two businesses, **on MySQL 8**.
+      *`RawQueryIsolationTest` (13), `AuditIsolationTest` (4): in the MySQL 8 suite as well as SQLite.*
+- [x] Jobs and commands run for one named business only.
+      *`BackgroundWorkTest`: a queued job runs for its business, one with none is refused, sweeps skip suspended businesses, `--business` limits a command.*
+- [x] A stock change in shop A updates shop A's online store and no other.
+      *`ShopStockPushTest`.*
+- [x] An expired signed link is refused.
+      *`SaleInvoiceDeliveryTest > refuses an invoice link once it has expired`.*
+- [x] Uploaded files land under the business prefix and aren't publicly reachable.
+      *`TenantFilesTest`; product images are under the prefix but public by decision (15 October 2026).*
+- [x] The flat API contract tests pass; the full suite is green on both databases.
+      *SQLite 1,276 passed, 59 skipped; MySQL 8 1,286 passed, 49 skipped, including `FlatApiContractTest`.*
 
 ## Risks (Phase 1, leakage)
 
@@ -125,7 +131,9 @@ None beyond what 1a wrote (audit rows gain `business_id` on the audit connection
 
 ## Definition of done
 
-- [ ] Acceptance criteria met, with tests.
-- [ ] Pint, the full suite (SQLite and MySQL 8) and the flat API contract tests pass.
-- [ ] Hotspot checklist items for queries, background work, cache and files ticked in saas-plan.md
+- [x] Acceptance criteria met, with tests.
+- [x] Pint, the full suite (SQLite and MySQL 8) and the flat API contract tests pass.
+      *Pint clean (`pint --test --diff=origin/main`); suites as above.*
+- [x] Hotspot checklist items for queries, background work, cache and files ticked in saas-plan.md
       section 2.
+      *Ticked, with the parts left to Phase 3 noted.*
