@@ -39,6 +39,7 @@ use App\Http\Controllers\StockAdjustmentController;
 use App\Http\Controllers\StockIntakeController;
 use App\Http\Controllers\StockMovementController;
 use App\Http\Controllers\SupplierController;
+use App\Http\Controllers\TenantFileController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\VatReportController;
 use Illuminate\Support\Facades\Route;
@@ -68,6 +69,9 @@ Route::get('credit-accounts/{creditAccount:uuid}/statement-pdf', [CreditAccountC
     ->middleware('signed');
 
 Route::middleware('auth')->group(function () {
+    // Private business files (stage 1c): WhatsApp media, profile photos.
+    Route::get('files/{path}', TenantFileController::class)->where('path', '.*')->name('tenant-files.show');
+
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');

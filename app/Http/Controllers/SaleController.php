@@ -24,6 +24,7 @@ use App\Models\User;
 use App\Rules\UniqueForTenant;
 use App\Services\InvoiceNumberService;
 use App\Services\Stock\StockLedger;
+use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Database\Query\Builder as QueryBuilder;
@@ -878,12 +879,12 @@ class SaleController extends Controller
 
     private function applyShopFilter(QueryBuilder $query, User $user, ?int $shopId = null): QueryBuilder
     {
+        // DB::table() reaches no model scope: limit it to the viewer's shops in
+        // the current business (stage 1c); no assigned shop means none.
+        app(TenantContext::class)->restrictToShops($query, 'shop_id');
+
         if ($shopId !== null) {
             return $query->where('shop_id', $shopId);
-        }
-
-        if ($user->hasShopRestrictions()) {
-            return $query->whereIn('shop_id', $user->assignedShopIds());
         }
 
         return $query;

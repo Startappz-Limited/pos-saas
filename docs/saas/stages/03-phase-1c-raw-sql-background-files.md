@@ -59,33 +59,49 @@ No open question blocks this stage.
 ## Work
 
 ### Raw SQL
-- [ ] **All 34 files** listed above filter by business and allowed shops, including the models,
+- [x] **All 34 files** listed above filter by business and allowed shops, including the models,
       controllers, services, observer, listener and form request outside the report code.
-- [ ] "Empty list means all" filters removed (`ReportService`).
+      *Step 1: raw clauses on Eloquent queries keep the tenant scope; query-builder reads go through
+      `TenantContext::restrictToShops()`; users through `User::inCurrentBusiness()`. `RawQueryScopeTest`
+      lists every query-builder use with its reason; `RawQueryIsolationTest` (two businesses).*
+- [x] "Empty list means all" filters removed (`ReportService`).
+      *Step 1: the report always names the viewer's accessible shops; an empty list is no shops.*
 
 ### Exports and audit
-- [ ] CSV and PDF exports scoped.
-- [ ] `AuditService`: audit rows gain `business_id`; reads scoped.
+- [x] CSV and PDF exports scoped.
+      *Step 2: report, VAT and audit CSVs from scoped services; PDFs from scoped records; tested with two businesses.*
+- [x] `AuditService`: audit rows gain `business_id`; reads scoped.
+      *Step 2: audit migration `2026_10_16_000001`, captured on write, reads and route binding limited to the business; `audit:backfill-business` for older rows.*
 
 ### Background work
-- [ ] The 10 jobs carry the business.
-- [ ] The scheduler runs per business and skips suspended or read-only businesses.
-- [ ] The 9 commands take `--business`.
+- [x] The 10 jobs carry the business.
+      *Step 3: the business travels in every queued payload's hidden context and is restored by the worker.*
+- [x] The scheduler runs per business and skips suspended or read-only businesses.
+      *Step 3: `TenantContext::eachBusiness()` over active businesses (`Business::runsBackgroundWork()`; read-only comes with billing in Phase 4).*
+- [x] The 9 commands take `--business`.
+      *Step 3: the 8 commands on tenant data, through `RunsForBusiness`; the others are platform tools.*
 
 ### Cache
-- [ ] Every cache key includes the business.
+- [x] Every cache key includes the business.
+      *Step 4: `TenantContext::cacheKey()`; `CacheKeyScopeTest` requires it wherever the cache is used.*
 
 ### E-commerce stock push
-- [ ] Triggered by per-shop stock changes, since `ProductObserver` only watches `Product::updated`.
-- [ ] Each shop's store gets that shop's stock.
+- [x] Triggered by per-shop stock changes, since `ProductObserver` only watches `Product::updated`.
+      *Step 5: the stock ledger queues `PushShopStockJob` on every change, after commit.*
+- [x] Each shop's store gets that shop's stock.
+      *Step 5: the push sends the shop's ledger quantity to that shop's stores only; `ShopStockPushTest`.*
 
 ### Signed links
-- [ ] Invoice, statement and order-invoice links become temporary (`temporarySignedRoute`).
+- [x] Invoice, statement and order-invoice links become temporary (`temporarySignedRoute`).
+      *Step 6: `DocumentLinks::signed()`, 30 days by default (`DOCUMENT_LINK_DAYS`); an expired link is refused (tested).*
 
 ### Files
-- [ ] A private disk with `{business_uuid}/…` paths, served through authorized routes.
-- [ ] A per-tenant quota.
-- [ ] Product images, profile photos and Baileys media moved onto it.
+- [x] A private disk with `{business_uuid}/…` paths, served through authorized routes.
+      *Step 7: the `tenant` disk and `TenantFiles`; served by `tenant-files.show` to members only. Product images stay public under the prefix (decided 15 October 2026: the Flutter app and the stores load them unsigned).*
+- [x] A per-tenant quota.
+      *Step 7: `TENANT_FILES_QUOTA_BYTES` (2 GB), per-business override in settings.*
+- [x] Product images, profile photos and Baileys media moved onto it.
+      *Step 7: new files land there; `files:move-to-business` moves existing ones (dry run first, originals kept until `--delete-originals`).*
 
 ## Schema
 
@@ -93,12 +109,18 @@ None beyond what 1a wrote (audit rows gain `business_id` on the audit connection
 
 ## Acceptance criteria
 
-- [ ] Raw SQL paths and reports tested with two businesses, **on MySQL 8**.
-- [ ] Jobs and commands run for one named business only.
-- [ ] A stock change in shop A updates shop A's online store and no other.
-- [ ] An expired signed link is refused.
-- [ ] Uploaded files land under the business prefix and aren't publicly reachable.
-- [ ] The flat API contract tests pass; the full suite is green on both databases.
+- [x] Raw SQL paths and reports tested with two businesses, **on MySQL 8**.
+      *`RawQueryIsolationTest` (13), `AuditIsolationTest` (4): in the MySQL 8 suite as well as SQLite.*
+- [x] Jobs and commands run for one named business only.
+      *`BackgroundWorkTest`: a queued job runs for its business, one with none is refused, sweeps skip suspended businesses, `--business` limits a command.*
+- [x] A stock change in shop A updates shop A's online store and no other.
+      *`ShopStockPushTest`.*
+- [x] An expired signed link is refused.
+      *`SaleInvoiceDeliveryTest > refuses an invoice link once it has expired`.*
+- [x] Uploaded files land under the business prefix and aren't publicly reachable.
+      *`TenantFilesTest`; product images are under the prefix but public by decision (15 October 2026).*
+- [x] The flat API contract tests pass; the full suite is green on both databases.
+      *SQLite 1,276 passed, 59 skipped; MySQL 8 1,286 passed, 49 skipped, including `FlatApiContractTest`.*
 
 ## Risks (Phase 1, leakage)
 
@@ -109,7 +131,9 @@ None beyond what 1a wrote (audit rows gain `business_id` on the audit connection
 
 ## Definition of done
 
-- [ ] Acceptance criteria met, with tests.
-- [ ] Pint, the full suite (SQLite and MySQL 8) and the flat API contract tests pass.
-- [ ] Hotspot checklist items for queries, background work, cache and files ticked in saas-plan.md
+- [x] Acceptance criteria met, with tests.
+- [x] Pint, the full suite (SQLite and MySQL 8) and the flat API contract tests pass.
+      *Pint clean (`pint --test --diff=origin/main`); suites as above.*
+- [x] Hotspot checklist items for queries, background work, cache and files ticked in saas-plan.md
       section 2.
+      *Ticked, with the parts left to Phase 3 noted.*

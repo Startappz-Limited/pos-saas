@@ -5,8 +5,8 @@ namespace App\Actions;
 use App\Actions\Baileys\NotifyCustomerOfSale;
 use App\Http\Controllers\SaleController;
 use App\Models\Sale;
+use App\Support\DocumentLinks;
 use Barryvdh\DomPDF\Facade\Pdf;
-use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Str;
 
 /**
@@ -43,13 +43,13 @@ class GenerateSaleInvoicePdf
     }
 
     /**
-     * Permanent signed link the customer can reopen the invoice from.
+     * Signed link the customer can reopen the invoice from.
      *
-     * Mirrors the ecommerce order invoice: no expiry, but unguessable and
-     * tamper-proof, so it is safe to hand to a customer over WhatsApp.
+     * Tamper-proof, and it expires (stage 1c, DocumentLinks), so it is safe to
+     * hand to a customer over WhatsApp.
      */
     public function signedUrl(Sale $sale): string
     {
-        return URL::signedRoute('sales.invoice-pdf', $sale);
+        return DocumentLinks::signed('sales.invoice-pdf', $sale);
     }
 }

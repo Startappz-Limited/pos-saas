@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Console\Concerns\RunsForBusiness;
 use App\Models\Sale;
 use App\Models\SaleItem;
 use Illuminate\Console\Command;
@@ -27,6 +28,8 @@ use Illuminate\Support\Facades\DB;
  */
 class RecomputeSaleProfit extends Command
 {
+    use RunsForBusiness;
+
     protected $signature = 'sales:recompute-profit
                             {--apply : Write the changes (defaults to a dry run)}
                             {--sale= : Restrict to a single sale uuid}
@@ -36,7 +39,7 @@ class RecomputeSaleProfit extends Command
 
     protected $description = 'Recompute cost and profit on existing sales from the current product purchase costs';
 
-    public function handle(): int
+    public function handleForBusiness(): int
     {
         $apply = (bool) $this->option('apply');
         $zeroUnknown = (bool) $this->option('zero-unknown');

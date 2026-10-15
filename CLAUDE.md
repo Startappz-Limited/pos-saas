@@ -113,7 +113,10 @@ silently mixing patterns (see the skill's `CONFLICT:` protocol).
   which **swallows failures** so a broken audit sink can never fail a sale. Rows are immutable (`save()`
   and `delete()` throw), secrets are stripped and PII masked, and reads go through `AuditService` gated on
   `audit.view`/`audit.export`. Schema is `database/migrations/audit/` — polymorphic `auditable_type`/
-  `auditable_id`/`auditable_uuid` plus `event`, `status`, `user_*`, `shop_id`.
+  `auditable_id`/`auditable_uuid` plus `event`, `status`, `user_*`, `shop_id`, `business_id`.
+  Since SaaS stage 1c every row carries its **business**, and `AuditService` and the `AuditLog` route
+  binding read only the current business (another business's row is a 404, even for an owner). Rows
+  written before have no business until `php artisan audit:backfill-business --apply`.
   **Audited models:** Sale, Product, User, CashRegister, Expense, StockAdjustment, Shop, Role,
   CreditAccount, CreditTransaction, SaleReturn, Refund (add `use Auditable;` for more).
   **Authorization grants** (role/permission attach+detach) are audited via Spatie events —
@@ -127,12 +130,19 @@ silently mixing patterns (see the skill's `CONFLICT:` protocol).
   - **The current business** is `App\Support\Tenancy\TenantContext`, set by `ResolveTenant` after
     authentication (web: the session's business, re-checked against membership; API tokens: the user's
     default business). Code with no signed-in user (jobs, commands, webhooks) must set it:
-    `app(TenantContext::class)->run($business, fn () => …)`. Stage 1c makes every job and command do so.
+    `app(TenantContext::class)->run($business, function () { … })`.
+  - **Background work acts for one business (stage 1c).** Queued jobs, listeners, notifications and mail
+    carry the business they were dispatched for (hidden log context, restored by the worker); don't
+    *return* a pending dispatch out of `run()` (`fn () => Job::dispatch()`), it would be queued after the
+    business is restored. Scheduler sweeps use `TenantContext::eachBusiness()` (active businesses only).
+    A console command on tenant data uses the `RunsForBusiness` trait (`--business=<id|uuid>`, implement
+    `handleForBusiness()`). Code with no signed-in user and no business is **refused**
+    (`MissingTenantContext`), in production too.
   - **Every tenant model carries a global scope**: `BelongsToBusiness` (`BusinessScope`) for business-owned
     models (shops, products, variations, the 7 lists, customers, credit accounts…), `BelongsToShop`
     (`ShopAccessScope`) for shop-owned ones. A **new model with `business_id` or `shop_id` must use one**
     (`TenantScopeReflectionTest` fails otherwise). With no business set: local/testing throw
-    `MissingTenantContext`; production gives a signed-in user no rows.
+    `MissingTenantContext`; production gives a signed-in user no rows and refuses code with no user.
   - **Shop access is default-deny**: the owner sees every shop of the business; other members only their
     assigned shops; none assigned means none. The owner is `super-admin` **in the current business** until
     Phase 3 (`User::isBusinessOwner()`, `Gate::before`). Roles are per business (Spatie teams on
@@ -141,8 +151,18 @@ silently mixing patterns (see the skill's `CONFLICT:` protocol).
     uniqueness use `new UniqueForTenant(Model::class, 'code')`, **not** `unique:` (keys are per business and
     ignore soft-deleted rows).
   - **Never lift the scopes** with `withoutGlobalScopes()` or `TenantContext::bypass()` without adding the
-    place, and why, to `tests/Unit/TenantScopeBypassTest.php`. Raw `DB::table()` queries aren't scoped:
-    filter by business and accessible shops by hand (stage 1c does the existing 34 files).
+    place, and why, to `tests/Unit/TenantScopeBypassTest.php`. Query-builder queries (`DB::table()`)
+    reach no scope: restrict them with `app(TenantContext::class)->restrictToShops($query, 'table.shop_id')`
+    (or `restrictToBusiness()`), and list the file with its reason in `tests/Unit/RawQueryScopeTest.php`.
+    An allowed-shops list is always explicit: empty means **no** shops, never all.
+  - **Users carry no tenant scope** (one login, several businesses): every user listing applies
+    `User::inCurrentBusiness()`.
+  - **Cache keys** go through `TenantContext::cacheKey('name')` (`CacheKeyScopeTest`).
+  - **Files** go through `App\Support\Tenancy\TenantFiles`: everything under `{business uuid}/`, within a
+    per-business quota (`TENANT_FILES_QUOTA_BYTES`, 2 GB). Private files (WhatsApp media, profile photos)
+    are on the `tenant` disk, served only by the signed-in `tenant-files.show` route; **product images stay
+    public** under the prefix because the Flutter app and the online stores load them unsigned. Files from
+    before stage 1c move with `php artisan files:move-to-business --business=<id> --apply`.
   - **Products** always have a hidden default variation; per-shop stock rows live in `shop_variation`
     (`(shop_id, variation_id)`), the **only** stock source (stage 1b). `stock_quantity` on Product and
     ProductVariation is a computed attribute (`HasShopStock`): the request's shop, else the viewer's
@@ -208,7 +228,8 @@ silently mixing patterns (see the skill's `CONFLICT:` protocol).
   (`{resource}.{action}` naming) on every resource action.
 - Validate with FormRequests + `$request->validated()`; never `$request->all()`.
 - `@csrf` + `@honeypot` on web forms; webhooks verified by HMAC signature (not session auth).
-- Public document links (invoices) use **signed URLs** (`->middleware('signed')`).
+- Public document links (invoices, statements) use **expiring signed URLs** from
+  `App\Support\DocumentLinks::signed()` (`DOCUMENT_LINK_DAYS`, 30), behind `->middleware('signed')`.
 - Encrypt PII / tokens at rest (`Crypt`) — already done for social account tokens; follow that pattern.
 - Secrets only in `.env`/config; never log tokens/passwords/PII; `APP_DEBUG=false` in production.
 
@@ -257,6 +278,10 @@ php artisan saas:import-legacy --from=dataset_testing --database=import_testing 
 # repository, so plain `migrate` does NOT create it. Every environment must run:
 php artisan migrate --database=audit --path=database/migrations/audit
 # (the SQLite file is gitignored — `touch database/audit.sqlite` first if missing)
+php artisan audit:backfill-business            # dry run; --apply fills business_id on older audit rows
+# Commands on tenant data act for one business (stage 1c): --business=<id or uuid>, required when
+# there are several. Files from before stage 1c move into the business's folder:
+php artisan files:move-to-business --business=1   # dry run; --apply, then --apply --delete-originals
 php artisan pail          # tail logs
 vendor/bin/pint           # format PHP (run before finishing)
 php artisan test --compact            # run tests
@@ -264,7 +289,7 @@ php artisan route:list --path=api     # inspect API routes
 # WhatsApp (Baileys) runs in Chatway Gateway, not in this repo; Composer needs a GitHub token to
 # install its client package: COMPOSER_AUTH='{"github-oauth":{"github.com":"<token>"}}' composer install
 # Project-specific commands:
-php artisan ecommerce:sync-products   # SyncEcommerceProducts
+php artisan ecommerce:sync-products --business=1   # SyncEcommerceProducts
 # (BackfillShopProductPivot exists in app/Console/Commands)
 # Mobile client contract — run after ANY change to routes/api.php:
 php artisan mobile:contract-diff              # needs MOBILE_APP_PATH in .env

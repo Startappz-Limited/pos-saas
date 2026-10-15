@@ -3,13 +3,16 @@
 namespace App\Services\Stock;
 
 use App\Enums\StockMovementType;
+use App\Jobs\PushShopStockJob;
 use App\Models\CostAllocation;
 use App\Models\CostLayer;
 use App\Models\ProductVariation;
 use App\Models\PurchaseReturnItem;
 use App\Models\SaleItem;
+use App\Models\Shop;
 use App\Models\StockAdjustmentItem;
 use App\Models\StockMovement;
+use App\Observers\ProductObserver;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -234,6 +237,33 @@ class StockLedger
     {
         DB::table('shop_variation')->where('shop_id', $shopId)->where('variation_id', $variation->id)
             ->update(['stock_quantity' => DB::raw('stock_quantity + ('.$delta.')'), 'updated_at' => now()]);
+
+        $this->pushStock($shopId, $variation);
+    }
+
+    /**
+     * Sends the shop's new figure to the shop's online stores, once the change
+     * commits (stage 1c). Only this shop's stores: each shows its own shop's
+     * stock. Not while a store's own figures are being written in, so a store
+     * never gets its own change echoed back.
+     */
+    private function pushStock(int $shopId, ProductVariation $variation): void
+    {
+        if (ProductObserver::$syncInProgress || ! $this->shopHasStore($shopId)) {
+            return;
+        }
+
+        PushShopStockJob::dispatch($shopId, $variation->product_id)->afterCommit();
+    }
+
+    /** @var array<int, bool> whether each shop has an online store connected */
+    private array $shopHasStore = [];
+
+    private function shopHasStore(int $shopId): bool
+    {
+        return $this->shopHasStore[$shopId] ??= (static function (?Shop $shop): bool {
+            return $shop !== null && ($shop->isIntegrationEnabled('woocommerce') || $shop->isIntegrationEnabled('shopify'));
+        })(Shop::find($shopId));
     }
 
     private function createLayer(int $shopId, ProductVariation $variation, int $quantity, ?float $unitCost, array $context): int

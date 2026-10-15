@@ -256,11 +256,15 @@ answered before Phase 1** (Open question 1):
       **Done (stage 1a):** every `exists:` rule, through `TenantPresenceVerifier`.
 - [x] Route model binding by uuid on unscoped models.
       **Done (stage 1a):** a test checks every route binds by uuid.
-- [ ] Raw SQL in 34 files (section 1) and "empty list means all" filters (`ReportService`).
-- [ ] CSV and PDF exports.
+- [x] Raw SQL in 34 files (section 1) and "empty list means all" filters (`ReportService`).
+      **Done (stage 1c):** `TenantContext::restrictToShops()` on every query-builder read, listed in `RawQueryScopeTest`; reports always name their shops.
+- [x] CSV and PDF exports.
+      **Done (stage 1c):** tested with two businesses.
 - [ ] `AuditService` reads (audit rows gain `business_id`); the SQLite audit database included in export
       and closure erasure.
-- [ ] Signed invoice and statement links made temporary (`temporarySignedRoute`).
+      **Partly done (stage 1c):** `business_id` on audit rows, reads and binding limited to the business, `audit:backfill-business`. Export and closure erasure come with the closure flow (Phase 3).
+- [x] Signed invoice and statement links made temporary (`temporarySignedRoute`).
+      **Done (stage 1c):** `DocumentLinks`, 30 days by default.
 
 **Auth and roles**
 - [ ] Platform operator (`super-admin`, outside every business) versus business owner (`admin`).
@@ -274,15 +278,21 @@ answered before Phase 1** (Open question 1):
 - [ ] Hard self-delete replaced by deactivation and owner-controlled deletion.
 
 **Background work**
-- [ ] Jobs carry the business explicitly (scopes don't apply without a signed-in user).
-- [ ] Scheduler sweeps and commands run per business and skip suspended or read-only businesses.
-- [ ] E-commerce stock push triggered by per-shop stock changes (`ProductObserver` only watches
+- [x] Jobs carry the business explicitly (scopes don't apply without a signed-in user).
+      **Done (stage 1c):** in every queued payload's hidden context; code with no business is refused.
+- [x] Scheduler sweeps and commands run per business and skip suspended or read-only businesses.
+      **Done (stage 1c):** `TenantContext::eachBusiness()` and `--business`; read-only joins `Business::runsBackgroundWork()` with billing (Phase 4).
+- [x] E-commerce stock push triggered by per-shop stock changes (`ProductObserver` only watches
       `Product::updated` today, so it would stop firing).
+      **Done (stage 1c):** the stock ledger queues `PushShopStockJob` for the shop that changed.
 - [ ] Notifications carry the business they belong to; their links switch to it.
+      **Partly done (stage 1c):** queued notifications carry their business; links switching to it need the business switcher (Phase 3).
 
 **Cache, files, config**
-- [ ] Every cache key includes the business (`sms_settings` and `sms_query_parameters` are global today).
-- [ ] Private disk with `{business_uuid}/…` paths, served through authorized routes.
+- [x] Every cache key includes the business (`sms_settings` and `sms_query_parameters` are global today).
+      **Done (stage 1c):** `TenantContext::cacheKey()`, required by `CacheKeyScopeTest`.
+- [x] Private disk with `{business_uuid}/…` paths, served through authorized routes.
+      **Done (stage 1c):** WhatsApp media and profile photos private; product images public under the prefix (decided 15 October 2026); per-business quota; `files:move-to-business`.
 - [ ] Business and shop settings replace `config('app.name')`, currency, timezone, country code, invoice
       prefix, the hard-coded till, the WooCommerce webhook name and the template URL.
 

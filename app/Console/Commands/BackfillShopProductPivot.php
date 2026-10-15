@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Console\Concerns\RunsForBusiness;
 use App\Models\Product;
 use App\Models\ProductEcommerceSync;
 use Illuminate\Console\Command;
@@ -9,11 +10,13 @@ use Illuminate\Support\Facades\DB;
 
 class BackfillShopProductPivot extends Command
 {
+    use RunsForBusiness;
+
     protected $signature = 'products:backfill-shop-pivot';
 
     protected $description = 'Backfill shop_product pivot table from existing ecommerce sync records';
 
-    public function handle(): int
+    public function handleForBusiness(): int
     {
         $syncRecords = ProductEcommerceSync::where('sync_direction', 'from_platform')->get();
 

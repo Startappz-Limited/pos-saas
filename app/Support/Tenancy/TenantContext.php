@@ -10,7 +10,6 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 
 /**
  * The business the current request, job or command acts for (decision 4.3).
@@ -22,11 +21,12 @@ use Illuminate\Support\Facades\Log;
  */
 class TenantContext
 {
+    /** The hidden log-context key queued work carries its business under. */
+    public const CONTEXT_KEY = 'tenant.business_id';
+
     private ?Business $business = null;
 
     private int $bypassDepth = 0;
-
-    private bool $warnedUnscoped = false;
 
     public function set(Business|int|null $business): void
     {
@@ -63,6 +63,10 @@ class TenantContext
 
     /**
      * Runs $callback for $business, then restores the previous business.
+     *
+     * Jobs queued inside carry $business. Don't return a pending dispatch
+     * (`fn () => Job::dispatch()`): it is queued when released, after the
+     * previous business is back.
      *
      * @template T
      *
@@ -131,8 +135,9 @@ class TenantContext
     /**
      * Whether a tenant scope should filter by the current business. With no
      * business set: in strict mode (local, testing) the query is refused; a
-     * signed-in user gets no rows; code with no signed-in user (jobs,
-     * commands, until stage 1c) runs unscoped and is logged.
+     * signed-in user gets no rows; code with no signed-in user is refused too,
+     * since jobs, commands and the scheduler all act for a business (stage
+     * 1c) and running unscoped would read every business.
      */
     public function guardMissing(Builder $builder, Model $model): bool
     {
@@ -140,20 +145,93 @@ class TenantContext
             return true;
         }
 
-        if (config('tenancy.strict')) {
+        if (config('tenancy.strict') || ! Auth::hasUser()) {
             throw MissingTenantContext::forModel(class_basename($model));
         }
 
-        if (Auth::hasUser()) {
-            $builder->whereRaw('1 = 0');
+        $builder->whereRaw('1 = 0');
 
-            return false;
+        return false;
+    }
+
+    /**
+     * A cache key for the current business (stage 1c): every cached value
+     * belongs to one business, so the key names it. Refused with no business
+     * set, like the scopes.
+     */
+    public function cacheKey(string $key): string
+    {
+        if (! $this->has()) {
+            throw MissingTenantContext::forModel("cache key {$key}");
         }
 
-        if (! $this->warnedUnscoped) {
-            $this->warnedUnscoped = true;
-            Log::warning('Tenant data queried with no business set; running unscoped.', ['model' => $model::class]);
+        return "business:{$this->id()}:{$key}";
+    }
+
+    /**
+     * Runs $callback once for each business that takes background work, acting
+     * for it (stage 1c): scheduler sweeps. A failure in one business is
+     * reported and the others still run.
+     *
+     * @param  Closure(Business): mixed  $callback
+     */
+    public function eachBusiness(Closure $callback): void
+    {
+        foreach (Business::query()->orderBy('id')->cursor() as $business) {
+            if (! $business->runsBackgroundWork()) {
+                continue;
+            }
+
+            try {
+                $this->run($business, fn () => $callback($business));
+            } catch (\Throwable $e) {
+                report($e);
+            }
         }
+    }
+
+    /**
+     * Limits a query-builder query (DB::table, which no model scope reaches)
+     * to the shops the viewer may access in the current business, by its
+     * shop column (stage 1c). With no business set it behaves as the model
+     * scopes do: refused in strict mode, no rows for a signed-in user.
+     */
+    public function restrictToShops(QueryBuilder $query, string $column): QueryBuilder
+    {
+        if ($this->bypassing() || ! $this->guardMissingQuery($query, $column)) {
+            return $query;
+        }
+
+        return $query->whereIn($column, $this->accessibleShopsQuery($this->viewer()));
+    }
+
+    /**
+     * Limits a query-builder query to the current business, by its business
+     * column (stage 1c), for business-wide rows with no shop.
+     */
+    public function restrictToBusiness(QueryBuilder $query, string $column): QueryBuilder
+    {
+        if ($this->bypassing() || ! $this->guardMissingQuery($query, $column)) {
+            return $query;
+        }
+
+        return $query->where($column, $this->id());
+    }
+
+    /**
+     * guardMissing() for a query-builder query.
+     */
+    private function guardMissingQuery(QueryBuilder $query, string $column): bool
+    {
+        if ($this->has()) {
+            return true;
+        }
+
+        if (config('tenancy.strict') || ! Auth::hasUser()) {
+            throw MissingTenantContext::forModel($column);
+        }
+
+        $query->whereRaw('1 = 0');
 
         return false;
     }

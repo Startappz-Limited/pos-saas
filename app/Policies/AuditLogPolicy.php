@@ -5,6 +5,7 @@ namespace App\Policies;
 use App\Models\AuditLog;
 use App\Models\Shop;
 use App\Models\User;
+use App\Support\Tenancy\TenantContext;
 
 /**
  * Audit records are read-only. There is intentionally no create/update/delete
@@ -32,7 +33,12 @@ class AuditLogPolicy
             return false;
         }
 
-        // Rows with no shop context are system-wide and visible to any auditor.
+        // Only the current business's rows (stage 1c).
+        if ($auditLog->business_id === null || (int) $auditLog->business_id !== app(TenantContext::class)->id()) {
+            return false;
+        }
+
+        // Rows with no shop context are business-wide and visible to any auditor in it.
         if ($auditLog->shop_id === null) {
             return true;
         }

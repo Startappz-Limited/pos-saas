@@ -4,6 +4,7 @@ namespace App\Models\Concerns;
 
 use App\Enums\AuditEvent;
 use App\Events\AuditableEvent;
+use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
 
@@ -68,6 +69,7 @@ trait Auditable
             userName: $actor?->name,
             userEmail: $actor?->email,
             shopId: $this->auditShopId(),
+            businessId: $this->auditBusinessId(),
         );
     }
 
@@ -93,6 +95,21 @@ trait Auditable
     protected function auditableUuid(): ?string
     {
         return isset($this->attributes['uuid']) ? (string) $this->attributes['uuid'] : null;
+    }
+
+    /**
+     * The business the row belongs to (stage 1c): the record's own business,
+     * else the business the request, job or command acts for. A shop-owned
+     * record without the column belongs to the current business, since only
+     * the current business's shops can be written.
+     */
+    protected function auditBusinessId(): ?int
+    {
+        if (isset($this->attributes['business_id'])) {
+            return (int) $this->attributes['business_id'];
+        }
+
+        return app(TenantContext::class)->id();
     }
 
     /**

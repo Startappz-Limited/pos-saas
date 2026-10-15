@@ -7,6 +7,7 @@ use App\Actions\DeleteUserAction;
 use App\Actions\UpdateUserAction;
 use App\Enums\UserStatus;
 use App\Models\User;
+use App\Support\Tenancy\TenantFiles;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Storage;
@@ -25,6 +26,7 @@ class UserService
     public function getPaginated(array $filters = [], int $perPage = 15): LengthAwarePaginator
     {
         $query = User::query()
+            ->inCurrentBusiness()
             ->with(['roles'])
             ->latest();
 
@@ -89,9 +91,7 @@ class UserService
         // Handle profile photo upload if provided
         if (isset($data['profile_photo']) && $data['profile_photo']) {
             // Delete old photo
-            if ($user->profile_photo) {
-                Storage::disk('public')->delete($user->profile_photo);
-            }
+            $this->deleteProfilePhoto($user);
             $data['profile_photo'] = $this->uploadProfilePhoto($data['profile_photo']);
         }
 
@@ -111,9 +111,7 @@ class UserService
     public function delete(User $user): bool
     {
         // Delete profile photo
-        if ($user->profile_photo) {
-            Storage::disk('public')->delete($user->profile_photo);
-        }
+        $this->deleteProfilePhoto($user);
 
         return $this->deleteUserAction->execute($user);
     }
@@ -135,7 +133,7 @@ class UserService
     {
         $thirtyDaysAgo = now()->subDays(30);
 
-        $stats = User::query()->selectRaw("
+        $stats = User::query()->inCurrentBusiness()->selectRaw("
             COUNT(*) as total,
             SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) as active,
             SUM(CASE WHEN status = 'inactive' THEN 1 ELSE 0 END) as inactive,
@@ -159,7 +157,20 @@ class UserService
      */
     private function uploadProfilePhoto($file): string
     {
-        return $file->store('profile-photos', 'public');
+        // Private, under the business's folder and within its quota (stage 1c).
+        return app(TenantFiles::class)->storePrivate($file, 'profile-photos', 'profile_photo');
+    }
+
+    /**
+     * Removes the user's photo, wherever it is: private, or public from
+     * before stage 1c.
+     */
+    private function deleteProfilePhoto(User $user): void
+    {
+        if ($user->profile_photo) {
+            Storage::disk(TenantFiles::PRIVATE_DISK)->delete($user->profile_photo);
+            Storage::disk(TenantFiles::PUBLIC_DISK)->delete($user->profile_photo);
+        }
     }
 
     /**
@@ -167,8 +178,9 @@ class UserService
      */
     public function search(string $query, int $limit = 10): Collection
     {
-        return User::where('name', 'like', "%{$query}%")
-            ->orWhere('email', 'like', "%{$query}%")
+        return User::query()
+            ->inCurrentBusiness()
+            ->where(fn ($q) => $q->where('name', 'like', "%{$query}%")->orWhere('email', 'like', "%{$query}%"))
             ->active()
             ->limit($limit)
             ->get();
@@ -180,6 +192,7 @@ class UserService
     public function getByRole(string $role): Collection
     {
         return User::role($role)
+            ->inCurrentBusiness()
             ->active()
             ->orderBy('name')
             ->get();

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\CashRegister;
 use App\Models\Sale;
 use App\Models\Shop;
+use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -18,6 +19,7 @@ class ReportController extends Controller
         $shopId = auth()->user()->shop_id ?? Shop::first()?->id;
 
         $statistics = (array) DB::table('sales')
+            ->tap(fn ($query) => app(TenantContext::class)->restrictToShops($query, 'shop_id'))
             ->where('shop_id', $shopId)
             ->where('status', 'completed')
             ->whereDate('completed_at', $date)
@@ -79,6 +81,7 @@ class ReportController extends Controller
         $limit = $request->input('limit', 10);
 
         $topProducts = DB::table('sale_items')
+            ->tap(fn ($query) => app(TenantContext::class)->restrictToShops($query, 'sales.shop_id'))
             ->join('sales', 'sale_items.sale_id', '=', 'sales.id')
             ->join('products', 'sale_items.product_id', '=', 'products.id')
             ->where('sales.shop_id', $shopId)
@@ -110,6 +113,7 @@ class ReportController extends Controller
             ->paginate($request->input('per_page', 20));
 
         $totals = (array) DB::table('sales')
+            ->tap(fn ($query) => app(TenantContext::class)->restrictToShops($query, 'shop_id'))
             ->where('shop_id', $shopId)
             ->whereIn('payment_status', ['unpaid', 'partial'])
             ->selectRaw('COALESCE(SUM(balance_due), 0) as total_outstanding')

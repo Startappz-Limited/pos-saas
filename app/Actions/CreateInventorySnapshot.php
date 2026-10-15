@@ -4,6 +4,7 @@ namespace App\Actions;
 
 use App\Models\InventorySnapshot;
 use App\Models\Product;
+use App\Support\Tenancy\TenantContext;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -22,12 +23,14 @@ class CreateInventorySnapshot
         $products = Product::where('track_stock', true)->get()->keyBy('id');
 
         $rows = DB::table('shop_variation')
+            ->tap(fn ($query) => app(TenantContext::class)->restrictToShops($query, 'shop_variation.shop_id'))
             ->join('product_variations', 'product_variations.id', '=', 'shop_variation.variation_id')
             ->where('shop_variation.shop_id', $shopId)
             ->whereIn('shop_variation.product_id', $products->keys())
             ->get(['shop_variation.product_id', 'shop_variation.variation_id', 'shop_variation.stock_quantity', 'shop_variation.selling_price as shop_price', 'product_variations.selling_price', 'product_variations.is_default']);
 
         $fifoValue = DB::table('cost_layers')
+            ->tap(fn ($query) => app(TenantContext::class)->restrictToShops($query, 'shop_id'))
             ->where('shop_id', $shopId)->where('remaining_quantity', '>', 0)
             ->groupBy('variation_id')
             ->selectRaw('variation_id, sum(remaining_quantity * coalesce(unit_cost, 0)) as value')

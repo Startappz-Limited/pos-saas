@@ -2,6 +2,7 @@
 
 namespace App\Actions;
 
+use App\Support\Tenancy\TenantContext;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -23,6 +24,7 @@ class CheckLowStockLevels
     public function execute(int $shopId, ?int $userId = null): Collection
     {
         $low = DB::table('shop_variation')
+            ->tap(fn ($query) => app(TenantContext::class)->restrictToShops($query, 'shop_variation.shop_id'))
             ->join('products', 'products.id', '=', 'shop_variation.product_id')
             ->join('product_variations', 'product_variations.id', '=', 'shop_variation.variation_id')
             ->where('shop_variation.shop_id', $shopId)

@@ -29,13 +29,13 @@ class BaileysJid
             $digits = ltrim(substr($digits, 2), '0');
         } elseif (str_starts_with($digits, '0')) {
             // Local format "0XXXXXXXXX" → strip leading 0 and prepend country code.
-            $digits = $countryCode . ltrim($digits, '0');
+            $digits = $countryCode.ltrim($digits, '0');
         } elseif ($countryCode !== '' && ! str_starts_with($digits, $countryCode)) {
             // Bare local number (e.g. "714587511") that does not yet contain the country code.
             // Heuristic: anything shorter than a typical international number (12 digits)
             // is treated as local and prefixed with the configured country code.
             if (strlen($digits) < 11) {
-                $digits = $countryCode . $digits;
+                $digits = $countryCode.$digits;
             }
         }
 
@@ -43,6 +43,6 @@ class BaileysJid
             return null;
         }
 
-        return $digits . '@s.whatsapp.net';
+        return $digits.'@s.whatsapp.net';
     }
 }

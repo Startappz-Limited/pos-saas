@@ -157,6 +157,16 @@ class User extends Authenticatable
     }
 
     /**
+     * Scope: members of the current business. Users carry no tenant scope
+     * (one login can belong to several businesses), so every user listing
+     * applies this (stage 1c). With no business set, nobody.
+     */
+    public function scopeInCurrentBusiness($query)
+    {
+        return $query->whereHas('memberships', fn ($membership) => $membership->where('business_id', app(TenantContext::class)->id() ?? 0));
+    }
+
+    /**
      * Scope: Suspended users
      */
     public function scopeSuspended($query)
@@ -178,7 +188,11 @@ class User extends Authenticatable
     public function getProfilePhotoUrlAttribute(): string
     {
         if ($this->profile_photo) {
-            return asset('storage/'.$this->profile_photo);
+            // Private since stage 1c ({business uuid}/profile-photos/...),
+            // served to members of that business; public before.
+            return str_contains($this->profile_photo, '/profile-photos/')
+                ? route('tenant-files.show', ['path' => $this->profile_photo])
+                : asset('storage/'.$this->profile_photo);
         }
 
         // Default avatar using UI Avatars

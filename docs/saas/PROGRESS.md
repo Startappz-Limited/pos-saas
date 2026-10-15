@@ -365,3 +365,100 @@ columns; `down()` restores them as totals), `000003` (default registers, session
   that does the same.
 - **`mobile:contract-diff` not run** (no Flutter app on this machine); no routes changed, and the flat
   API contract test passed at every step.
+
+## Stage 1c (Phase 1c): Raw SQL, background work, files
+
+Branch: `saas/phase-1c-raw-sql-background-files` (from `main` at `89e145d`, the merge of stage 1b). Plan:
+the stage file itself.
+
+### Starting result
+
+`main` at `89e145d` (the same tree as `2bb2139`, verified at the end of stage 1b): **SQLite 1,238
+passed, 59 skipped; MySQL 8 1,248 passed, 49 skipped**.
+
+### Steps
+
+| Step | Commit | Tests added | Suite (SQLite) | Suite (MySQL 8) | Notes |
+|---|---|---|---|---|---|
+| 1. Raw SQL and the "empty means all" filter | `91d0c27` | `RawQueryIsolationTest` (10, two businesses), `RawQueryScopeTest` (2) | 1,250 passed, 59 skipped | 1,260 passed, 49 skipped | **Reviewed all 34 files.** Raw clauses on Eloquent queries keep the model's tenant scope (the models, `CustomerController`, `PaymentController`, `CampaignController`, `AlertController`, `LowStockAlertController`, `AttributeController`, `ExpenseController`, most services, `ProductObserver`, the Baileys listener; `StorePurchaseReturnRequest` reads child rows by validated ids). The gap is the query builder (`DB::table`), which no scope reaches: `TenantContext::restrictToShops()`/`restrictToBusiness()` now limit such queries to the viewer's shops in the current business, with the model scopes' missing-business guard. Applied to every listing and aggregate read: the four `applyShopFilter` helpers (sales, e-commerce orders web and API, dashboard; an owner used to get **no filter at all**, so totals counted every business), the dashboard's selected-shop queries, the flat API reports, `VatReportService`, `ReportService`, low-stock checks, inventory snapshots, `products:assign-shop-from-sales`. **"Empty means all" removed:** `ReportController` always passes the viewer's accessible shops and `ReportService` always applies them (an empty list is no shops; a sale with no lines counts by its own shop). **Users** carry no tenant scope (one login, several businesses), and every user listing showed every business's users: a `User::inCurrentBusiness()` scope now limits `UserService` (list, search, statistics, by role), the shop manager and staff pickers and the abandoned-cart staff list; `search()` also had its `orWhere` escaping `active()`. Internal reads and writes by id (stock ledger, invoice series, default register) stay as they are. `RawQueryScopeTest` lists every file using the query builder with its count and reason, so a new raw query fails until it is listed. On the old code 6 of the 10 isolation tests fail (dashboard, reports, sales statistics, VAT, e-commerce statistics, users). Test adapted (1): the attribution test names the report's shops |
+| 2. Exports and audit | `2e157d4` | `AuditIsolationTest` (4), `RawQueryIsolationTest` +3 (report and VAT CSV, customer PDF) | 1,257 passed, 59 skipped | 1,267 passed, 49 skipped | **Audit:** an additive audit migration (`database/migrations/audit/2026_10_16_000001`) gives `audit_logs` a nullable, indexed `business_id`; the `Auditable` trait records the record's own business, else the current one, and role and permission grants record the current business. `AuditService` reads only the current business (no business set: no rows) and, inside it, the shops the viewer may access (default-deny; it used to show everything to a user with no shop assignments). **Another business's audit row is a 404:** the row bound by uuid had no scope and business owners pass every policy, so `AuditLog` now binds only the current business's rows, and the policy checks the business too. Rows written before this have no business until `php artisan audit:backfill-business` (dry run; `--apply` writes) fills it from the row's shop, else its record's business, else the only business when there is one; rows still unresolved stay hidden. **Exports:** the report and VAT CSV use the services scoped in step 1, the audit CSV uses `AuditService`, and the PDFs (credit statements, purchase history, sale and order invoices) render records that come through scoped route binding; tests prove the CSVs carry only the viewer's business and another business's customer PDF is a 404. The saved-export list and download are stubs that return nothing |
+| 3. Background work: jobs, scheduler, commands | `5672063` | `BackgroundWorkTest` (6) | 1,263 passed, 59 skipped | 1,272 passed, 49 skipped, 1 failed (the known intermittent `StockIntakeTest`, fixed in this commit) | **Jobs:** every queued job, listener, notification and mail carries the business it was dispatched for, through Laravel's hidden log context: `TenantContext::CONTEXT_KEY` is written into the payload when it's queued, and the worker acts for that business again when the job runs (it resets the tenant before reading the payload). Covers the 10 jobs and the 6 queued notifications with one mechanism. **Fail closed:** code with no signed-in user and no business used to run unscoped with a warning in production "until stage 1c"; it is now refused as in strict mode (`MissingTenantContext`), since jobs, commands and the scheduler all act for a business. **Scheduler:** both sweeps run once per business through `TenantContext::eachBusiness()`, skipping any business that isn't active (`Business::runsBackgroundWork()`; read-only joins in Phase 4); a failure in one business is reported and the rest still run. **Commands:** the 8 that work on tenant data (`products:assign-shop-from-sales`, `credit:backfill`, `products:backfill-shop-pivot`, `customers:normalize-phones`, `baileys:prune-media`, `sales:recompute-profit`, `products:repair-purchase-cost`, `ecommerce:sync-products`) take `--business=<id or uuid>` through `RunsForBusiness`; without it they use the only business, and refuse when there are several. The rest are platform tools (dataset, snapshots, legacy import, contract diff, audit backfill). **A cross-business deletion prevented:** run per business, `baileys:prune-media --orphans` would have taken every other business's session directories for orphans and deleted their media; orphans are now judged against every business's sessions, and other businesses' directories are left to their own run (the test fails on the old code). **Flaky test fixed:** `StockIntakeTest > authorized user can create stock intake` (intermittent since stage 1a) ordered a random 10–1000 units and received 50; below 50 that is a validation error, which also redirects, so the row was missing about 1 run in 25. It now orders 100 and asserts no validation errors |
+| 4. Cache keys per business | `14d9a1d` | `CacheKeyScopeTest` (1), `BackgroundWorkTest` +1 | 1,265 passed, 59 skipped | 1,278 passed, 49 skipped (this run overlapped the start of step 5; step 5's full run re-verifies both) | `TenantContext::cacheKey()` prefixes the current business and refuses with none. The two global SMS keys (`sms_settings`, `sms_query_parameters`, kept a year) and the Baileys media-usage key now use it; `CacheKeyScopeTest` fails on any file that uses the cache without it. **Found:** `SMSservice` reads `App\Models\Setting`, which doesn't exist (no model, no `settings` table), so on a cache miss SMS sending fails: the SMS fallback can't be working today. Not fixed here; per-business SMS settings are Phase 6 |
+| 5. E-commerce stock push per shop | `c47a438` | `ShopStockPushTest` (3) | 1,270 passed, 59 skipped (step 6's clean run) | 1,280 passed, 49 skipped | Every stock change goes through the ledger, so the ledger now queues `PushShopStockJob` for the shop whose stock changed, after the change commits, when that shop has a WooCommerce or Shopify store connected. The job sends that shop's own figure (`syncInventory`, which reads the shop's ledger quantity) to that shop's stores only, and is unique per shop and product while waiting, so a burst of sales sends the latest figure once. Not while a store's own figures are being written in (`ProductObserver::$syncInProgress`), so a store never gets its change echoed back. `ProductObserver` still pushes product details on `Product::updated`. Products with variations push their default variation only, as `syncInventory` always has (follow-up) |
+| 6. Temporary signed links | `7d423eb` | `SaleInvoiceDeliveryTest` +2 | 1,270 passed, 59 skipped | 1,280 passed, 49 skipped (a clean run of steps 4–6 together) | Invoice, statement and order-invoice links (`sales.invoice-pdf`, `credit-accounts.statement-pdf`, `orders.invoice-pdf`) used `signedRoute` and never expired; they now come from `App\Support\DocumentLinks::signed()`, a `temporarySignedRoute` valid for `config('invoicing.document_link_days')` (`DOCUMENT_LINK_DAYS`, default **30**). An expired link gets the `signed` middleware's 403. The WhatsApp order template's button suffix now carries `expires=` before the signature. Links already sent stay valid (they carry no expiry); new ones expire. `.env.example` gains the key and its invoice-format comment is corrected to the per-register form. Test adapted (1): the order notification asserts the new suffix |
+| 7. Business files: private disk, prefix, quota, move | `0e0d14f` | `TenantFilesTest` (6); media tests adapted (2 files) | 1,276 passed, 59 skipped | 1,286 passed, 49 skipped | `App\Support\Tenancy\TenantFiles` puts every file under `{business uuid}/` and enforces a per-business quota (`TENANT_FILES_QUOTA_BYTES`, default **2 GB**; `businesses.settings['files_quota_bytes']` overrides; usage cached per business). A new private `tenant` disk (`storage/app/tenant`, outside the web root) holds **WhatsApp media** (inbound and inbox uploads) and **profile photos**, served only through the signed-in `tenant-files.show` route (`/files/{path}`): another business's file, a path outside the folder (`..`), or WhatsApp media of a session in a shop the viewer can't access is a 404. **Product images stay public** under `{business uuid}/products/` (decided 15 October 2026): the shipped Flutter app builds `{base_url}{image}` without an auth header and the online stores fetch them. Over quota: an upload is a validation error; inbound WhatsApp media and downloaded platform images are skipped and logged. `baileys:prune-media` prunes both the private folder and the legacy public one (still guarded against other businesses' sessions). **Existing files:** `php artisan files:move-to-business --business=<id>` (dry run; `--apply` copies, checks each copy and repoints the record; `--delete-originals` afterwards removes originals whose copy matches). A profile photo belongs to the business it was uploaded in (a member of several sees it only there) |
+
+### Differences from the stage file
+
+- **Product images stay public** (decided 15 October 2026), under `{business uuid}/products/`: the shipped
+  Flutter app builds `{base_url}{image}` without an auth header and the online stores fetch them. WhatsApp
+  media and profile photos are private as the stage file says.
+- **User listings are scoped too** (not in the stage file's list): users carry no tenant scope, and the
+  users page, its search and statistics, and the manager and staff pickers showed every business's users.
+- **8 commands take `--business`, not 9**: the 8 that work on tenant data. The others are platform tools
+  (dataset, snapshots, legacy import, contract diff, audit backfill).
+- **Code with no business is refused in production too.** Stage 1a let jobs and commands run unscoped,
+  with a warning, until this stage; with jobs, the scheduler and commands acting for a business, the
+  fallback became a refusal.
+- **Audit:** the audit database's part in the business export and closure erasure, and **notifications:**
+  their links switching to their business, come with the closure flow and the business switcher (Phase 3).
+- **Two leaks found outside the listed work:** another business's audit row opened by uuid (owners pass
+  every policy), and the Baileys orphan sweep, which run per business would have deleted every other
+  business's media.
+
+### Moving UAT onto stage 1c (for you to run; nothing here has touched UAT)
+
+Stage 1c adds no migration to the main database. It adds one to the audit database, and moves files.
+
+1. **Stop the queue workers and let `jobs` drain** (`select queue, count(*) from jobs group by queue;`):
+   jobs queued before this stage carry no business and are refused.
+2. Snapshot: `php artisan db:snapshot`, and copy `database/audit.sqlite` and `storage/app/public`.
+3. Audit column: `php artisan migrate --database=audit --path=database/migrations/audit`, then
+   `php artisan audit:backfill-business` (dry run) and `--apply`.
+4. Files: `php artisan files:move-to-business --business=<id>` (dry run), then `--apply`. Check product
+   images, profile photos and the WhatsApp inbox, then `--apply --delete-originals`.
+5. Make sure `storage/app/tenant` is writable and included in backups.
+6. Restart the workers (with the full `--queue=` list) and the scheduler.
+
+### End of stage 1c (16 October 2026)
+
+- **Checks on the whole branch:** SQLite 1,276 passed, 59 skipped; MySQL 8 1,286 passed, 49 skipped
+  (the flat API contract test runs within it); Pint passes on every changed file
+  (`pint --test --diff=origin/main`).
+- **Acceptance criteria:** all ticked with evidence in the stage file; hotspots for queries, background
+  work, cache and files ticked in saas-plan.md section 2 (audit export and notification links noted as
+  partly done).
+- **PR checklist (`.ai/general/PR_CHECKLIST.md`):** no debug code, secrets or `env()` outside config; the
+  one migration (audit connection) is anonymous with `up()` and `down()` and additive; the new route
+  (`tenant-files.show`) is authenticated and authorized by business, shop and path; validation goes through
+  the existing FormRequests (quota errors are validation errors); the flat API keeps its shape (contract
+  test). `.env.example` gains `DOCUMENT_LINK_DAYS`; `TENANT_FILES_QUOTA_BYTES` has a config default.
+- **CLAUDE.md** describes `restrictToShops()`, `User::inCurrentBusiness()`, `cacheKey()`, `TenantFiles`,
+  queued work carrying its business, `RunsForBusiness`, expiring document links and the new commands.
+
+### After the stage: duplicate credit transaction numbers
+
+The CI dataset build failed on a credit sale: `Duplicate entry 'CTX-260718-00001'`. A credit transaction
+number was today's count plus one, and since stage 1a that count ran through the shop-access scope, so a
+cashier who sees one shop issued a number another shop held (and two sales at once could read the same
+count). Numbers are now the date plus a random suffix, like the other generated numbers;
+`CreditTransactionNumberTest` fails on the old code. Checks: SQLite 1,277 passed, 59 skipped; MySQL 8
+1,287 passed, 49 skipped. **The bug is on `main` too**, and the rehearsal job builds its dataset with
+`main`'s code, so the fix is also on its own branch, `fix/credit-transaction-number` from `main`, to merge
+first.
+
+### Follow-ups
+
+- **Missing views (already on `main`):** `sales.dailyReport` and `sales.profitReport` render
+  `sales.daily-report` and `sales.profit-report`, which don't exist: both pages are a 500.
+- **SMS can't be working (already on `main`):** `SMSservice` reads `App\Models\Setting`, which doesn't
+  exist; per-business SMS settings are Phase 6.
+- **Profile photos in the Flutter app:** a new photo's `profile_photo` is a private path, served only to a
+  signed-in web session. If the app shows avatars from `{base_url}{profile_photo}`, they won't load;
+  check with `mobile:contract-diff` where the app is (not on this machine).
+- **Stores get a product's default variation only:** `syncInventory` has always pushed the default
+  variation; per-variation pushes need the platforms' variant ids.
+- **File columns with no upload code yet** (expense receipts, purchase order and intake attachments,
+  category images, report exports): when they gain uploads, use `TenantFiles`.
+- **`mobile:contract-diff` not run** (no Flutter app on this machine); no routes in `routes/api.php`
+  changed, and the flat API contract test passed at every step.

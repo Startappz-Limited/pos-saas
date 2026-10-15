@@ -11,6 +11,7 @@ use App\Models\Customer;
 use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Models\Shop;
+use App\Support\DocumentLinks;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\URL;
@@ -191,5 +192,24 @@ describe('sale notification fan-out', function () {
         app(SendSaleNotifications::class)->paymentReceived($sale, 500.00);
 
         Queue::assertNotPushed(SendSaleInvoiceViaBaileysJob::class);
+    });
+});
+
+describe('document link expiry', function () {
+    it('refuses an invoice link once it has expired', function () {
+        $sale = saleReadyToNotify();
+        $url = app(GenerateSaleInvoicePdf::class)->signedUrl($sale);
+
+        expect($url)->toContain('expires=');
+        $this->get($url)->assertOk();
+
+        $this->travel(DocumentLinks::days() + 1)->days();
+        $this->get($url)->assertForbidden();
+    });
+
+    it('signs statement and order-invoice links with an expiry too', function () {
+        foreach (['credit-accounts.statement-pdf', 'orders.invoice-pdf'] as $route) {
+            expect(DocumentLinks::signed($route, ['creditAccount' => 'x', 'order' => 'x']))->toContain('expires=');
+        }
     });
 });

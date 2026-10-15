@@ -3,6 +3,7 @@
 namespace App\Http\Startappz\Services;
 
 use App\Models\Setting;
+use App\Support\Tenancy\TenantContext;
 use Exception;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
@@ -94,13 +95,15 @@ class SMSservice
     public function send($phone, $msg)
     {
         // Cache settings for 1 year (525600 minutes)
-        $sms_settings = Cache::remember('sms_settings', 525600, function () {
+        // Keyed per business (stage 1c): each business will hold its own SMS
+        // settings (Phase 6), and a global key would hand one business's to all.
+        $sms_settings = Cache::remember(app(TenantContext::class)->cacheKey('sms_settings'), 525600, function () {
             $setting = Setting::where('key', 'sms')->first();
 
             return $setting ? json_decode($setting->value) : null;
         });
 
-        $query_params = Cache::remember('sms_query_parameters', 525600, function () {
+        $query_params = Cache::remember(app(TenantContext::class)->cacheKey('sms_query_parameters'), 525600, function () {
             $setting = Setting::where('key', 'sms_query_parameters')->first();
 
             return $setting ? json_decode($setting->value) : null;
@@ -151,7 +154,7 @@ class SMSservice
             Log::info('SMS Response: '.$response->body());
 
             return $response->json();
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::error('SMS Send Error: '.$e->getMessage());
 
             return false;

@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Console\Concerns\RunsForBusiness;
 use App\Models\Customer;
 use App\Support\PhoneNumber;
 use Illuminate\Console\Command;
@@ -18,13 +19,15 @@ use Illuminate\Console\Command;
  */
 class NormalizeCustomerPhones extends Command
 {
+    use RunsForBusiness;
+
     protected $signature = 'customers:normalize-phones
                             {--apply : Write the changes (defaults to a dry run)}
                             {--show-duplicates : List numbers held by more than one customer}';
 
     protected $description = 'Backfill the canonical phone number on customers from their entered phone';
 
-    public function handle(): int
+    public function handleForBusiness(): int
     {
         $apply = (bool) $this->option('apply');
 

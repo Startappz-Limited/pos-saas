@@ -70,6 +70,7 @@ class AuditLogger
                 'method' => request()->method(),
                 'tags' => $event->tags,
                 'shop_id' => $event->shopId,
+                'business_id' => $event->businessId,
                 'created_at' => now(),
             ]);
         } catch (Throwable $e) {

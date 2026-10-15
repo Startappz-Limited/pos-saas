@@ -30,7 +30,9 @@ use App\Support\Tenancy\TenantContext;
 use App\Support\Tenancy\TenantPresenceVerifier;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
+use Illuminate\Log\Context\Repository as ContextRepository;
 use Illuminate\Pagination\Paginator;
+use Illuminate\Support\Facades\Context;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
@@ -70,6 +72,7 @@ class AppServiceProvider extends ServiceProvider
         $this->registerRateLimiters();
         $this->enforceHttps();
         $this->definePasswordPolicy();
+        $this->carryTenantIntoQueuedWork();
 
         // The business owner may do everything in their business. Roles are
         // per business (Spatie teams), so this never reaches another business.
@@ -160,6 +163,30 @@ class AppServiceProvider extends ServiceProvider
      * Rate limiting is mandatory on API endpoints and on login/registration. Limits
      * live in config/ratelimit.php so they can be tuned per environment.
      */
+    /**
+     * Queued work carries the business it was dispatched for (stage 1c,
+     * decision 4.3): jobs, queued listeners, notifications and mail. The
+     * business goes into the payload's hidden context when it is queued, and
+     * the worker acts for it again when the job runs (the worker resets the
+     * tenant between jobs before the payload is read).
+     */
+    private function carryTenantIntoQueuedWork(): void
+    {
+        Context::dehydrating(function (ContextRepository $context): void {
+            $businessId = app(TenantContext::class)->id();
+
+            if ($businessId !== null) {
+                $context->addHidden(TenantContext::CONTEXT_KEY, $businessId);
+            }
+        });
+
+        Context::hydrated(function (ContextRepository $context): void {
+            if ($context->hasHidden(TenantContext::CONTEXT_KEY)) {
+                app(TenantContext::class)->set((int) $context->getHidden(TenantContext::CONTEXT_KEY));
+            }
+        });
+    }
+
     private function registerRateLimiters(): void
     {
         // General authenticated traffic: per user where we know them, else per IP.

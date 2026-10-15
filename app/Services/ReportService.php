@@ -6,6 +6,7 @@ use App\Models\Expense;
 use App\Models\ExpenseCategory;
 use App\Models\Sale;
 use App\Models\Shop;
+use App\Support\Tenancy\TenantContext;
 use Carbon\Carbon;
 use Carbon\CarbonPeriod;
 use Illuminate\Database\Eloquent\Builder;
@@ -208,10 +209,12 @@ class ReportService
         // Scope by the shop that OWNS the products sold (item level), so a sale
         // is included for a shop when it contains that shop's products — not by
         // the shop the sale was rung up under.
-        if (! empty($filters['allowed_shop_ids'])) {
-            $allowedShopIds = $filters['allowed_shop_ids'];
-            $query->whereHas('items', fn (Builder $itemQuery) => $itemQuery->whereIn('shop_id', $allowedShopIds));
-        }
+        // Always applied (stage 1c): an empty list means no shops, not all. A
+        // sale with no lines has nothing to attribute, so its own shop counts.
+        $allowedShopIds = $filters['allowed_shop_ids'] ?? [];
+        $query->where(fn (Builder $scoped) => $scoped
+            ->whereHas('items', fn (Builder $itemQuery) => $itemQuery->whereIn('shop_id', $allowedShopIds))
+            ->orWhere(fn (Builder $lineless) => $lineless->doesntHave('items')->whereIn('shop_id', $allowedShopIds)));
 
         if (! empty($filters['shop_id'])) {
             $shopId = $filters['shop_id'];
@@ -241,9 +244,7 @@ class ReportService
 
     protected function applyExpenseFilters(Builder $query, array $filters): void
     {
-        if (! empty($filters['allowed_shop_ids'])) {
-            $query->whereIn('shop_id', $filters['allowed_shop_ids']);
-        }
+        $query->whereIn('shop_id', $filters['allowed_shop_ids'] ?? []);
 
         if (! empty($filters['shop_id'])) {
             $query->where('shop_id', $filters['shop_id']);
@@ -256,9 +257,8 @@ class ReportService
 
     protected function applyExpenseFiltersToBaseQuery(QueryBuilder $query, array $filters): void
     {
-        if (! empty($filters['allowed_shop_ids'])) {
-            $query->whereIn('shop_id', $filters['allowed_shop_ids']);
-        }
+        app(TenantContext::class)->restrictToShops($query, 'shop_id');
+        $query->whereIn('shop_id', $filters['allowed_shop_ids'] ?? []);
 
         if (! empty($filters['shop_id'])) {
             $query->where('shop_id', $filters['shop_id']);
@@ -357,9 +357,8 @@ class ReportService
         $query->whereDate('sales.created_at', '>=', $startDate->toDateString())
             ->whereDate('sales.created_at', '<=', $endDate->toDateString());
 
-        if (! empty($filters['allowed_shop_ids'])) {
-            $query->whereIn('sale_items.shop_id', $filters['allowed_shop_ids']);
-        }
+        app(TenantContext::class)->restrictToShops($query, 'sale_items.shop_id');
+        $query->whereIn('sale_items.shop_id', $filters['allowed_shop_ids'] ?? []);
 
         if (! empty($filters['shop_id'])) {
             $query->where('sale_items.shop_id', $filters['shop_id']);
@@ -409,13 +408,12 @@ class ReportService
             ->whereDate('created_at', '>=', $startDate->toDateString())
             ->whereDate('created_at', '<=', $endDate->toDateString());
 
-        if (! empty($filters['allowed_shop_ids'])) {
-            $allowedShopIds = $filters['allowed_shop_ids'];
-            $salesTrendQuery->whereExists(fn (QueryBuilder $sub) => $sub->selectRaw('1')
-                ->from('sale_items')
-                ->whereColumn('sale_items.sale_id', 'sales.id')
-                ->whereIn('sale_items.shop_id', $allowedShopIds));
-        }
+        app(TenantContext::class)->restrictToShops($salesTrendQuery, 'sales.shop_id');
+        $allowedShopIds = $filters['allowed_shop_ids'] ?? [];
+        $salesTrendQuery->whereExists(fn (QueryBuilder $sub) => $sub->selectRaw('1')
+            ->from('sale_items')
+            ->whereColumn('sale_items.sale_id', 'sales.id')
+            ->whereIn('sale_items.shop_id', $allowedShopIds));
 
         if (! empty($filters['shop_id'])) {
             $shopId = $filters['shop_id'];
@@ -452,9 +450,8 @@ class ReportService
             ->whereDate('expense_date', '>=', $startDate->toDateString())
             ->whereDate('expense_date', '<=', $endDate->toDateString());
 
-        if (! empty($filters['allowed_shop_ids'])) {
-            $expenseTrendQuery->whereIn('shop_id', $filters['allowed_shop_ids']);
-        }
+        app(TenantContext::class)->restrictToShops($expenseTrendQuery, 'shop_id');
+        $expenseTrendQuery->whereIn('shop_id', $filters['allowed_shop_ids'] ?? []);
 
         if (! empty($filters['shop_id'])) {
             $expenseTrendQuery->where('shop_id', $filters['shop_id']);

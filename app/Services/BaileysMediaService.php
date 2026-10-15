@@ -6,6 +6,8 @@ use App\Enums\BaileysChatType;
 use App\Enums\BaileysMessageType;
 use App\Models\BaileysMessage;
 use App\Models\BaileysSession;
+use App\Support\Tenancy\TenantContext;
+use App\Support\Tenancy\TenantFiles;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -81,16 +83,30 @@ class BaileysMediaService
             return $this->skipped('quota_exceeded');
         }
 
+        $files = app(TenantFiles::class);
+
+        if (! $files->hasRoom($size)) {
+            Log::warning('Baileys inbound media rejected: business over its file quota', [
+                'session_key' => $session->session_key,
+                'shop_id' => $session->shop_id,
+            ]);
+
+            return $this->skipped('business_quota_exceeded');
+        }
+
         $waId = preg_replace('/[^A-Za-z0-9_\-]/', '_', (string) ($waMessageId ?: Str::random(16)));
         $path = $this->sessionDirectory($session).'/in/'.$waId.'.'.$this->extensionFor($type, $mime, $filename);
 
-        Storage::disk('public')->put($path, $bytes);
+        // Private, under the business's folder (stage 1c): served to signed-in
+        // members through tenant-files.show, never from the public web root.
+        Storage::disk(TenantFiles::PRIVATE_DISK)->put($path, $bytes);
         $this->forgetShopUsage($session->shop_id);
+        $files->forgetUsage();
 
         return [
             'stored' => true,
             'reason' => null,
-            'url' => asset('storage/'.$path),
+            'url' => $files->url($path),
             'size' => $size,
             'path' => $path,
         ];
@@ -132,9 +148,48 @@ class BaileysMediaService
         Cache::forget($this->usageCacheKey($shopId));
     }
 
+    /**
+     * The session's media folder on the private disk, inside its business's
+     * folder (stage 1c).
+     */
     public function sessionDirectory(BaileysSession $session): string
     {
+        return app(TenantFiles::class)->path(self::ROOT.'/'.$session->uuid);
+    }
+
+    /**
+     * Where the session's media lived before stage 1c, on the public disk.
+     */
+    public function legacySessionDirectory(BaileysSession $session): string
+    {
         return self::ROOT.'/'.$session->uuid;
+    }
+
+    /**
+     * The disk and path a stored media URL points at: a private file served
+     * through /files/..., or a public one from before stage 1c (/storage/...).
+     *
+     * @return array{0: string, 1: string}|null
+     */
+    public static function locate(?string $url): ?array
+    {
+        if (! $url) {
+            return null;
+        }
+
+        $path = rawurldecode((string) (parse_url($url, PHP_URL_PATH) ?: $url));
+
+        foreach (['/files/' => TenantFiles::PRIVATE_DISK, '/storage/' => TenantFiles::PUBLIC_DISK] as $marker => $disk) {
+            $position = strpos($path, $marker);
+
+            if ($position !== false) {
+                $relative = ltrim(substr($path, $position + strlen($marker)), '/');
+
+                return str_contains($relative, self::ROOT.'/') && ! str_contains($relative, '..') ? [$disk, $relative] : null;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -143,7 +198,8 @@ class BaileysMediaService
      */
     public function deleteSessionMedia(BaileysSession $session): void
     {
-        Storage::disk('public')->deleteDirectory($this->sessionDirectory($session));
+        Storage::disk(TenantFiles::PRIVATE_DISK)->deleteDirectory($this->sessionDirectory($session));
+        Storage::disk(TenantFiles::PUBLIC_DISK)->deleteDirectory($this->legacySessionDirectory($session));
         $this->forgetShopUsage($session->shop_id);
     }
 
@@ -172,6 +228,6 @@ class BaileysMediaService
 
     protected function usageCacheKey(int $shopId): string
     {
-        return "baileys:media-usage:{$shopId}";
+        return app(TenantContext::class)->cacheKey("baileys:media-usage:{$shopId}");
     }
 }

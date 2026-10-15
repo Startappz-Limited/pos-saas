@@ -91,6 +91,8 @@ test('shop performance report splits revenue per shop at the line-item level', f
     $report = app(ReportService::class)->getDashboardData([
         'start_date' => now()->toDateString(),
         'end_date' => now()->toDateString(),
+        // The shops the report covers are always named (stage 1c).
+        'allowed_shop_ids' => [$this->shopA->id, $this->shopB->id],
     ]);
 
     $byShop = collect($report['shop_performance'])->keyBy('shop_id');
