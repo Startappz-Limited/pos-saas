@@ -65,6 +65,9 @@ class Shop extends Model
         // itself is limited by BelongsToBusiness.
         static::addGlobalScope(new ShopAccessScope('id'));
 
+        // Every shop has a default register (stage 1b, decision 4.8).
+        static::created(fn (self $shop) => Register::defaultFor($shop->id));
+
         static::creating(function (self $shop) {
             if (empty($shop->uuid)) {
                 $shop->uuid = (string) Str::uuid();
