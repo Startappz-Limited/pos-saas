@@ -172,6 +172,18 @@ describe('readers', function () {
         $this->getJson("/api/products/{$this->product->uuid}")->assertJsonPath('data.stock_quantity', 13);
     });
 
+    it('reports each listed shop\'s own stock in the flat API\'s pivot', function () {
+        $owner = User::factory()->create();
+        $owner->assignRole(sharedRole('super-admin'));
+        $this->product->shops()->attach([$this->shop->id, $this->otherShop->id]);
+        Sanctum::actingAs($owner, ['*']);
+
+        $shops = collect($this->getJson("/api/products/{$this->product->uuid}")->json('data.shops'));
+
+        expect($shops->mapWithKeys(fn ($shop) => [$shop['id'] => $shop['pivot']['stock_quantity']])->all())
+            ->toBe([$this->shop->id => 3, $this->otherShop->id => 10]);
+    });
+
     it('shows staff only the stock of their own shops', function () {
         $cashier = User::factory()->create();
         $cashier->shops()->attach($this->otherShop);

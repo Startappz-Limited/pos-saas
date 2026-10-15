@@ -135,7 +135,15 @@ class Product extends Model
     public function shops(): BelongsToMany
     {
         return $this->belongsToMany(Shop::class, 'shop_product')
-            ->withPivot(['stock_quantity', 'reorder_level', 'cost_price', 'selling_price', 'wholesale_price', 'is_active'])
+            ->withPivot(['reorder_level', 'cost_price', 'selling_price', 'wholesale_price', 'is_active'])
+            // pivot.stock_quantity: the shop's stock of the product, from
+            // per-shop stock (stage 1b, decision 4.8), as the flat API returns.
+            ->select('shops.*')
+            ->selectSub(fn ($query) => $query->from('shop_variation')
+                // An integer, as the column was (MySQL sums decimals as strings).
+                ->selectRaw('cast(coalesce(sum(shop_variation.stock_quantity), 0) as signed)')
+                ->whereColumn('shop_variation.shop_id', 'shop_product.shop_id')
+                ->whereColumn('shop_variation.product_id', 'shop_product.product_id'), 'pivot_stock_quantity')
             ->withTimestamps();
     }
 

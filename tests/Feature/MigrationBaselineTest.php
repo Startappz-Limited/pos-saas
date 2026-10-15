@@ -41,6 +41,14 @@ const INTENDED_COLUMN_CHANGES = [
  */
 const REBUILT_LEGACY_TABLES = ['cost_layers', 'cost_allocations'];
 
+/**
+ * Legacy columns whose data moved elsewhere: stock moved into shop_variation
+ * (stage 1b, migration 2026_10_15_000002, which checks the totals; the legacy
+ * import places it there too). shop_product's held an online store's figure,
+ * never the POS stock.
+ */
+const MOVED_LEGACY_COLUMNS = ['products.stock_quantity', 'product_variations.stock_quantity', 'shop_product.stock_quantity'];
+
 it('keeps every legacy table and column, so the import can carry all data across', function () {
     $legacy = json_decode(file_get_contents(legacySchemaFixture()), true);
     $current = SchemaSnapshot::of();
@@ -52,6 +60,9 @@ it('keeps every legacy table and column, so the import can carry all data across
         }
 
         foreach ($definition['columns'] as $column => $was) {
+            if (in_array("{$table}.{$column}", MOVED_LEGACY_COLUMNS, true)) {
+                continue;
+            }
             $now = $current[$table]['columns'][$column] ?? null;
 
             if ($now === null) {

@@ -33,6 +33,10 @@ beforeEach(function () {
         $table->dropUnique(['customer_id']);
         $table->unique(['customer_id', 'shop_id']);
     });
+    // The legacy stock columns (moved into shop_variation in stage 1b).
+    foreach (['products', 'product_variations', 'shop_product'] as $table) {
+        Schema::connection('legacy_testing')->table($table, fn ($table) => $table->integer('stock_quantity')->default(0));
+    }
 
     $this->legacy = DB::connection('legacy_testing');
     seedLegacyData($this->legacy);
@@ -164,8 +168,6 @@ it('gives every product a default variation and places its stock in its own shop
         ->and($stock(42))->toBe([[20, false, 5], [20, true, 0]])
         // FIFO: an opening layer for each figure, at the variation's cost.
         ->and($target->table('cost_layers')->where('source_type', 'opening')->orderBy('variation_id')->pluck('remaining_quantity')->map(fn ($q) => (int) $q)->sort()->values()->all())->toBe([5, 6, 10])
-        // The legacy columns are kept as they were.
-        ->and($target->table('products')->where('id', 41)->value('stock_quantity'))->toBe(6)
         ->and(collect($import->notes)->filter(fn ($note) => str_starts_with($note, 'Product 41:'))->values()->all())->toBe([
             'Product 41: stock placed in shop 21, its first listed shop.',
             'Product 41: shop 21 listed 4 in stock (e-commerce figure); the POS figure 6 is used.',

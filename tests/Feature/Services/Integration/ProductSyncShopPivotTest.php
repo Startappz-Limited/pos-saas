@@ -130,11 +130,12 @@ test('shopify sync attaches product to shop in pivot table', function () {
 test('woocommerce sync updates pivot data on re-sync', function () {
     $product = Product::factory()->create(['sku' => 'WC-RESYNC-001']);
     $product->shops()->attach($this->shop->id, [
-        'stock_quantity' => 5,
         'selling_price' => 10.00,
         'cost_price' => 8.00,
         'is_active' => true,
     ]);
+    // The shop holds 5 before the re-sync (stock lives per shop, stage 1b).
+    app(StockLedger::class)->setLevel($this->shop->id, $product->defaultVariation, 5);
 
     Http::fake([
         '*/wp-json/wc/v3/products*' => Http::response([
