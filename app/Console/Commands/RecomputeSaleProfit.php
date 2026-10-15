@@ -9,7 +9,12 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Re-derives cost and profit on historic sales from current product costs.
+ * Re-derives cost and profit on historic sales.
+ *
+ * Since stage 1b a sale line costs what its FIFO layers cost (cost_allocations);
+ * a layer whose cost was unknown takes the purchase cost entered since, and so
+ * does the rest of that layer. Lines sold before FIFO (or imported) have no
+ * allocations and use the product's current cost, as before.
  *
  * COGS is snapshotted onto `sale_items.unit_cost` at the moment of sale, so
  * sales made while a product carried an importer-derived cost kept that wrong
@@ -108,21 +113,45 @@ class RecomputeSaleProfit extends Command
     {
         $lines = [];
         $totalCost = 0.0;
+        /** @var list<array{object, float}> $fills allocations (and their layers) whose cost was unknown */
+        $fills = [];
 
         foreach ($sale->items as $item) {
             $source = $item->variation ?? $item->product;
-            $cost = $source?->cost_price;
+            $current = $source?->cost_price !== null && (float) $source->cost_price > 0 ? (float) $source->cost_price : null;
+            $allocations = DB::table('cost_allocations')->where('sale_item_id', $item->id)
+                ->get(['id', 'cost_layer_id', 'quantity_allocated', 'unit_cost']);
 
-            if ($cost === null || (float) $cost <= 0) {
-                if (! $zeroUnknown) {
-                    return null;
+            if ($allocations->isNotEmpty()) {
+                // FIFO (stage 1b): the line costs what its layers cost. A layer
+                // whose cost was unknown takes the purchase cost entered since.
+                $lineCost = 0.0;
+                foreach ($allocations as $allocation) {
+                    $cost = $allocation->unit_cost !== null ? (float) $allocation->unit_cost : $current;
+                    if ($cost === null) {
+                        if (! $zeroUnknown) {
+                            return null;
+                        }
+                        $cost = 0.0;
+                    } elseif ($allocation->unit_cost === null) {
+                        $fills[] = [$allocation, $cost];
+                    }
+                    $lineCost += (int) $allocation->quantity_allocated * $cost;
+                }
+                $lineCost = round($lineCost, 2);
+                $unitCost = $item->quantity > 0 ? round($lineCost / $item->quantity, 2) : 0.0;
+            } else {
+                // Sold before FIFO (or imported): the product's current cost.
+                if ($current === null) {
+                    if (! $zeroUnknown) {
+                        return null;
+                    }
+                    $current = 0.0;
                 }
 
-                $cost = 0.0;
+                $unitCost = round($current, 2);
+                $lineCost = round($item->quantity * $unitCost, 2);
             }
-
-            $unitCost = round((float) $cost, 2);
-            $lineCost = round($item->quantity * $unitCost, 2);
 
             // Net revenue for the line. Sales priced VAT-inclusive carry the tax
             // inside `line_total`, so profit is measured against the taxable
@@ -157,8 +186,19 @@ class RecomputeSaleProfit extends Command
         $changed = abs($profitBefore - $totalProfit) >= 0.01
             || abs((float) $sale->total_cost - $totalCost) >= 0.01;
 
-        if ($changed && $apply) {
-            DB::transaction(function () use ($sale, $lines, $totalCost, $totalProfit): void {
+        if (($changed || $fills !== []) && $apply) {
+            DB::transaction(function () use ($sale, $lines, $totalCost, $totalProfit, $fills): void {
+                foreach ($fills as [$allocation, $cost]) {
+                    DB::table('cost_allocations')->where('id', $allocation->id)->update([
+                        'unit_cost' => $cost,
+                        'total_cost' => round((int) $allocation->quantity_allocated * $cost, 2),
+                    ]);
+                    // The rest of that layer is costed for later sales too.
+                    if ($allocation->cost_layer_id !== null) {
+                        DB::table('cost_layers')->where('id', $allocation->cost_layer_id)->whereNull('unit_cost')->update(['unit_cost' => $cost]);
+                    }
+                }
+
                 foreach ($lines as $line) {
                     /** @var SaleItem $item */
                     $item = $line['item'];
