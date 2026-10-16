@@ -462,3 +462,25 @@ first.
   category images, report exports): when they gain uploads, use `TenantFiles`.
 - **`mobile:contract-diff` not run** (no Flutter app on this machine); no routes in `routes/api.php`
   changed, and the flat API contract test passed at every step.
+
+## Stage 2 (Phase 2): Tenant isolation test suite
+
+Branch: `saas/phase-2-isolation` (from `main` at `c79e357`, the merge of stage 1c and the credit transaction
+number fix). Plan: the stage file itself.
+
+### Starting result
+
+`main` at `c79e357`: **SQLite 1,277 passed, 59 skipped; MySQL 8 1,287 passed, 49 skipped** (the stage 1c
+branch with the credit transaction number fix, verified before the merge).
+
+### Known before starting
+
+- **Sign-up leaves the new user in no business:** every page after sign-in is refused (local) or empty
+  (production). The fix, sign-up creating a business and its owner, is a Phase 3 item; decided 16 October
+  2026 to finish Phase 2 first.
+
+### Steps
+
+| Step | Commit | Tests added | Suite (SQLite) | Suite (MySQL 8) | Notes |
+|---|---|---|---|---|---|
+| 1. Canary crawl | _this commit_ | `TenantIsolation/CanaryCrawlTest` (5), `tests/Support/Canaries.php` | 1,282 passed, 59 skipped | 1,292 passed, 49 skipped | Every parameter-free GET route behind sign-in (about 100 web, 27 flat API) is requested as business A's owner, a cashier limited to one shop, and the member of both businesses, and as business B's owner the other way round; no response may contain the other business's markers (names and record uuids, planted by `Canaries::plant()` across 13 kinds of record on top of the fixture's). A route that errors fails the crawl, except 11 already broken on `main` (missing controller methods and views), listed with their reasons, and one that fails on SQLite only (`MONTH()`). Proved by mutation: with `BusinessScope` disabled the crawl reports 33 leaks. **Found and fixed:** `/pricing-rules` was a 500 whenever a business had a pricing rule (`PricingService::getStatistics()` keyed an array by an enum), and `/suppliers/credit-alerts/list` was a 500 on MySQL every time (ordered by `credit_utilization`, a computed attribute; SQLite reads an unknown name as a string, so the SQLite suite never saw it) |

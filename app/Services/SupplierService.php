@@ -67,7 +67,9 @@ class SupplierService
     {
         return Supplier::active()
             ->nearCreditLimit()
-            ->orderBy('credit_utilization', 'desc')
+            // credit_utilization is a computed attribute, not a column: MySQL
+            // refused the ORDER BY (SQLite reads an unknown name as a string).
+            ->orderByRaw('current_balance / NULLIF(credit_limit, 0) desc')
             ->get();
     }
 

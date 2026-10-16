@@ -26,7 +26,8 @@ exists from Phase 1a.
 - [ ] `tests/Feature/TenantIsolation/*`, built on the two-business fixture from Phase 1a.
 - [ ] **Resource matrix:** web, flat API, `/api/v1` and sync; index, show, update and delete; foreign ids
       rejected on create.
-- [ ] **Canary crawl:** every parameter-free GET route, run as A, must not contain B's marker strings.
+- [x] **Canary crawl:** every parameter-free GET route, run as A, must not contain B's marker strings.
+      *Step 1: `TenantIsolation/CanaryCrawlTest`, as A's owner, a one-shop cashier and the member of both, and as B's owner; proved by mutation (33 leaks with `BusinessScope` off).*
 - [ ] **Switching:** after switching to A, nothing from B is shown or accepted.
 - [ ] **Tokens:** a v1 token for A is refused for B; a legacy token acts only on the default business.
 - [ ] **Sync:** a pull for A never returns B's rows; a push with B's ids is rejected.
