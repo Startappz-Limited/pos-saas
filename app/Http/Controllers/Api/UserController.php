@@ -51,7 +51,7 @@ class UserController extends Controller
 
     public function show(User $user): JsonResponse
     {
-        $user->load(['roles', 'shop']);
+        $user->load(['roles', 'shops']);
 
         return response()->json([
             'success' => true,
@@ -63,7 +63,7 @@ class UserController extends Controller
     {
         $validated = $request->validate([
             'name' => ['sometimes', 'string', 'max:255'],
-            'email' => ['sometimes', 'email', 'max:255', 'unique:users,email,' . $user->id],
+            'email' => ['sometimes', 'email', 'max:255', 'unique:users,email,'.$user->id],
             'phone' => ['nullable', 'string', 'max:20'],
             'password' => ['nullable', Password::defaults()],
             'shop_id' => ['nullable', 'exists:shops,id'],
