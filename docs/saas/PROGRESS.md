@@ -519,3 +519,7 @@ branch with the credit transaction number fix, verified before the merge).
   and `/expenses/report/summary` on SQLite only (`MONTH()`). Not tenancy; worth a cleanup pass.
 - **`mobile:contract-diff` not run** (no Flutter app here). `GET /api/users/{user}` now returns `shops` (it
   never answered before).
+- **Flaky test fixed after the stage:** `SupplierTest > nearCreditLimit scope filters correctly` failed in CI
+  (0 of 2 suppliers found). The factory drew the ratio once, from 0.90–0.99, for both suppliers; at exactly
+  0.90 the balance rounded down (50,000.06 × 0.90 = 45,000.054 → 45,000.05), below the scope's 90%, about
+  one run in 25. It now draws per row, at 91–99%, rounded up to the cent.
