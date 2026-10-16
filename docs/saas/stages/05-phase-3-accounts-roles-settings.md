@@ -71,7 +71,7 @@ integration credentials.
 - [x] `RegisteredUserController` creates a business and its owner; honeypot. **The trial starts only
       after the email is verified**, so throwaway signups can't open free trials.
 - [x] The business picker, switcher and default-business setting (web).
-- [ ] `/api/v1` sign-in, list businesses, issue a token per business, switch, sign out.
+- [x] `/api/v1` sign-in, list businesses, issue a token per business, switch, sign out.
 
 ### People
 - [ ] Invites.
@@ -129,8 +129,8 @@ integration credentials.
 
 - [x] Signup creates a business and its owner; the trial starts only once the email is verified.
 - [ ] Closing a business leaves none of its rows in the main or audit database, and none of its files.
-- [ ] A user with one business signs in straight to it, on the web and `/api/v1`, with no picker.
-- [ ] A user in two businesses with a default signs in straight to the default; without a usable default
+- [x] A user with one business signs in straight to it, on the web and `/api/v1`, with no picker.
+- [x] A user in two businesses with a default signs in straight to the default; without a usable default
       they see the picker. They can switch, and only ever see the active business.
 - [ ] Custom roles apply only in their business.
 - [ ] A removed member loses web and API access immediately.

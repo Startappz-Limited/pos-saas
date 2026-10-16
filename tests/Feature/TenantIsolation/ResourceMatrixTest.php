@@ -18,6 +18,7 @@ use App\Models\SocialAccount;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Route;
+use Laravel\Sanctum\PersonalAccessToken;
 use Laravel\Sanctum\Sanctum;
 use Tests\Support\TwoBusinesses;
 
@@ -166,3 +167,16 @@ it('refuses to open business B, or make it the default, for business A\'s owner 
     expect(session(ResolveTenant::SESSION_KEY))->not->toBe($this->fixture->b->business->id)
         ->and($owner->fresh()->default_business_id)->toBe($this->fixture->a->business->id);
 })->with(['businesses.switch', 'businesses.default']);
+
+it('refuses to switch an /api/v1 token to business B for business A\'s owner (stage 3)', function () {
+    $owner = $this->fixture->a->owner;
+    $token = $this->postJson(route('api.v1.auth.sign-in'), ['email' => $owner->email, 'password' => 'password', 'device_name' => 'Till'])
+        ->json('data.token');
+    app('auth')->forgetGuards();
+    app(TenantContext::class)->forget();
+
+    $this->withHeaders(['Authorization' => "Bearer {$token}"])
+        ->postJson(route('api.v1.businesses.switch', $this->fixture->b->business))->assertNotFound();
+
+    expect(PersonalAccessToken::findToken($token)?->business_id)->toBe($this->fixture->a->business->id);
+});

@@ -261,6 +261,22 @@ class User extends Authenticatable
     }
 
     /**
+     * The business a sign-in opens (decision 4.4): the usable default, else the
+     * only usable business; null when the user has several and no usable
+     * default (they pick one), or none.
+     */
+    public function businessToOpen(): ?int
+    {
+        if ($this->canEnterBusiness($this->default_business_id)) {
+            return $this->default_business_id;
+        }
+
+        $usable = $this->usableBusinesses();
+
+        return $usable->count() === 1 ? $usable->first()->id : null;
+    }
+
+    /**
      * The businesses this login can work in now: an active membership in an
      * active business, by name.
      *

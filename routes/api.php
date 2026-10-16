@@ -19,7 +19,10 @@ use App\Http\Controllers\Api\SaleSourceController;
 use App\Http\Controllers\Api\ShopController;
 use App\Http\Controllers\Api\SupplierController;
 use App\Http\Controllers\Api\UserController;
+use App\Http\Controllers\Api\V1\AuthController as V1AuthController;
+use App\Http\Controllers\Api\V1\BusinessController as V1BusinessController;
 use App\Http\Controllers\WebhookController;
+use App\Http\Middleware\EnsureBusinessToken;
 use Illuminate\Support\Facades\Route;
 
 // Webhook routes (public — verified via HMAC signature, throttled per shop)
@@ -38,6 +41,18 @@ Route::prefix('webhooks')->middleware('throttle:webhooks')->group(function () {
 Route::middleware('throttle:auth')->group(function () {
     Route::post('/login', [AuthController::class, 'login'])->name('api.login');
     Route::post('/register', [AuthController::class, 'register'])->name('api.register');
+});
+
+// `/api/v1` (stage 3): tokens bound to one business. The flat API above and
+// below is unchanged for the shipped Flutter app.
+Route::prefix('v1')->name('api.v1.')->group(function () {
+    Route::post('/auth/sign-in', [V1AuthController::class, 'signIn'])->middleware('throttle:auth')->name('auth.sign-in');
+
+    Route::middleware(['auth:sanctum', EnsureBusinessToken::class])->group(function () {
+        Route::post('/auth/sign-out', [V1AuthController::class, 'signOut'])->name('auth.sign-out');
+        Route::get('/businesses', [V1BusinessController::class, 'index'])->name('businesses.index');
+        Route::post('/businesses/{business:uuid}/switch', [V1BusinessController::class, 'switch'])->name('businesses.switch');
+    });
 });
 
 // Protected routes
