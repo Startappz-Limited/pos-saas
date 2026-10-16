@@ -6,7 +6,6 @@ use App\Models\User;
 use App\Support\Tenancy\TenantContext;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\PermissionRegistrar;
 
@@ -93,7 +92,8 @@ it('makes the owners admins and moves template assignments onto the business\'s 
     }
 
     $migration = require database_path('migrations/2026_10_16_000001_split_platform_operator_and_business_owner.php');
-    Schema::table('users', fn ($table) => $table->dropColumn('is_platform_operator'));
+    // No schema change here: on MySQL it would commit the test's transaction
+    // and make the next test rebuild the database (about a minute).
     $migration->up();
     app(PermissionRegistrar::class)->forgetCachedPermissions();
 
