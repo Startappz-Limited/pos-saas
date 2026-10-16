@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\ResolveTenant;
 use App\Models\AbandonedCart;
 use App\Models\Attribute;
 use App\Models\BaileysSession;
@@ -156,3 +157,12 @@ it('rejects business B\'s ids on create', function (string $route, Closure $payl
     'purchase order from B\'s supplier' => ['purchase-orders.store', fn ($b) => ['supplier_id' => $b->supplier->id, 'shop_id' => $b->shops[0]->id]],
     'sale to B\'s customer of B\'s product' => ['sales.store', fn ($b) => ['customer_id' => $b->customer->id, 'items' => [['product_id' => $b->product->id, 'quantity' => 1, 'price' => 10]]]],
 ]);
+
+it('refuses to open business B, or make it the default, for business A\'s owner (stage 3)', function (string $route) {
+    $owner = $this->fixture->a->owner;
+
+    $this->actingAs($owner)->post(route($route, $this->fixture->b->business))->assertNotFound();
+
+    expect(session(ResolveTenant::SESSION_KEY))->not->toBe($this->fixture->b->business->id)
+        ->and($owner->fresh()->default_business_id)->toBe($this->fixture->a->business->id);
+})->with(['businesses.switch', 'businesses.default']);

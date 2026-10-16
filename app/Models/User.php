@@ -261,6 +261,21 @@ class User extends Authenticatable
     }
 
     /**
+     * The businesses this login can work in now: an active membership in an
+     * active business, by name.
+     *
+     * @return \Illuminate\Database\Eloquent\Collection<int, Business>
+     */
+    public function usableBusinesses(): \Illuminate\Database\Eloquent\Collection
+    {
+        return $this->businesses()
+            ->wherePivot('status', BusinessMembership::STATUS_ACTIVE)
+            ->where('businesses.status', Business::STATUS_ACTIVE)
+            ->orderBy('businesses.name')
+            ->get();
+    }
+
+    /**
      * Adds an active membership in $business, and makes it the default
      * business when the user has none.
      */

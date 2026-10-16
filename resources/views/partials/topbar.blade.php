@@ -17,6 +17,36 @@
 
             <div class="d-flex align-items-center gap-1">
 
+                <!-- Business switcher (stage 3): shown when the user works in several businesses -->
+                @php
+                    $currentBusiness = app(\App\Support\Tenancy\TenantContext::class)->business();
+                    $usableBusinesses = auth()->user()?->usableBusinesses() ?? collect();
+                @endphp
+                @if ($currentBusiness && $usableBusinesses->count() > 1)
+                    <div class="dropdown topbar-item">
+                        <button type="button" class="topbar-button d-flex align-items-center gap-1" id="page-header-business-dropdown"
+                            data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                            <iconify-icon icon="solar:buildings-2-bold-duotone" class="fs-22 align-middle"></iconify-icon>
+                            <span class="d-none d-md-inline fw-medium">{{ $currentBusiness->name }}</span>
+                        </button>
+                        <div class="dropdown-menu dropdown-menu-end" aria-labelledby="page-header-business-dropdown">
+                            <h6 class="dropdown-header">{{ __('Switch business') }}</h6>
+                            @foreach ($usableBusinesses as $business)
+                                @if ($business->id === $currentBusiness->id)
+                                    <span class="dropdown-item active" aria-current="true">{{ $business->name }}</span>
+                                @else
+                                    <form method="POST" action="{{ route('businesses.switch', $business) }}">
+                                        @csrf
+                                        <button type="submit" class="dropdown-item">{{ $business->name }}</button>
+                                    </form>
+                                @endif
+                            @endforeach
+                            <div class="dropdown-divider my-1"></div>
+                            <a class="dropdown-item" href="{{ route('businesses.index') }}">{{ __('All businesses and default') }}</a>
+                        </div>
+                    </div>
+                @endif
+
                 <!-- Theme Toggle (Light/Dark) -->
                 <div class="topbar-item">
                     <button type="button" class="topbar-button" id="light-dark-mode">

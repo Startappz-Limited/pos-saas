@@ -7,6 +7,7 @@ use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\Baileys\BroadcastController;
 use App\Http\Controllers\Baileys\InboxController;
 use App\Http\Controllers\Baileys\SessionController;
+use App\Http\Controllers\BusinessSwitchController;
 use App\Http\Controllers\CalendarController;
 use App\Http\Controllers\CampaignController;
 use App\Http\Controllers\CashRegisterController;
@@ -67,6 +68,14 @@ Route::get('sales/{sale:uuid}/invoice', [SaleController::class, 'invoicePdf'])
 Route::get('credit-accounts/{creditAccount:uuid}/statement-pdf', [CreditAccountController::class, 'outstandingStatementPdf'])
     ->name('credit-accounts.statement-pdf')
     ->middleware('signed');
+
+// The business picker, switcher and default business (stage 3): reachable
+// with no business chosen, so outside the `business` middleware.
+Route::middleware('auth')->prefix('businesses')->name('businesses.')->group(function () {
+    Route::get('/', [BusinessSwitchController::class, 'index'])->name('index');
+    Route::post('{business:uuid}/switch', [BusinessSwitchController::class, 'switch'])->name('switch');
+    Route::post('{business:uuid}/default', [BusinessSwitchController::class, 'makeDefault'])->name('default');
+});
 
 Route::middleware(['auth', 'business'])->group(function () {
     // Private business files (stage 1c): WhatsApp media, profile photos.

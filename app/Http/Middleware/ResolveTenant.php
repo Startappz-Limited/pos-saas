@@ -12,7 +12,10 @@ use Symfony\Component\HttpFoundation\Response;
  * Sets the business a signed-in request acts for (decision 4.3).
  *
  * On the web: the business chosen for the session, re-checked against the
- * user's memberships on every request, otherwise the user's default business.
+ * user's memberships on every request, otherwise the user's default business,
+ * otherwise their only usable business (stage 3). With several and no usable
+ * default, none is chosen and the user picks one (EnsureActiveBusiness). An
+ * inactive membership or a suspended or closing business is never chosen.
  * With an API token: the user's default business, which is how legacy flat
  * API tokens keep working (4.8). A user with no usable business gets no
  * business, so tenant data stays out of reach.
@@ -47,6 +50,18 @@ class ResolveTenant
 
         $session?->forget(self::SESSION_KEY);
 
-        return $user->canEnterBusiness($user->default_business_id) ? $user->default_business_id : null;
+        if ($user->canEnterBusiness($user->default_business_id)) {
+            return $user->default_business_id;
+        }
+
+        $usable = $user->usableBusinesses();
+
+        if ($usable->count() !== 1) {
+            return null;
+        }
+
+        $session?->put(self::SESSION_KEY, $usable->first()->id);
+
+        return $usable->first()->id;
     }
 }

@@ -11,9 +11,10 @@ use Symfony\Component\HttpFoundation\Response;
 
 /**
  * Pages that work on a business need one (stage 3). A signed-in user with no
- * usable business is sent to verify their email when their signup is still
- * waiting for it, and otherwise shown that they have no business, instead of
- * reaching tenant code with none set.
+ * business chosen is sent to verify their email when their signup is still
+ * waiting for it, to the business picker when they have several usable
+ * businesses and no usable default, and otherwise shown that they have no
+ * business, instead of reaching tenant code with none set.
  */
 class EnsureActiveBusiness
 {
@@ -31,6 +32,12 @@ class EnsureActiveBusiness
             return $request->expectsJson()
                 ? response()->json(['success' => false, 'message' => __('Verify your email address to start using your business.')], 403)
                 : redirect()->route('verification.notice');
+        }
+
+        if ($user->usableBusinesses()->isNotEmpty()) {
+            return $request->expectsJson()
+                ? response()->json(['success' => false, 'message' => __('Choose a business to work in.')], 409)
+                : redirect()->guest(route('businesses.index'));
         }
 
         return $request->expectsJson()
