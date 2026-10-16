@@ -68,7 +68,7 @@ integration credentials.
 - [x] `AppServiceProvider`: `Gate::before` only for `super-admin`. *(Only for the platform operator.)*
 
 ### Sign-in
-- [ ] `RegisteredUserController` creates a business and its owner; honeypot. **The trial starts only
+- [x] `RegisteredUserController` creates a business and its owner; honeypot. **The trial starts only
       after the email is verified**, so throwaway signups can't open free trials.
 - [ ] The business picker, switcher and default-business setting (web).
 - [ ] `/api/v1` sign-in, list businesses, issue a token per business, switch, sign out.

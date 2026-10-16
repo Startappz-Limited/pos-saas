@@ -51,7 +51,7 @@ Route::get('/', function () {
 
 Route::get('/dashboard', function () {
     return view('dashboard');
-})->middleware(['auth', 'verified'])->name('dashboard');
+})->middleware(['auth', 'verified', 'business'])->name('dashboard');
 
 // Public signed routes (no auth required)
 Route::get('orders/{order:uuid}/invoice', [EcommerceOrderController::class, 'invoicePdf'])
@@ -68,7 +68,7 @@ Route::get('credit-accounts/{creditAccount:uuid}/statement-pdf', [CreditAccountC
     ->name('credit-accounts.statement-pdf')
     ->middleware('signed');
 
-Route::middleware('auth')->group(function () {
+Route::middleware(['auth', 'business'])->group(function () {
     // Private business files (stage 1c): WhatsApp media, profile photos.
     Route::get('files/{path}', TenantFileController::class)->where('path', '.*')->name('tenant-files.show');
 

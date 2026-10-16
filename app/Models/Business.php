@@ -19,6 +19,9 @@ class Business extends Model
 
     public const STATUS_ACTIVE = 'active';
 
+    /** Created at signup; opens when the owner's email is verified (stage 3). */
+    public const STATUS_PENDING_VERIFICATION = 'pending_verification';
+
     protected $fillable = [
         'uuid',
         'name',
@@ -26,12 +29,14 @@ class Business extends Model
         'status',
         'currency',
         'timezone',
+        'trial_started_at',
     ];
 
     protected function casts(): array
     {
         return [
             'settings' => 'array',
+            'trial_started_at' => 'datetime',
         ];
     }
 

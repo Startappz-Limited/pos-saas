@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\EnsureActiveBusiness;
 use App\Http\Middleware\ResolveTenant;
 use App\Http\Middleware\SecurityHeaders;
 use Illuminate\Contracts\Auth\Middleware\AuthenticatesRequests;
@@ -32,6 +33,9 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->web(append: [ResolveTenant::class]);
         $middleware->api(append: [ResolveTenant::class]);
         $middleware->appendToPriorityList(AuthenticatesRequests::class, ResolveTenant::class);
+
+        // Pages that work on a business need one (stage 3).
+        $middleware->alias(['business' => EnsureActiveBusiness::class]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //
