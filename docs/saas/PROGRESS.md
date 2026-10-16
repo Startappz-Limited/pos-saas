@@ -523,3 +523,36 @@ branch with the credit transaction number fix, verified before the merge).
   (0 of 2 suppliers found). The factory drew the ratio once, from 0.90–0.99, for both suppliers; at exactly
   0.90 the balance rounded down (50,000.06 × 0.90 = 45,000.054 → 45,000.05), below the scope's 90%, about
   one run in 25. It now draws per row, at 91–99%, rounded up to the cent.
+
+## Stage 3 (Phase 3): Accounts, roles, onboarding, business settings
+
+Branch: `saas/phase-3-accounts-settings` (from `main` at `4d24c3e`, the merge of stage 2). Plan: the stage
+file itself.
+
+### Starting result
+
+`main` at `4d24c3e`: **SQLite 1,379 passed, 59 skipped; MySQL 8 1,389 passed, 49 skipped** (stage 2's end
+of stage, verified before the merge).
+
+### Known before starting
+
+- **Sign-up leaves the new user in no business** ("No business is set for this Shop" on the dashboard).
+  Fixed by this stage's sign-in step.
+
+### Decisions taken at the start (16 October 2026)
+
+- **M-Pesa:** an interface now, with a fake for tests; the private package is plugged in later.
+- **Till and Paybill ownership:** a shortcode belongs to one shop platform-wide, and is accepted only after
+  a successful test query with the shop's own account details.
+
+### Steps
+
+| Step | Commit | Tests added | Suite (SQLite) | Suite (MySQL 8) | Notes |
+|---|---|---|---|---|---|
+| 1. Roles: platform operator, owners, per-business templates | _this commit_ | `Tenancy/RoleTemplatesTest` (5); `RolesPerBusinessTest` +1 (platform operator) | 1,385 passed, 59 skipped (4.6 min) | 1,395 passed, 49 skipped (19 min) | **Platform operator:** the `users.is_platform_operator` flag (never fillable), the only user `Gate::before` lets do everything. **Owner:** the shared `admin` role, held per business (`User::isBusinessOwner()`); the shared `super-admin` is renamed `admin`. **Templates:** manager, cashier, inventory clerk, accountant and customer are copied into each new business with their permissions (`CopyRoleTemplates`, from `Business::created`); role lists and lookups by name use the business's own copy, which hides the template; custom roles as before. `RoleSeeder` grants permissions added later to each business's copies (permissions created after the copy), so a rollout reaches existing businesses without restoring a permission a business removed. Migration `2026_10_16_000001`: adds the flag, renames `super-admin` to `admin` (or moves its holders if `admin` exists), copies the templates for every existing business and moves each member's grant onto their business's copy; `down()` reverses it. The legacy import does the same for the imported business. **Rehearsed** on `import_testing` (the old development database import): 2 owners on the shared `admin`; business 1's copies created; 3 managers and 1 cashier moved onto them; 6 grants before and after. **Tests faster:** `PermissionSeeder` now inserts its 203 permissions in one query (it made two per permission, about a second per test on MySQL); unchanged for existing rows, so re-running it on UAT is still safe. Tests that need an owner use `ownerRole()`; the resource matrix no longer seeds the role templates. Tests adapted: the owner role is `admin` (about 20 files) |
+
+### Differences from the stage file
+
+- **The platform operator is a flag, not a global `super-admin` role.** Roles are per business (Spatie teams
+  on `business_id`): a role grant always carries a business, so a role held outside every business can't
+  be expressed. `users.is_platform_operator` is set only by hand or by the platform console (Phase 5).

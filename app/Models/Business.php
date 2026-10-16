@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Actions\Business\CopyRoleTemplates;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -42,8 +43,11 @@ class Business extends Model
             }
         });
 
-        // Every sale needs a source, so a business starts with the default one.
+        // Every sale needs a source, so a business starts with the default one,
+        // and its own copies of the role templates (stage 3).
         static::created(function (self $business): void {
+            app(CopyRoleTemplates::class)->execute($business);
+
             SaleSource::create([
                 'business_id' => $business->id,
                 'name' => 'Walk-in',

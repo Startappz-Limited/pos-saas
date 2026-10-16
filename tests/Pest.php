@@ -5,9 +5,12 @@ use App\Models\Role;
 use App\Models\Shop;
 use App\Models\User;
 use App\Support\Tenancy\TenantContext;
+use Database\Seeders\PermissionSeeder;
+use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Spatie\Permission\Models\Permission;
 use Tests\TestCase;
 
 /*
@@ -76,6 +79,39 @@ function sharedRole(string $name): Role
 {
     return Role::withoutGlobalScopes()->whereNull('business_id')->where('name', $name)->where('guard_name', 'web')->first()
         ?? Role::create(['name' => $name, 'guard_name' => 'web', 'business_id' => null]);
+}
+
+/**
+ * Every system permission, as PermissionSeeder adds them (one query).
+ */
+function seedPermissions(): void
+{
+    PermissionSeeder::insertMissing();
+}
+
+/**
+ * The permissions and the seeded role templates with theirs, as a real install
+ * has them.
+ */
+function seedRolesAndPermissions(): void
+{
+    seedPermissions();
+    test()->seed(RoleSeeder::class);
+}
+
+/**
+ * The business owner role (decision 4.4, stage 3): the shared `admin` role,
+ * holding every permission. Owners no longer pass every gate (only the platform
+ * operator does), so the permissions are seeded when a test hasn't.
+ */
+function ownerRole(): Role
+{
+    seedPermissions();
+
+    $role = sharedRole('admin');
+    $role->syncPermissions(Permission::all());
+
+    return $role;
 }
 
 /**

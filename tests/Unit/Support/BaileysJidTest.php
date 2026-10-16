@@ -1,13 +1,14 @@
 <?php
 
 use App\Support\BaileysJid;
+use Tests\TestCase;
 
-uses(Tests\TestCase::class);
+uses(TestCase::class);
 
 it('normalises local Kenyan numbers to international JID', function (string $input, string $expected) {
     config()->set('baileys.default_country_code', '254');
 
-    expect(BaileysJid::fromPhone($input))->toBe($expected . '@s.whatsapp.net');
+    expect(BaileysJid::fromPhone($input))->toBe($expected.'@s.whatsapp.net');
 })->with([
     'leading zero' => ['0714587511', '254714587511'],
     'bare local mobile' => ['714587511', '254714587511'],

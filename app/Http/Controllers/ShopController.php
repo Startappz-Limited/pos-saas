@@ -48,7 +48,7 @@ class ShopController extends Controller
         $this->authorize('create', Shop::class);
 
         $managers = User::select('id', 'name')->inCurrentBusiness()->whereHas('roles', function ($query) {
-            $query->whereIn('name', ['super-admin', 'manager']);
+            $query->whereIn('name', ['admin', 'manager']);
         })->get();
 
         $statuses = ShopStatus::options();
@@ -92,7 +92,7 @@ class ShopController extends Controller
         $shop->load(['users']);
 
         $managers = User::select('id', 'name')->inCurrentBusiness()->whereHas('roles', function ($query) {
-            $query->whereIn('name', ['super-admin', 'manager']);
+            $query->whereIn('name', ['admin', 'manager']);
         })->get();
 
         $statuses = ShopStatus::options();

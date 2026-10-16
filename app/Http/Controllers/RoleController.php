@@ -95,15 +95,15 @@ class RoleController extends Controller
     {
         $this->authorize('update', $role);
 
-        // Prevent editing super-admin role
-        if ($role->name === 'super-admin') {
+        // The owner role can't be edited (owners hold every permission)
+        if ($role->name === 'admin') {
             return redirect()
                 ->route('roles.index')
                 ->with('error', 'Super Admin role cannot be modified.');
         }
 
         $validated = $request->validate([
-            'name' => 'required|string|max:255|unique:roles,name,' . $role->id,
+            'name' => 'required|string|max:255|unique:roles,name,'.$role->id,
             'permissions' => 'array',
             'permissions.*' => 'exists:permissions,id',
         ]);
@@ -129,8 +129,8 @@ class RoleController extends Controller
     {
         $this->authorize('delete', $role);
 
-        // Prevent deleting super-admin role
-        if ($role->name === 'super-admin') {
+        // The owner role can't be deleted
+        if ($role->name === 'admin') {
             return redirect()
                 ->route('roles.index')
                 ->with('error', 'Super Admin role cannot be deleted.');
@@ -173,8 +173,8 @@ class RoleController extends Controller
     {
         $this->authorize('update', $role);
 
-        // Prevent modifying super-admin permissions
-        if ($role->name === 'super-admin') {
+        // The owner role's permissions can't be changed
+        if ($role->name === 'admin') {
             return redirect()
                 ->route('roles.index')
                 ->with('error', 'Super Admin permissions cannot be modified.');

@@ -28,7 +28,7 @@ beforeEach(function () {
     $this->shop = Shop::factory()->create(['code' => 'MAIN']);
     $this->otherShop = Shop::factory()->create(['code' => 'OTHER']);
     $this->owner = User::factory()->create();
-    $this->owner->assignRole(sharedRole('super-admin'));
+    $this->owner->assignRole(ownerRole());
     $this->source = DB::table('sale_sources')->where('business_id', testBusiness()->id)->value('id');
 
     // A simple product: 10 at 20. A product with a variation: 5 at 30.

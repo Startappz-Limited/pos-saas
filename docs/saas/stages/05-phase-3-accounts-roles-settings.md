@@ -62,9 +62,10 @@ integration credentials.
 ## Work
 
 ### Roles
-- [ ] `RoleSeeder` and `PermissionSeeder`: global `super-admin` and `admin`; role templates copied per
-      business; custom roles.
-- [ ] `AppServiceProvider`: `Gate::before` only for `super-admin`.
+- [x] `RoleSeeder` and `PermissionSeeder`: global `super-admin` and `admin`; role templates copied per
+      business; custom roles. *(As built: the platform operator is the `users.is_platform_operator` flag,
+      not a role; see PROGRESS, stage 3.)*
+- [x] `AppServiceProvider`: `Gate::before` only for `super-admin`. *(Only for the platform operator.)*
 
 ### Sign-in
 - [ ] `RegisteredUserController` creates a business and its owner; honeypot. **The trial starts only

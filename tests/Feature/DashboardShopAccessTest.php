@@ -1,6 +1,5 @@
 <?php
 
-use App\Models\Role;
 use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Models\Shop;
@@ -50,7 +49,7 @@ test('dashboard lets the business owner filter any shop', function () {
     $shop = Shop::factory()->create();
     $otherShop = Shop::factory()->create();
     $user = User::factory()->create();
-    $user->assignRole(Role::findOrCreate('super-admin', 'web'));
+    $user->assignRole(ownerRole());
 
     $ownSale = Sale::factory()->create([
         'shop_id' => $shop->id,

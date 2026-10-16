@@ -2,8 +2,9 @@
 
 use App\Enums\EcommerceOrderStatus;
 use App\Models\EcommerceOrder;
+use Tests\TestCase;
 
-uses(Tests\TestCase::class);
+uses(TestCase::class);
 
 // --- Model Configuration Tests ---
 

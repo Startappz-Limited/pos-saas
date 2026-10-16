@@ -2,8 +2,6 @@
 
 use App\Models\User;
 use App\Support\Tenancy\TenantContext;
-use Database\Seeders\PermissionSeeder;
-use Database\Seeders\RoleSeeder;
 use Illuminate\Routing\Route as RoutingRoute;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
@@ -50,7 +48,7 @@ beforeEach(function () {
 
     // The real permissions and role templates, so each viewer has the access
     // a real install gives them.
-    $this->seed([PermissionSeeder::class, RoleSeeder::class]);
+    seedRolesAndPermissions();
     $this->fixture = TwoBusinesses::create();
     $this->markers = [
         'a' => Canaries::plant($this->fixture->a, 'Alpha'),

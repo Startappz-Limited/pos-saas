@@ -28,6 +28,7 @@ const ALLOWED_RAW_QUERIES = [
     'app/Services/VatReportService.php' => [2, SCOPED],
 
     // Internal reads and writes by id, on ids that came through scoped models.
+    'app/Actions/Business/CopyRoleTemplates.php' => [5, 'role templates copied into the business being created'],
     'app/Actions/ConvertEcommerceOrderToSale.php' => [1, 'the register of a session the action just found or opened'],
     'app/Actions/PurchaseReturn/MarkPurchaseReturnShippedAction.php' => [1, 'the cost layer of a scoped intake'],
     'app/Console/Commands/BackfillShopProductPivot.php' => [2, 'pivot rows for a scoped product and its sync record\'s shop'],

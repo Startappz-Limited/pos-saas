@@ -106,10 +106,10 @@ test('user cannot update role if not authorized', function () {
     $response->assertStatus(403);
 });
 
-test('super-admin role cannot be updated', function () {
+test('the owner role cannot be updated', function () {
     $user = User::factory()->create();
     $user->givePermissionTo(['roles.update', 'roles.view']);
-    $superAdminRole = Role::create(['name' => 'super-admin']);
+    $superAdminRole = Role::create(['name' => 'admin']);
 
     $response = $this->actingAs($user)->put(route('roles.update', $superAdminRole), [
         'name' => 'hacked-role',
@@ -118,7 +118,7 @@ test('super-admin role cannot be updated', function () {
 
     $response->assertRedirect(route('roles.index'));
     $response->assertSessionHas('error');
-    $this->assertDatabaseHas('roles', ['name' => 'super-admin']);
+    $this->assertDatabaseHas('roles', ['name' => 'admin']);
 });
 
 test('user can delete role if authorized', function () {
@@ -141,16 +141,16 @@ test('user cannot delete role if not authorized', function () {
     $response->assertStatus(403);
 });
 
-test('super-admin role cannot be deleted', function () {
+test('the owner role cannot be deleted', function () {
     $user = User::factory()->create();
     $user->givePermissionTo(['roles.delete', 'roles.view']);
-    $superAdminRole = Role::create(['name' => 'super-admin']);
+    $superAdminRole = Role::create(['name' => 'admin']);
 
     $response = $this->actingAs($user)->delete(route('roles.destroy', $superAdminRole));
 
-    // Policy returns 403 Forbidden for super-admin role
+    // The policy refuses the owner role (403)
     $response->assertStatus(403);
-    $this->assertDatabaseHas('roles', ['name' => 'super-admin']);
+    $this->assertDatabaseHas('roles', ['name' => 'admin']);
 });
 
 test('role with assigned users cannot be deleted', function () {
@@ -210,11 +210,11 @@ test('permissions can be updated for role', function () {
     expect($role->hasPermissionTo('test.permission3'))->toBeTrue();
 });
 
-test('super-admin role permissions cannot be modified', function () {
+test('the owner role\'s permissions cannot be modified', function () {
     $user = User::factory()->create();
     $user->givePermissionTo(['roles.update', 'roles.view']);
 
-    $superAdminRole = Role::create(['name' => 'super-admin']);
+    $superAdminRole = Role::create(['name' => 'admin']);
     $allPermissions = Permission::all()->pluck('id')->toArray();
     $superAdminRole->givePermissionTo(Permission::all());
 

@@ -74,12 +74,11 @@ class AppServiceProvider extends ServiceProvider
         $this->definePasswordPolicy();
         $this->carryTenantIntoQueuedWork();
 
-        // The business owner may do everything in their business. Roles are
-        // per business (Spatie teams), so this never reaches another business.
-        // The owner is the super-admin role until Phase 3 splits platform
-        // operator and business owner (User::isBusinessOwner).
+        // Only the platform operator may do everything (decision 4.4). A
+        // business owner holds the admin role, with every permission in their
+        // business, and the policies still apply to them.
         Gate::before(function ($user, $ability) {
-            return $user instanceof User && $user->isBusinessOwner() ? true : null;
+            return $user instanceof User && $user->isPlatformOperator() ? true : null;
         });
 
         // Register Policies

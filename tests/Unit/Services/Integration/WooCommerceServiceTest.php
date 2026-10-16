@@ -3,8 +3,9 @@
 use App\Services\Integration\WooCommerceService;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Http;
+use Tests\TestCase;
 
-uses(Tests\TestCase::class);
+uses(TestCase::class);
 beforeEach(function () {
     $this->service = new WooCommerceService;
 });
@@ -57,7 +58,7 @@ test('test connection returns false when missing credentials', function () {
 
 test('test connection handles exceptions gracefully', function () {
     Http::fake(function () {
-        throw new \Exception('Network error');
+        throw new Exception('Network error');
     });
 
     $result = $this->service->testConnection([

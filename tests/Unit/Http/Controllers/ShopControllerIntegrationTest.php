@@ -1,8 +1,9 @@
 <?php
 
 use Illuminate\Support\Facades\Http;
+use Tests\TestCase;
 
-uses(Tests\TestCase::class);
+uses(TestCase::class);
 
 test('integration returns success for valid woocommerce credentials', function () {
     $this->withoutMiddleware();

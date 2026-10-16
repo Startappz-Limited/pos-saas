@@ -64,6 +64,8 @@ class User extends Authenticatable
     {
         return [
             'email_verified_at' => 'datetime',
+            // Never fillable: only the platform grants it.
+            'is_platform_operator' => 'boolean',
             'password' => 'hashed',
             'date_of_birth' => 'date',
             'status' => UserStatus::class,
@@ -323,13 +325,22 @@ class User extends Authenticatable
     }
 
     /**
-     * An owner sees every shop of the business (decision 4.4). Until Phase 3
-     * splits the platform operator from business owners, the owner is the
-     * super-admin role.
+     * An owner sees every shop of the business (decision 4.4). Owners hold
+     * the admin role in the business; a business may have several.
      */
     public function isBusinessOwner(): bool
     {
-        return $this->hasRole('super-admin');
+        // The owner role, held in the current business (decision 4.4).
+        return app(TenantContext::class)->has() && $this->hasRole('admin');
+    }
+
+    /**
+     * The platform operator (decision 4.4): global, never a business member,
+     * the only user Gate::before lets do everything.
+     */
+    public function isPlatformOperator(): bool
+    {
+        return (bool) $this->is_platform_operator;
     }
 
     /**

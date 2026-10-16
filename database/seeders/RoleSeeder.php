@@ -5,6 +5,7 @@ namespace Database\Seeders;
 use App\Models\Role;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\PermissionRegistrar;
 
@@ -21,8 +22,10 @@ class RoleSeeder extends Seeder
         // Create roles with descriptions
         $roles = [
             [
-                'name' => 'super-admin',
-                'description' => 'Has complete system access with all permissions',
+                // The business owner (decision 4.4); the platform operator is
+                // users.is_platform_operator, not a role.
+                'name' => 'admin',
+                'description' => 'Owns the business: every permission in it',
             ],
             [
                 'name' => 'manager',
@@ -63,6 +66,7 @@ class RoleSeeder extends Seeder
             $this->assignInventoryClerkPermissions();
             $this->assignAccountantPermissions();
             $this->assignCustomerPermissions();
+            $this->grantNewPermissionsToBusinessCopies();
         });
 
         $this->command->info('✅ Created '.count($roles).' roles and assigned permissions successfully!');
@@ -73,8 +77,32 @@ class RoleSeeder extends Seeder
      */
     private function assignSuperAdminPermissions(): void
     {
-        $role = Role::findByName('super-admin');
+        $role = Role::findByName('admin');
         $role->givePermissionTo(Permission::all());
+    }
+
+    /**
+     * Each business has its own copies of the templates (stage 3). A
+     * permission created after a business made its copies is granted to them
+     * as it is to the template, so rolling out a new permission still reaches
+     * every business; permissions a business took away from its copies before
+     * stay away.
+     */
+    private function grantNewPermissionsToBusinessCopies(): void
+    {
+        $templates = DB::table('roles')->whereNull('business_id')->where('name', '!=', 'admin')->get()->keyBy('name');
+
+        foreach (DB::table('roles')->whereNotNull('business_id')->whereIn('name', $templates->keys())->get() as $copy) {
+            $newer = DB::table('role_has_permissions')
+                ->join('permissions', 'permissions.id', '=', 'role_has_permissions.permission_id')
+                ->where('role_has_permissions.role_id', $templates[$copy->name]->id)
+                ->where('permissions.created_at', '>', $copy->created_at)
+                ->pluck('permissions.id');
+
+            DB::table('role_has_permissions')->insertOrIgnore($newer->map(fn ($id): array => ['permission_id' => $id, 'role_id' => $copy->id])->all());
+        }
+
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
     }
 
     /**

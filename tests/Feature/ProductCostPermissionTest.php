@@ -182,7 +182,7 @@ test('setting cost implies being able to view it', function () {
 
 test('a super admin retains full cost access', function () {
     $user = User::factory()->create();
-    $role = Role::create(['name' => 'super-admin']);
+    $role = ownerRole();
     $user->assignRole($role);
 
     expect($user->can('viewCost', Product::class))->toBeTrue()

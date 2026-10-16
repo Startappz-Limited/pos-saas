@@ -15,8 +15,6 @@ use App\Models\PricingRule;
 use App\Models\PurchaseOrder;
 use App\Models\SocialAccount;
 use App\Support\Tenancy\TenantContext;
-use Database\Seeders\PermissionSeeder;
-use Database\Seeders\RoleSeeder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Route;
 use Laravel\Sanctum\Sanctum;
@@ -32,7 +30,7 @@ use Tests\Support\TwoBusinesses;
  * Every new model, route or endpoint adds its row here.
  */
 beforeEach(function () {
-    $this->seed([PermissionSeeder::class, RoleSeeder::class]);
+    // Only the owner acts here: the fixture's owner role brings every permission.
     $this->fixture = TwoBusinesses::create();
     app(TenantContext::class)->forget();
 });

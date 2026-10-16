@@ -3,7 +3,6 @@
 use App\Actions\CreateUserAction;
 use App\Actions\UpdateUserAction;
 use App\Enums\UserStatus;
-use App\Models\Role;
 use App\Models\Shop;
 use App\Models\User;
 
@@ -11,7 +10,7 @@ beforeEach(function () {
     // Signed in as the business owner, who sees every shop, so other users'
     // shop assignments are visible (shop access is default-deny).
     $this->user = User::factory()->create();
-    $this->user->assignRole(Role::findOrCreate('super-admin', 'web'));
+    $this->user->assignRole(ownerRole());
     $this->actingAs($this->user);
 });
 
