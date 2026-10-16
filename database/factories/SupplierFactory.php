@@ -3,11 +3,12 @@
 namespace Database\Factories;
 
 use App\Enums\SupplierStatus;
+use App\Models\Supplier;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Str;
 
 /**
- * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\Supplier>
+ * @extends Factory<Supplier>
  */
 class SupplierFactory extends Factory
 {
@@ -111,15 +112,22 @@ class SupplierFactory extends Factory
         ]);
     }
 
+    /**
+     * At 91–99% of the limit, drawn for each row. The balance is rounded up to
+     * the cent: drawn at exactly 90% and rounded down (50,000.06 × 0.90 =
+     * 45,000.054 → 45,000.05) it fell below nearCreditLimit()'s 90%, and the
+     * scope test failed about one run in 25.
+     */
     public function nearCreditLimit(): static
     {
-        $creditLimit = fake()->randomFloat(2, 50000, 100000);
-        $currentBalance = $creditLimit * fake()->randomFloat(2, 0.90, 0.99);
+        return $this->state(function (array $attributes): array {
+            $creditLimit = fake()->randomFloat(2, 50000, 100000);
 
-        return $this->state(fn (array $attributes) => [
-            'credit_limit' => $creditLimit,
-            'current_balance' => $currentBalance,
-        ]);
+            return [
+                'credit_limit' => $creditLimit,
+                'current_balance' => ceil($creditLimit * fake()->randomFloat(2, 0.91, 0.99) * 100) / 100,
+            ];
+        });
     }
 
     public function reachedCreditLimit(): static

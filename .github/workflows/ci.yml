@@ -3,6 +3,8 @@
 #   sqlite              Pint and the full suite on SQLite.
 #   mysql               The full suite on MySQL 8, including the flat API contract
 #                       (tests/Fixtures/api-contract) and the live-like dataset tests.
+#   isolation           The tenant isolation suite (tests/Feature/TenantIsolation and
+#                       tests/Feature/Tenancy) on SQLite and MySQL 8; a required check.
 #   migration-rehearsal Builds the live-like dataset with the base branch's code, then
 #                       runs this branch's migrations on it and checks no table lost
 #                       rows. Against a pre-SaaS base (the stage 1a PR) it instead checks
@@ -142,6 +144,52 @@ jobs:
       # itself, and PHPUnit 12 refuses a second --configuration.
       - name: Test suite (MySQL 8)
         run: vendor/bin/pest --compact --configuration=phpunit.mysql.xml
+
+  # The tenant isolation suite (Phase 2): proof that one business never sees
+  # or changes another's data, on both databases. Mark both checks as required
+  # in the branch protection rules for main, so nothing merges unless they pass.
+  isolation:
+    name: Tenant isolation (${{ matrix.database }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        database: [sqlite, mysql]
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: pos_saas_testing
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ env.PHP_VERSION }}
+          extensions: ${{ env.PHP_EXTENSIONS }}
+          coverage: none
+
+      - name: Install dependencies
+        env:
+          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.COMPOSER_GITHUB_TOKEN }}"}}'
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Prepare the environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate --ansi
+
+      - name: Isolation suite
+        run: vendor/bin/pest --compact --configuration=${{ matrix.database == 'mysql' && 'phpunit.mysql.xml' || 'phpunit.xml' }} tests/Feature/TenantIsolation tests/Feature/Tenancy
 
   migration-rehearsal:
     name: Migration rehearsal on the live-like dataset

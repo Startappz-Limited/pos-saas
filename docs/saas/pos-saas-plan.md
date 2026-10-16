@@ -308,7 +308,8 @@ answered before Phase 1** (Open question 1):
       depend on `.env` (WhatsApp, `APP_URL`; SMS still reads `env()` directly, fixed in Phase 6); the
       two-business fixture comes with Phase 2.
       **Two-business fixture done (stage 1a):** `tests/Support/TwoBusinesses.php`.
-- [ ] A CI job on the target database (MySQL or MariaDB) for raw SQL, locks and the isolation suite.
+- [x] A CI job on the target database (MySQL or MariaDB) for raw SQL, locks and the isolation suite.
+      **Done (stage 2):** the MySQL 8 suite job (stage 0), and the `isolation` job on SQLite and MySQL 8.
 - [x] Legacy flat-API clients with no register or shop context get a defined default (4.8).
       **Done (stage 1b):** the shop's default register `R1`; stock from the request's shop, else the
       viewer's accessible shops.

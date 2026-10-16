@@ -166,10 +166,13 @@ class PricingService
                 ->whereNotNull('start_date')
                 ->where('start_date', '>', now())
                 ->count(),
+            // Keyed by the type's value: read past the model's enum cast, an
+            // enum can't be an array key (the page failed once any rule existed).
             'by_type' => PricingRule::selectRaw('type, COUNT(*) as count')
                 ->groupBy('type')
-                ->get()
+                ->toBase()
                 ->pluck('count', 'type')
+                ->map(fn ($count): int => (int) $count)
                 ->toArray(),
         ];
     }

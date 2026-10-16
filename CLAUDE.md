@@ -150,6 +150,11 @@ silently mixing patterns (see the skill's `CONFLICT:` protocol).
   - **Validation**: `exists:` rules are viewer-aware automatically (`TenantPresenceVerifier`). For
     uniqueness use `new UniqueForTenant(Model::class, 'code')`, **not** `unique:` (keys are per business and
     ignore soft-deleted rows).
+  - **The isolation suite** (Phase 2: `tests/Feature/TenantIsolation` plus `tests/Feature/Tenancy`, run by the
+    CI `isolation` job on SQLite and MySQL) must stay green. **Every new model, route or endpoint adds its row
+    to `TenantIsolation/ResourceMatrixTest`** (and, for a page, appears in the canary crawl automatically; a
+    new kind of record gets a marker in `tests/Support/Canaries.php`). Users carry no tenant scope: `User`
+    binds only members of the current business.
   - **Never lift the scopes** with `withoutGlobalScopes()` or `TenantContext::bypass()` without adding the
     place, and why, to `tests/Unit/TenantScopeBypassTest.php`. Query-builder queries (`DB::table()`)
     reach no scope: restrict them with `app(TenantContext::class)->restrictToShops($query, 'table.shop_id')`

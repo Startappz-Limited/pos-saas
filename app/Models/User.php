@@ -7,6 +7,7 @@ use App\Models\Concerns\Auditable;
 use App\Support\Tenancy\TenantContext;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -154,6 +155,19 @@ class User extends Authenticatable
     public function scopeInactive($query)
     {
         return $query->where('status', UserStatus::INACTIVE);
+    }
+
+    /**
+     * Only members of the current business bind (Phase 2): users carry no
+     * tenant scope, and business owners pass every policy, so another
+     * business's user was open to view, change and delete by id. Now a 404.
+     */
+    public function resolveRouteBinding($value, $field = null): ?Model
+    {
+        return $this->newQuery()
+            ->inCurrentBusiness()
+            ->where($this->qualifyColumn($field ?? $this->getRouteKeyName()), $value)
+            ->first();
     }
 
     /**

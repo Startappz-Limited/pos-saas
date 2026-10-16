@@ -462,3 +462,64 @@ first.
   category images, report exports): when they gain uploads, use `TenantFiles`.
 - **`mobile:contract-diff` not run** (no Flutter app on this machine); no routes in `routes/api.php`
   changed, and the flat API contract test passed at every step.
+
+## Stage 2 (Phase 2): Tenant isolation test suite
+
+Branch: `saas/phase-2-isolation` (from `main` at `c79e357`, the merge of stage 1c and the credit transaction
+number fix). Plan: the stage file itself.
+
+### Starting result
+
+`main` at `c79e357`: **SQLite 1,277 passed, 59 skipped; MySQL 8 1,287 passed, 49 skipped** (the stage 1c
+branch with the credit transaction number fix, verified before the merge).
+
+### Known before starting
+
+- **Sign-up leaves the new user in no business:** every page after sign-in is refused (local) or empty
+  (production). The fix, sign-up creating a business and its owner, is a Phase 3 item; decided 16 October
+  2026 to finish Phase 2 first.
+
+### Steps
+
+| Step | Commit | Tests added | Suite (SQLite) | Suite (MySQL 8) | Notes |
+|---|---|---|---|---|---|
+| 1. Canary crawl | `7d80ffe` | `TenantIsolation/CanaryCrawlTest` (5), `tests/Support/Canaries.php` | 1,282 passed, 59 skipped | 1,292 passed, 49 skipped | Every parameter-free GET route behind sign-in (about 100 web, 27 flat API) is requested as business A's owner, a cashier limited to one shop, and the member of both businesses, and as business B's owner the other way round; no response may contain the other business's markers (names and record uuids, planted by `Canaries::plant()` across 13 kinds of record on top of the fixture's). A route that errors fails the crawl, except 11 already broken on `main` (missing controller methods and views), listed with their reasons, and one that fails on SQLite only (`MONTH()`). Proved by mutation: with `BusinessScope` disabled the crawl reports 33 leaks. **Found and fixed:** `/pricing-rules` was a 500 whenever a business had a pricing rule (`PricingService::getStatistics()` keyed an array by an enum), and `/suppliers/credit-alerts/list` was a 500 on MySQL every time (ordered by `credit_utilization`, a computed attribute; SQLite reads an unknown name as a string, so the SQLite suite never saw it) |
+| 2. Resource matrix | `594efcd` | `TenantIsolation/ResourceMatrixTest` (91) | 1,373 passed, 59 skipped | 1,383 passed, 49 skipped | Business B's record of each resource (19 web, 14 flat API) is shown, updated and deleted as business A's owner, who passes every policy, so only the tenant boundary stands in the way: each must be a 404 and leave the record unchanged (87 checks), using each route's own method. Creating with B's shop, supplier, customer or product is rejected (4). `/api/v1` and sync rows come with Phase 6. **Leak found and fixed: users.** Users carry no tenant scope (one login, several businesses) and the policy checks only the permission, so another business's user could be viewed, changed and deleted by id, and the flat API's delete succeeded. `User` now binds only members of the current business. **Also fixed:** `GET /api/users/{user}` was always a 500 (it loaded a `shop` relation that doesn't exist; now `shops`). `social-accounts.show` has no controller method (already on `main`), listed in the matrix |
+| 3. Switching, tokens, webhooks, CI | `ddfaaa7` | `SwitchingAndTokensTest` (4), `WebhookIsolationTest` (2), `Phase6IsolationTest` (5 to do) | 1,379 passed, 59 skipped | 1,389 passed, 49 skipped | **Switching:** the member of both businesses, after choosing A, sees only A and B's customer is a 404 to read or change; after switching back, only the other. A chosen business the user doesn't belong to, or a suspended membership, falls back to the default business. **Tokens:** a flat API token acts only on the user's default business, whatever the session chose (`/api/v1` tokens bound to one business come in Phase 6). **Webhooks:** each shop's webhook takes only its own secret; another business's secret, or a delivery replayed at another business's shop, is refused, and the order job is for the named shop. **Phase 6 rows** (`/api/v1`, sync, M-Pesa) are written as pending tests to fill in when those endpoints are built. **CI:** a new `isolation` job runs `tests/Feature/TenantIsolation` and `tests/Feature/Tenancy` on SQLite and MySQL 8 (199 tests); it becomes a required check once branch protection marks it so (for you to set). Already covered by the stage 1a and 1c tests in `tests/Feature/Tenancy`, now part of the isolation suite: reports, CSV and PDFs, audit, jobs and the scheduler (`RawQueryIsolationTest`, `AuditIsolationTest`, `BackgroundWorkTest`), files (`TenantFilesTest`), uniqueness (`PerTenantUniqueKeysTest`) |
+
+### Differences from the stage file
+
+- **The isolation suite is two folders:** `tests/Feature/TenantIsolation` (this stage) and
+  `tests/Feature/Tenancy` (the isolation tests written in stages 1a and 1c: reports, exports, audit, jobs,
+  the scheduler, files, uniqueness), rather than moving the earlier tests.
+- **`/api/v1`, sync and M-Pesa rows are pending tests** (`Phase6IsolationTest`), as the stage file asks.
+- **"Required in CI" waits for you:** the `isolation` job exists and is green; marking its two checks as
+  required is a branch protection setting on GitHub.
+
+### End of stage 2 (16 October 2026)
+
+- **Checks on the whole branch:** SQLite 1,379 passed, 59 skipped; MySQL 8 1,389 passed, 49 skipped (the flat
+  API contract test runs within it); the isolation suite 199 passed on both; Pint passes on every changed
+  file (`pint --test --diff=origin/main`).
+- **Leaks found and fixed:** another business's users could be viewed, changed and deleted by id (step 2).
+  No other leak: the crawl and the matrix are green, and the crawl reports 33 leaks with `BusinessScope` off.
+- **Bugs found and fixed on the way (already in production):** the pricing rules page (500 once a business
+  had a rule), supplier credit alerts on MySQL (500 every time), `GET /api/users/{user}` (500 every time).
+- **CLAUDE.md** records the rule: every new model, route or endpoint adds its row to the resource matrix.
+
+### Follow-ups
+
+- **Mark the isolation checks as required** (you): GitHub → Settings → Branches → the rule for `main` →
+  "Require status checks to pass" → add "Tenant isolation (sqlite)" and "Tenant isolation (mysql)" (they appear
+  once the job has run on a pull request).
+- **Sign-up still leaves the new user in no business** (Phase 3's first item, decided 16 October 2026).
+- **Routes already broken on `main`** (listed in `CanaryCrawlTest` and `ResourceMatrixTest`): 11 missing
+  controller methods and views (the daily and profit sale reports, pending and completed sales lists, credit
+  alerts, stock movement reports, inventory valuation, `/api/inventory`), `SocialAccountController::show`,
+  and `/expenses/report/summary` on SQLite only (`MONTH()`). Not tenancy; worth a cleanup pass.
+- **`mobile:contract-diff` not run** (no Flutter app here). `GET /api/users/{user}` now returns `shops` (it
+  never answered before).
+- **Flaky test fixed after the stage:** `SupplierTest > nearCreditLimit scope filters correctly` failed in CI
+  (0 of 2 suppliers found). The factory drew the ratio once, from 0.90–0.99, for both suppliers; at exactly
+  0.90 the balance rounded down (50,000.06 × 0.90 = 45,000.054 → 45,000.05), below the scope's 90%, about
+  one run in 25. It now draws per row, at 91–99%, rounded up to the cent.
