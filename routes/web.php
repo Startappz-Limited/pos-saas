@@ -7,6 +7,7 @@ use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\Baileys\BroadcastController;
 use App\Http\Controllers\Baileys\InboxController;
 use App\Http\Controllers\Baileys\SessionController;
+use App\Http\Controllers\BusinessDataController;
 use App\Http\Controllers\BusinessInviteController;
 use App\Http\Controllers\BusinessSwitchController;
 use App\Http\Controllers\CalendarController;
@@ -81,6 +82,15 @@ Route::prefix('invitations/{token}')->name('invitations.')->group(function () {
         ->middleware(['guest', 'throttle:6,1', ProtectAgainstSpam::class])->name('register');
 });
 
+// A business's export download and cancelling its closure (stage 3): they work
+// while the business is closing and can't be opened; owners of it only.
+Route::middleware('auth')->group(function () {
+    Route::get('business/exports/{export}/download', [BusinessDataController::class, 'download'])
+        ->middleware('signed')->name('business.exports.download');
+    Route::post('business-closures/{closure:uuid}/cancel', [BusinessDataController::class, 'cancelClosure'])
+        ->name('business.closure.cancel');
+});
+
 // The business picker, switcher and default business (stage 3): reachable
 // with no business chosen, so outside the `business` middleware.
 Route::middleware('auth')->prefix('businesses')->name('businesses.')->group(function () {
@@ -102,6 +112,12 @@ Route::middleware(['auth', 'business'])->group(function () {
     Route::post('users/{user}/activate', [UserController::class, 'activate'])->name('users.activate');
     Route::post('users/{user}/deactivate', [UserController::class, 'deactivate'])->name('users.deactivate');
     Route::post('users/{user}/suspend', [UserController::class, 'suspend'])->name('users.suspend');
+
+    // The business's data: exports and closure (stage 3; owners only).
+    Route::get('business/data', [BusinessDataController::class, 'index'])->name('business.data');
+    Route::post('business/exports', [BusinessDataController::class, 'export'])->name('business.exports.store');
+    Route::post('business/closure/code', [BusinessDataController::class, 'closureCode'])->middleware('throttle:5,1')->name('business.closure.code');
+    Route::post('business/closure', [BusinessDataController::class, 'close'])->middleware('throttle:10,1')->name('business.closure.confirm');
 
     // Invitations to the business (stage 3).
     Route::get('invites', [BusinessInviteController::class, 'index'])->name('invites.index');

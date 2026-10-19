@@ -4,10 +4,14 @@ namespace App\Http\Controllers;
 
 use App\Http\Middleware\ResolveTenant;
 use App\Models\Business;
+use App\Models\BusinessClosure;
+use App\Models\BusinessExport;
+use App\Models\BusinessMembership;
 use App\Models\User;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\View\View;
 
 /**
@@ -27,6 +31,7 @@ class BusinessSwitchController extends Controller
 
         return view('businesses.index', [
             'businesses' => $user->usableBusinesses(),
+            'closing' => $this->closingOwnedBy($user, $tenant),
             'currentId' => $tenant->id(),
             'defaultId' => $user->default_business_id,
         ]);
@@ -60,6 +65,27 @@ class BusinessSwitchController extends Controller
         $user->forceFill(['default_business_id' => $business->id])->save();
 
         return back()->with('success', __(':business now opens when you sign in.', ['business' => $business->name]));
+    }
+
+    /**
+     * Closing businesses the user owns, with their closure: they can't be
+     * opened, but an owner may cancel the closure or download the export.
+     *
+     * @return Collection<int, array{business: Business, closure: ?BusinessClosure, export: ?BusinessExport}>
+     */
+    private function closingOwnedBy(User $user, TenantContext $tenant): Collection
+    {
+        return $user->businesses()
+            ->wherePivot('status', BusinessMembership::STATUS_ACTIVE)
+            ->where('businesses.status', Business::STATUS_CLOSING)
+            ->get()
+            ->filter(fn (Business $business): bool => $tenant->run($business, fn (): bool => $user->fresh()->isBusinessOwner()))
+            ->map(fn (Business $business): array => [
+                'business' => $business,
+                'closure' => BusinessClosure::query()->open()->where('business_id', $business->id)->latest('id')->first(),
+                'export' => $tenant->run($business, fn () => BusinessExport::query()->where('status', BusinessExport::STATUS_READY)->latest('id')->first()),
+            ])
+            ->values();
     }
 
     private function member(Request $request, Business $business): User

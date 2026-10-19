@@ -34,7 +34,8 @@ class EnsureActiveBusiness
                 : redirect()->route('verification.notice');
         }
 
-        if ($user->usableBusinesses()->isNotEmpty()) {
+        // Several to choose from, or a closing business they may reopen.
+        if ($user->usableBusinesses()->isNotEmpty() || $this->ownsClosingBusiness($user)) {
             return $request->expectsJson()
                 ? response()->json(['success' => false, 'message' => __('Choose a business to work in.')], 409)
                 : redirect()->guest(route('businesses.index'));
@@ -43,6 +44,18 @@ class EnsureActiveBusiness
         return $request->expectsJson()
             ? response()->json(['success' => false, 'message' => __('You are not a member of any active business.')], 403)
             : response()->view('businesses.none', status: 403);
+    }
+
+    /**
+     * Whether the user is an owner of a closing business (the picker lets
+     * them cancel the closure or download its final export).
+     */
+    private function ownsClosingBusiness(User $user): bool
+    {
+        return $user->memberships()->where('status', 'active')
+            ->whereHas('business', fn ($query) => $query->where('status', Business::STATUS_CLOSING))
+            ->pluck('business_id')
+            ->contains(fn (int $businessId): bool => $this->tenant->run($businessId, fn (): bool => $user->fresh()->isBusinessOwner()));
     }
 
     private function awaitsVerification(User $user): bool

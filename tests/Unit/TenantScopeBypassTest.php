@@ -14,6 +14,8 @@ const ALLOWED_SCOPE_BYPASSES = [
     'app/Models/ProductVariation.php' => [3, 'a new variation takes its business from its product, adds its per-shop rows, and holds a stock figure in its product\'s shop'],
     'app/Models/BusinessInvite.php' => [1, 'an invite link is opened signed out or in another business: its token finds the invite'],
     'app/Actions/Business/AcceptBusinessInvite.php' => [2, 'accepting locks the invite, which belongs to the business being joined, not the current one; and assigns its shops, which the joiner can\'t see until they have them (the business scope still applies)'],
+    'app/Models/BusinessExport.php' => [1, 'an export\'s download link works while its business is closing and can\'t be opened; the downloader must be an owner of it'],
+    'app/Jobs/BuildBusinessExport.php' => [1, 'marking a failed export runs after the job, outside its business'],
     'app/Listeners/Baileys/HandleGatewayWebhooks.php' => [1, 'a gateway event finds its session by the platform-wide key, then acts for its business'],
 ];
 

@@ -5,6 +5,7 @@ namespace Tests\Support;
 use App\Models\AbandonedCart;
 use App\Models\Attribute;
 use App\Models\BaileysSession;
+use App\Models\BusinessExport;
 use App\Models\BusinessInvite;
 use App\Models\Campaign;
 use App\Models\Category;
@@ -54,6 +55,8 @@ final class Canaries
             SocialAccount::factory()->create(['account_name' => "{$marker} Page", 'shop_id' => $shop->id]);
             // Emails are stored lowercased, so the invite is known by its uuid (in its links).
             $invite = BusinessInvite::factory()->create(['email' => strtolower($marker).'-invitee@example.test']);
+            // Known by its uuid, in its download link on the data page.
+            $export = BusinessExport::create(['status' => BusinessExport::STATUS_READY, 'path' => 'canary.zip']);
 
             return [
                 $marker,
@@ -62,6 +65,7 @@ final class Canaries
                 $fixture->product->uuid,
                 $fixture->sale->uuid,
                 $invite->uuid,
+                $export->uuid,
             ];
         });
     }

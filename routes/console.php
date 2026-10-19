@@ -39,3 +39,10 @@ Schedule::call(function (): void {
         '--business' => $business->id,
     ]));
 })->dailyAt('03:15')->name('prune-baileys-media')->withoutOverlapping();
+
+/**
+ * Erase the businesses whose closure grace period has ended (stage 3).
+ * Platform-wide, not per business: closing businesses take no other
+ * background work.
+ */
+Schedule::command('businesses:erase-closed')->dailyAt('02:30')->name('erase-closed-businesses')->withoutOverlapping();

@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\AuditLog;
+use App\Models\BusinessClosure;
 use App\Models\BusinessMembership;
 use App\Models\CreditAccount;
 use App\Models\Customer;
@@ -28,6 +29,9 @@ const UNSCOPED_TENANT_MODELS = [
     // On the separate audit connection; reads go through AuditService, and
     // audit rows gain business_id in stage 1c.
     AuditLog::class => 'audit connection; scoped in stage 1c',
+    // The record that a business was closed and erased: platform-wide, and
+    // kept after the business is gone.
+    BusinessClosure::class => 'outlives the business it records',
 ];
 
 /**

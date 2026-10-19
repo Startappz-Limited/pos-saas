@@ -32,4 +32,17 @@ return [
 
     'files_quota_bytes' => (int) env('TENANT_FILES_QUOTA_BYTES', 2 * 1024 * 1024 * 1024),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Closure grace period
+    |--------------------------------------------------------------------------
+    |
+    | Days between a business's closure and the erasure of its data (stage 3).
+    | Its owners can download the final export and cancel the closure until
+    | then.
+    |
+    */
+
+    'closure_grace_days' => (int) env('BUSINESS_CLOSURE_GRACE_DAYS', 30),
+
 ];

@@ -4,6 +4,8 @@ use App\Http\Middleware\ResolveTenant;
 use App\Models\AbandonedCart;
 use App\Models\Attribute;
 use App\Models\BaileysSession;
+use App\Models\BusinessClosure;
+use App\Models\BusinessExport;
 use App\Models\BusinessInvite;
 use App\Models\Campaign;
 use App\Models\CashRegister;
@@ -19,6 +21,7 @@ use App\Models\SocialAccount;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\URL;
 use Laravel\Sanctum\PersonalAccessToken;
 use Laravel\Sanctum\Sanctum;
 use Tests\Support\TwoBusinesses;
@@ -182,4 +185,21 @@ it('refuses to switch an /api/v1 token to business B for business A\'s owner (st
         ->postJson(route('api.v1.businesses.switch', $this->fixture->b->business))->assertNotFound();
 
     expect(PersonalAccessToken::findToken($token)?->business_id)->toBe($this->fixture->a->business->id);
+});
+
+it('refuses business B\'s export download and closure cancel to business A\'s owner (stage 3)', function () {
+    $b = $this->fixture->b;
+    $export = app(TenantContext::class)->run($b->business, fn () => BusinessExport::create(['status' => 'ready', 'path' => 'x.zip']));
+    $closure = BusinessClosure::create([
+        'business_id' => $b->business->id, 'business_uuid' => $b->business->uuid, 'business_name' => $b->business->name,
+        'delete_after' => now()->addDays(30),
+    ]);
+    app(TenantContext::class)->forget();
+
+    $this->actingAs($this->fixture->a->owner)
+        ->get(URL::temporarySignedRoute('business.exports.download', now()->addHour(), $export))
+        ->assertNotFound();
+    $this->actingAs($this->fixture->a->owner)->post(route('business.closure.cancel', $closure))->assertNotFound();
+
+    expect($closure->fresh()->cancelled_at)->toBeNull();
 });

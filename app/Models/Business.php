@@ -19,6 +19,9 @@ class Business extends Model
 
     public const STATUS_ACTIVE = 'active';
 
+    /** Being closed (stage 3): nobody works in it; erased when the grace period ends. */
+    public const STATUS_CLOSING = 'closing';
+
     /** Created at signup; opens when the owner's email is verified (stage 3). */
     public const STATUS_PENDING_VERIFICATION = 'pending_verification';
 

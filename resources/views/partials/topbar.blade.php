@@ -99,6 +99,11 @@
                     <div class="dropdown-menu dropdown-menu-end" aria-labelledby="page-header-user-dropdown">
                         <!-- item-->
                         <h6 class="dropdown-header">Welcome {{ auth()->user()->name }}!</h6>
+                        @if (auth()->user()->isBusinessOwner())
+                            <a class="dropdown-item" href="{{ route('business.data') }}">
+                                <iconify-icon icon="solar:database-bold-duotone" class="align-middle me-2 fs-18"></iconify-icon><span class="align-middle">{{ __('Data & closure') }}</span>
+                            </a>
+                        @endif
                         <a class="dropdown-item" href="{{ route('profile.edit') }}">
                             <i class="bx bx-user-circle text-muted fs-18 align-middle me-1"></i>
                             <span class="align-middle">Profile</span>

@@ -36,6 +36,40 @@
         @endforeach
     </div>
 
+    @if ($closing->isNotEmpty())
+        <h6 class="text-muted mb-2">{{ __('Closing') }}</h6>
+        <div class="list-group mb-4">
+            @foreach ($closing as $item)
+                <div class="list-group-item">
+                    <div class="d-flex align-items-center justify-content-between gap-2">
+                        <div>
+                            <div class="fw-semibold">{{ $item['business']->name }}</div>
+                            @if ($item['closure'])
+                                <div class="small text-danger">
+                                    {{ __('Erased on :date', ['date' => $item['closure']->delete_after->toFormattedDayDateString()]) }}
+                                </div>
+                            @endif
+                        </div>
+                        <div class="d-flex gap-1">
+                            @if ($item['export'])
+                                <a class="btn btn-sm btn-light"
+                                    href="{{ \Illuminate\Support\Facades\URL::temporarySignedRoute('business.exports.download', now()->addHour(), $item['export']) }}">
+                                    {{ __('Final export') }}
+                                </a>
+                            @endif
+                            @if ($item['closure'])
+                                <form method="POST" action="{{ route('business.closure.cancel', $item['closure']) }}">
+                                    @csrf
+                                    <button type="submit" class="btn btn-sm btn-outline-primary">{{ __('Cancel closure') }}</button>
+                                </form>
+                            @endif
+                        </div>
+                    </div>
+                </div>
+            @endforeach
+        </div>
+    @endif
+
     <form method="POST" action="{{ route('logout') }}" class="text-center">
         @csrf
         <button type="submit" class="btn btn-link text-muted">{{ __('Sign out') }}</button>
