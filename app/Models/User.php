@@ -30,6 +30,16 @@ class User extends Authenticatable
      *
      * @var list<string>
      */
+    /**
+     * The column's default, so a login just created reads as active before
+     * it's reloaded (the account status is checked on every request, stage 3).
+     *
+     * @var array<string, mixed>
+     */
+    protected $attributes = [
+        'status' => 'active',
+    ];
+
     protected $fillable = [
         'uuid',
         'name',
@@ -180,6 +190,55 @@ class User extends Authenticatable
     public function scopeInCurrentBusiness($query)
     {
         return $query->whereHas('memberships', fn ($membership) => $membership->where('business_id', app(TenantContext::class)->id() ?? 0));
+    }
+
+    /**
+     * Adds `business_status`: the user's status in the current business
+     * (stage 3), which is what a business's screens and the API show.
+     */
+    public function scopeWithBusinessStatus($query)
+    {
+        return $query->addSelect(['business_status' => BusinessMembership::query()->select('status')
+            ->whereColumn('business_user.user_id', 'users.id')
+            ->where('business_id', app(TenantContext::class)->id() ?? 0)
+            ->limit(1)]);
+    }
+
+    /**
+     * Members with $status in the current business.
+     */
+    public function scopeWhereBusinessStatus($query, UserStatus|string $status)
+    {
+        $status = $status instanceof UserStatus ? $status->value : $status;
+
+        return $query->whereHas('memberships', fn ($membership) => $membership
+            ->where('business_id', app(TenantContext::class)->id() ?? 0)
+            ->where('status', $status));
+    }
+
+    /**
+     * The user's status in the current business (stage 3): suspending or
+     * deactivating someone from a business's screens changes only this. The
+     * account's own `status` is the platform operator's (Phase 5).
+     */
+    public function businessStatus(): ?UserStatus
+    {
+        $status = $this->getAttribute('business_status')
+            ?? $this->memberships()->where('business_id', app(TenantContext::class)->id() ?? 0)->value('status');
+
+        return $status === null ? null : UserStatus::tryFrom($status);
+    }
+
+    /**
+     * For a response from a business's screens or the API: `status` shows the
+     * status in the current business, keeping the field the Flutter app reads.
+     * Never save the model after this.
+     */
+    public function presentBusinessStatus(): static
+    {
+        $this->setAttribute('status', $this->businessStatus() ?? $this->status);
+
+        return $this;
     }
 
     /**

@@ -51,6 +51,15 @@ class LoginRequest extends FormRequest
         }
 
         RateLimiter::clear($this->throttleKey());
+
+        // An account that isn't active can't sign in (stage 3).
+        if (! Auth::user()?->isActive()) {
+            Auth::guard('web')->logout();
+
+            throw ValidationException::withMessages([
+                'email' => __('Your account is not active. Please contact an administrator.'),
+            ]);
+        }
     }
 
     /**

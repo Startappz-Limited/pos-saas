@@ -7,6 +7,7 @@ use App\Actions\Business\RemoveFromBusiness;
 use App\Actions\CreateUserAction;
 use App\Actions\UpdateUserAction;
 use App\Enums\UserStatus;
+use App\Models\BusinessMembership;
 use App\Models\User;
 use App\Support\Tenancy\TenantContext;
 use App\Support\Tenancy\TenantFiles;
@@ -31,12 +32,13 @@ class UserService
     {
         $query = User::query()
             ->inCurrentBusiness()
+            ->withBusinessStatus()
             ->with(['roles'])
             ->latest();
 
-        // Filter by status
+        // Filter by status in this business (stage 3)
         if (! empty($filters['status'])) {
-            $query->where('status', $filters['status']);
+            $query->whereBusinessStatus($filters['status']);
         }
 
         // Filter by role
@@ -54,7 +56,10 @@ class UserService
             });
         }
 
-        return $query->paginate($perPage);
+        $users = $query->paginate($perPage);
+        $users->getCollection()->each(fn (User $user) => $user->presentBusinessStatus());
+
+        return $users;
     }
 
     /**
@@ -62,8 +67,8 @@ class UserService
      */
     public function getActive(): Collection
     {
-        return User::active()
-            ->inCurrentBusiness()
+        return User::query()
+            ->whereBusinessStatus(UserStatus::ACTIVE)
             ->orderBy('name')
             ->get();
     }
@@ -78,11 +83,20 @@ class UserService
             $data['profile_photo'] = $this->uploadProfilePhoto($data['profile_photo']);
         }
 
+        // The status given is the person's status in this business (stage 3);
+        // the account itself starts active.
+        $status = $data['status'] ?? null;
+        unset($data['status']);
+
         $user = $this->createUserAction->execute($data);
 
         // A person added here works in this business (stage 3).
         if ($this->tenant->business() !== null) {
             $user->joinBusiness($this->tenant->business(), auth()->user());
+
+            if ($status !== null) {
+                $this->setBusinessStatus($user, $status);
+            }
         }
 
         // Assign roles if provided
@@ -109,6 +123,12 @@ class UserService
             $this->deleteProfilePhoto($user);
             $data['profile_photo'] = $this->uploadProfilePhoto($data['profile_photo']);
         }
+
+        // The status is the person's status in this business (stage 3).
+        if (isset($data['status'])) {
+            $this->setBusinessStatus($user, $data['status']);
+        }
+        unset($data['status']);
 
         $user = $this->updateUserAction->execute($user, $data);
 
@@ -145,9 +165,21 @@ class UserService
      */
     public function changeStatus(User $user, UserStatus $status): User
     {
-        $user->update(['status' => $status]);
+        $this->setBusinessStatus($user, $status);
 
         return $user->fresh();
+    }
+
+    /**
+     * The person's status in the current business (stage 3): suspending or
+     * deactivating here doesn't touch their login or their other businesses.
+     */
+    private function setBusinessStatus(User $user, UserStatus|string $status): void
+    {
+        BusinessMembership::query()
+            ->where('business_id', $this->tenant->id())
+            ->where('user_id', $user->id)
+            ->update(['status' => $status instanceof UserStatus ? $status->value : $status]);
     }
 
     /**
@@ -157,14 +189,21 @@ class UserService
     {
         $thirtyDaysAgo = now()->subDays(30);
 
-        $stats = User::query()->inCurrentBusiness()->selectRaw("
+        // Statuses are per business (stage 3).
+        $byStatus = BusinessMembership::query()
+            ->where('business_id', $this->tenant->id() ?? 0)
+            ->selectRaw('status, COUNT(*) as n')
+            ->groupBy('status')
+            ->pluck('n', 'status');
+
+        $stats = User::query()->inCurrentBusiness()->selectRaw('
             COUNT(*) as total,
-            SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) as active,
-            SUM(CASE WHEN status = 'inactive' THEN 1 ELSE 0 END) as inactive,
-            SUM(CASE WHEN status = 'suspended' THEN 1 ELSE 0 END) as suspended,
             SUM(CASE WHEN email_verified_at IS NOT NULL THEN 1 ELSE 0 END) as verified,
             SUM(CASE WHEN created_at >= ? THEN 1 ELSE 0 END) as recent
-        ", [$thirtyDaysAgo])->first();
+        ', [$thirtyDaysAgo])->first();
+        $stats->active = $byStatus[UserStatus::ACTIVE->value] ?? 0;
+        $stats->inactive = $byStatus[UserStatus::INACTIVE->value] ?? 0;
+        $stats->suspended = $byStatus[UserStatus::SUSPENDED->value] ?? 0;
 
         return [
             'total' => (int) $stats->total,
@@ -205,7 +244,7 @@ class UserService
         return User::query()
             ->inCurrentBusiness()
             ->where(fn ($q) => $q->where('name', 'like', "%{$query}%")->orWhere('email', 'like', "%{$query}%"))
-            ->active()
+            ->whereBusinessStatus(UserStatus::ACTIVE)
             ->limit($limit)
             ->get();
     }

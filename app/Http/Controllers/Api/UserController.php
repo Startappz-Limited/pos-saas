@@ -11,6 +11,7 @@ use App\Rules\GrantableRole;
 use App\Services\UserService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
 
 class UserController extends Controller
@@ -40,7 +41,7 @@ class UserController extends Controller
             'phone' => ['nullable', 'string', 'max:20'],
             'password' => ['required', Password::defaults()],
             'shop_id' => ['nullable', 'exists:shops,id'],
-            'status' => ['nullable', 'string'],
+            'status' => ['nullable', Rule::enum(UserStatus::class)],
             'roles' => ['nullable', 'array'],
             'roles.*' => [new GrantableRole($request->user(), byName: true)],
         ]);
@@ -50,7 +51,7 @@ class UserController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'User created successfully.',
-            'data' => $user->load('roles'),
+            'data' => $user->load('roles')->presentBusinessStatus(),
         ], 201);
     }
 
@@ -58,7 +59,7 @@ class UserController extends Controller
     {
         $this->authorize('view', $user);
 
-        $user->load(['roles', 'shops']);
+        $user->load(['roles', 'shops'])->presentBusinessStatus();
 
         return response()->json([
             'success' => true,
@@ -76,7 +77,7 @@ class UserController extends Controller
             'phone' => ['nullable', 'string', 'max:20'],
             'password' => ['nullable', Password::defaults()],
             'shop_id' => ['nullable', 'exists:shops,id'],
-            'status' => ['nullable', 'string'],
+            'status' => ['nullable', Rule::enum(UserStatus::class)],
             'roles' => ['nullable', 'array'],
             'roles.*' => [new GrantableRole($request->user(), byName: true)],
         ]);
@@ -86,7 +87,7 @@ class UserController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'User updated successfully.',
-            'data' => $user->load('roles'),
+            'data' => $user->load('roles')->presentBusinessStatus(),
         ]);
     }
 

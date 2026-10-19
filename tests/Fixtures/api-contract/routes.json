@@ -5,7 +5,8 @@
         "name": "api.abandoned-carts.index",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -14,7 +15,8 @@
         "name": "api.abandoned-carts.show",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -23,7 +25,8 @@
         "name": "api.abandoned-carts.update",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -33,6 +36,7 @@
         "middleware": [
             "api",
             "auth:sanctum",
+            "business",
             "throttle:writes"
         ]
     },
@@ -42,7 +46,8 @@
         "name": "api.abandoned-carts.store-note",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -51,7 +56,8 @@
         "name": "api.abandoned-carts.opt-out",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -60,7 +66,8 @@
         "name": "api.abandoned-carts.store-reminder",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -69,7 +76,8 @@
         "name": "api.abandoned-carts.resolve-reminder",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -79,6 +87,7 @@
         "middleware": [
             "api",
             "auth:sanctum",
+            "business",
             "throttle:writes"
         ]
     },
@@ -88,7 +97,8 @@
         "name": "api.calendar.events",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -97,7 +107,8 @@
         "name": "api.cash-registers.index",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -106,7 +117,8 @@
         "name": "api.cash-registers.open",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -115,7 +127,8 @@
         "name": "api.cash-registers.status",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -124,7 +137,8 @@
         "name": "api.cash-registers.show",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -133,7 +147,8 @@
         "name": "api.cash-registers.close",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -142,7 +157,8 @@
         "name": "api.categories.index",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -151,7 +167,8 @@
         "name": "api.categories.store",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -160,7 +177,8 @@
         "name": "api.categories.destroy",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -169,7 +187,8 @@
         "name": "api.categories.show",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -178,7 +197,8 @@
         "name": "api.categories.update",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -187,7 +207,8 @@
         "name": "api.customers.index",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -196,7 +217,8 @@
         "name": "api.customers.store",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -205,7 +227,8 @@
         "name": "api.customers.destroy",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -214,7 +237,8 @@
         "name": "api.customers.show",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -223,7 +247,8 @@
         "name": "api.customers.update",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -232,7 +257,8 @@
         "name": "api.customers.activate",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -241,7 +267,8 @@
         "name": "api.customers.deactivate",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -251,6 +278,7 @@
         "middleware": [
             "api",
             "auth:sanctum",
+            "business",
             "throttle:writes"
         ]
     },
@@ -260,7 +288,8 @@
         "name": "api.delivery-companies.index",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -269,7 +298,8 @@
         "name": "api.delivery-companies.store",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -278,7 +308,8 @@
         "name": "api.delivery-companies.toggle-active",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -287,7 +318,8 @@
         "name": "api.delivery-companies.destroy",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -296,7 +328,8 @@
         "name": "api.delivery-companies.show",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -305,7 +338,8 @@
         "name": "api.delivery-companies.update",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -314,7 +348,8 @@
         "name": "api.ecommerce-orders.index",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -323,7 +358,8 @@
         "name": "api.ecommerce-orders.refresh",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -332,7 +368,8 @@
         "name": "api.ecommerce-orders.show",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -341,7 +378,8 @@
         "name": "api.ecommerce-orders.convert",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -350,7 +388,8 @@
         "name": "api.ecommerce-orders.store-note",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -359,7 +398,8 @@
         "name": "api.ecommerce-orders.store-reminder",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -368,7 +408,8 @@
         "name": "api.ecommerce-orders.resolve-reminder",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -377,7 +418,8 @@
         "name": "api.ecommerce-orders.update-status",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -386,7 +428,8 @@
         "name": "api.expense-categories.index",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -395,7 +438,8 @@
         "name": "api.expense-categories.store",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -404,7 +448,8 @@
         "name": "api.expense-categories.destroy",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -413,7 +458,8 @@
         "name": "api.expense-categories.show",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -422,7 +468,8 @@
         "name": "api.expense-categories.update",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -431,7 +478,8 @@
         "name": "api.expenses.index",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -440,7 +488,8 @@
         "name": "api.expenses.store",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -449,7 +498,8 @@
         "name": "api.expenses.summary",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -458,7 +508,8 @@
         "name": "api.expenses.destroy",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -467,7 +518,8 @@
         "name": "api.expenses.show",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -476,7 +528,8 @@
         "name": "api.expenses.update",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -485,7 +538,8 @@
         "name": "api.expenses.approve",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -494,7 +548,8 @@
         "name": "api.expenses.cancel",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -503,7 +558,8 @@
         "name": "api.expenses.mark-paid",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -512,7 +568,8 @@
         "name": "api.expenses.reject",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -521,7 +578,8 @@
         "name": "api.expenses.settle-from-register",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -530,7 +588,8 @@
         "name": "api.expenses.submit",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -539,7 +598,8 @@
         "name": null,
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -548,7 +608,8 @@
         "name": null,
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -557,7 +618,8 @@
         "name": null,
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -566,7 +628,8 @@
         "name": null,
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -593,7 +656,8 @@
         "name": "api.products.index",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -602,7 +666,8 @@
         "name": "api.products.store",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -611,7 +676,8 @@
         "name": "api.products.low-stock",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -620,7 +686,8 @@
         "name": "api.products.destroy",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -629,7 +696,8 @@
         "name": "api.products.show",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -638,7 +706,8 @@
         "name": "api.products.update",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -647,7 +716,8 @@
         "name": "api.products.activate",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -656,7 +726,8 @@
         "name": "api.products.deactivate",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -665,7 +736,8 @@
         "name": "api.purchase-orders.index",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -674,7 +746,8 @@
         "name": "api.purchase-orders.store",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -683,7 +756,8 @@
         "name": "api.purchase-orders.approve",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -692,7 +766,8 @@
         "name": "api.purchase-orders.cancel",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -701,7 +776,8 @@
         "name": "api.purchase-orders.mark-ordered",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -710,7 +786,8 @@
         "name": "api.purchase-orders.destroy",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -719,7 +796,8 @@
         "name": "api.purchase-orders.show",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -728,7 +806,8 @@
         "name": "api.purchase-orders.update",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -746,7 +825,8 @@
         "name": "api.reports.daily-register",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -755,7 +835,8 @@
         "name": "api.reports.daily-sales",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -764,7 +845,8 @@
         "name": "api.reports.pending-payments",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -773,7 +855,8 @@
         "name": "api.reports.top-products",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -782,7 +865,8 @@
         "name": "api.sale-sources.index",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -791,7 +875,8 @@
         "name": "api.sale-sources.store",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -800,7 +885,8 @@
         "name": "api.sales.index",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -810,6 +896,7 @@
         "middleware": [
             "api",
             "auth:sanctum",
+            "business",
             "throttle:writes"
         ]
     },
@@ -820,6 +907,7 @@
         "middleware": [
             "api",
             "auth:sanctum",
+            "business",
             "throttle:destructive"
         ]
     },
@@ -829,7 +917,8 @@
         "name": "api.sales.show",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -838,7 +927,8 @@
         "name": "api.sales.update",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -848,6 +938,7 @@
         "middleware": [
             "api",
             "auth:sanctum",
+            "business",
             "throttle:writes"
         ]
     },
@@ -858,6 +949,7 @@
         "middleware": [
             "api",
             "auth:sanctum",
+            "business",
             "throttle:writes"
         ]
     },
@@ -867,7 +959,8 @@
         "name": "api.sales.payments",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -877,6 +970,7 @@
         "middleware": [
             "api",
             "auth:sanctum",
+            "business",
             "throttle:destructive"
         ]
     },
@@ -886,7 +980,8 @@
         "name": "api.shops.index",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -895,7 +990,8 @@
         "name": "api.shops.store",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -904,7 +1000,8 @@
         "name": "api.shops.destroy",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -913,7 +1010,8 @@
         "name": "api.shops.show",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -922,7 +1020,8 @@
         "name": "api.shops.update",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -931,7 +1030,8 @@
         "name": "api.suppliers.index",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -940,7 +1040,8 @@
         "name": "api.suppliers.store",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -949,7 +1050,8 @@
         "name": "api.suppliers.destroy",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -958,7 +1060,8 @@
         "name": "api.suppliers.show",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -967,7 +1070,8 @@
         "name": "api.suppliers.update",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -985,7 +1089,8 @@
         "name": "api.users.index",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -994,7 +1099,8 @@
         "name": "api.users.store",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -1003,7 +1109,8 @@
         "name": "api.users.roles",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -1012,7 +1119,8 @@
         "name": "api.users.shops",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -1021,7 +1129,8 @@
         "name": "api.users.statuses",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -1030,7 +1139,8 @@
         "name": "api.users.destroy",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -1039,7 +1149,8 @@
         "name": "api.users.show",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {
@@ -1048,7 +1159,8 @@
         "name": "api.users.update",
         "middleware": [
             "api",
-            "auth:sanctum"
+            "auth:sanctum",
+            "business"
         ]
     },
     {

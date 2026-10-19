@@ -319,12 +319,16 @@ class LegacyImport
                 $this->target->table('business_user')->insert($users->map(fn (object $user): array => [
                     'business_id' => $this->businessId,
                     'user_id' => $user->id,
-                    'status' => $user->status === 'active' ? 'active' : 'inactive',
+                    // Status is per business (stage 3): the legacy account status
+                    // was set by this business, so it becomes the membership's.
+                    'status' => in_array($user->status, ['active', 'suspended'], true) ? $user->status : 'inactive',
                     'joined_at' => $user->created_at,
                     'created_at' => now(),
                     'updated_at' => now(),
                 ])->all());
             });
+
+        $this->target->table('users')->where('status', '!=', 'active')->update(['status' => 'active']);
     }
 
     /**

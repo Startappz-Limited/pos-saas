@@ -83,7 +83,7 @@
                         </div>
 
                         <div class="col-lg-6">
-                            <x-ui-form-select name="status" label="Status" :value="old('status', $user->status?->value ?? 'active')" placeholder="Select status"
+                            <x-ui-form-select name="status" label="Status" :value="old('status', $user->businessStatus()?->value ?? 'active')" placeholder="Select status"
                                 required>
                                 <option value="active">Active</option>
                                 <option value="inactive">Inactive</option>

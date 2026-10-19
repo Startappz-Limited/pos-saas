@@ -55,10 +55,15 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
     });
 });
 
-// Protected routes
+// The profile and sign-out work with or without a usable business.
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user', [AuthController::class, 'user']);
     Route::post('/logout', [AuthController::class, 'logout']);
+});
+
+// Protected routes. They work on a business, so need one (stage 3): 403 when
+// the user has none they can use.
+Route::middleware(['auth:sanctum', 'business'])->group(function () {
 
     // Shops
     Route::apiResource('shops', ShopController::class)->names([
