@@ -75,7 +75,7 @@ integration credentials.
 
 ### People
 - [x] Invites.
-- [ ] `UserPolicy`: owner protection; only owners delete.
+- [x] `UserPolicy`: owner protection; only owners delete.
 - [ ] Account status middleware (web and API).
 - [ ] Deactivation instead of self-delete.
 - [ ] **Data export and business closure:** final export emailed to the owner; deletion when the closure

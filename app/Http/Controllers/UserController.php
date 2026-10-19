@@ -111,16 +111,11 @@ class UserController extends Controller
     {
         $this->authorize('delete', $user);
 
-        // Prevent deleting yourself
-        if ($user->id === auth()->id()) {
-            return back()->with('error', 'You cannot delete your own account.');
-        }
-
         $this->userService->delete($user);
 
         return redirect()
             ->route('users.index')
-            ->with('success', 'User deleted successfully.');
+            ->with('success', __('User removed from the business.'));
     }
 
     /**

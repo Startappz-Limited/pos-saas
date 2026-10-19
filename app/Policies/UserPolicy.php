@@ -2,80 +2,78 @@
 
 namespace App\Policies;
 
+use App\Actions\Business\CopyRoleTemplates;
 use App\Models\User;
 
+/**
+ * People in the current business (stage 3). `users.full-access` counts as
+ * every `users.*` permission, but never past owner protection: a non-owner
+ * can't change, suspend or remove an owner; only owners remove people; nobody
+ * removes themselves; and the business keeps at least one owner.
+ */
 class UserPolicy
 {
-    /**
-     * Allow users with full access to bypass all checks.
-     */
-    public function before(User $user, string $ability): ?bool
-    {
-        if ($user->can('users.full-access')) {
-            return true;
-        }
-
-        return null;
-    }
-
-    /**
-     * Determine whether the user can view any models.
-     */
     public function viewAny(User $user): bool
     {
-        return $user->can('users.view');
+        return $this->holds($user, 'users.view');
     }
 
-    /**
-     * Determine whether the user can view the model.
-     */
     public function view(User $user, User $model): bool
     {
-        return $user->can('users.view');
+        return $this->holds($user, 'users.view');
     }
 
-    /**
-     * Determine whether the user can create models.
-     */
     public function create(User $user): bool
     {
-        return $user->can('users.create');
+        return $this->holds($user, 'users.create');
     }
 
-    /**
-     * Determine whether the user can update the model.
-     */
     public function update(User $user, User $model): bool
     {
-        return $user->can('users.update');
+        if ($user->is($model)) {
+            return $this->holds($user, 'users.update');
+        }
+
+        return $this->holds($user, 'users.update') && $this->mayManage($user, $model);
     }
 
     /**
-     * Determine whether the user can delete the model.
+     * Removing someone from the business (the login itself stays: it may
+     * belong to other businesses).
      */
     public function delete(User $user, User $model): bool
     {
-        // Cannot delete yourself
-        if ($user->id === $model->id) {
-            return false;
-        }
-
-        return $user->can('users.delete');
+        return ! $user->is($model)
+            && $user->isBusinessOwner()
+            && ! $this->isLastOwner($model);
     }
 
-    /**
-     * Determine whether the user can restore the model.
-     */
     public function restore(User $user, User $model): bool
     {
-        return $user->can('users.delete');
+        return $user->isBusinessOwner();
+    }
+
+    public function forceDelete(User $user, User $model): bool
+    {
+        return false;
     }
 
     /**
-     * Determine whether the user can permanently delete the model.
+     * Owners are managed only by owners.
      */
-    public function forceDelete(User $user, User $model): bool
+    private function mayManage(User $user, User $model): bool
     {
-        return $user->can('users.delete');
+        return ! $model->isBusinessOwner() || $user->isBusinessOwner();
+    }
+
+    private function isLastOwner(User $model): bool
+    {
+        return $model->isBusinessOwner()
+            && User::query()->inCurrentBusiness()->role(CopyRoleTemplates::OWNER_ROLE)->count() <= 1;
+    }
+
+    private function holds(User $user, string $permission): bool
+    {
+        return $user->can($permission) || $user->can('users.full-access');
     }
 }

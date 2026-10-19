@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Role;
 use App\Models\Shop;
 use App\Models\User;
+use App\Rules\GrantableRole;
 use App\Services\UserService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -18,6 +19,8 @@ class UserController extends Controller
 
     public function index(Request $request): JsonResponse
     {
+        $this->authorize('viewAny', User::class);
+
         $filters = $request->only(['status', 'role', 'search']);
         $users = $this->userService->getPaginated($filters, $request->input('per_page', 15));
 
@@ -29,6 +32,8 @@ class UserController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        $this->authorize('create', User::class);
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', 'unique:users,email'],
@@ -37,7 +42,7 @@ class UserController extends Controller
             'shop_id' => ['nullable', 'exists:shops,id'],
             'status' => ['nullable', 'string'],
             'roles' => ['nullable', 'array'],
-            'roles.*' => ['exists:roles,name'],
+            'roles.*' => [new GrantableRole($request->user(), byName: true)],
         ]);
 
         $user = $this->userService->create($validated);
@@ -51,6 +56,8 @@ class UserController extends Controller
 
     public function show(User $user): JsonResponse
     {
+        $this->authorize('view', $user);
+
         $user->load(['roles', 'shops']);
 
         return response()->json([
@@ -61,6 +68,8 @@ class UserController extends Controller
 
     public function update(Request $request, User $user): JsonResponse
     {
+        $this->authorize('update', $user);
+
         $validated = $request->validate([
             'name' => ['sometimes', 'string', 'max:255'],
             'email' => ['sometimes', 'email', 'max:255', 'unique:users,email,'.$user->id],
@@ -69,7 +78,7 @@ class UserController extends Controller
             'shop_id' => ['nullable', 'exists:shops,id'],
             'status' => ['nullable', 'string'],
             'roles' => ['nullable', 'array'],
-            'roles.*' => ['exists:roles,name'],
+            'roles.*' => [new GrantableRole($request->user(), byName: true)],
         ]);
 
         $user = $this->userService->update($user, $validated);
@@ -91,16 +100,21 @@ class UserController extends Controller
             ], 422);
         }
 
+        // Only owners remove people, and only from this business (stage 3).
+        $this->authorize('delete', $user);
+
         $this->userService->delete($user);
 
         return response()->json([
             'success' => true,
-            'message' => 'User deleted successfully.',
+            'message' => 'User removed from the business.',
         ]);
     }
 
     public function roles(): JsonResponse
     {
+        $this->authorize('viewAny', User::class);
+
         $roles = Role::select('id', 'name')->get();
 
         return response()->json([
@@ -111,6 +125,8 @@ class UserController extends Controller
 
     public function shops(): JsonResponse
     {
+        $this->authorize('viewAny', User::class);
+
         $shops = Shop::select('id', 'name', 'uuid')->get();
 
         return response()->json([

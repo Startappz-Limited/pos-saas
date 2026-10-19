@@ -2,22 +2,26 @@
 
 namespace App\Services;
 
+use App\Actions\Business\CopyRoleTemplates;
+use App\Actions\Business\RemoveFromBusiness;
 use App\Actions\CreateUserAction;
-use App\Actions\DeleteUserAction;
 use App\Actions\UpdateUserAction;
 use App\Enums\UserStatus;
 use App\Models\User;
+use App\Support\Tenancy\TenantContext;
 use App\Support\Tenancy\TenantFiles;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 
 class UserService
 {
     public function __construct(
         private CreateUserAction $createUserAction,
         private UpdateUserAction $updateUserAction,
-        private DeleteUserAction $deleteUserAction
+        private RemoveFromBusiness $removeFromBusiness,
+        private TenantContext $tenant,
     ) {}
 
     /**
@@ -59,6 +63,7 @@ class UserService
     public function getActive(): Collection
     {
         return User::active()
+            ->inCurrentBusiness()
             ->orderBy('name')
             ->get();
     }
@@ -75,6 +80,11 @@ class UserService
 
         $user = $this->createUserAction->execute($data);
 
+        // A person added here works in this business (stage 3).
+        if ($this->tenant->business() !== null) {
+            $user->joinBusiness($this->tenant->business(), auth()->user());
+        }
+
         // Assign roles if provided
         if (! empty($data['roles'])) {
             $user->syncRoles($data['roles']);
@@ -88,6 +98,11 @@ class UserService
      */
     public function update(User $user, array $data): User
     {
+        // The business keeps at least one owner.
+        if (isset($data['roles']) && ! in_array(CopyRoleTemplates::OWNER_ROLE, $data['roles'], true) && $this->isLastOwner($user)) {
+            throw ValidationException::withMessages(['roles' => [__('The business needs at least one owner.')]]);
+        }
+
         // Handle profile photo upload if provided
         if (isset($data['profile_photo']) && $data['profile_photo']) {
             // Delete old photo
@@ -108,12 +123,21 @@ class UserService
     /**
      * Delete a user
      */
+    /**
+     * Removes the person from the current business; the login stays (it may
+     * belong to other businesses).
+     */
     public function delete(User $user): bool
     {
-        // Delete profile photo
-        $this->deleteProfilePhoto($user);
+        $this->removeFromBusiness->execute($user);
 
-        return $this->deleteUserAction->execute($user);
+        return true;
+    }
+
+    private function isLastOwner(User $user): bool
+    {
+        return $user->isBusinessOwner()
+            && User::query()->inCurrentBusiness()->role(CopyRoleTemplates::OWNER_ROLE)->count() <= 1;
     }
 
     /**

@@ -2,10 +2,8 @@
 
 namespace App\Http\Requests;
 
-use App\Actions\Business\CopyRoleTemplates;
 use App\Models\BusinessMembership;
-use App\Models\Role;
-use App\Models\User;
+use App\Rules\GrantableRole;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -31,7 +29,7 @@ class StoreBusinessInviteRequest extends FormRequest
     {
         return [
             'email' => ['required', 'string', 'lowercase', 'email', 'max:255'],
-            'role_id' => ['required', 'integer'],
+            'role_id' => ['required', 'integer', new GrantableRole($this->user())],
             'shop_ids' => ['nullable', 'array'],
             'shop_ids.*' => ['integer', 'exists:shops,id'],
         ];
@@ -43,27 +41,6 @@ class StoreBusinessInviteRequest extends FormRequest
             function (Validator $validator): void {
                 if ($validator->errors()->isNotEmpty()) {
                     return;
-                }
-
-                /** @var User $inviter */
-                $inviter = $this->user();
-                $role = Role::query()->find($this->integer('role_id'));
-
-                if ($role === null) {
-                    $validator->errors()->add('role_id', __('Choose one of this business\'s roles.'));
-
-                    return;
-                }
-
-                if (! $inviter->isBusinessOwner()) {
-                    $held = $inviter->getAllPermissions()->pluck('name');
-                    $grants = $role->permissions->pluck('name');
-
-                    if ($role->name === CopyRoleTemplates::OWNER_ROLE || $grants->diff($held)->isNotEmpty()) {
-                        $validator->errors()->add('role_id', __('You can only invite people to a role whose permissions you hold.'));
-
-                        return;
-                    }
                 }
 
                 $alreadyMember = BusinessMembership::query()
