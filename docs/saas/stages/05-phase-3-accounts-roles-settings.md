@@ -77,7 +77,7 @@ integration credentials.
 - [x] Invites.
 - [x] `UserPolicy`: owner protection; only owners delete.
 - [x] Account status middleware (web and API).
-- [ ] Deactivation instead of self-delete.
+- [x] Deactivation instead of self-delete.
 - [ ] **Data export and business closure:** final export emailed to the owner; deletion when the closure
       grace period ends; also triggered automatically after 30 business days of lapse (4.9). Deletion uses
       `forceDelete` on the 19 soft-deleting models and also covers the business's rows in the **SQLite
