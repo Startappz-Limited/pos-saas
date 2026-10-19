@@ -4,6 +4,7 @@ use App\Http\Middleware\ResolveTenant;
 use App\Models\AbandonedCart;
 use App\Models\Attribute;
 use App\Models\BaileysSession;
+use App\Models\BusinessInvite;
 use App\Models\Campaign;
 use App\Models\CashRegister;
 use App\Models\Category;
@@ -58,6 +59,7 @@ function recordOfB(TwoBusinesses $fixture, string $resource): Model
         'ecommerce-orders' => EcommerceOrder::factory()->create($shop),
         'expense-categories' => ExpenseCategory::factory()->create(),
         'expenses' => Expense::factory()->create($shop),
+        'invites' => BusinessInvite::factory()->create(['email' => 'invitee@bravo.test']),
         'pricing-rules' => PricingRule::factory()->create(),
         'products' => $b->product,
         'purchase-orders' => PurchaseOrder::factory()->create([...$shop, 'supplier_id' => $b->supplier->id]),
@@ -91,6 +93,7 @@ const WEB_RESOURCES = [
     'social-accounts' => ['update', 'destroy'],
     'suppliers' => ['show', 'update', 'destroy'],
     'users' => ['show', 'update', 'destroy'],
+    'invites' => ['resend', 'destroy'],
 ];
 
 /** Resource => the actions its flat API routes offer on one record. */

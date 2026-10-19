@@ -9,6 +9,7 @@ use App\Models\ExpenseCategory;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\View\View;
 
 class ExpenseCategoryController extends Controller
@@ -97,7 +98,7 @@ class ExpenseCategoryController extends Controller
         if (! empty($validated['parent_id'])) {
             $parent = ExpenseCategory::find($validated['parent_id']);
             $validated['depth'] = $parent->depth + 1;
-            $validated['path'] = $parent->path ? $parent->path . '/' . $parent->id : (string) $parent->id;
+            $validated['path'] = $parent->path ? $parent->path.'/'.$parent->id : (string) $parent->id;
         }
 
         $category = ExpenseCategory::create($validated);
@@ -295,8 +296,8 @@ class ExpenseCategoryController extends Controller
         $summary = [
             'total_budget' => $categories->sum('monthly_budget'),
             'total_spent' => $categories->sum('period_expenses'),
-            'categories_over_budget' => $categories->filter(fn($c) => ($c->monthly_usage_percent ?? 0) > 100)->count(),
-            'categories_near_budget' => $categories->filter(fn($c) => ($c->monthly_usage_percent ?? 0) > 80 && ($c->monthly_usage_percent ?? 0) <= 100)->count(),
+            'categories_over_budget' => $categories->filter(fn ($c) => ($c->monthly_usage_percent ?? 0) > 100)->count(),
+            'categories_near_budget' => $categories->filter(fn ($c) => ($c->monthly_usage_percent ?? 0) > 80 && ($c->monthly_usage_percent ?? 0) <= 100)->count(),
         ];
 
         return view('expense-categories.budget-report', compact(
@@ -310,7 +311,7 @@ class ExpenseCategoryController extends Controller
     /**
      * Get all descendants recursively.
      */
-    private function getAllDescendants(ExpenseCategory $category): \Illuminate\Support\Collection
+    private function getAllDescendants(ExpenseCategory $category): Collection
     {
         $descendants = collect();
 

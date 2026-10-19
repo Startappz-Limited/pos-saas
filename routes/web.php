@@ -7,6 +7,7 @@ use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\Baileys\BroadcastController;
 use App\Http\Controllers\Baileys\InboxController;
 use App\Http\Controllers\Baileys\SessionController;
+use App\Http\Controllers\BusinessInviteController;
 use App\Http\Controllers\BusinessSwitchController;
 use App\Http\Controllers\CalendarController;
 use App\Http\Controllers\CampaignController;
@@ -20,6 +21,7 @@ use App\Http\Controllers\EcommerceOrderController;
 use App\Http\Controllers\ExpenseCategoryController;
 use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\InventorySnapshotController;
+use App\Http\Controllers\InvitationController;
 use App\Http\Controllers\LowStockAlertController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\PricingRuleController;
@@ -44,6 +46,7 @@ use App\Http\Controllers\TenantFileController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\VatReportController;
 use Illuminate\Support\Facades\Route;
+use Spatie\Honeypot\ProtectAgainstSpam;
 
 Route::get('/', function () {
     // redirect to ogin
@@ -69,6 +72,15 @@ Route::get('credit-accounts/{creditAccount:uuid}/statement-pdf', [CreditAccountC
     ->name('credit-accounts.statement-pdf')
     ->middleware('signed');
 
+// Invite links (stage 3): opened signed out, or signed in to any business.
+Route::prefix('invitations/{token}')->name('invitations.')->group(function () {
+    Route::get('/', [InvitationController::class, 'show'])->name('show');
+    Route::get('sign-in', [InvitationController::class, 'signIn'])->middleware('guest')->name('sign-in');
+    Route::post('accept', [InvitationController::class, 'accept'])->middleware(['auth', 'throttle:6,1'])->name('accept');
+    Route::post('register', [InvitationController::class, 'register'])
+        ->middleware(['guest', 'throttle:6,1', ProtectAgainstSpam::class])->name('register');
+});
+
 // The business picker, switcher and default business (stage 3): reachable
 // with no business chosen, so outside the `business` middleware.
 Route::middleware('auth')->prefix('businesses')->name('businesses.')->group(function () {
@@ -90,6 +102,12 @@ Route::middleware(['auth', 'business'])->group(function () {
     Route::post('users/{user}/activate', [UserController::class, 'activate'])->name('users.activate');
     Route::post('users/{user}/deactivate', [UserController::class, 'deactivate'])->name('users.deactivate');
     Route::post('users/{user}/suspend', [UserController::class, 'suspend'])->name('users.suspend');
+
+    // Invitations to the business (stage 3).
+    Route::get('invites', [BusinessInviteController::class, 'index'])->name('invites.index');
+    Route::post('invites', [BusinessInviteController::class, 'store'])->name('invites.store');
+    Route::post('invites/{invite:uuid}/resend', [BusinessInviteController::class, 'resend'])->name('invites.resend');
+    Route::delete('invites/{invite:uuid}', [BusinessInviteController::class, 'destroy'])->name('invites.destroy');
 
     // Role Management Routes
     Route::resource('roles', RoleController::class);

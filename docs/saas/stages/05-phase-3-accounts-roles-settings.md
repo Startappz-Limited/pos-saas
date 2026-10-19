@@ -74,7 +74,7 @@ integration credentials.
 - [x] `/api/v1` sign-in, list businesses, issue a token per business, switch, sign out.
 
 ### People
-- [ ] Invites.
+- [x] Invites.
 - [ ] `UserPolicy`: owner protection; only owners delete.
 - [ ] Account status middleware (web and API).
 - [ ] Deactivation instead of self-delete.

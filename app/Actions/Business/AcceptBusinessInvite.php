@@ -1,0 +1,68 @@
+<?php
+
+namespace App\Actions\Business;
+
+use App\Models\BusinessInvite;
+use App\Models\BusinessMembership;
+use App\Models\Role;
+use App\Models\Scopes\ShopAccessScope;
+use App\Models\Shop;
+use App\Models\User;
+use App\Support\Tenancy\TenantContext;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
+use InvalidArgumentException;
+
+/**
+ * Accepts an invite for the login with its email (decision 4.4, stage 3): a
+ * membership in the business (restored if the person was a member before),
+ * the invite's role held in that business, and its shops that still exist.
+ * Accepting proves the email address, so an unverified one becomes verified.
+ */
+class AcceptBusinessInvite
+{
+    public function __construct(private TenantContext $tenant) {}
+
+    /**
+     * @throws InvalidArgumentException when the invite isn't pending or is for another email
+     */
+    public function execute(BusinessInvite $invite, User $user): void
+    {
+        if (Str::lower($user->email) !== $invite->email) {
+            throw new InvalidArgumentException('This invitation is for another email address.');
+        }
+
+        DB::transaction(function () use ($invite, $user): void {
+            $invite = BusinessInvite::query()->withoutGlobalScopes()->lockForUpdate()->findOrFail($invite->id);
+
+            if (! $invite->isPending()) {
+                throw new InvalidArgumentException('This invitation is no longer valid.');
+            }
+
+            $this->tenant->run($invite->business_id, function () use ($invite, $user): void {
+                $membership = $user->joinBusiness($invite->business, $invite->inviter);
+
+                if ($membership->status !== BusinessMembership::STATUS_ACTIVE) {
+                    $membership->update(['status' => BusinessMembership::STATUS_ACTIVE]);
+                }
+
+                $role = Role::query()->find($invite->role_id);
+                if ($role !== null) {
+                    $user->assignRole($role);
+                }
+
+                // The joiner can't see any shop yet (default-deny), so only the
+                // business scope limits this: the invite's shops still in it.
+                $shopIds = Shop::query()->withoutGlobalScope(ShopAccessScope::class)
+                    ->whereIn('id', $invite->shop_ids ?? [])->pluck('id');
+                $user->shops()->syncWithoutDetaching($shopIds);
+            });
+
+            $invite->update(['accepted_at' => now(), 'accepted_by' => $user->id]);
+
+            if (! $user->hasVerifiedEmail()) {
+                $user->markEmailAsVerified();
+            }
+        });
+    }
+}

@@ -24,8 +24,8 @@ class SocialAccountController extends Controller
 
         $accounts = SocialAccount::query()
             ->with('shop')
-            ->when($request->filled('shop_id'), fn($q) => $q->where('shop_id', $request->integer('shop_id')))
-            ->when($request->filled('platform'), fn($q) => $q->where('platform', $request->string('platform')))
+            ->when($request->filled('shop_id'), fn ($q) => $q->where('shop_id', $request->integer('shop_id')))
+            ->when($request->filled('platform'), fn ($q) => $q->where('platform', $request->string('platform')))
             ->latest()
             ->paginate(15)
             ->withQueryString();
@@ -99,7 +99,7 @@ class SocialAccountController extends Controller
         $data['credentials'] = array_filter([
             'access_token' => $data['access_token'] ?? null,
             'refresh_token' => $data['refresh_token'] ?? null,
-        ], fn($v) => $v !== null && $v !== '');
+        ], fn ($v) => $v !== null && $v !== '');
 
         unset($data['access_token'], $data['refresh_token']);
 

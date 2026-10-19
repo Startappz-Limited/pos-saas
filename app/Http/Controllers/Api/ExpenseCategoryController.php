@@ -81,7 +81,7 @@ class ExpenseCategoryController extends Controller
         if (! empty($validated['parent_id'])) {
             $parent = ExpenseCategory::find($validated['parent_id']);
             $validated['depth'] = $parent->depth + 1;
-            $validated['path'] = $parent->path ? $parent->path . '/' . $parent->id : (string) $parent->id;
+            $validated['path'] = $parent->path ? $parent->path.'/'.$parent->id : (string) $parent->id;
         }
 
         $category = ExpenseCategory::create($validated);

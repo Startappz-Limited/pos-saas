@@ -16,7 +16,7 @@ class CreateStockIntakeAction
         $data['created_by'] = $userId;
 
         $data['intake_date'] = $data['intake_date'] ?? now()->toDateString();
-        $data['batch_number'] = $data['batch_number'] ?? 'BATCH-' . now()->format('Ymd') . '-' . strtoupper(Str::random(4));
+        $data['batch_number'] = $data['batch_number'] ?? 'BATCH-'.now()->format('Ymd').'-'.strtoupper(Str::random(4));
 
         if (empty($data['storage_location']) && ! empty($data['shop_id'])) {
             $shop = Shop::find($data['shop_id']);
@@ -24,7 +24,7 @@ class CreateStockIntakeAction
         }
 
         if (empty($data['bin_location'])) {
-            $data['bin_location'] = strtoupper(Str::random(2)) . '-' . strtoupper(Str::random(2)) . '-' . strtoupper(Str::random(2));
+            $data['bin_location'] = strtoupper(Str::random(2)).'-'.strtoupper(Str::random(2)).'-'.strtoupper(Str::random(2));
         }
 
         return StockIntake::create($data);
