@@ -3,11 +3,13 @@
 namespace App\Models;
 
 use App\Actions\Business\CopyRoleTemplates;
+use App\Support\Tenancy\TenantFiles;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 /**
@@ -123,7 +125,7 @@ class Business extends Model
             return null;
         }
 
-        $disk = \Illuminate\Support\Facades\Storage::disk(\App\Support\Tenancy\TenantFiles::PUBLIC_DISK);
+        $disk = Storage::disk(TenantFiles::PUBLIC_DISK);
 
         if (! $disk->exists($this->logo_path)) {
             return null;

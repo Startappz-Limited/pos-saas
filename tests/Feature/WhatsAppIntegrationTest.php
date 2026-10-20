@@ -27,8 +27,7 @@ beforeEach(function () {
 
 describe('WhatsAppService', function () {
     it('sends a text message successfully', function () {
-        config(['services.whatsapp.api_url' => 'https://graph.facebook.com/v22.0/123/messages']);
-        config(['services.whatsapp.api_token' => 'test-token']);
+        useWhatsAppAccount('https://graph.facebook.com/v22.0/123/messages', 'test-token');
 
         Http::fake([
             'graph.facebook.com/*' => Http::response([
@@ -53,8 +52,7 @@ describe('WhatsAppService', function () {
     });
 
     it('returns error when not configured', function () {
-        config(['services.whatsapp.api_url' => null]);
-        config(['services.whatsapp.api_token' => null]);
+        useWhatsAppAccount(null, null);
 
         $service = new WhatsAppService;
         $result = $service->sendTextMessage('+254712345678', 'Hello');
@@ -64,8 +62,7 @@ describe('WhatsAppService', function () {
     });
 
     it('rejects invalid phone numbers', function () {
-        config(['services.whatsapp.api_url' => 'https://api.example.com']);
-        config(['services.whatsapp.api_token' => 'token']);
+        useWhatsAppAccount('https://api.example.com', 'token');
 
         $service = new WhatsAppService;
 
@@ -75,8 +72,7 @@ describe('WhatsAppService', function () {
     });
 
     it('sends a template message', function () {
-        config(['services.whatsapp.api_url' => 'https://graph.facebook.com/v22.0/123/messages']);
-        config(['services.whatsapp.api_token' => 'test-token']);
+        useWhatsAppAccount('https://graph.facebook.com/v22.0/123/messages', 'test-token');
 
         Http::fake([
             'graph.facebook.com/*' => Http::response([
@@ -99,8 +95,7 @@ describe('WhatsAppService', function () {
     });
 
     it('handles API failure gracefully', function () {
-        config(['services.whatsapp.api_url' => 'https://graph.facebook.com/v22.0/123/messages']);
-        config(['services.whatsapp.api_token' => 'test-token']);
+        useWhatsAppAccount('https://graph.facebook.com/v22.0/123/messages', 'test-token');
 
         Http::fake([
             'graph.facebook.com/*' => Http::response(['error' => 'Unauthorized'], 401),
@@ -114,12 +109,11 @@ describe('WhatsAppService', function () {
     });
 
     it('reports configured status correctly', function () {
-        config(['services.whatsapp.api_url' => 'https://api.example.com']);
-        config(['services.whatsapp.api_token' => 'token']);
+        useWhatsAppAccount('https://api.example.com', 'token');
 
         expect(WhatsAppService::isConfigured())->toBeTrue();
 
-        config(['services.whatsapp.api_url' => null]);
+        useWhatsAppAccount(null, null);
 
         expect(WhatsAppService::isConfigured())->toBeFalse();
     });
@@ -229,8 +223,7 @@ describe('WhatsAppMessage model', function () {
 
 describe('SendWhatsAppToCustomer action', function () {
     it('sends text message and logs it', function () {
-        config(['services.whatsapp.api_url' => 'https://graph.facebook.com/v22.0/123/messages']);
-        config(['services.whatsapp.api_token' => 'test-token']);
+        useWhatsAppAccount('https://graph.facebook.com/v22.0/123/messages', 'test-token');
 
         Http::fake([
             'graph.facebook.com/*' => Http::response([
@@ -251,8 +244,7 @@ describe('SendWhatsAppToCustomer action', function () {
     });
 
     it('marks message as failed when API fails', function () {
-        config(['services.whatsapp.api_url' => 'https://graph.facebook.com/v22.0/123/messages']);
-        config(['services.whatsapp.api_token' => 'test-token']);
+        useWhatsAppAccount('https://graph.facebook.com/v22.0/123/messages', 'test-token');
 
         Http::fake([
             'graph.facebook.com/*' => Http::response(['error' => 'Bad request'], 400),
@@ -277,8 +269,7 @@ describe('SendWhatsAppToCustomer action', function () {
     });
 
     it('sends template message to customer', function () {
-        config(['services.whatsapp.api_url' => 'https://graph.facebook.com/v22.0/123/messages']);
-        config(['services.whatsapp.api_token' => 'test-token']);
+        useWhatsAppAccount('https://graph.facebook.com/v22.0/123/messages', 'test-token');
 
         Http::fake([
             'graph.facebook.com/*' => Http::response([
@@ -295,8 +286,7 @@ describe('SendWhatsAppToCustomer action', function () {
     });
 
     it('persists message in database', function () {
-        config(['services.whatsapp.api_url' => 'https://graph.facebook.com/v22.0/123/messages']);
-        config(['services.whatsapp.api_token' => 'test-token']);
+        useWhatsAppAccount('https://graph.facebook.com/v22.0/123/messages', 'test-token');
 
         Http::fake([
             'graph.facebook.com/*' => Http::response([
@@ -319,8 +309,7 @@ describe('SendWhatsAppToCustomer action', function () {
 
 describe('CustomerWhatsAppNotification', function () {
     it('uses whatsapp channel when configured', function () {
-        config(['services.whatsapp.api_url' => 'https://api.example.com']);
-        config(['services.whatsapp.api_token' => 'token']);
+        useWhatsAppAccount('https://api.example.com', 'token');
 
         $notification = new CustomerWhatsAppNotification($this->customer, 'Hello!');
         $channels = $notification->via($this->customer);
@@ -329,8 +318,7 @@ describe('CustomerWhatsAppNotification', function () {
     });
 
     it('excludes whatsapp channel when not configured', function () {
-        config(['services.whatsapp.api_url' => null]);
-        config(['services.whatsapp.api_token' => null]);
+        useWhatsAppAccount(null, null);
 
         $notification = new CustomerWhatsAppNotification($this->customer, 'Hello!');
         $channels = $notification->via($this->customer);

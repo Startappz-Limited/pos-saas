@@ -2,24 +2,12 @@
 
 namespace App\Services;
 
+use App\Support\Messaging\TenantMessagingCredentials;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 class WhatsAppService
 {
-    protected string $apiUrl;
-
-    protected string $apiToken;
-
-    protected string $phoneNumberId;
-
-    public function __construct()
-    {
-        $this->apiUrl = (string) config('services.whatsapp.api_url', '');
-        $this->apiToken = (string) config('services.whatsapp.api_token', '');
-        $this->phoneNumberId = (string) config('services.whatsapp.phone_number_id', '');
-    }
-
     /**
      * Send a text message via WhatsApp.
      *
@@ -95,6 +83,16 @@ class WhatsAppService
      */
     protected function sendRequest(string $phone, array $content): array
     {
+        // The business's own WhatsApp Cloud account (stage 3); never the platform's.
+        $credentials = TenantMessagingCredentials::whatsappCloud();
+
+        if ($credentials === null) {
+            return [
+                'success' => false,
+                'message' => 'WhatsApp service is not configured',
+            ];
+        }
+
         try {
             $payload = array_merge([
                 'messaging_product' => 'whatsapp',
@@ -108,9 +106,9 @@ class WhatsAppService
 
             $response = Http::asJson()
                 ->withHeaders([
-                    'Authorization' => 'Bearer '.$this->apiToken,
+                    'Authorization' => 'Bearer '.$credentials['token'],
                 ])
-                ->post($this->apiUrl, $payload);
+                ->post($credentials['url'], $payload);
 
             if ($response->successful()) {
                 Log::info('WhatsApp message sent', [
@@ -173,7 +171,6 @@ class WhatsAppService
      */
     public static function isConfigured(): bool
     {
-        return ! empty(config('services.whatsapp.api_url'))
-            && ! empty(config('services.whatsapp.api_token'));
+        return TenantMessagingCredentials::whatsappCloud() !== null;
     }
 }

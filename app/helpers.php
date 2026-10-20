@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Business;
 use App\Support\Currency;
 use App\Support\Tenancy\TenantContext;
 
@@ -8,7 +9,7 @@ if (! function_exists('current_business')) {
      * The business this request, job or command acts for, if one is set
      * (never throws: receipts and PDFs also render with none, e.g. in tests).
      */
-    function current_business(): ?\App\Models\Business
+    function current_business(): ?Business
     {
         $tenant = app(TenantContext::class);
 

@@ -1,5 +1,6 @@
 <?php
 
+use App\Services\InvoiceNumberService;
 use App\Support\Tenancy\TenantContext;
 use App\Support\Tenancy\TenantFiles;
 use Illuminate\Http\UploadedFile;
@@ -92,7 +93,7 @@ it('puts the business\'s branding and the shop\'s Till on the receipt', function
 it('numbers new invoices with the business\'s prefix', function () {
     $this->a->business->update(['invoice_prefix' => 'ACME']);
 
-    $number = $this->tenant->run($this->a->business->fresh(), fn () => app(\App\Services\InvoiceNumberService::class)->next($this->a->shops[0]));
+    $number = $this->tenant->run($this->a->business->fresh(), fn () => app(InvoiceNumberService::class)->next($this->a->shops[0]));
 
     expect($number)->toStartWith('ACME-');
 });

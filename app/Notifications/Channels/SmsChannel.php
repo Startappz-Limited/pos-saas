@@ -4,6 +4,7 @@ namespace App\Notifications\Channels;
 
 use App\Http\Startappz\Services\SMSservice;
 use App\Notifications\NewEcommerceOrderNotification;
+use App\Support\Messaging\TenantMessagingCredentials;
 use Illuminate\Notifications\Notification;
 use Illuminate\Support\Facades\Log;
 
@@ -64,6 +65,6 @@ class SmsChannel
      */
     public static function isConfigured(): bool
     {
-        return ! empty(env('SMS_API_URL')) && ! empty(env('SMS_API_TOKEN'));
+        return TenantMessagingCredentials::sms() !== null;
     }
 }

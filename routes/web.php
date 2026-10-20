@@ -8,6 +8,7 @@ use App\Http\Controllers\Baileys\BroadcastController;
 use App\Http\Controllers\Baileys\InboxController;
 use App\Http\Controllers\Baileys\SessionController;
 use App\Http\Controllers\BusinessDataController;
+use App\Http\Controllers\BusinessIntegrationController;
 use App\Http\Controllers\BusinessInviteController;
 use App\Http\Controllers\BusinessSettingsController;
 use App\Http\Controllers\BusinessSwitchController;
@@ -116,6 +117,9 @@ Route::middleware(['auth', 'business'])->group(function () {
     Route::post('users/{user}/suspend', [UserController::class, 'suspend'])->name('users.suspend');
 
     // The business's data: exports and closure (stage 3; owners only).
+    Route::get('business/integrations', [BusinessIntegrationController::class, 'edit'])->name('business.integrations.edit');
+    Route::put('business/integrations/{type}', [BusinessIntegrationController::class, 'update'])->middleware('throttle:20,1')->name('business.integrations.update');
+    Route::delete('business/integrations/{type}', [BusinessIntegrationController::class, 'destroy'])->name('business.integrations.destroy');
     Route::get('business/settings', [BusinessSettingsController::class, 'edit'])->name('business.settings.edit');
     Route::put('business/settings', [BusinessSettingsController::class, 'update'])->name('business.settings.update');
     Route::get('business/data', [BusinessDataController::class, 'index'])->name('business.data');
