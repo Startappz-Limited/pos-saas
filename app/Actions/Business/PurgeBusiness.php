@@ -63,7 +63,7 @@ class PurgeBusiness
         $deleted['audit_logs'] = DB::connection('audit')->table('audit_logs')->where('business_id', $business->id)->delete();
 
         foreach ([TenantFiles::PRIVATE_DISK, TenantFiles::PUBLIC_DISK] as $disk) {
-            Storage::disk($disk)->deleteDirectory((string) $business->uuid);
+            $this->deleteFiles($disk, (string) $business->uuid);
         }
 
         return array_filter($deleted);
@@ -87,5 +87,29 @@ class PurgeBusiness
         }
 
         return $count;
+    }
+
+    /**
+     * Files first, then the folder: a folder delete that meets one stubborn
+     * file would otherwise leave all the rest readable.
+     */
+    private function deleteFiles(string $disk, string $prefix): void
+    {
+        $storage = Storage::disk($disk);
+
+        foreach ($storage->allFiles($prefix) as $file) {
+            $storage->delete($file);
+        }
+
+        try {
+            $storage->deleteDirectory($prefix);
+        } catch (\Throwable) {
+            // Only empty folders are left (a file still open on Windows is
+            // listed but can't be inspected); the check below decides.
+        }
+
+        if ($storage->allFiles($prefix) !== []) {
+            report(new \RuntimeException("Files of business {$prefix} remain on the {$disk} disk after erasure."));
+        }
     }
 }

@@ -95,7 +95,7 @@ function zipContents(string $bytes): array
 it('exports a business\'s data for its owners, without secrets or the other business', function () {
     $this->actingAs($this->a->owner)->post(route('business.exports.store'))->assertRedirect(route('business.data'));
 
-    $export = $this->tenant->run($this->a->business, fn () => BusinessExport::sole());
+    $export = $this->tenant->run($this->a->business, fn () => BusinessExport::where('path', '!=', 'canary.zip')->sole());
     expect($export->status)->toBe(BusinessExport::STATUS_READY);
 
     $url = exportLinkFor($this->a->owner);
@@ -119,7 +119,7 @@ it('lets only an owner of the business export or download', function () {
 
     $this->actingAs($this->a->owner)->post(route('business.exports.store'));
     $url = exportLinkFor($this->a->owner);
-    $export = $this->tenant->run($this->a->business, fn () => BusinessExport::sole());
+    $export = $this->tenant->run($this->a->business, fn () => BusinessExport::where('path', '!=', 'canary.zip')->sole());
     $unsigned = route('business.exports.download', $export);
 
     foreach ([$this->a->cashier, $this->fixture->b->owner, $this->fixture->both] as $notOwner) {
@@ -144,7 +144,7 @@ it('closes a business with the emailed code: unusable, final export emailed, era
         ->and($closure->business_id)->toBe($business->id)
         ->and($closure->requested_by)->toBe($this->a->owner->id)
         ->and($closure->delete_after->isSameDay(now()->addDays(30)))->toBeTrue()
-        ->and($this->tenant->run($business, fn () => BusinessExport::sole()->purpose))->toBe(BusinessExport::PURPOSE_CLOSURE);
+        ->and($this->tenant->run($business, fn () => BusinessExport::where('path', '!=', 'canary.zip')->sole()->purpose))->toBe(BusinessExport::PURPOSE_CLOSURE);
     Notification::assertSentTo($this->a->owner, BusinessExportReady::class);
 
     // Nobody works in it any more; B is untouched.
