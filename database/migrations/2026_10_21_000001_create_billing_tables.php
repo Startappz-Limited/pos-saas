@@ -5,6 +5,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
+use Ramsey\Uuid\Uuid;
 
 /**
  * Billing, entitlements and AI metering (Phase 4, decision 4.6).
@@ -145,7 +146,8 @@ return new class extends Migration
 
         foreach ($plans as $index => $plan) {
             DB::table('plans')->insert([
-                'uuid' => (string) Str::uuid(),
+                // Named, not random: the seeded plans must be identical in every database.
+                'uuid' => (string) Uuid::uuid5(Uuid::NAMESPACE_URL, 'plan:'.$plan['key']),
                 'key' => $plan['key'],
                 'name' => $plan['name'],
                 'price_per_shop' => $plan['price'],
