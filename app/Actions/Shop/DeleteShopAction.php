@@ -13,6 +13,9 @@ class DeleteShopAction
             // Detach all users from the shop
             $shop->users()->detach();
 
+            // Its Till or Paybill is free for another shop to register.
+            $shop->forceFill(['mpesa_shortcode' => null, 'mpesa_shortcode_type' => null, 'mpesa_verified_at' => null])->saveQuietly();
+
             // Soft delete the shop
             return $shop->delete();
         });

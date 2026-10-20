@@ -38,6 +38,7 @@ use App\Http\Controllers\ReturnController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\SaleController;
 use App\Http\Controllers\ShopController;
+use App\Http\Controllers\ShopMpesaController;
 use App\Http\Controllers\SocialAccountController;
 use App\Http\Controllers\StockAdjustmentController;
 use App\Http\Controllers\StockIntakeController;
@@ -134,6 +135,8 @@ Route::middleware(['auth', 'business'])->group(function () {
 
     // Shop Management Routes
     Route::post('shops/test-integration', [ShopController::class, 'testIntegration'])->name('shops.testIntegration');
+    Route::get('shops/{shop}/mpesa', [ShopMpesaController::class, 'edit'])->name('shops.mpesa.edit');
+    Route::put('shops/{shop}/mpesa', [ShopMpesaController::class, 'update'])->middleware('throttle:10,1')->name('shops.mpesa.update');
     Route::resource('shops', ShopController::class);
     Route::post('shops/{shop}/activate', [ShopController::class, 'activate'])->name('shops.activate');
     Route::post('shops/{shop}/deactivate', [ShopController::class, 'deactivate'])->name('shops.deactivate');

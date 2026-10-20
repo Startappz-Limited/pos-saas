@@ -54,6 +54,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
+        // Until the private M-Pesa package is connected, nothing is accepted.
+        $this->app->bind(\App\Contracts\MpesaGateway::class, \App\Services\Mpesa\NullMpesaGateway::class);
+
         // The business the current request, job or command acts for; reset
         // between requests and queued jobs (stage 1a).
         $this->app->scoped(TenantContext::class);
