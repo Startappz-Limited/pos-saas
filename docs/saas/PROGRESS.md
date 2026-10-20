@@ -580,3 +580,23 @@ of stage, verified before the merge).
 - **The platform operator is a flag, not a global `super-admin` role.** Roles are per business (Spatie teams
   on `business_id`): a role grant always carries a business, so a role held outside every business can't
   be expressed. `users.is_platform_operator` is set only by hand or by the platform console (Phase 5).
+
+## Stage 4 (Phase 4): Billing, entitlements, metering
+
+Branch: `saas/phase-4-billing` (from `main` after the stage 3 merge, `560e179`). Plan: the stage file itself;
+how it works: [billing.md](billing.md).
+
+### Steps
+
+| Step | Commit | Tests added | Notes |
+|---|---|---|---|
+| 1. Plans, subscriptions, entitlements, calendar, trial | `c560cbc` | `Billing/EntitlementsTest` (10) | Migration `2026_10_21_000001`: `plans` (seeded: 1,500 / 3,000 / 5,000 per shop, placeholder limits, features and 14-day trial as data), `subscriptions`, `platform_payments`, `ai_credit_balances`, `ai_usage_events`, `ai_blocked_work`; every existing business gets a trial on the top tier so none is locked out. `Entitlements` (`hasFeature`, `limit`, `assertCanAdd`, `readOnlyReason`), `Feature` and `Limit` enums, `BusinessDays` (Monday to Friday minus a configurable holiday list). The trial starts on email verification (`StartTrial`). A business with no subscription is unmetered |
+| 2. Limits, read-only mode, sweep | `97e857b` | `Billing/ReadOnlyTest` (10) | `creating` listeners on Shop, Register (per shop), Product, BaileysSession and BusinessMembership (`PlanLimits`) refuse past the plan on every path. `EnforceSubscription` refuses writes on web and API with `subscription_inactive` (402) when lapsed or over the shops paid for; allowlist in `config('billing.read_only_allowed')` (sign-in/out, switching, export, paying, closing, deleting shops, the callback). `billing:sweep` (daily): renewal reminder, closure warning 5 business days before the 30-business-day grace ends, closure on the 31st. Read-only businesses do no background work. **Found by the tests:** these listeners run before the model's own, which fills `business_id`, so they fall back to the current business; and middleware ordering needed `appendToPriorityList(ResolveTenant::class, …)` or the check ran before the business was resolved |
+| 3. Payments, AI credit, billing page, API | this commit | `Billing/PaymentsTest` (19), `Billing/AiCreditsTest` (11); matrix row; `ReadOnlyTest` +1 | `ApplyPlatformPayment` (row lock + `applied_at`: exactly once; months at the locked price; reopens a business closed for the lapse), `RecordManualPayment` and `billing:record-payment` (by hand until go-live), `PaymentCollector` (null until the private package is connected; fake for tests) with `ConfirmPlatformPayment` believing only the API's answer (paid, amount, our reference, unique receipt), `POST /api/webhooks/platform-payments` as a nudge only. `AiCredits` (single conditional UPDATEs, so concurrent calls can't overdraw), `MeteredAiDriver` wrapped by `AiManager` for metered businesses, blocked work saved and re-dispatched after a top-up, owner notified once per empty spell. `/billing` page and `/api/v1/billing*`; `feature:` route middleware on campaigns, social accounts and WhatsApp |
+
+### Differences from the stage file
+
+- **Platform go-live is a switch, not a date in code:** `BILLING_MPESA_ENABLED` is off and `NullPaymentCollector` is bound; the adapter over the private package is written when the package is available (Assumption 7: check it supports this Laravel). Payments are recorded with `billing:record-payment` meanwhile.
+- **The flat API now answers 402 on writes for a lapsed or over-quota business** (and `plan_limit_reached` / `feature_unavailable`). The shipped Flutter app does not know these codes; it shows its generic error. Add handling before billing is enforced on production businesses.
+- **Concurrency of AI credit** rests on the single-statement conditional update; there is a semantic test, not a multi-process one (unlike the invoice-number test).
+- **Not built (post-launch, per the stage file):** platform invoices and platform VAT; proration when raising the shops paid for mid-period (the higher price applies from the next payment).
