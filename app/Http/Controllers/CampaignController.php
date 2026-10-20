@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\Billing\QueueBlockedAiWork;
 use App\Actions\Campaign\GenerateCampaignContent;
 use App\Actions\Campaign\PublishCampaignPost;
 use App\Actions\Campaign\ScheduleCampaignPost;
@@ -9,10 +10,12 @@ use App\Enums\CampaignStatus;
 use App\Enums\CampaignType;
 use App\Enums\MarketingChannel;
 use App\Enums\SocialPlatform;
+use App\Exceptions\InsufficientAiCredit;
 use App\Http\Requests\GenerateCampaignContentRequest;
 use App\Http\Requests\StoreCampaignPostRequest;
 use App\Http\Requests\StoreCampaignRequest;
 use App\Http\Requests\UpdateCampaignRequest;
+use App\Models\AiBlockedWork;
 use App\Models\Campaign;
 use App\Models\Product;
 use App\Models\Shop;
@@ -210,13 +213,32 @@ class CampaignController extends Controller
             $product = Product::findOrFail($request->integer('product_id'));
         }
 
-        $content = $action->handle($campaign, $product, $request->only([
+        $overrides = $request->only([
             'platform',
             'provider',
             'tone',
             'language',
             'extra_instructions',
-        ]));
+        ]);
+
+        try {
+            $content = $action->handle($campaign, $product, $overrides);
+        } catch (InsufficientAiCredit $e) {
+            // Out of prepaid credit (Phase 4): keep the request and run it after a top-up.
+            $work = app(QueueBlockedAiWork::class)->execute(
+                AiBlockedWork::CAMPAIGN_CONTENT,
+                ['campaign_id' => $campaign->id, 'product_id' => $product?->id, 'overrides' => $overrides],
+                $campaign->shop_id,
+                $request->user(),
+            );
+
+            return response()->json([
+                'success' => false,
+                'code' => 'ai_credit_exhausted',
+                'message' => __('You are out of AI credit. Your request is saved and will run after a top-up.'),
+                'work' => $work->uuid,
+            ], 402);
+        }
 
         return response()->json([
             'data' => $content,

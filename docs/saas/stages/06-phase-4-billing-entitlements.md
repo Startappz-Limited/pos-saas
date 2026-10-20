@@ -59,29 +59,29 @@ package, and AI runs on prepaid credit.
 
 ## Work
 
-- [ ] **Billing module:** `Plan`, `Subscription`, `PlatformPayment`, `AiCreditBalance`, `AiUsageEvent`.
-- [ ] The entitlements service and a `Feature` enum.
-- [ ] A `PaymentCollector` adapter over the **private M-Pesa package** (an API: STK Push with the
+- [x] **Billing module:** `Plan`, `Subscription`, `PlatformPayment`, `AiCreditBalance`, `AiUsageEvent`.
+- [x] The entitlements service and a `Feature` enum.
+- [x] A `PaymentCollector` adapter over the **private M-Pesa package** (an API: STK Push with the
       platform's account details, and payments confirmed by querying it),
       with a go-live switch.
-- [ ] **Read-only middleware:** refuses writes on web, both APIs and sync push; allows export. Applies for
+- [x] **Read-only middleware:** refuses writes on web, both APIs and sync push; allows export. Applies for
       30 business days after a lapse, and whenever a business has more shops than its plan allows
       (deleting shops stays allowed).
-- [ ] A business-day calendar for the 30-day count.
-- [ ] **`AiManager`:** reserves the estimated cost atomically before a call, settles the actual cost
+- [x] A business-day calendar for the 30-day count.
+- [x] **`AiManager`:** reserves the estimated cost atomically before a call, settles the actual cost
       afterwards, records usage, and refuses calls at zero balance; the owner is notified, and blocked
       jobs wait for credit and are re-dispatched after a top-up.
-- [ ] The billing page, the AI top-up flow (minimum KES 500), and reminder notifications.
+- [x] The billing page, the AI top-up flow (minimum KES 500), and reminder notifications.
 
 ## Schema
 
-- [ ] `plans`: Tier 1, Tier 2 and Tier 3 at KES 1,500, 3,000 and 5,000 per shop per month; placeholder
+- [x] `plans`: Tier 1, Tier 2 and Tier 3 at KES 1,500, 3,000 and 5,000 per shop per month; placeholder
       limits, features and trial length as data.
-- [ ] The AI credit conversion (credits per KES, credits per call) as configuration.
-- [ ] `subscriptions`: shop count, price at signup, status, period end, trial end.
-- [ ] `platform_payments`: purpose (subscription or AI top-up), M-Pesa receipt number, raw webhook data,
+- [x] The AI credit conversion (credits per KES, credits per call) as configuration.
+- [x] `subscriptions`: shop count, price at signup, status, period end, trial end.
+- [x] `platform_payments`: purpose (subscription or AI top-up), M-Pesa receipt number, raw webhook data,
       recorded by (for manual entries).
-- [ ] `ai_credit_balances`, `ai_usage_events`.
+- [x] `ai_credit_balances`, `ai_usage_events`.
 
 ## Pending decisions (Proposed, review)
 
@@ -97,17 +97,17 @@ package, and AI runs on prepaid credit.
 
 ## Acceptance criteria
 
-- [ ] A trial starts at signup (after email verification, Phase 3).
-- [ ] Adding a shop or register beyond the plan is refused on web and both APIs.
-- [ ] A manual payment, and later a payment confirmed through the M-Pesa API, extends the subscription
+- [x] A trial starts at signup (after email verification, Phase 3).
+- [x] Adding a shop or register beyond the plan is refused on web and both APIs.
+- [x] A manual payment, and later a payment confirmed through the M-Pesa API, extends the subscription
       exactly once.
-- [ ] A lapsed business can read and export, but every write path returns `subscription_inactive`, for 30
+- [x] A lapsed business can read and export, but every write path returns `subscription_inactive`, for 30
       business days; the owner is warned before the end, and on the 31st business day the closure flow
       starts. A payment before deletion reopens the business.
-- [ ] After a downgrade with too many shops, every shop is read-only until enough shops are deleted.
-- [ ] An AI call deducts credit; at zero balance AI calls are refused until a top-up of at least KES 500,
+- [x] After a downgrade with too many shops, every shop is read-only until enough shops are deleted.
+- [x] An AI call deducts credit; at zero balance AI calls are refused until a top-up of at least KES 500,
       the owner is notified, and the blocked work runs after the top-up.
-- [ ] Concurrent AI calls can't take the balance below zero.
+- [x] Concurrent AI calls can't take the balance below zero.
 
 ## Risks
 

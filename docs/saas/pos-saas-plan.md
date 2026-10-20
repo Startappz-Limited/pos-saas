@@ -301,7 +301,7 @@ answered before Phase 1** (Open question 1):
 - [ ] Per-shop M-Pesa Till or Paybill, used for STK Push and payment webhooks through the private M-Pesa
       package. The number alone isn't enough: Daraja needs that shortcode's own credentials and go-live,
       unless the package is an aggregator (Open question 2). Shortcodes unique across the platform.
-- [ ] AI usage metered against a prepaid balance per business.
+- [x] AI usage metered against a prepaid balance per business.
 - [ ] The current flat `/api` keeps working unchanged on the new schema; a new `/api/v1` covers every
       feature the Flutter app needs.
 - [ ] Tests independent of `.env`, plus a two-business fixture. **Half done (Phase 0):** tests no longer

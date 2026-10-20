@@ -49,10 +49,10 @@ class CloseBusiness
         return $closure;
     }
 
-    public function cancel(BusinessClosure $closure, User $owner): void
+    public function cancel(BusinessClosure $closure, ?User $owner): void
     {
         DB::transaction(function () use ($closure, $owner): void {
-            $closure->update(['cancelled_at' => now(), 'cancelled_by' => $owner->id]);
+            $closure->update(['cancelled_at' => now(), 'cancelled_by' => $owner?->id]);
             Business::query()->whereKey($closure->business_id)->update(['status' => Business::STATUS_ACTIVE]);
         });
     }

@@ -110,6 +110,9 @@
                             </a>
                         @endif
                         @if (auth()->user()->isBusinessOwner())
+                            <a class="dropdown-item" href="{{ route('billing.show') }}">
+                                <iconify-icon icon="solar:wallet-money-bold-duotone" class="align-middle me-2 fs-18"></iconify-icon><span class="align-middle">{{ __('Billing') }}</span>
+                            </a>
                             <a class="dropdown-item" href="{{ route('business.data') }}">
                                 <iconify-icon icon="solar:database-bold-duotone" class="align-middle me-2 fs-18"></iconify-icon><span class="align-middle">{{ __('Data & closure') }}</span>
                             </a>

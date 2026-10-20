@@ -7,6 +7,7 @@ use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\Baileys\BroadcastController;
 use App\Http\Controllers\Baileys\InboxController;
 use App\Http\Controllers\Baileys\SessionController;
+use App\Http\Controllers\BillingController;
 use App\Http\Controllers\BusinessDataController;
 use App\Http\Controllers\BusinessIntegrationController;
 use App\Http\Controllers\BusinessInviteController;
@@ -122,6 +123,11 @@ Route::middleware(['auth', 'business'])->group(function () {
     Route::get('business/integrations', [BusinessIntegrationController::class, 'edit'])->name('business.integrations.edit');
     Route::put('business/integrations/{type}', [BusinessIntegrationController::class, 'update'])->middleware('throttle:20,1')->name('business.integrations.update');
     Route::delete('business/integrations/{type}', [BusinessIntegrationController::class, 'destroy'])->name('business.integrations.destroy');
+    Route::get('billing', [BillingController::class, 'show'])->name('billing.show');
+    Route::post('billing/pay', [BillingController::class, 'pay'])->middleware('throttle:10,1')->name('billing.pay');
+    Route::post('billing/ai-topup', [BillingController::class, 'topUp'])->middleware('throttle:10,1')->name('billing.ai-topup');
+    Route::post('billing/shops', [BillingController::class, 'shops'])->name('billing.shops');
+    Route::post('billing/payments/{payment:uuid}/check', [BillingController::class, 'check'])->middleware('throttle:20,1')->name('billing.payments.check');
     Route::get('business/settings', [BusinessSettingsController::class, 'edit'])->name('business.settings.edit');
     Route::put('business/settings', [BusinessSettingsController::class, 'update'])->name('business.settings.update');
     Route::get('business/data', [BusinessDataController::class, 'index'])->name('business.data');
@@ -353,26 +359,28 @@ Route::middleware(['auth', 'business'])->group(function () {
     Route::get('expenses/report/summary', [ExpenseController::class, 'summary'])->name('expenses.summary');
     Route::get('expenses/report/by-category', [ExpenseController::class, 'byCategory'])->name('expenses.byCategory');
 
-    // Campaign Routes
-    Route::resource('campaigns', CampaignController::class);
-    Route::post('campaigns/{campaign}/start', [CampaignController::class, 'start'])->name('campaigns.start');
-    Route::post('campaigns/{campaign}/pause', [CampaignController::class, 'pause'])->name('campaigns.pause');
-    Route::post('campaigns/{campaign}/complete', [CampaignController::class, 'complete'])->name('campaigns.complete');
-    Route::get('campaigns/{campaign}/metrics', [CampaignController::class, 'metrics'])->name('campaigns.metrics');
-    Route::get('campaigns/{campaign}/roi', [CampaignController::class, 'roi'])->name('campaigns.roi');
-    Route::get('campaigns/active/list', [CampaignController::class, 'active'])->name('campaigns.active');
-    Route::get('campaigns/report/performance', [CampaignController::class, 'performance'])->name('campaigns.performance');
-    Route::get('campaigns/report/by-channel', [CampaignController::class, 'byChannel'])->name('campaigns.byChannel');
-    Route::post('campaigns/{campaign}/generate-content', [CampaignController::class, 'generateContent'])->name('campaigns.generateContent');
-    Route::post('campaigns/{campaign}/posts', [CampaignController::class, 'storePost'])->name('campaigns.posts.store');
-    Route::post('campaigns/{campaign}/posts/{post}/publish', [CampaignController::class, 'publishPost'])->name('campaigns.posts.publish');
+    // Campaign Routes, with social accounts: the Marketing feature of the plan (Phase 4)
+    Route::middleware('feature:marketing')->group(function () {
+        Route::resource('campaigns', CampaignController::class);
+        Route::post('campaigns/{campaign}/start', [CampaignController::class, 'start'])->name('campaigns.start');
+        Route::post('campaigns/{campaign}/pause', [CampaignController::class, 'pause'])->name('campaigns.pause');
+        Route::post('campaigns/{campaign}/complete', [CampaignController::class, 'complete'])->name('campaigns.complete');
+        Route::get('campaigns/{campaign}/metrics', [CampaignController::class, 'metrics'])->name('campaigns.metrics');
+        Route::get('campaigns/{campaign}/roi', [CampaignController::class, 'roi'])->name('campaigns.roi');
+        Route::get('campaigns/active/list', [CampaignController::class, 'active'])->name('campaigns.active');
+        Route::get('campaigns/report/performance', [CampaignController::class, 'performance'])->name('campaigns.performance');
+        Route::get('campaigns/report/by-channel', [CampaignController::class, 'byChannel'])->name('campaigns.byChannel');
+        Route::post('campaigns/{campaign}/generate-content', [CampaignController::class, 'generateContent'])->name('campaigns.generateContent');
+        Route::post('campaigns/{campaign}/posts', [CampaignController::class, 'storePost'])->name('campaigns.posts.store');
+        Route::post('campaigns/{campaign}/posts/{post}/publish', [CampaignController::class, 'publishPost'])->name('campaigns.posts.publish');
 
-    // Social Accounts (Facebook, Instagram, Meta Ads, Google Ads)
-    Route::resource('social-accounts', SocialAccountController::class);
+        // Social Accounts (Facebook, Instagram, Meta Ads, Google Ads)
+        Route::resource('social-accounts', SocialAccountController::class);
+    });
 
     // Baileys (unofficial WhatsApp via Chatway Gateway)
     // NOTE: kept entirely separate from the official WhatsApp Cloud API channel.
-    Route::prefix('baileys')->name('baileys.')->group(function () {
+    Route::prefix('baileys')->name('baileys.')->middleware('feature:whatsapp')->group(function () {
         Route::get('sessions', [SessionController::class, 'index'])->name('sessions.index');
         Route::get('sessions/create', [SessionController::class, 'create'])->name('sessions.create');
         Route::post('sessions', [SessionController::class, 'store'])->name('sessions.store');
