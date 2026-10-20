@@ -2,8 +2,10 @@
 
 use App\Models\Business;
 use App\Models\BusinessIntegration;
+use App\Models\Plan;
 use App\Models\Role;
 use App\Models\Shop;
+use App\Models\Subscription;
 use App\Models\User;
 use App\Support\Tenancy\TenantContext;
 use Database\Seeders\PermissionSeeder;
@@ -207,4 +209,22 @@ function useMessagingAccount(string $type, ?string $url, ?string $token, array $
 function configureWhatsApp(): void
 {
     useWhatsAppAccount('https://api.example.com', 'test-token');
+}
+
+/**
+ * Puts a business on a plan (Phase 4); no subscription means unmetered.
+ */
+function subscribe(Business $business, string $plan = 'tier-2', array $overrides = []): Subscription
+{
+    $plan = Plan::query()->where('key', $plan)->firstOrFail();
+
+    return app(TenantContext::class)->run($business, fn () => Subscription::create([
+        'business_id' => $business->id,
+        'plan_id' => $plan->id,
+        'shop_count' => 2,
+        'price_at_signup' => $plan->price_per_shop,
+        'status' => Subscription::ACTIVE,
+        'current_period_end' => now()->addMonth(),
+        ...$overrides,
+    ]));
 }

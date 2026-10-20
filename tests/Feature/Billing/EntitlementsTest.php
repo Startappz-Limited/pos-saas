@@ -18,26 +18,6 @@ use Illuminate\Support\Carbon;
 /**
  * Plans, the trial and the one entitlements check (Phase 4, decision 4.6).
  */
-function subscribe(Business $business, string $plan = 'tier-2', array $overrides = []): Subscription
-{
-    $plan = Plan::query()->where('key', $plan)->firstOrFail();
-
-    return app(TenantContext::class)->run($business, fn () => Subscription::create([
-        'business_id' => $business->id,
-        'plan_id' => $plan->id,
-        'shop_count' => 2,
-        'price_at_signup' => $plan->price_per_shop,
-        'status' => Subscription::ACTIVE,
-        'current_period_end' => now()->addMonth(),
-        ...$overrides,
-    ]));
-}
-
-function entitlementsFor(Business $business): Entitlements
-{
-    return app(TenantContext::class)->run($business, fn () => app(Entitlements::class));
-}
-
 it('seeds the three tiers at 1,500, 3,000 and 5,000 per shop', function () {
     expect(Plan::query()->orderBy('sort_order')->pluck('price_per_shop', 'key')->map(fn ($price) => (float) $price)->all())
         ->toBe(['tier-1' => 1500.0, 'tier-2' => 3000.0, 'tier-3' => 5000.0]);
@@ -89,8 +69,8 @@ it('judges standing from the dates: a trial that ended is lapsed from that momen
 
 it('is read-only while the business has more shops than it pays for', function () {
     $business = testBusiness();
+    app(TenantContext::class)->run($business, fn () => Shop::factory()->count(2)->create(['manager_id' => null]));
     subscribe($business, 'tier-3', ['shop_count' => 1]);
-    app(TenantContext::class)->run($business, fn () => Shop::factory()->count(2)->create());
 
     expect(app(Entitlements::class)->readOnlyReason())->toBe('shops_over_quota');
 });

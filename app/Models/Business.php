@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use App\Actions\Business\CopyRoleTemplates;
+use App\Services\Billing\Entitlements;
+use App\Support\Tenancy\TenantContext;
 use App\Support\Tenancy\TenantFiles;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -93,7 +95,10 @@ class Business extends Model
      */
     public function runsBackgroundWork(): bool
     {
-        return $this->isActive();
+        // Read-only businesses (a lapsed subscription, or more shops than the
+        // plan covers) do no background work either (Phase 4).
+        return $this->isActive()
+            && ! app(TenantContext::class)->run($this, fn (): bool => app(Entitlements::class)->isReadOnly());
     }
 
     public function shops(): HasMany

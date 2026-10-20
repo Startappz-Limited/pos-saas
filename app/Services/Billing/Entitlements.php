@@ -6,7 +6,6 @@ use App\Enums\Feature;
 use App\Enums\Limit;
 use App\Exceptions\PlanLimitExceeded;
 use App\Exceptions\SubscriptionInactive;
-use App\Models\Shop;
 use App\Models\Subscription;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Support\Carbon;
@@ -106,7 +105,7 @@ class Entitlements
         $subscription = $this->subscription();
 
         return $subscription !== null
-            && Shop::query()->withoutGlobalScopes()->where('business_id', $subscription->business_id)->count() > $subscription->shop_count;
+            && app(PlanLimits::class)->count(Limit::Shops, $subscription->business_id) > $subscription->shop_count;
     }
 
     /**

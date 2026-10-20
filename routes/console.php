@@ -46,3 +46,6 @@ Schedule::call(function (): void {
  * background work.
  */
 Schedule::command('businesses:erase-closed')->dailyAt('02:30')->name('erase-closed-businesses')->withoutOverlapping();
+
+// Subscription reminders, closure warnings and lapse closures (Phase 4).
+Schedule::command('billing:sweep')->dailyAt('03:00')->name('sweep-subscriptions')->withoutOverlapping();

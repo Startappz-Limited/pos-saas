@@ -51,7 +51,8 @@ return new class extends Migration
             $table->string('status', 20)->default('trialing')->comment('trialing, active or cancelled');
             $table->timestamp('trial_ends_at')->nullable();
             $table->timestamp('current_period_end')->nullable();
-            $table->timestamp('lapse_warned_at')->nullable();
+            $table->timestamp('renewal_reminded_at')->nullable()->comment('The reminder before this trial or period ends');
+            $table->timestamp('lapse_warned_at')->nullable()->comment('The warning before the closure starts');
             $table->timestamps();
         });
 

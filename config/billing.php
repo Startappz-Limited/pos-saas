@@ -44,6 +44,30 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Writes allowed while a business is read-only (decisions 4.6, 4.9)
+    |--------------------------------------------------------------------------
+    |
+    | Route-name or path patterns (Str::is). Signing in and out, switching
+    | business, exporting, paying, closing the business and deleting shops
+    | keep working; everything else that writes is refused with
+    | `subscription_inactive`.
+    |
+    */
+
+    'read_only_allowed' => [
+        'logout', 'api/logout', 'login',
+        'password.*', 'verification.*', 'profile.*',
+        'businesses.*',
+        'business.exports.*', 'business.closure.*', 'business.handover.*', 'business.data',
+        'shops.destroy', 'api.shops.destroy',
+        'billing.*',
+        'api.v1.auth.sign-out', 'api.v1.businesses.switch',
+        'api.v1.business.exports', 'api.v1.business.closure*',
+        'api.v1.billing.*',
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Collection (decision 4.6)
     |--------------------------------------------------------------------------
     |

@@ -28,7 +28,7 @@ class Subscription extends Model
 
     protected $fillable = [
         'business_id', 'plan_id', 'shop_count', 'price_at_signup', 'status',
-        'trial_ends_at', 'current_period_end', 'lapse_warned_at',
+        'trial_ends_at', 'current_period_end', 'renewal_reminded_at', 'lapse_warned_at',
     ];
 
     protected function casts(): array
@@ -37,6 +37,7 @@ class Subscription extends Model
             'price_at_signup' => 'decimal:2',
             'trial_ends_at' => 'datetime',
             'current_period_end' => 'datetime',
+            'renewal_reminded_at' => 'datetime',
             'lapse_warned_at' => 'datetime',
         ];
     }

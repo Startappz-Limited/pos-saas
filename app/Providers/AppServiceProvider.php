@@ -3,12 +3,15 @@
 namespace App\Providers;
 
 use App\Contracts\MpesaGateway;
+use App\Enums\Limit as PlanLimit;
 use App\Listeners\AuditAuthorizationChanges;
 use App\Models\BaileysSession;
+use App\Models\BusinessMembership;
 use App\Models\Campaign;
 use App\Models\Product;
 use App\Models\PurchaseReturn;
 use App\Models\Refund;
+use App\Models\Register;
 use App\Models\Role;
 use App\Models\Sale;
 use App\Models\SaleReturn;
@@ -27,6 +30,7 @@ use App\Policies\SalePolicy;
 use App\Policies\ShopPolicy;
 use App\Policies\SocialAccountPolicy;
 use App\Policies\StockAdjustmentPolicy;
+use App\Services\Billing\PlanLimits;
 use App\Services\Mpesa\NullMpesaGateway;
 use App\Support\Onboarding\OnboardingChecklist;
 use App\Support\Tenancy\TenantContext;
@@ -83,6 +87,7 @@ class AppServiceProvider extends ServiceProvider
 
         View::composer('partials.onboarding-checklist', fn ($view) => $view->with('steps', app(OnboardingChecklist::class)->steps()));
 
+        $this->registerPlanLimits();
         $this->registerRateLimiters();
         $this->enforceHttps();
         $this->definePasswordPolicy();
@@ -196,6 +201,37 @@ class AppServiceProvider extends ServiceProvider
         Context::hydrated(function (ContextRepository $context): void {
             if ($context->hasHidden(TenantContext::CONTEXT_KEY)) {
                 app(TenantContext::class)->set((int) $context->getHidden(TenantContext::CONTEXT_KEY));
+            }
+        });
+    }
+
+    /**
+     * A plan's limits hold wherever something is created (Phase 4): the same
+     * check for web, both APIs, imports and sync.
+     */
+    private function registerPlanLimits(): void
+    {
+        $limits = fn (): PlanLimits => app(PlanLimits::class);
+
+        // These listeners run before the model's own, which fills business_id
+        // from the current business, so fall back to it here.
+        $businessOf = fn ($model): int => (int) ($model->business_id ?: app(TenantContext::class)->id());
+
+        Shop::creating(function (Shop $shop) use ($limits, $businessOf): void {
+            if ($businessOf($shop) > 0) {
+                $limits()->assertCanAdd(PlanLimit::Shops, $businessOf($shop));
+            }
+        });
+        Register::creating(fn (Register $register) => $limits()->assertCanAddForShop(PlanLimit::Registers, (int) $register->shop_id));
+        BaileysSession::creating(fn (BaileysSession $session) => $limits()->assertCanAddForShop(PlanLimit::WhatsappSessions, (int) $session->shop_id));
+        Product::creating(function (Product $product) use ($limits, $businessOf): void {
+            if ($businessOf($product) > 0) {
+                $limits()->assertCanAdd(PlanLimit::Products, $businessOf($product));
+            }
+        });
+        BusinessMembership::creating(function (BusinessMembership $membership) use ($limits): void {
+            if ($membership->status === BusinessMembership::STATUS_ACTIVE) {
+                $limits()->assertCanAdd(PlanLimit::Staff, (int) $membership->business_id);
             }
         });
     }

@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\EnforceSubscription;
 use App\Http\Middleware\EnsureAccountActive;
 use App\Http\Middleware\EnsureActiveBusiness;
 use App\Http\Middleware\ResolveTenant;
@@ -41,6 +42,11 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->web(append: [EnsureAccountActive::class]);
         $middleware->api(append: [EnsureAccountActive::class]);
         $middleware->appendToPriorityList(AuthenticatesRequests::class, EnsureAccountActive::class);
+
+        // Read-only mode for a lapsed subscription or too many shops (Phase 4).
+        $middleware->web(append: [EnforceSubscription::class]);
+        $middleware->api(append: [EnforceSubscription::class]);
+        $middleware->appendToPriorityList(ResolveTenant::class, EnforceSubscription::class);
 
         // A form loaded for another business than the active one is refused
         // (stage 3, decision 4.9); after ResolveTenant, web only (API tokens
