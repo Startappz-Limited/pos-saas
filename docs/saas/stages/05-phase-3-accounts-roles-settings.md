@@ -78,38 +78,38 @@ integration credentials.
 - [x] `UserPolicy`: owner protection; only owners delete.
 - [x] Account status middleware (web and API).
 - [x] Deactivation instead of self-delete.
-- [ ] **Data export and business closure:** final export emailed to the owner; deletion when the closure
+- [x] **Data export and business closure:** final export emailed to the owner; deletion when the closure
       grace period ends; also triggered automatically after 30 business days of lapse (4.9). Deletion uses
       `forceDelete` on the 19 soft-deleting models and also covers the business's rows in the **SQLite
       audit database** and its files on the private disk.
-- [ ] **Ownership handover** to an existing co-owner, confirmed by a code emailed to the owner.
-- [ ] **One active business per session:** pages and forms carry the business they were loaded for; a
+- [x] **Ownership handover** to an existing co-owner, confirmed by a code emailed to the owner.
+- [x] **One active business per session:** pages and forms carry the business they were loaded for; a
       submission for a business that's no longer active is refused with a "reload the page" message.
-- [ ] **Shop deletion** as the only way a shop leaves a business.
+- [x] **Shop deletion** as the only way a shop leaves a business.
 
 ### Onboarding
-- [ ] The onboarding checklist: business, first shop, first register, products, first sale.
-- [ ] CSV product import.
+- [x] The onboarding checklist: business, first shop, first register, products, first sale.
+- [x] CSV product import.
 
 ### Settings
-- [ ] Business and shop name, logo, receipt header and footer, currency, timezone, invoice prefix, and the
+- [x] Business and shop name, logo, receipt header and footer, currency, timezone, invoice prefix, and the
       **shop's M-Pesa Till or Paybill number**. These replace `config('app.name')` and the hard-coded till
       in `NotifyCustomerOfEcommerceOrder`.
 
 ### Integrations
-- [ ] **Encrypted per-tenant credentials** for SMS and WhatsApp Cloud.
-- [ ] **Each shop's own M-Pesa account details**, encrypted (Open question 2), checked with a test query to
+- [x] **Encrypted per-tenant credentials** for SMS and WhatsApp Cloud.
+- [x] **Each shop's own M-Pesa account details**, encrypted (Open question 2), checked with a test query to
       the M-Pesa API when saved.
 
 ### Notifications
-- [ ] Notifications carry the business they belong to, and their links switch to it.
+- [x] Notifications carry the business they belong to, and their links switch to it.
 
 ## Schema
 
-- [ ] Settings on businesses and shops, including `shops.mpesa_shortcode` and
+- [x] Settings on businesses and shops, including `shops.mpesa_shortcode` and
       `shops.mpesa_shortcode_type` (till or paybill).
-- [ ] `business_integrations` (business, optional shop, type, encrypted credentials, status).
-- [ ] Invites, exports and closure tables.
+- [x] `business_integrations` (business, optional shop, type, encrypted credentials, status).
+- [x] Invites, exports and closure tables.
 - [ ] Foreign keys from business records to `users` set to `nullOnDelete`.
 
 ## Pending decisions (Proposed, review)
@@ -128,21 +128,21 @@ integration credentials.
 ## Acceptance criteria
 
 - [x] Signup creates a business and its owner; the trial starts only once the email is verified.
-- [ ] Closing a business leaves none of its rows in the main or audit database, and none of its files.
+- [x] Closing a business leaves none of its rows in the main or audit database, and none of its files.
 - [x] A user with one business signs in straight to it, on the web and `/api/v1`, with no picker.
 - [x] A user in two businesses with a default signs in straight to the default; without a usable default
       they see the picker. They can switch, and only ever see the active business.
-- [ ] Custom roles apply only in their business.
-- [ ] A removed member loses web and API access immediately.
-- [ ] Ownership passes to a co-owner only with the emailed code; a non-co-owner can't receive it.
-- [ ] A form loaded for business A and submitted after switching to B is refused and nothing is saved in
+- [x] Custom roles apply only in their business.
+- [x] A removed member loses web and API access immediately.
+- [x] Ownership passes to a co-owner only with the emailed code; a non-co-owner can't receive it.
+- [x] A form loaded for business A and submitted after switching to B is refused and nothing is saved in
       B.
-- [ ] Amounts, receipts and PDFs use the business's currency.
-- [ ] Receipts and PDFs show the tenant's branding and the shop's own Till or Paybill.
-- [ ] A shop's M-Pesa account details are stored encrypted and accepted only after a successful test
+- [x] Amounts, receipts and PDFs use the business's currency.
+- [x] Receipts and PDFs show the tenant's branding and the shop's own Till or Paybill.
+- [x] A shop's M-Pesa account details are stored encrypted and accepted only after a successful test
       query to the M-Pesa API (faked in tests).
-- [ ] SMS and WhatsApp send through the tenant's own credentials (faked in tests).
-- [ ] `/api/v1` endpoints exist for every flow above; the flat API contract tests still pass.
+- [x] SMS and WhatsApp send through the tenant's own credentials (faked in tests).
+- [x] `/api/v1` endpoints exist for every flow above; the flat API contract tests still pass.
 
 ## Risks
 
