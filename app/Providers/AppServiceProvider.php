@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Contracts\MpesaGateway;
+use App\Contracts\PaymentCollector;
 use App\Enums\Limit as PlanLimit;
 use App\Listeners\AuditAuthorizationChanges;
 use App\Models\BaileysSession;
@@ -30,6 +31,7 @@ use App\Policies\SalePolicy;
 use App\Policies\ShopPolicy;
 use App\Policies\SocialAccountPolicy;
 use App\Policies\StockAdjustmentPolicy;
+use App\Services\Billing\NullPaymentCollector;
 use App\Services\Billing\PlanLimits;
 use App\Services\Mpesa\NullMpesaGateway;
 use App\Support\Onboarding\OnboardingChecklist;
@@ -64,6 +66,10 @@ class AppServiceProvider extends ServiceProvider
     {
         // Until the private M-Pesa package is connected, nothing is accepted.
         $this->app->bind(MpesaGateway::class, NullMpesaGateway::class);
+
+        // Platform collection goes live with the private M-Pesa package (about
+        // 12 November 2026); until then nothing is collected automatically.
+        $this->app->bind(PaymentCollector::class, NullPaymentCollector::class);
 
         // The business the current request, job or command acts for; reset
         // between requests and queued jobs (stage 1a).

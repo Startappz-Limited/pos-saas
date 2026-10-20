@@ -10,6 +10,7 @@
 const ALLOWED_SCOPE_BYPASSES = [
     'app/Models/Concerns/BelongsToBusiness.php' => [1, 'a new record takes its business from its shop'],
     'app/Models/Concerns/ResolvesTenantFromRouteBinding.php' => [2, 'a route with no signed-in user (webhook, signed link) finds its record, then acts for its business'],
+    'app/Http/Controllers/PlatformPaymentWebhookController.php' => [1, 'a payment callback names a checkout request, not a business: the payment is found on our own reference, then settled by asking the M-Pesa API, acting for its business'],
     'app/Models/SalePayment.php' => [1, 'a new payment takes its business from its sale'],
     'app/Models/ProductVariation.php' => [3, 'a new variation takes its business from its product, adds its per-shop rows, and holds a stock figure in its product\'s shop'],
     'app/Models/BusinessInvite.php' => [1, 'an invite link is opened signed out or in another business: its token finds the invite'],

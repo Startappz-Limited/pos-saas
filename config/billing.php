@@ -60,7 +60,7 @@ return [
         'businesses.*',
         'business.exports.*', 'business.closure.*', 'business.handover.*', 'business.data',
         'shops.destroy', 'api.shops.destroy',
-        'billing.*',
+        'billing.*', 'webhooks.*',
         'api.v1.auth.sign-out', 'api.v1.businesses.switch',
         'api.v1.business.exports', 'api.v1.business.closure*',
         'api.v1.billing.*',

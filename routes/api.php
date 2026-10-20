@@ -20,7 +20,9 @@ use App\Http\Controllers\Api\ShopController;
 use App\Http\Controllers\Api\SupplierController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\V1\AuthController as V1AuthController;
+use App\Http\Controllers\Api\V1\BillingController as V1BillingController;
 use App\Http\Controllers\Api\V1\BusinessAdminController as V1BusinessAdminController;
+use App\Http\Controllers\PlatformPaymentWebhookController;
 use App\Http\Controllers\Api\V1\BusinessController as V1BusinessController;
 use App\Http\Controllers\WebhookController;
 use App\Http\Middleware\EnsureBusinessToken;
@@ -30,6 +32,8 @@ use Illuminate\Support\Facades\Route;
 Route::prefix('webhooks')->middleware('throttle:webhooks')->group(function () {
     Route::post('/woocommerce/{shop:uuid}', [WebhookController::class, 'woocommerce'])->name('webhooks.woocommerce');
     Route::post('/shopify/{shop:uuid}', [WebhookController::class, 'shopify'])->name('webhooks.shopify');
+    // A nudge to ask the M-Pesa API about a platform payment; never trusted (Phase 4).
+    Route::post('/platform-payments', PlatformPaymentWebhookController::class)->name('webhooks.platform-payments');
 
     // Baileys (unofficial WhatsApp) events arrive from Chatway Gateway at
     // POST /wa-gateway/webhook, a route the wa-gateway-laravel package
@@ -53,6 +57,13 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         Route::post('/auth/sign-out', [V1AuthController::class, 'signOut'])->name('auth.sign-out');
         Route::get('/businesses', [V1BusinessController::class, 'index'])->name('businesses.index');
         Route::post('/businesses/{business:uuid}/switch', [V1BusinessController::class, 'switch'])->name('businesses.switch');
+
+        // Billing (Phase 4): reachable while read-only, so a lapsed owner can pay.
+        Route::get('/billing', [V1BillingController::class, 'show'])->name('billing.show');
+        Route::post('/billing/pay', [V1BillingController::class, 'pay'])->middleware('throttle:writes')->name('billing.pay');
+        Route::post('/billing/ai-topup', [V1BillingController::class, 'topUp'])->middleware('throttle:writes')->name('billing.ai-topup');
+        Route::post('/billing/shops', [V1BillingController::class, 'shops'])->middleware('throttle:writes')->name('billing.shops');
+        Route::post('/billing/payments/{payment:uuid}/check', [V1BillingController::class, 'check'])->middleware('throttle:writes')->name('billing.payments.check');
 
         // Business administration (stage 3): the web screens' flows.
         Route::get('/business/settings', [V1BusinessAdminController::class, 'settings'])->name('business.settings');

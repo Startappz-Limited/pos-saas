@@ -15,6 +15,7 @@ use App\Models\DeliveryCompany;
 use App\Models\EcommerceOrder;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
+use App\Models\PlatformPayment;
 use App\Models\PricingRule;
 use App\Models\PurchaseOrder;
 use App\Models\SocialAccount;
@@ -231,4 +232,19 @@ it('refuses business B\'s shop, business and people on the stage 3 routes to bus
     $this->actingAs($a->owner)->post(route('business.handover.code'), ['owner' => $b->owner->uuid])->assertSessionHasErrors('owner');
 
     expect($b->shops[0]->fresh()->mpesa_shortcode)->toBeNull();
+});
+
+it('refuses business B\'s payment and billing page to business A\'s owner (Phase 4)', function () {
+    $a = $this->fixture->a;
+    $b = $this->fixture->b;
+
+    $payment = app(TenantContext::class)->run($b->business, fn () => PlatformPayment::create([
+        'purpose' => 'subscription', 'amount' => 1500, 'method' => 'mpesa', 'status' => 'pending', 'checkout_request_id' => 'ws_CO_B',
+    ]));
+    app(TenantContext::class)->forget();
+
+    $this->actingAs($a->owner)->post(route('billing.payments.check', $payment))->assertNotFound();
+    $this->actingAs($a->cashier)->get(route('billing.show'))->assertForbidden();
+
+    expect($payment->fresh()->status)->toBe('pending');
 });

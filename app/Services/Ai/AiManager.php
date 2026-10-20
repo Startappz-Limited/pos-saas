@@ -9,6 +9,9 @@ use App\Services\Ai\Drivers\GeminiDriver;
 use App\Services\Ai\Drivers\NullDriver;
 use App\Services\Ai\Drivers\OpenAiDriver;
 use App\Services\Ai\Drivers\QwenDriver;
+use App\Services\Billing\AiCredits;
+use App\Services\Billing\Entitlements;
+use App\Support\Tenancy\TenantContext;
 use Illuminate\Support\Facades\Log;
 use InvalidArgumentException;
 
@@ -28,10 +31,15 @@ class AiManager
      */
     protected array $resolved = [];
 
-    public function driver(?string $name = null): AiContentGenerator
+    public function driver(?string $name = null, ?Shop $shop = null): AiContentGenerator
     {
         $name ??= (string) config('ai.default', 'null');
 
+        return $this->metered($name, $this->resolve($name), $shop);
+    }
+
+    private function resolve(string $name): AiContentGenerator
+    {
         if (isset($this->resolved[$name])) {
             return $this->resolved[$name];
         }
@@ -44,12 +52,29 @@ class AiManager
         return $this->resolved[$name] = $this->build($name, $config);
     }
 
+    /**
+     * Real providers are metered against the business's prepaid credit (Phase
+     * 4). The null driver costs nothing, and a business with no subscription
+     * (the platform's own, or one not yet verified) is not billed.
+     */
+    private function metered(string $name, AiContentGenerator $driver, ?Shop $shop): AiContentGenerator
+    {
+        $tenant = app(TenantContext::class);
+        $entitlements = app(Entitlements::class);
+
+        if ($name === 'null' || $driver instanceof NullDriver || ! $tenant->has() || ! $entitlements->isMetered()) {
+            return $driver;
+        }
+
+        return new MeteredAiDriver($driver, app(AiCredits::class), $tenant, $entitlements, $shop?->getKey());
+    }
+
     public function forShop(?Shop $shop): AiContentGenerator
     {
         $preferred = $shop?->settings['ai']['provider'] ?? null;
 
         try {
-            return $this->driver($preferred ?: null);
+            return $this->driver($preferred ?: null, $shop);
         } catch (InvalidArgumentException $e) {
             // Falling back keeps campaign generation working, but log it: an
             // unrecognised provider would otherwise produce template output that

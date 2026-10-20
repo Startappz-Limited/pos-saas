@@ -3,6 +3,7 @@
 use App\Http\Middleware\EnforceSubscription;
 use App\Http\Middleware\EnsureAccountActive;
 use App\Http\Middleware\EnsureActiveBusiness;
+use App\Http\Middleware\RequireFeature;
 use App\Http\Middleware\ResolveTenant;
 use App\Http\Middleware\SecurityHeaders;
 use App\Http\Middleware\VerifyFormBusiness;
@@ -54,7 +55,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->web(append: [VerifyFormBusiness::class]);
 
         // Pages that work on a business need one (stage 3).
-        $middleware->alias(['business' => EnsureActiveBusiness::class]);
+        $middleware->alias(['business' => EnsureActiveBusiness::class, 'feature' => RequireFeature::class]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

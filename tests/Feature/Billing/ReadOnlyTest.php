@@ -150,3 +150,12 @@ it('warns before the grace period ends and starts the closure on the 31st busine
 
     Carbon::setTestNow();
 });
+
+it('keeps a route behind the plan\'s feature', function () {
+    subscribe($this->a->business, 'tier-1', ['shop_count' => 5]);
+    subscribe($this->b->business, 'tier-3', ['shop_count' => 5]);
+
+    $this->actingAs($this->a->owner)->getJson(route('campaigns.index'))->assertStatus(402)->assertJsonPath('code', 'feature_unavailable')->assertJsonPath('feature', 'marketing');
+    $this->actingAs($this->a->owner)->getJson(route('baileys.sessions.index'))->assertStatus(402)->assertJsonPath('feature', 'whatsapp');
+    $this->actingAs($this->b->owner)->get(route('campaigns.index'))->assertOk();
+});
