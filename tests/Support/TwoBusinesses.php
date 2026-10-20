@@ -31,7 +31,7 @@ final class TwoBusinesses
     public static function create(): self
     {
         // Shared templates, assigned per business (Spatie teams).
-        sharedRole('super-admin');
+        ownerRole();
         sharedRole('cashier');
 
         $a = self::business('Business A', 'Alpha');
@@ -58,7 +58,7 @@ final class TwoBusinesses
             ];
 
             $owner = User::factory()->memberOf($business)->create(['name' => "{$marker} Owner"]);
-            $owner->assignRole('super-admin');
+            $owner->assignRole('admin');
 
             $cashier = User::factory()->memberOf($business)->create(['name' => "{$marker} Cashier"]);
             $cashier->assignRole('cashier');

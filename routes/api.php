@@ -19,7 +19,11 @@ use App\Http\Controllers\Api\SaleSourceController;
 use App\Http\Controllers\Api\ShopController;
 use App\Http\Controllers\Api\SupplierController;
 use App\Http\Controllers\Api\UserController;
+use App\Http\Controllers\Api\V1\AuthController as V1AuthController;
+use App\Http\Controllers\Api\V1\BusinessAdminController as V1BusinessAdminController;
+use App\Http\Controllers\Api\V1\BusinessController as V1BusinessController;
 use App\Http\Controllers\WebhookController;
+use App\Http\Middleware\EnsureBusinessToken;
 use Illuminate\Support\Facades\Route;
 
 // Webhook routes (public — verified via HMAC signature, throttled per shop)
@@ -40,10 +44,42 @@ Route::middleware('throttle:auth')->group(function () {
     Route::post('/register', [AuthController::class, 'register'])->name('api.register');
 });
 
-// Protected routes
+// `/api/v1` (stage 3): tokens bound to one business. The flat API above and
+// below is unchanged for the shipped Flutter app.
+Route::prefix('v1')->name('api.v1.')->group(function () {
+    Route::post('/auth/sign-in', [V1AuthController::class, 'signIn'])->middleware('throttle:auth')->name('auth.sign-in');
+
+    Route::middleware(['auth:sanctum', EnsureBusinessToken::class])->group(function () {
+        Route::post('/auth/sign-out', [V1AuthController::class, 'signOut'])->name('auth.sign-out');
+        Route::get('/businesses', [V1BusinessController::class, 'index'])->name('businesses.index');
+        Route::post('/businesses/{business:uuid}/switch', [V1BusinessController::class, 'switch'])->name('businesses.switch');
+
+        // Business administration (stage 3): the web screens' flows.
+        Route::get('/business/settings', [V1BusinessAdminController::class, 'settings'])->name('business.settings');
+        Route::post('/business/settings', [V1BusinessAdminController::class, 'updateSettings'])->middleware('throttle:writes')->name('business.settings.update');
+        Route::get('/business/onboarding', [V1BusinessAdminController::class, 'onboarding'])->name('business.onboarding');
+        Route::get('/business/integrations', [V1BusinessAdminController::class, 'integrations'])->name('business.integrations');
+        Route::put('/business/integrations/{type}', [V1BusinessAdminController::class, 'saveIntegration'])->middleware('throttle:writes')->name('business.integrations.save');
+        Route::delete('/business/integrations/{type}', [V1BusinessAdminController::class, 'deleteIntegration'])->middleware('throttle:destructive')->name('business.integrations.delete');
+        Route::put('/shops/{shop:uuid}/mpesa', [V1BusinessAdminController::class, 'saveMpesa'])->middleware('throttle:writes')->name('shops.mpesa');
+        Route::post('/products/import', [V1BusinessAdminController::class, 'importProducts'])->middleware('throttle:writes')->name('products.import');
+        Route::post('/business/exports', [V1BusinessAdminController::class, 'requestExport'])->middleware('throttle:writes')->name('business.exports');
+        Route::post('/business/handover/code', [V1BusinessAdminController::class, 'handoverCode'])->middleware('throttle:writes')->name('business.handover.code');
+        Route::post('/business/handover', [V1BusinessAdminController::class, 'handover'])->middleware('throttle:writes')->name('business.handover');
+        Route::post('/business/closure/code', [V1BusinessAdminController::class, 'closureCode'])->middleware('throttle:writes')->name('business.closure.code');
+        Route::post('/business/closure', [V1BusinessAdminController::class, 'close'])->middleware('throttle:destructive')->name('business.closure');
+    });
+});
+
+// The profile and sign-out work with or without a usable business.
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user', [AuthController::class, 'user']);
     Route::post('/logout', [AuthController::class, 'logout']);
+});
+
+// Protected routes. They work on a business, so need one (stage 3): 403 when
+// the user has none they can use.
+Route::middleware(['auth:sanctum', 'business'])->group(function () {
 
     // Shops
     Route::apiResource('shops', ShopController::class)->names([

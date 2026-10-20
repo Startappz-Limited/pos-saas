@@ -166,7 +166,7 @@ class LiveLikeDatasetSeeder extends Seeder
 
     private function people(): void
     {
-        $this->owner = $this->user('owner@dataset.test', 'Owner Account', 'super-admin');
+        $this->owner = $this->user('owner@dataset.test', 'Owner Account', 'admin');
     }
 
     private function shops(): void

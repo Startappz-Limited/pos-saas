@@ -27,18 +27,29 @@ it('holds a role in the business it was given in only', function () {
     expect($inA)->toBeTrue()->and($inB)->toBeFalse();
 });
 
-it('makes an owner all-powerful in their own business only', function () {
+it('gives an owner every permission in their own business only (stage 3)', function () {
     $owner = $this->fixture->a->owner;
     $owner->joinBusiness($this->fixture->b->business);
     $this->actingAs($owner);
 
     $this->tenant->set($this->fixture->a->business);
-    $inA = Gate::allows('anything.at-all');
+    $inA = Gate::allows('products.delete');
 
     $this->tenant->set($this->fixture->b->business);
-    $inB = Gate::allows('anything.at-all');
+    $inB = Gate::allows('products.delete');
 
-    expect($inA)->toBeTrue()->and($inB)->toBeFalse();
+    // Only the platform operator passes every gate; an owner doesn't.
+    expect($inA)->toBeTrue()->and($inB)->toBeFalse()
+        ->and(Gate::forUser($owner)->allows('anything.at-all'))->toBeFalse();
+});
+
+it('lets only the platform operator pass every gate, in no business (stage 3)', function () {
+    $operator = User::factory()->create();
+    $operator->forceFill(['is_platform_operator' => true])->save();
+    $this->tenant->forget();
+
+    expect(Gate::forUser($operator)->allows('anything.at-all'))->toBeTrue()
+        ->and($operator->isBusinessOwner())->toBeFalse();
 });
 
 it('grants a permission in one business only', function () {
@@ -72,8 +83,8 @@ it('shows a business its own roles and the shared templates, not another busines
     $inB = $this->tenant->run($this->fixture->b->business, fn () => Role::pluck('name')->all());
 
     expect($ownRole->business_id)->toBe($this->fixture->a->business->id)
-        ->and($inA)->toContain('Stock Taker', 'super-admin', 'cashier')
-        ->and($inB)->toContain('super-admin', 'cashier')
+        ->and($inA)->toContain('Stock Taker', 'admin', 'cashier')
+        ->and($inB)->toContain('admin', 'cashier')
         ->and($inB)->not->toContain('Stock Taker');
 });
 

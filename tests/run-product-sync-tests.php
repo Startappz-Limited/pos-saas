@@ -7,14 +7,16 @@
  * Run with: php tests/run-product-sync-tests.php
  */
 
-require __DIR__ . '/../vendor/autoload.php';
+require __DIR__.'/../vendor/autoload.php';
 
-$app = require_once __DIR__ . '/../bootstrap/app.php';
-$app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+$app = require_once __DIR__.'/../bootstrap/app.php';
+$app->make(Kernel::class)->bootstrap();
 
+use App\Models\Category;
 use App\Models\Product;
 use App\Models\ProductEcommerceSync;
 use App\Models\Shop;
+use Illuminate\Contracts\Console\Kernel;
 
 echo "\n=== Product E-commerce Sync Test Script ===\n\n";
 
@@ -28,7 +30,7 @@ $sku3 = Product::generateSku('SH');
 echo "Generated SKU (default): {$sku1}\n";
 echo "Generated SKU (WC): {$sku2}\n";
 echo "Generated SKU (SH): {$sku3}\n";
-echo 'SKUs are unique: ' . (($sku1 !== $sku2 && $sku2 !== $sku3) ? 'PASS' : 'FAIL') . "\n\n";
+echo 'SKUs are unique: '.(($sku1 !== $sku2 && $sku2 !== $sku3) ? 'PASS' : 'FAIL')."\n\n";
 
 // Test 2: Product Relationships
 echo "Test 2: Product Sync Relationships\n";
@@ -40,7 +42,7 @@ if ($products->isNotEmpty()) {
     echo "Sync records: {$product->ecommerceSyncs->count()}\n";
 
     $syncedPlatforms = $product->getSyncedPlatforms();
-    echo 'Synced platforms: ' . implode(', ', $syncedPlatforms ?: ['none']) . "\n";
+    echo 'Synced platforms: '.implode(', ', $syncedPlatforms ?: ['none'])."\n";
 } else {
     echo "No products found - create products first\n";
 }
@@ -53,7 +55,7 @@ $shops = Shop::with('ecommerceSyncs')->first();
 if ($shops) {
     echo "Shop: {$shops->name}\n";
     echo "Product syncs: {$shops->ecommerceSyncs->count()}\n";
-    echo 'Enabled integrations: ' . implode(', ', $shops->getEnabledIntegrations() ?: ['none']) . "\n";
+    echo 'Enabled integrations: '.implode(', ', $shops->getEnabledIntegrations() ?: ['none'])."\n";
 } else {
     echo "No shops found\n";
 }
@@ -67,10 +69,10 @@ if ($sync) {
     echo "Sync ID: {$sync->id}\n";
     echo "Platform: {$sync->platform}\n";
     echo "Status: {$sync->sync_status}\n";
-    echo 'Is Pending: ' . ($sync->isPending() ? 'YES' : 'NO') . "\n";
-    echo 'Is Synced: ' . ($sync->isSynced() ? 'YES' : 'NO') . "\n";
-    echo 'Has Error: ' . ($sync->hasError() ? 'YES' : 'NO') . "\n";
-    echo 'Auto-sync: ' . ($sync->auto_sync ? 'YES' : 'NO') . "\n";
+    echo 'Is Pending: '.($sync->isPending() ? 'YES' : 'NO')."\n";
+    echo 'Is Synced: '.($sync->isSynced() ? 'YES' : 'NO')."\n";
+    echo 'Has Error: '.($sync->hasError() ? 'YES' : 'NO')."\n";
+    echo 'Auto-sync: '.($sync->auto_sync ? 'YES' : 'NO')."\n";
 } else {
     echo "No sync records found - sync products first\n";
 }
@@ -109,7 +111,7 @@ if ($product) {
             $isSynced = $product->isSyncedWith($shop->id, $platform);
             $sync = $product->getSyncRecord($shop->id, $platform);
 
-            echo "  {$platform}: " . ($isSynced ? 'SYNCED' : 'NOT SYNCED');
+            echo "  {$platform}: ".($isSynced ? 'SYNCED' : 'NOT SYNCED');
             if ($sync) {
                 echo " (Status: {$sync->sync_status})";
             }
@@ -125,15 +127,15 @@ echo "\n";
 echo "Test 7: Create Product with Auto-generated SKU\n";
 echo "-----------------------------------------------\n";
 try {
-    if (! \App\Models\Category::exists()) {
+    if (! Category::exists()) {
         echo "No categories found - skipping product creation\n";
     } else {
         $testProduct = Product::create([
-            'name' => 'Test Sync Product ' . now()->timestamp,
-            'slug' => 'test-sync-product-' . now()->timestamp,
+            'name' => 'Test Sync Product '.now()->timestamp,
+            'slug' => 'test-sync-product-'.now()->timestamp,
             'description' => 'Test product for e-commerce sync',
             'sku' => Product::generateSku('TEST'),
-            'category_id' => \App\Models\Category::first()->id,
+            'category_id' => Category::first()->id,
             'cost_price' => 10.00,
             'selling_price' => 15.99,
             'stock_quantity' => 100,
@@ -148,7 +150,7 @@ try {
         $testProduct->delete();
         echo "Test product cleaned up\n";
     }
-} catch (\Exception $e) {
+} catch (Exception $e) {
     echo "ERROR: {$e->getMessage()}\n";
 }
 echo "\n";

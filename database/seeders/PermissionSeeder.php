@@ -9,15 +9,14 @@ use Spatie\Permission\PermissionRegistrar;
 class PermissionSeeder extends Seeder
 {
     /**
-     * Run the database seeds.
+     * Every system permission, grouped by module. Tests insert these in one
+     * query (tests/Pest.php, seedPermissions()) rather than one at a time.
+     *
+     * @return list<string>
      */
-    public function run(): void
+    public static function names(): array
     {
-        // Reset cached roles and permissions
-        app()[PermissionRegistrar::class]->forgetCachedPermissions();
-
-        // Define all system permissions grouped by module
-        $permissions = [
+        return [
             // Users Management
             'users.view',
             'users.create',
@@ -285,15 +284,37 @@ class PermissionSeeder extends Seeder
             'settings.restore',
             'settings.full-access',
         ];
+    }
 
-        // Create permissions
-        foreach ($permissions as $permission) {
-            Permission::firstOrCreate(
-                ['name' => $permission],
-                ['guard_name' => 'web']
-            );
-        }
+    /**
+     * Run the database seeds.
+     */
+    public function run(): void
+    {
+        // Reset cached roles and permissions
+        app()[PermissionRegistrar::class]->forgetCachedPermissions();
 
-        $this->command->info('✅ Created '.count($permissions).' permissions successfully!');
+        $created = self::insertMissing();
+
+        $this->command?->info("✅ {$created} new permission(s); ".count(self::names()).' in all.');
+    }
+
+    /**
+     * Adds every permission that doesn't exist yet, in one query, and returns
+     * how many were added. Existing permissions are left as they are (their
+     * created_at too, which RoleSeeder uses to tell a newly added permission).
+     */
+    public static function insertMissing(): int
+    {
+        $before = Permission::query()->count();
+        $now = now();
+
+        Permission::query()->insertOrIgnore(array_map(
+            fn (string $name): array => ['name' => $name, 'guard_name' => 'web', 'created_at' => $now, 'updated_at' => $now],
+            self::names(),
+        ));
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+
+        return Permission::query()->count() - $before;
     }
 }

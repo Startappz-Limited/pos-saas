@@ -62,7 +62,7 @@ it('schedules a campaign post and dispatches a delayed publish job', function ()
     expect($post->status)->toBe(PostStatus::SCHEDULED)
         ->and($post->scheduled_at?->equalTo($when))->toBeTrue();
 
-    Queue::assertPushed(PublishCampaignPostJob::class, fn(PublishCampaignPostJob $job) => $job->campaignPostId === $post->id);
+    Queue::assertPushed(PublishCampaignPostJob::class, fn (PublishCampaignPostJob $job) => $job->campaignPostId === $post->id);
 });
 
 it('publishes a campaign post using the simulated facebook driver', function () {

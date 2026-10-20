@@ -9,9 +9,10 @@ use Illuminate\Database\Eloquent\Scope;
 
 /**
  * For tables holding both shared rows (business_id NULL) and rows of one
- * business, such as roles: the shared role templates every business assigns,
- * plus each business's own roles. Shows the shared rows and the current
- * business's; with no business set, only the shared ones.
+ * business, such as roles: the shared role templates, plus each business's own
+ * roles. Shows the current business's rows, and the shared rows it has no own
+ * row of the same name for (a business's copy of a template replaces it, stage
+ * 3); with no business set, only the shared ones.
  */
 class BusinessOrSharedScope implements Scope
 {
@@ -24,8 +25,15 @@ class BusinessOrSharedScope implements Scope
         }
 
         $column = $model->qualifyColumn('business_id');
+        $table = $model->getTable();
 
-        $builder->where(fn (Builder $query) => $query->whereNull($column)
+        $builder->where(fn (Builder $query) => $query
+            ->where(fn (Builder $shared) => $shared->whereNull($column)
+                ->when($tenant->has(), fn (Builder $shared) => $shared->whereNotExists(fn ($own) => $own->selectRaw('1')
+                    ->from("{$table} as own_rows")
+                    ->whereColumn('own_rows.name', $model->qualifyColumn('name'))
+                    ->whereColumn('own_rows.guard_name', $model->qualifyColumn('guard_name'))
+                    ->where('own_rows.business_id', $tenant->id()))))
             ->when($tenant->has(), fn (Builder $query) => $query->orWhere($column, $tenant->id())));
     }
 }

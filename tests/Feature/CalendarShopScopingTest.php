@@ -4,7 +4,6 @@ use App\Enums\AlertCategory;
 use App\Enums\AlertSeverity;
 use App\Enums\AlertType;
 use App\Models\Alert;
-use App\Models\Role;
 use App\Models\Shop;
 use App\Models\User;
 use Laravel\Sanctum\Sanctum;
@@ -73,7 +72,7 @@ it('shows a user of several shops all of those shops and no others', function ()
 it('still shows everything to the business owner', function () {
     // Default-deny (stage 1a): the owner, not an unassigned member, sees every shop.
     $admin = User::factory()->create();
-    $admin->assignRole(Role::findOrCreate('super-admin', 'web'));
+    $admin->assignRole(ownerRole());
 
     $response = $this->actingAs($admin)->getJson(route('calendar.events'))->assertOk();
 

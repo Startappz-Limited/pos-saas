@@ -151,6 +151,7 @@ class LegacyImport
                 }
 
                 $this->memberships();
+                $this->roleLayout();
                 $this->defaultVariationsAndStock();
             });
         } finally {
@@ -318,12 +319,16 @@ class LegacyImport
                 $this->target->table('business_user')->insert($users->map(fn (object $user): array => [
                     'business_id' => $this->businessId,
                     'user_id' => $user->id,
-                    'status' => $user->status === 'active' ? 'active' : 'inactive',
+                    // Status is per business (stage 3): the legacy account status
+                    // was set by this business, so it becomes the membership's.
+                    'status' => in_array($user->status, ['active', 'suspended'], true) ? $user->status : 'inactive',
                     'joined_at' => $user->created_at,
                     'created_at' => now(),
                     'updated_at' => now(),
                 ])->all());
             });
+
+        $this->target->table('users')->where('status', '!=', 'active')->update(['status' => 'active']);
     }
 
     /**
@@ -331,6 +336,43 @@ class LegacyImport
      * in each of the product's shops. A product's stock (and its variations')
      * goes to the product's own shop; its other shops start at zero.
      */
+    /**
+     * Roles per decision 4.4 (stage 3), as migration 2026_10_16_000001 lays
+     * them out for an existing database: the legacy `super-admin` role, which
+     * the owners held, becomes the shared owner role `admin`, and the business
+     * gets its own copy of each other role, with its members' assignments.
+     */
+    private function roleLayout(): void
+    {
+        $roles = $this->target->table('roles');
+        $superAdmin = (clone $roles)->whereNull('business_id')->where('name', 'super-admin')->first();
+        $admin = (clone $roles)->whereNull('business_id')->where('name', 'admin')->first();
+
+        if ($superAdmin !== null && $admin === null) {
+            $this->target->table('roles')->where('id', $superAdmin->id)->update(['name' => 'admin', 'updated_at' => now()]);
+        } elseif ($superAdmin !== null) {
+            $this->target->table('model_has_roles')->where('role_id', $superAdmin->id)->update(['role_id' => $admin->id]);
+        }
+
+        foreach ($this->target->table('roles')->whereNull('business_id')->where('name', '!=', 'admin')->get() as $template) {
+            $copyId = $this->target->table('roles')->insertGetId([
+                'business_id' => $this->businessId,
+                'uuid' => (string) Str::uuid(),
+                'name' => $template->name,
+                'guard_name' => $template->guard_name,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            $this->target->table('role_has_permissions')->insert(
+                $this->target->table('role_has_permissions')->where('role_id', $template->id)->pluck('permission_id')
+                    ->map(fn ($permissionId): array => ['permission_id' => $permissionId, 'role_id' => $copyId])->all()
+            );
+            $this->target->table('model_has_roles')->where('role_id', $template->id)->where('business_id', $this->businessId)
+                ->update(['role_id' => $copyId]);
+        }
+    }
+
     private function defaultVariationsAndStock(): void
     {
         $oldestShop = $this->target->table('shops')->orderBy('id')->value('id');

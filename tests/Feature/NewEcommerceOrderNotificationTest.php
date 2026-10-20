@@ -56,10 +56,8 @@ it('sends notification via mail channel', function () {
 });
 
 it('includes sms channel when SMS is configured and WhatsApp is not', function () {
-    putenv('SMS_API_URL=https://sms.example.com/api');
-    putenv('SMS_API_TOKEN=test-token');
-    config(['services.whatsapp.api_url' => null]);
-    config(['services.whatsapp.api_token' => null]);
+    useSmsAccount('https://sms.example.com/api', 'test-token');
+    useWhatsAppAccount(null, null);
 
     $notification = new NewEcommerceOrderNotification($this->order);
     $channels = $notification->via($this->manager);
@@ -68,15 +66,12 @@ it('includes sms channel when SMS is configured and WhatsApp is not', function (
         ->and($channels)->toContain(SmsChannel::class)
         ->and($channels)->not->toContain(WhatsAppChannel::class);
 
-    putenv('SMS_API_URL');
-    putenv('SMS_API_TOKEN');
+    useSmsAccount(null, null);
 });
 
 it('excludes sms channel when WhatsApp is configured', function () {
-    putenv('SMS_API_URL=https://sms.example.com/api');
-    putenv('SMS_API_TOKEN=test-token');
-    config(['services.whatsapp.api_url' => 'https://wa.example.com/api']);
-    config(['services.whatsapp.api_token' => 'test-token']);
+    useSmsAccount('https://sms.example.com/api', 'test-token');
+    useWhatsAppAccount('https://wa.example.com/api', 'test-token');
 
     $notification = new NewEcommerceOrderNotification($this->order);
     $channels = $notification->via($this->manager);
@@ -84,13 +79,11 @@ it('excludes sms channel when WhatsApp is configured', function () {
     expect($channels)->toContain(WhatsAppChannel::class)
         ->and($channels)->not->toContain(SmsChannel::class);
 
-    putenv('SMS_API_URL');
-    putenv('SMS_API_TOKEN');
+    useSmsAccount(null, null);
 });
 
 it('excludes sms channel when SMS env vars are not configured', function () {
-    putenv('SMS_API_URL');
-    putenv('SMS_API_TOKEN');
+    useSmsAccount(null, null);
 
     $notification = new NewEcommerceOrderNotification($this->order);
     $channels = $notification->via($this->manager);
@@ -100,8 +93,7 @@ it('excludes sms channel when SMS env vars are not configured', function () {
 });
 
 it('includes whatsapp channel when configured', function () {
-    config(['services.whatsapp.api_url' => 'https://wa.example.com/api']);
-    config(['services.whatsapp.api_token' => 'test-token']);
+    useWhatsAppAccount('https://wa.example.com/api', 'test-token');
 
     $notification = new NewEcommerceOrderNotification($this->order);
     $channels = $notification->via($this->manager);
@@ -110,8 +102,7 @@ it('includes whatsapp channel when configured', function () {
 });
 
 it('excludes whatsapp channel when not configured', function () {
-    config(['services.whatsapp.api_url' => null]);
-    config(['services.whatsapp.api_token' => null]);
+    useWhatsAppAccount(null, null);
 
     $notification = new NewEcommerceOrderNotification($this->order);
     $channels = $notification->via($this->manager);
@@ -277,8 +268,7 @@ it('routes whatsapp in fallback when shop has phone', function () {
 });
 
 it('sends whatsapp with correct meta cloud api template format', function () {
-    config(['services.whatsapp.api_url' => 'https://graph.facebook.com/v22.0/123/messages']);
-    config(['services.whatsapp.api_token' => 'test-token']);
+    useWhatsAppAccount('https://graph.facebook.com/v22.0/123/messages', 'test-token');
 
     Http::fake([
         'graph.facebook.com/*' => Http::response(['messages' => [['id' => 'wamid.123']]], 200),
@@ -303,11 +293,8 @@ it('sends whatsapp with correct meta cloud api template format', function () {
 });
 
 it('falls back to SMS when WhatsApp fails', function () {
-    config(['services.whatsapp.api_url' => 'https://graph.facebook.com/v22.0/123/messages']);
-    config(['services.whatsapp.api_token' => 'test-token']);
-    putenv('SMS_API_URL=https://sms.example.com/api');
-    putenv('SMS_API_TOKEN=test-token');
-    putenv('SMS_SENDER_ID=TEST');
+    useWhatsAppAccount('https://graph.facebook.com/v22.0/123/messages', 'test-token');
+    useSmsAccount('https://sms.example.com/api', 'test-token');
 
     Http::fake([
         'graph.facebook.com/*' => Http::response(['error' => ['message' => 'template not found']], 404),
@@ -330,16 +317,12 @@ it('falls back to SMS when WhatsApp fails', function () {
 
     expect($fallbackLog)->not->toBeNull();
 
-    putenv('SMS_API_URL');
-    putenv('SMS_API_TOKEN');
-    putenv('SMS_SENDER_ID');
+    useSmsAccount(null, null);
 });
 
 it('does not send SMS when WhatsApp succeeds', function () {
-    config(['services.whatsapp.api_url' => 'https://graph.facebook.com/v22.0/123/messages']);
-    config(['services.whatsapp.api_token' => 'test-token']);
-    putenv('SMS_API_URL=https://sms.example.com/api');
-    putenv('SMS_API_TOKEN=test-token');
+    useWhatsAppAccount('https://graph.facebook.com/v22.0/123/messages', 'test-token');
+    useSmsAccount('https://sms.example.com/api', 'test-token');
 
     Http::fake([
         'graph.facebook.com/*' => Http::response(['messages' => [['id' => 'wamid.123']]], 200),
@@ -362,8 +345,7 @@ it('does not send SMS when WhatsApp succeeds', function () {
 
     Http::assertSentCount(1);
 
-    putenv('SMS_API_URL');
-    putenv('SMS_API_TOKEN');
+    useSmsAccount(null, null);
 });
 
 it('logs warning when no manager and no shop contact info', function () {

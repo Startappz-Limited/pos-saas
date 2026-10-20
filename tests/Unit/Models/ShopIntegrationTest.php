@@ -1,8 +1,9 @@
 <?php
 
 use App\Models\Shop;
+use Tests\TestCase;
 
-uses(Tests\TestCase::class);
+uses(TestCase::class);
 
 test('get integration config returns correct configuration', function () {
     $shop = new Shop;

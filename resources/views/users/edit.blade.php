@@ -83,7 +83,7 @@
                         </div>
 
                         <div class="col-lg-6">
-                            <x-ui-form-select name="status" label="Status" :value="old('status', $user->status?->value ?? 'active')" placeholder="Select status"
+                            <x-ui-form-select name="status" label="Status" :value="old('status', $user->businessStatus()?->value ?? 'active')" placeholder="Select status"
                                 required>
                                 <option value="active">Active</option>
                                 <option value="inactive">Inactive</option>
@@ -119,10 +119,10 @@
                     <x-ui-button variant="secondary" href="{{ route('users.index') }}">
                         Cancel
                     </x-ui-button>
-                    @can('users.destroy')
+                    @can('delete', $user)
                         <x-ui-button variant="danger" data-bs-toggle="modal" data-bs-target="#deleteUserModal"
                             class="float-end">
-                            Delete User
+                            {{ __('Remove from business') }}
                         </x-ui-button>
                     @endcan
                 </div>
@@ -130,12 +130,12 @@
         </div>
     </div>
 
-    @can('users.destroy')
+    @can('delete', $user)
         @push('modals')
             <!-- Delete Confirmation Modal -->
-            <x-ui-modal id="deleteUserModal" title="Confirm Delete" centered>
+            <x-ui-modal id="deleteUserModal" title="{{ __('Remove from the business') }}" centered>
                 <x-slot:body>
-                    <p class="mb-0">Are you sure you want to delete this user? This action cannot be undone.</p>
+                    <p class="mb-0">{{ __('Remove :name from this business? They lose access here at once; their account and their other businesses are not affected. Inviting them again restores them.', ['name' => $user->name]) }}</p>
                 </x-slot:body>
 
                 <x-slot:footer>
@@ -144,7 +144,7 @@
                         @csrf
                         @method('DELETE')
                         <x-ui-button variant="danger" type="submit">
-                            Delete User
+                            {{ __('Remove from business') }}
                         </x-ui-button>
                     </form>
                 </x-slot:footer>

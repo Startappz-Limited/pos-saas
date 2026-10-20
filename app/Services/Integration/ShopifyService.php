@@ -59,7 +59,7 @@ class ShopifyService
 
             return [
                 'connected' => false,
-                'message' => 'Failed to connect: ' . $response->status(),
+                'message' => 'Failed to connect: '.$response->status(),
                 'details' => ['status_code' => $response->status()],
             ];
         } catch (\Exception $e) {
@@ -70,7 +70,7 @@ class ShopifyService
 
             return [
                 'connected' => false,
-                'message' => 'Connection error: ' . $e->getMessage(),
+                'message' => 'Connection error: '.$e->getMessage(),
                 'details' => [],
             ];
         }

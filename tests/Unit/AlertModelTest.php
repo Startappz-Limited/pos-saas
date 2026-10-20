@@ -4,8 +4,12 @@ use App\Enums\AlertCategory;
 use App\Enums\AlertSeverity;
 use App\Enums\AlertType;
 use App\Models\Alert;
+use App\Models\EcommerceOrder;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
+use Illuminate\Support\Carbon;
+use Tests\TestCase;
 
-uses(Tests\TestCase::class);
+uses(TestCase::class);
 
 // --- Model Configuration Tests ---
 
@@ -73,7 +77,7 @@ test('alert casts scheduled_at to datetime', function () {
     $alert = new Alert;
     $alert->scheduled_at = '2025-01-15 10:00:00';
 
-    expect($alert->scheduled_at)->toBeInstanceOf(\Illuminate\Support\Carbon::class);
+    expect($alert->scheduled_at)->toBeInstanceOf(Carbon::class);
 });
 
 // --- Helper Method Tests ---
@@ -185,22 +189,22 @@ test('AlertCategory ORDERS contains order-related types', function () {
 // --- EcommerceOrder Relationship Tests ---
 
 test('ecommerce order has orderNotes relationship', function () {
-    $order = new \App\Models\EcommerceOrder;
+    $order = new EcommerceOrder;
 
     expect(method_exists($order, 'orderNotes'))->toBeTrue()
-        ->and($order->orderNotes())->toBeInstanceOf(\Illuminate\Database\Eloquent\Relations\MorphMany::class);
+        ->and($order->orderNotes())->toBeInstanceOf(MorphMany::class);
 });
 
 test('ecommerce order has reminders relationship', function () {
-    $order = new \App\Models\EcommerceOrder;
+    $order = new EcommerceOrder;
 
     expect(method_exists($order, 'reminders'))->toBeTrue()
-        ->and($order->reminders())->toBeInstanceOf(\Illuminate\Database\Eloquent\Relations\MorphMany::class);
+        ->and($order->reminders())->toBeInstanceOf(MorphMany::class);
 });
 
 test('ecommerce order has alerts relationship', function () {
-    $order = new \App\Models\EcommerceOrder;
+    $order = new EcommerceOrder;
 
     expect(method_exists($order, 'alerts'))->toBeTrue()
-        ->and($order->alerts())->toBeInstanceOf(\Illuminate\Database\Eloquent\Relations\MorphMany::class);
+        ->and($order->alerts())->toBeInstanceOf(MorphMany::class);
 });

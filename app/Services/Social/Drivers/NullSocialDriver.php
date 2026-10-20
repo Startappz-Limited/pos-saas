@@ -17,7 +17,7 @@ class NullSocialDriver implements SocialPoster
     {
         return [
             'success' => true,
-            'external_post_id' => 'null_' . uniqid(),
+            'external_post_id' => 'null_'.uniqid(),
             'external_post_url' => null,
             'message' => 'No-op driver: post recorded locally only.',
             'raw' => ['noop' => true],

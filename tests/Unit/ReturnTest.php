@@ -6,8 +6,13 @@ use App\Enums\ReturnStatus;
 use App\Models\Refund;
 use App\Models\ReturnItem;
 use App\Models\SaleReturn;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Carbon;
+use Tests\TestCase;
 
-uses(Tests\TestCase::class);
+uses(TestCase::class);
 
 // --- SaleReturn Model Configuration Tests ---
 
@@ -56,9 +61,9 @@ test('sale return casts dates to datetime', function () {
     $return->received_at = '2026-01-16 10:00:00';
     $return->inspected_at = '2026-01-17 10:00:00';
 
-    expect($return->approved_at)->toBeInstanceOf(\Illuminate\Support\Carbon::class)
-        ->and($return->received_at)->toBeInstanceOf(\Illuminate\Support\Carbon::class)
-        ->and($return->inspected_at)->toBeInstanceOf(\Illuminate\Support\Carbon::class);
+    expect($return->approved_at)->toBeInstanceOf(Carbon::class)
+        ->and($return->received_at)->toBeInstanceOf(Carbon::class)
+        ->and($return->inspected_at)->toBeInstanceOf(Carbon::class);
 });
 
 test('sale return has expected fillable fields', function () {
@@ -207,56 +212,56 @@ test('sale return has sale relationship', function () {
     $return = new SaleReturn;
 
     expect(method_exists($return, 'sale'))->toBeTrue()
-        ->and($return->sale())->toBeInstanceOf(\Illuminate\Database\Eloquent\Relations\BelongsTo::class);
+        ->and($return->sale())->toBeInstanceOf(BelongsTo::class);
 });
 
 test('sale return has customer relationship', function () {
     $return = new SaleReturn;
 
     expect(method_exists($return, 'customer'))->toBeTrue()
-        ->and($return->customer())->toBeInstanceOf(\Illuminate\Database\Eloquent\Relations\BelongsTo::class);
+        ->and($return->customer())->toBeInstanceOf(BelongsTo::class);
 });
 
 test('sale return has shop relationship', function () {
     $return = new SaleReturn;
 
     expect(method_exists($return, 'shop'))->toBeTrue()
-        ->and($return->shop())->toBeInstanceOf(\Illuminate\Database\Eloquent\Relations\BelongsTo::class);
+        ->and($return->shop())->toBeInstanceOf(BelongsTo::class);
 });
 
 test('sale return has items relationship', function () {
     $return = new SaleReturn;
 
     expect(method_exists($return, 'items'))->toBeTrue()
-        ->and($return->items())->toBeInstanceOf(\Illuminate\Database\Eloquent\Relations\HasMany::class);
+        ->and($return->items())->toBeInstanceOf(HasMany::class);
 });
 
 test('sale return has refund relationship', function () {
     $return = new SaleReturn;
 
     expect(method_exists($return, 'refund'))->toBeTrue()
-        ->and($return->refund())->toBeInstanceOf(\Illuminate\Database\Eloquent\Relations\HasOne::class);
+        ->and($return->refund())->toBeInstanceOf(HasOne::class);
 });
 
 test('sale return has requestedBy relationship', function () {
     $return = new SaleReturn;
 
     expect(method_exists($return, 'requestedBy'))->toBeTrue()
-        ->and($return->requestedBy())->toBeInstanceOf(\Illuminate\Database\Eloquent\Relations\BelongsTo::class);
+        ->and($return->requestedBy())->toBeInstanceOf(BelongsTo::class);
 });
 
 test('sale return has approvedBy relationship', function () {
     $return = new SaleReturn;
 
     expect(method_exists($return, 'approvedBy'))->toBeTrue()
-        ->and($return->approvedBy())->toBeInstanceOf(\Illuminate\Database\Eloquent\Relations\BelongsTo::class);
+        ->and($return->approvedBy())->toBeInstanceOf(BelongsTo::class);
 });
 
 test('sale return has inspectedBy relationship', function () {
     $return = new SaleReturn;
 
     expect(method_exists($return, 'inspectedBy'))->toBeTrue()
-        ->and($return->inspectedBy())->toBeInstanceOf(\Illuminate\Database\Eloquent\Relations\BelongsTo::class);
+        ->and($return->inspectedBy())->toBeInstanceOf(BelongsTo::class);
 });
 
 // --- ReturnStatus Enum Tests ---
@@ -395,7 +400,7 @@ test('refund casts processed_at to datetime', function () {
     $refund = new Refund;
     $refund->processed_at = '2026-01-15 10:00:00';
 
-    expect($refund->processed_at)->toBeInstanceOf(\Illuminate\Support\Carbon::class);
+    expect($refund->processed_at)->toBeInstanceOf(Carbon::class);
 });
 
 test('refund has expected fillable fields', function () {
@@ -463,28 +468,28 @@ test('refund has saleReturn relationship', function () {
     $refund = new Refund;
 
     expect(method_exists($refund, 'saleReturn'))->toBeTrue()
-        ->and($refund->saleReturn())->toBeInstanceOf(\Illuminate\Database\Eloquent\Relations\BelongsTo::class);
+        ->and($refund->saleReturn())->toBeInstanceOf(BelongsTo::class);
 });
 
 test('refund has customer relationship', function () {
     $refund = new Refund;
 
     expect(method_exists($refund, 'customer'))->toBeTrue()
-        ->and($refund->customer())->toBeInstanceOf(\Illuminate\Database\Eloquent\Relations\BelongsTo::class);
+        ->and($refund->customer())->toBeInstanceOf(BelongsTo::class);
 });
 
 test('refund has shop relationship', function () {
     $refund = new Refund;
 
     expect(method_exists($refund, 'shop'))->toBeTrue()
-        ->and($refund->shop())->toBeInstanceOf(\Illuminate\Database\Eloquent\Relations\BelongsTo::class);
+        ->and($refund->shop())->toBeInstanceOf(BelongsTo::class);
 });
 
 test('refund has processedBy relationship', function () {
     $refund = new Refund;
 
     expect(method_exists($refund, 'processedBy'))->toBeTrue()
-        ->and($refund->processedBy())->toBeInstanceOf(\Illuminate\Database\Eloquent\Relations\BelongsTo::class);
+        ->and($refund->processedBy())->toBeInstanceOf(BelongsTo::class);
 });
 
 // --- ReturnItem Model Tests ---
@@ -493,9 +498,9 @@ test('return item has expected relationships', function () {
     $item = new ReturnItem;
 
     expect(method_exists($item, 'saleReturn'))->toBeTrue()
-        ->and($item->saleReturn())->toBeInstanceOf(\Illuminate\Database\Eloquent\Relations\BelongsTo::class)
+        ->and($item->saleReturn())->toBeInstanceOf(BelongsTo::class)
         ->and(method_exists($item, 'saleItem'))->toBeTrue()
-        ->and($item->saleItem())->toBeInstanceOf(\Illuminate\Database\Eloquent\Relations\BelongsTo::class)
+        ->and($item->saleItem())->toBeInstanceOf(BelongsTo::class)
         ->and(method_exists($item, 'product'))->toBeTrue()
-        ->and($item->product())->toBeInstanceOf(\Illuminate\Database\Eloquent\Relations\BelongsTo::class);
+        ->and($item->product())->toBeInstanceOf(BelongsTo::class);
 });

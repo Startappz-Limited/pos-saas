@@ -59,7 +59,7 @@
                                             <i class="bx bx-edit"></i>
                                         </a>
                                     @endcan
-                                    @if ($role->name !== 'super-admin')
+                                    @if ($role->name !== 'admin')
                                         @can('roles.delete')
                                             <form action="{{ route('roles.destroy', $role) }}" method="POST" class="d-inline"
                                                 onsubmit="return confirm('Are you sure you want to delete this role?')">

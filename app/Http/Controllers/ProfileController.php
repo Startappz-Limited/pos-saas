@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\User\DeactivateOwnAccount;
 use App\Http\Requests\ProfileUpdateRequest;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -38,9 +39,10 @@ class ProfileController extends Controller
     }
 
     /**
-     * Delete the user's account.
+     * Deactivate the user's own account (stage 3): the login is kept, not
+     * deleted, and can no longer sign in.
      */
-    public function destroy(Request $request): RedirectResponse
+    public function destroy(Request $request, DeactivateOwnAccount $deactivate): RedirectResponse
     {
         $request->validateWithBag('userDeletion', [
             'password' => ['required', 'current_password'],
@@ -48,9 +50,9 @@ class ProfileController extends Controller
 
         $user = $request->user();
 
-        Auth::logout();
+        $deactivate->execute($user);
 
-        $user->delete();
+        Auth::logout();
 
         $request->session()->invalidate();
         $request->session()->regenerateToken();

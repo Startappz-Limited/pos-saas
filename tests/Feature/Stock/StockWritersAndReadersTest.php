@@ -165,7 +165,7 @@ describe('readers', function () {
 
     it('reports a product\'s stock for the shop the API names, else across the viewer\'s shops', function () {
         $owner = User::factory()->create();
-        $owner->assignRole(sharedRole('super-admin'));
+        $owner->assignRole(ownerRole());
         Sanctum::actingAs($owner, ['*']);
 
         $this->getJson("/api/products/{$this->product->uuid}?shop_id={$this->shop->id}")->assertJsonPath('data.stock_quantity', 3);
@@ -174,7 +174,7 @@ describe('readers', function () {
 
     it('reports each listed shop\'s own stock in the flat API\'s pivot', function () {
         $owner = User::factory()->create();
-        $owner->assignRole(sharedRole('super-admin'));
+        $owner->assignRole(ownerRole());
         $this->product->shops()->attach([$this->shop->id, $this->otherShop->id]);
         Sanctum::actingAs($owner, ['*']);
 

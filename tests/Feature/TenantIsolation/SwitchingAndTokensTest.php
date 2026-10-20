@@ -3,8 +3,6 @@
 use App\Http\Middleware\ResolveTenant;
 use App\Models\BusinessMembership;
 use App\Support\Tenancy\TenantContext;
-use Database\Seeders\PermissionSeeder;
-use Database\Seeders\RoleSeeder;
 use Laravel\Sanctum\Sanctum;
 use Tests\Support\TwoBusinesses;
 
@@ -17,7 +15,7 @@ use Tests\Support\TwoBusinesses;
  * are added here.
  */
 beforeEach(function () {
-    $this->seed([PermissionSeeder::class, RoleSeeder::class]);
+    seedRolesAndPermissions();
     $this->fixture = TwoBusinesses::create();
     $this->both = $this->fixture->both;
     // The customer list in each business (permissions are per business).

@@ -23,7 +23,7 @@ class CreateCampaign
         if (! empty($productIds)) {
             $campaign->products()->sync(
                 collect($productIds)
-                    ->mapWithKeys(fn($id, $i) => [$id => ['display_order' => $i]])
+                    ->mapWithKeys(fn ($id, $i) => [$id => ['display_order' => $i]])
                     ->all()
             );
         }

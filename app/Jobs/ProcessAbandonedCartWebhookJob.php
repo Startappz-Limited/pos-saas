@@ -77,7 +77,7 @@ class ProcessAbandonedCartWebhookJob implements ShouldQueue
     }
 
     /**
-     * Tell the shop's manager (and other managers / super-admins on the shop)
+     * Tell the shop's manager (and other managers and owners on the shop)
      * about a new abandoned cart, falling back to the shop's own contact details.
      * Mirrors ProcessOrderWebhookJob::notifyShopUsers(); a failure here must never
      * fail the webhook.
@@ -99,7 +99,7 @@ class ProcessAbandonedCartWebhookJob implements ShouldQueue
 
             try {
                 $others = $this->shop->users()
-                    ->role(['manager', 'super-admin'])
+                    ->role(['manager', 'admin'])
                     ->where('users.id', '!=', $manager?->id)
                     ->get();
             } catch (RoleDoesNotExist) {

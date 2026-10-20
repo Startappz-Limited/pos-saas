@@ -7,14 +7,17 @@
  * Run with: php tests/run-integration-tests.php
  */
 
-require __DIR__ . '/../vendor/autoload.php';
+require __DIR__.'/../vendor/autoload.php';
 
-$app = require_once __DIR__ . '/../bootstrap/app.php';
-$app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+$app = require_once __DIR__.'/../bootstrap/app.php';
+$app->make(Kernel::class)->bootstrap();
 
+use App\Actions\Shop\CreateShopAction;
+use App\Actions\Shop\UpdateShopAction;
 use App\Models\Shop;
 use App\Services\Integration\ShopifyService;
 use App\Services\Integration\WooCommerceService;
+use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Support\Facades\Crypt;
 
 echo "\n=== E-commerce Integration Test Script ===\n\n";
@@ -32,9 +35,9 @@ $wooCredentials = [
 
 $encryptedWoo = $wooService->encryptCredentials($wooCredentials);
 echo "Original Key: {$wooCredentials['consumer_key']}\n";
-echo 'Encrypted: ' . (strlen($encryptedWoo['consumer_key']) > 50 ? 'YES' : 'NO') . "\n";
+echo 'Encrypted: '.(strlen($encryptedWoo['consumer_key']) > 50 ? 'YES' : 'NO')."\n";
 $decryptedKey = Crypt::decrypt($encryptedWoo['consumer_key']);
-echo 'Decrypted matches: ' . ($decryptedKey === $wooCredentials['consumer_key'] ? 'PASS' : 'FAIL') . "\n\n";
+echo 'Decrypted matches: '.($decryptedKey === $wooCredentials['consumer_key'] ? 'PASS' : 'FAIL')."\n\n";
 
 // Test 2: Shopify Service - Encryption
 echo "Test 2: Shopify Encryption\n";
@@ -48,9 +51,9 @@ $shopifyCredentials = [
 
 $encryptedShopify = $shopifyService->encryptCredentials($shopifyCredentials);
 echo "Original Token: {$shopifyCredentials['access_token']}\n";
-echo 'Encrypted: ' . (strlen($encryptedShopify['access_token']) > 50 ? 'YES' : 'NO') . "\n";
+echo 'Encrypted: '.(strlen($encryptedShopify['access_token']) > 50 ? 'YES' : 'NO')."\n";
 $decryptedToken = Crypt::decrypt($encryptedShopify['access_token']);
-echo 'Decrypted matches: ' . ($decryptedToken === $shopifyCredentials['access_token'] ? 'PASS' : 'FAIL') . "\n\n";
+echo 'Decrypted matches: '.($decryptedToken === $shopifyCredentials['access_token'] ? 'PASS' : 'FAIL')."\n\n";
 
 // Test 3: Shop Model - Integration Helper Methods
 echo "Test 3: Shop Model Integration Methods\n";
@@ -65,16 +68,16 @@ if ($testShop) {
     ]);
 
     $config = $testShop->getIntegrationConfig('woocommerce');
-    echo 'Set integration config: ' . (isset($config['store_url']) ? 'PASS' : 'FAIL') . "\n";
+    echo 'Set integration config: '.(isset($config['store_url']) ? 'PASS' : 'FAIL')."\n";
 
     $enabled = $testShop->getEnabledIntegrations();
-    echo 'Get enabled integrations: ' . (in_array('woocommerce', $enabled) ? 'PASS' : 'FAIL') . "\n";
+    echo 'Get enabled integrations: '.(in_array('woocommerce', $enabled) ? 'PASS' : 'FAIL')."\n";
 
     $connected = $testShop->isIntegrationConnected('woocommerce');
-    echo 'Check if connected: ' . ($connected ? 'PASS' : 'FAIL') . "\n";
+    echo 'Check if connected: '.($connected ? 'PASS' : 'FAIL')."\n";
 
     $status = $testShop->getConnectionStatus('woocommerce');
-    echo 'Get connection status: ' . json_encode($status) . "\n";
+    echo 'Get connection status: '.json_encode($status)."\n";
 } else {
     echo "No shops found - skipping model tests\n";
 }
@@ -85,8 +88,8 @@ echo "Test 4: Create Shop with WooCommerce Integration\n";
 echo "-------------------------------------------------\n";
 try {
     $shopData = [
-        'name' => 'Test Integration Shop ' . now()->timestamp,
-        'code' => 'TEST-INT-' . now()->timestamp,
+        'name' => 'Test Integration Shop '.now()->timestamp,
+        'code' => 'TEST-INT-'.now()->timestamp,
         'status' => 'active',
         'integrations' => [
             'woocommerce' => [
@@ -98,22 +101,22 @@ try {
         ],
     ];
 
-    $action = app(\App\Actions\Shop\CreateShopAction::class);
+    $action = app(CreateShopAction::class);
     $newShop = $action->execute($shopData);
 
     echo "Shop created: {$newShop->name}\n";
     echo "Shop code: {$newShop->code}\n";
 
     $wooConfig = $newShop->getIntegrationConfig('woocommerce');
-    echo 'WooCommerce configured: ' . (! empty($wooConfig) ? 'YES' : 'NO') . "\n";
-    echo 'Store URL saved: ' . ($wooConfig['store_url'] ?? 'NOT FOUND') . "\n";
-    echo 'Credentials encrypted: ' . (strlen($wooConfig['consumer_key'] ?? '') > 50 ? 'YES' : 'NO') . "\n";
+    echo 'WooCommerce configured: '.(! empty($wooConfig) ? 'YES' : 'NO')."\n";
+    echo 'Store URL saved: '.($wooConfig['store_url'] ?? 'NOT FOUND')."\n";
+    echo 'Credentials encrypted: '.(strlen($wooConfig['consumer_key'] ?? '') > 50 ? 'YES' : 'NO')."\n";
 
     // Clean up
     $newShop->delete();
     echo "Test shop cleaned up\n";
-} catch (\Exception $e) {
-    echo 'ERROR: ' . $e->getMessage() . "\n";
+} catch (Exception $e) {
+    echo 'ERROR: '.$e->getMessage()."\n";
 }
 echo "\n";
 
@@ -122,8 +125,8 @@ echo "Test 5: Create Shop with Shopify Integration\n";
 echo "---------------------------------------------\n";
 try {
     $shopData = [
-        'name' => 'Test Shopify Shop ' . now()->timestamp,
-        'code' => 'TEST-SHOP-' . now()->timestamp,
+        'name' => 'Test Shopify Shop '.now()->timestamp,
+        'code' => 'TEST-SHOP-'.now()->timestamp,
         'status' => 'active',
         'integrations' => [
             'shopify' => [
@@ -134,21 +137,21 @@ try {
         ],
     ];
 
-    $action = app(\App\Actions\Shop\CreateShopAction::class);
+    $action = app(CreateShopAction::class);
     $newShop = $action->execute($shopData);
 
     echo "Shop created: {$newShop->name}\n";
 
     $shopifyConfig = $newShop->getIntegrationConfig('shopify');
-    echo 'Shopify configured: ' . (! empty($shopifyConfig) ? 'YES' : 'NO') . "\n";
-    echo 'Shop domain saved: ' . ($shopifyConfig['shop_domain'] ?? 'NOT FOUND') . "\n";
-    echo 'Token encrypted: ' . (strlen($shopifyConfig['access_token'] ?? '') > 50 ? 'YES' : 'NO') . "\n";
+    echo 'Shopify configured: '.(! empty($shopifyConfig) ? 'YES' : 'NO')."\n";
+    echo 'Shop domain saved: '.($shopifyConfig['shop_domain'] ?? 'NOT FOUND')."\n";
+    echo 'Token encrypted: '.(strlen($shopifyConfig['access_token'] ?? '') > 50 ? 'YES' : 'NO')."\n";
 
     // Clean up
     $newShop->delete();
     echo "Test shop cleaned up\n";
-} catch (\Exception $e) {
-    echo 'ERROR: ' . $e->getMessage() . "\n";
+} catch (Exception $e) {
+    echo 'ERROR: '.$e->getMessage()."\n";
 }
 echo "\n";
 
@@ -158,13 +161,13 @@ echo "--------------------------------\n";
 try {
     // Create a test shop
     $testShop = Shop::create([
-        'name' => 'Update Test Shop ' . now()->timestamp,
-        'code' => 'UPDATE-' . now()->timestamp,
+        'name' => 'Update Test Shop '.now()->timestamp,
+        'code' => 'UPDATE-'.now()->timestamp,
         'status' => 'active',
     ]);
 
     // Update with integration
-    $updateAction = app(\App\Actions\Shop\UpdateShopAction::class);
+    $updateAction = app(UpdateShopAction::class);
     $updateData = [
         'integrations' => [
             'woocommerce' => [
@@ -180,14 +183,14 @@ try {
 
     echo "Shop updated: {$updatedShop->name}\n";
     $wooConfig = $updatedShop->getIntegrationConfig('woocommerce');
-    echo 'Integration added: ' . (! empty($wooConfig) ? 'YES' : 'NO') . "\n";
-    echo 'Store URL updated: ' . ($wooConfig['store_url'] ?? 'NOT FOUND') . "\n";
+    echo 'Integration added: '.(! empty($wooConfig) ? 'YES' : 'NO')."\n";
+    echo 'Store URL updated: '.($wooConfig['store_url'] ?? 'NOT FOUND')."\n";
 
     // Clean up
     $updatedShop->delete();
     echo "Test shop cleaned up\n";
-} catch (\Exception $e) {
-    echo 'ERROR: ' . $e->getMessage() . "\n";
+} catch (Exception $e) {
+    echo 'ERROR: '.$e->getMessage()."\n";
 }
 echo "\n";
 

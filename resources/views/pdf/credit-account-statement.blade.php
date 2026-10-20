@@ -91,7 +91,7 @@
             </tbody>
         </table>
 
-        <div class="footer">This statement was generated from {{ config('app.name') }}.</div>
+        <div class="footer">This statement was generated from {{ business_name() }}.</div>
     </div>
 </body>
 

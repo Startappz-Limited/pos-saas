@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Contracts\MpesaGateway;
 use App\Listeners\AuditAuthorizationChanges;
 use App\Models\BaileysSession;
 use App\Models\Campaign;
@@ -26,18 +27,22 @@ use App\Policies\SalePolicy;
 use App\Policies\ShopPolicy;
 use App\Policies\SocialAccountPolicy;
 use App\Policies\StockAdjustmentPolicy;
+use App\Services\Mpesa\NullMpesaGateway;
+use App\Support\Onboarding\OnboardingChecklist;
 use App\Support\Tenancy\TenantContext;
 use App\Support\Tenancy\TenantPresenceVerifier;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Log\Context\Repository as ContextRepository;
 use Illuminate\Pagination\Paginator;
+use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Context;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\URL;
+use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rules\Password;
@@ -53,6 +58,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
+        // Until the private M-Pesa package is connected, nothing is accepted.
+        $this->app->bind(MpesaGateway::class, NullMpesaGateway::class);
+
         // The business the current request, job or command acts for; reset
         // between requests and queued jobs (stage 1a).
         $this->app->scoped(TenantContext::class);
@@ -69,17 +77,22 @@ class AppServiceProvider extends ServiceProvider
         // Use Bootstrap 5 pagination views
         Paginator::useBootstrapFive();
 
+        // Every form carries the business it was loaded for (decision 4.9):
+        // `@csrf` also writes the `_business` field VerifyFormBusiness checks.
+        Blade::directive('csrf', fn (): string => '<?php echo csrf_field(); echo \App\Support\Tenancy\BusinessField::html(); ?>');
+
+        View::composer('partials.onboarding-checklist', fn ($view) => $view->with('steps', app(OnboardingChecklist::class)->steps()));
+
         $this->registerRateLimiters();
         $this->enforceHttps();
         $this->definePasswordPolicy();
         $this->carryTenantIntoQueuedWork();
 
-        // The business owner may do everything in their business. Roles are
-        // per business (Spatie teams), so this never reaches another business.
-        // The owner is the super-admin role until Phase 3 splits platform
-        // operator and business owner (User::isBusinessOwner).
+        // Only the platform operator may do everything (decision 4.4). A
+        // business owner holds the admin role, with every permission in their
+        // business, and the policies still apply to them.
         Gate::before(function ($user, $ability) {
-            return $user instanceof User && $user->isBusinessOwner() ? true : null;
+            return $user instanceof User && $user->isPlatformOperator() ? true : null;
         });
 
         // Register Policies

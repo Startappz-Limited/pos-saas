@@ -2,29 +2,13 @@
 
 namespace App\Http\Startappz\Services;
 
-use App\Models\Setting;
-use App\Support\Tenancy\TenantContext;
+use App\Support\Messaging\TenantMessagingCredentials;
 use Exception;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 class SMSservice
 {
-    private string $apiUrl;
-
-    private string $apiToken;
-
-    private string $senderId;
-
-    public function __construct()
-    {
-
-        $this->apiUrl = env('SMS_API_URL');
-        $this->apiToken = env('SMS_API_TOKEN');
-        $this->senderId = env('SMS_SENDER_ID');
-    }
-
     /**
      * Send an SMS
      *
@@ -50,10 +34,20 @@ class SMSservice
             ];
         } */
 
+        // The business's own SMS account (stage 3); never the platform's.
+        $credentials = TenantMessagingCredentials::sms();
+
+        if ($credentials === null) {
+            return [
+                'success' => false,
+                'message' => 'SMS is not set up for this business',
+            ];
+        }
+
         try {
             $payload = [
                 'phone' => $phone,
-                'senderid' => $this->senderId,
+                'senderid' => $credentials['sender_id'],
                 'message' => $message,
             ];
 
@@ -63,8 +57,8 @@ class SMSservice
 
             $response = Http::withHeaders([
                 'Accept' => 'application/json',
-                'Authorization' => 'Bearer '.$this->apiToken,
-            ])->post($this->apiUrl, $payload);
+                'Authorization' => 'Bearer '.$credentials['token'],
+            ])->post($credentials['url'], $payload);
 
             if ($response->successful()) {
                 return $response->json();
@@ -89,75 +83,6 @@ class SMSservice
                 'success' => false,
                 'message' => 'An error occurred while sending SMS',
             ];
-        }
-    }
-
-    public function send($phone, $msg)
-    {
-        // Cache settings for 1 year (525600 minutes)
-        // Keyed per business (stage 1c): each business will hold its own SMS
-        // settings (Phase 6), and a global key would hand one business's to all.
-        $sms_settings = Cache::remember(app(TenantContext::class)->cacheKey('sms_settings'), 525600, function () {
-            $setting = Setting::where('key', 'sms')->first();
-
-            return $setting ? json_decode($setting->value) : null;
-        });
-
-        $query_params = Cache::remember(app(TenantContext::class)->cacheKey('sms_query_parameters'), 525600, function () {
-            $setting = Setting::where('key', 'sms_query_parameters')->first();
-
-            return $setting ? json_decode($setting->value) : null;
-        });
-
-        if (! $sms_settings || ! $query_params) {
-            Log::info('SMS settings or query parameters missing');
-
-            return false;
-        }
-
-        $url = $sms_settings->sms_endpoint ?? '';
-        $headers = [
-            'Accept' => $sms_settings->content_type_accept ?? 'application/json',
-            'Content-Type' => $sms_settings->content_type ?? 'application/json',
-        ];
-
-        if (! empty($sms_settings->authorization) && $sms_settings->authorization === 'Bearer Token') {
-            $headers['Authorization'] = 'Bearer '.$sms_settings->sms_api_key;
-        } elseif (! empty($sms_settings->authorization) && $sms_settings->authorization === 'Basic Auth') {
-            $query_obj = $query_params;
-            $username = $query_obj->parameters->username->value ?? '';
-            $password = $query_obj->parameters->password->value ?? '';
-            $headers['Authorization'] = 'Basic '.base64_encode($username.':'.$password);
-        }
-
-        // Build data array dynamically from query parameters
-        $data = [];
-        foreach ($query_params->parameters as $key => $param) {
-            if ($param->value === 'phone') {
-                $data[$key] = $phone;
-            } elseif ($param->value === 'senderid') {
-                $data[$key] = $sms_settings->sms_sender_id ?? '';
-            } elseif ($param->value === 'message') {
-                $data[$key] = $msg;
-            } else {
-                $data[$key] = $param->value;
-            }
-        }
-
-        try {
-            $request_method = strtoupper($sms_settings->request_method ?? 'POST');
-            if ($request_method === 'POST') {
-                $response = Http::withHeaders($headers)->post($url, $data);
-            } else {
-                $response = Http::withHeaders($headers)->get($url, $data);
-            }
-            Log::info('SMS Response: '.$response->body());
-
-            return $response->json();
-        } catch (Exception $e) {
-            Log::error('SMS Send Error: '.$e->getMessage());
-
-            return false;
         }
     }
 }

@@ -34,8 +34,7 @@ beforeEach(function () {
 
 describe('SaleCompletedNotification', function () {
     it('sends via WhatsApp channel when configured and customer has phone', function () {
-        config(['services.whatsapp.api_url' => 'https://api.example.com']);
-        config(['services.whatsapp.api_token' => 'test-token']);
+        useWhatsAppAccount('https://api.example.com', 'test-token');
 
         $sale = Sale::factory()->create([
             'shop_id' => $this->shop->id,
@@ -52,8 +51,7 @@ describe('SaleCompletedNotification', function () {
     });
 
     it('does not send when customer has no phone', function () {
-        config(['services.whatsapp.api_url' => 'https://api.example.com']);
-        config(['services.whatsapp.api_token' => 'test-token']);
+        useWhatsAppAccount('https://api.example.com', 'test-token');
 
         $customerNoPhone = Customer::factory()->forShop($this->shop)->create([
             'phone' => null,
@@ -140,8 +138,7 @@ describe('SaleCompletedNotification', function () {
 
 describe('PaymentReceivedNotification', function () {
     it('sends via WhatsApp channel when configured and customer has phone', function () {
-        config(['services.whatsapp.api_url' => 'https://api.example.com']);
-        config(['services.whatsapp.api_token' => 'test-token']);
+        useWhatsAppAccount('https://api.example.com', 'test-token');
 
         $sale = Sale::factory()->create([
             'shop_id' => $this->shop->id,
@@ -210,8 +207,7 @@ describe('PaymentReceivedNotification', function () {
 
 describe('CreditBalanceNotification', function () {
     it('sends via WhatsApp channel when configured and customer has phone', function () {
-        config(['services.whatsapp.api_url' => 'https://api.example.com']);
-        config(['services.whatsapp.api_token' => 'test-token']);
+        useWhatsAppAccount('https://api.example.com', 'test-token');
 
         $sale = Sale::factory()->create([
             'shop_id' => $this->shop->id,
@@ -276,8 +272,7 @@ describe('CreditBalanceNotification', function () {
 
 describe('WhatsAppChannel DB Logging', function () {
     it('logs messages to whatsapp_messages table on successful send', function () {
-        config(['services.whatsapp.api_url' => 'https://graph.facebook.com/v22.0/123/messages']);
-        config(['services.whatsapp.api_token' => 'test-token']);
+        useWhatsAppAccount('https://graph.facebook.com/v22.0/123/messages', 'test-token');
 
         Http::fake([
             'graph.facebook.com/*' => Http::response([
@@ -304,8 +299,7 @@ describe('WhatsAppChannel DB Logging', function () {
     });
 
     it('logs failed messages with error', function () {
-        config(['services.whatsapp.api_url' => 'https://graph.facebook.com/v22.0/123/messages']);
-        config(['services.whatsapp.api_token' => 'test-token']);
+        useWhatsAppAccount('https://graph.facebook.com/v22.0/123/messages', 'test-token');
 
         Http::fake([
             'graph.facebook.com/*' => Http::response([
@@ -330,8 +324,7 @@ describe('WhatsAppChannel DB Logging', function () {
     });
 
     it('does not log when notifiable has no shop_id', function () {
-        config(['services.whatsapp.api_url' => 'https://graph.facebook.com/v22.0/123/messages']);
-        config(['services.whatsapp.api_token' => 'test-token']);
+        useWhatsAppAccount('https://graph.facebook.com/v22.0/123/messages', 'test-token');
 
         Http::fake([
             'graph.facebook.com/*' => Http::response([

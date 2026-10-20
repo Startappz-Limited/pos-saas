@@ -35,6 +35,14 @@ return [
         ],
     ],
 
+    // The platform's own SMS account, read only by code acting for no
+    // business; a business sends through its own (business_integrations).
+    'sms' => [
+        'url' => env('SMS_API_URL'),
+        'token' => env('SMS_API_TOKEN'),
+        'sender_id' => env('SMS_SENDER_ID'),
+    ],
+
     'whatsapp' => [
         'api_url' => env('WHATSAPP_API_URL'),
         'api_token' => env('WHATSAPP_API_TOKEN'),

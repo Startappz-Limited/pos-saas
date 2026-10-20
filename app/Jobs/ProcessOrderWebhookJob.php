@@ -159,10 +159,10 @@ class ProcessOrderWebhookJob implements ShouldQueue
                 ]);
             }
 
-            // 2. Notify other manager/super-admin users assigned to this shop
+            // 2. Notify other managers and owners assigned to this shop
             try {
                 $additionalUsers = $this->shop->users()
-                    ->role(['manager', 'super-admin'])
+                    ->role(['manager', 'admin'])
                     ->where('users.id', '!=', $manager?->id)
                     ->get();
             } catch (RoleDoesNotExist $e) {

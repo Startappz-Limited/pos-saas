@@ -18,6 +18,9 @@ class BusinessMembership extends Pivot
 
     public const STATUS_INACTIVE = 'inactive';
 
+    /** Suspended by the business (stage 3); the login and other businesses are unaffected. */
+    public const STATUS_SUSPENDED = 'suspended';
+
     protected $table = 'business_user';
 
     public $incrementing = true;

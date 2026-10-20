@@ -5,6 +5,10 @@
 @section('content')
     <div>
 
+        @if (auth()->user()->isBusinessOwner())
+            @include('partials.onboarding-checklist')
+        @endif
+
         <!-- Quick Actions - Always visible -->
         <div class="row mb-3">
             <div class="col-12">

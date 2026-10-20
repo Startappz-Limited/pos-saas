@@ -48,12 +48,15 @@ class NotifyCustomerOfEcommerceOrder
         $orderRef = $order->order_number ?? $order->platform_order_id ?? $order->id;
         $currency = $order->currency ?? $order->shop?->currency ?? '';
         $total = number_format((float) ($order->total ?? 0), 2);
-        $totalLine = trim($currency . ' ' . $total);
+        $totalLine = trim($currency.' '.$total);
 
         // TODO: make working hours + payment details dynamic per shop (e.g. shop settings table).
         $shopOpenHour = 8;   // 08:00
         $shopCloseHour = 17; // 17:00
-        $mpesaTill = '577 42 79';
+        $shop = $order->shop;
+        $paymentTarget = $shop?->mpesa_verified_at && $shop->mpesa_shortcode
+            ? ($shop->mpesa_shortcode_type === 'paybill' ? 'M-Pesa Paybill' : 'M-Pesa Till').': *'.$shop->mpesa_shortcode.'*'
+            : null;
 
         $now = now($order->shop?->timezone ?? config('app.timezone'));
         $isWithinHours = $now->hour >= $shopOpenHour && $now->hour < $shopCloseHour;
@@ -63,11 +66,13 @@ class NotifyCustomerOfEcommerceOrder
             : "We've received your order. We will process it first thing in the morning. Thank you";
 
         $text = "Order Received - {$orderRef}*\n"
-            . "_{$shopName}_\n\n"
-            . "Total: {$totalLine}\n\n"
+            ."_{$shopName}_\n\n"
+            ."Total: {$totalLine}\n\n"
             /*  . "📍 *Delivery location*\nPlease reply with your delivery address (and a landmark if possible) so we can confirm and arrange delivery.\n\n" */
-            . "💳 *Payment*\nM-Pesa Till: *{$mpesaTill}*\nAmount: *{$totalLine}*\nUse order *{$orderRef}* as the reference.\n\n"
-            . $processingLine;
+            .($paymentTarget
+                ? "💳 *Payment*\n{$paymentTarget}\nAmount: *{$totalLine}*\nUse order *{$orderRef}* as the reference.\n\n"
+                : "💳 *Payment*\nAmount: *{$totalLine}*\nWe will confirm how to pay shortly. Order reference: *{$orderRef}*.\n\n")
+            .$processingLine;
 
         return $this->sendMessage->execute(
             session: $session,

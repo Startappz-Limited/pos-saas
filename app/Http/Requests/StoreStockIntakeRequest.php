@@ -2,7 +2,10 @@
 
 namespace App\Http\Requests;
 
+use App\Models\PurchaseOrderItem;
+use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Validator;
 
 class StoreStockIntakeRequest extends FormRequest
 {
@@ -17,7 +20,7 @@ class StoreStockIntakeRequest extends FormRequest
     /**
      * Get the validation rules that apply to the request.
      *
-     * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
+     * @return array<string, ValidationRule|array<mixed>|string>
      */
     public function rules(): array
     {
@@ -42,11 +45,11 @@ class StoreStockIntakeRequest extends FormRequest
     /**
      * Configure the validator instance.
      */
-    public function withValidator(\Illuminate\Validation\Validator $validator): void
+    public function withValidator(Validator $validator): void
     {
         $validator->after(function ($validator) {
             if ($this->purchase_order_item_id) {
-                $item = \App\Models\PurchaseOrderItem::find($this->purchase_order_item_id);
+                $item = PurchaseOrderItem::find($this->purchase_order_item_id);
 
                 if ($item && $this->quantity_received > $item->quantity_remaining) {
                     $validator->errors()->add(

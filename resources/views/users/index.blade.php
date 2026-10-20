@@ -34,6 +34,9 @@
                         <x-ui-button variant="primary" icon="solar:user-plus-broken" href="{{ route('users.create') }}">
                             Add User
                         </x-ui-button>
+                        <x-ui-button variant="outline-primary" icon="solar:letter-broken" href="{{ route('invites.index') }}">
+                            {{ __('Invite') }}
+                        </x-ui-button>
                     @endcan
 
                     <div class="dropdown">

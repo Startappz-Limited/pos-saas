@@ -1,8 +1,12 @@
 <?php
 
+use App\Http\Middleware\ResolveTenant;
 use App\Models\AbandonedCart;
 use App\Models\Attribute;
 use App\Models\BaileysSession;
+use App\Models\BusinessClosure;
+use App\Models\BusinessExport;
+use App\Models\BusinessInvite;
 use App\Models\Campaign;
 use App\Models\CashRegister;
 use App\Models\Category;
@@ -14,11 +18,13 @@ use App\Models\ExpenseCategory;
 use App\Models\PricingRule;
 use App\Models\PurchaseOrder;
 use App\Models\SocialAccount;
+use App\Support\Tenancy\BusinessLink;
 use App\Support\Tenancy\TenantContext;
-use Database\Seeders\PermissionSeeder;
-use Database\Seeders\RoleSeeder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\URL;
+use Laravel\Sanctum\PersonalAccessToken;
 use Laravel\Sanctum\Sanctum;
 use Tests\Support\TwoBusinesses;
 
@@ -32,7 +38,7 @@ use Tests\Support\TwoBusinesses;
  * Every new model, route or endpoint adds its row here.
  */
 beforeEach(function () {
-    $this->seed([PermissionSeeder::class, RoleSeeder::class]);
+    // Only the owner acts here: the fixture's owner role brings every permission.
     $this->fixture = TwoBusinesses::create();
     app(TenantContext::class)->forget();
 });
@@ -58,6 +64,7 @@ function recordOfB(TwoBusinesses $fixture, string $resource): Model
         'ecommerce-orders' => EcommerceOrder::factory()->create($shop),
         'expense-categories' => ExpenseCategory::factory()->create(),
         'expenses' => Expense::factory()->create($shop),
+        'invites' => BusinessInvite::factory()->create(['email' => 'invitee@bravo.test']),
         'pricing-rules' => PricingRule::factory()->create(),
         'products' => $b->product,
         'purchase-orders' => PurchaseOrder::factory()->create([...$shop, 'supplier_id' => $b->supplier->id]),
@@ -91,6 +98,7 @@ const WEB_RESOURCES = [
     'social-accounts' => ['update', 'destroy'],
     'suppliers' => ['show', 'update', 'destroy'],
     'users' => ['show', 'update', 'destroy'],
+    'invites' => ['resend', 'destroy'],
 ];
 
 /** Resource => the actions its flat API routes offer on one record. */
@@ -158,3 +166,69 @@ it('rejects business B\'s ids on create', function (string $route, Closure $payl
     'purchase order from B\'s supplier' => ['purchase-orders.store', fn ($b) => ['supplier_id' => $b->supplier->id, 'shop_id' => $b->shops[0]->id]],
     'sale to B\'s customer of B\'s product' => ['sales.store', fn ($b) => ['customer_id' => $b->customer->id, 'items' => [['product_id' => $b->product->id, 'quantity' => 1, 'price' => 10]]]],
 ]);
+
+it('refuses to open business B, or make it the default, for business A\'s owner (stage 3)', function (string $route) {
+    $owner = $this->fixture->a->owner;
+
+    $this->actingAs($owner)->post(route($route, $this->fixture->b->business))->assertNotFound();
+
+    expect(session(ResolveTenant::SESSION_KEY))->not->toBe($this->fixture->b->business->id)
+        ->and($owner->fresh()->default_business_id)->toBe($this->fixture->a->business->id);
+})->with(['businesses.switch', 'businesses.default']);
+
+it('refuses to switch an /api/v1 token to business B for business A\'s owner (stage 3)', function () {
+    $owner = $this->fixture->a->owner;
+    $token = $this->postJson(route('api.v1.auth.sign-in'), ['email' => $owner->email, 'password' => 'password', 'device_name' => 'Till'])
+        ->json('data.token');
+    app('auth')->forgetGuards();
+    app(TenantContext::class)->forget();
+
+    $this->withHeaders(['Authorization' => "Bearer {$token}"])
+        ->postJson(route('api.v1.businesses.switch', $this->fixture->b->business))->assertNotFound();
+
+    expect(PersonalAccessToken::findToken($token)?->business_id)->toBe($this->fixture->a->business->id);
+});
+
+it('refuses business B\'s export download and closure cancel to business A\'s owner (stage 3)', function () {
+    $b = $this->fixture->b;
+    $export = app(TenantContext::class)->run($b->business, fn () => BusinessExport::create(['status' => 'ready', 'path' => 'x.zip']));
+    $closure = BusinessClosure::create([
+        'business_id' => $b->business->id, 'business_uuid' => $b->business->uuid, 'business_name' => $b->business->name,
+        'delete_after' => now()->addDays(30),
+    ]);
+    app(TenantContext::class)->forget();
+
+    $this->actingAs($this->fixture->a->owner)
+        ->get(URL::temporarySignedRoute('business.exports.download', now()->addHour(), $export))
+        ->assertNotFound();
+    $this->actingAs($this->fixture->a->owner)->post(route('business.closure.cancel', $closure))->assertNotFound();
+
+    expect($closure->fresh()->cancelled_at)->toBeNull();
+});
+
+it('refuses business B\'s shop, business and people on the stage 3 routes to business A\'s owner', function () {
+    $b = $this->fixture->b;
+    $a = $this->fixture->a;
+
+    // A shop's M-Pesa page and its test-query save.
+    $this->actingAs($a->owner)->get(route('shops.mpesa.edit', $b->shops[0]))->assertNotFound();
+    $this->actingAs($a->owner)->put(route('shops.mpesa.update', $b->shops[0]), [
+        'shortcode' => '123456', 'type' => 'till', 'consumer_key' => 'k', 'consumer_secret' => 's',
+    ])->assertNotFound();
+
+    // The CSV import into a shop of another business.
+    $this->actingAs($a->owner)->post(route('products.import.store'), [
+        'shop_id' => $b->shops[0]->id,
+        'file' => UploadedFile::fake()->createWithContent('p.csv', "name,selling_price\nX,1\n"),
+    ])->assertSessionHasErrors('shop_id');
+
+    // A signed notification link into a business the user is not a member of.
+    $link = app(TenantContext::class)->run($b->business, fn () => BusinessLink::to('/customers'));
+    $this->actingAs($a->owner)->get($link)->assertNotFound();
+
+    // Handing the business over to another business's owner.
+    $a->business->update(['primary_owner_id' => $a->owner->id]);
+    $this->actingAs($a->owner)->post(route('business.handover.code'), ['owner' => $b->owner->uuid])->assertSessionHasErrors('owner');
+
+    expect($b->shops[0]->fresh()->mpesa_shortcode)->toBeNull();
+});

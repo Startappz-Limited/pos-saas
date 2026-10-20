@@ -1,13 +1,17 @@
 <?php
 
 use App\Models\Business;
+use App\Models\BusinessIntegration;
 use App\Models\Role;
 use App\Models\Shop;
 use App\Models\User;
 use App\Support\Tenancy\TenantContext;
+use Database\Seeders\PermissionSeeder;
+use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Spatie\Permission\Models\Permission;
 use Tests\TestCase;
 
 /*
@@ -79,6 +83,39 @@ function sharedRole(string $name): Role
 }
 
 /**
+ * Every system permission, as PermissionSeeder adds them (one query).
+ */
+function seedPermissions(): void
+{
+    PermissionSeeder::insertMissing();
+}
+
+/**
+ * The permissions and the seeded role templates with theirs, as a real install
+ * has them.
+ */
+function seedRolesAndPermissions(): void
+{
+    seedPermissions();
+    test()->seed(RoleSeeder::class);
+}
+
+/**
+ * The business owner role (decision 4.4, stage 3): the shared `admin` role,
+ * holding every permission. Owners no longer pass every gate (only the platform
+ * operator does), so the permissions are seeded when a test hasn't.
+ */
+function ownerRole(): Role
+{
+    seedPermissions();
+
+    $role = sharedRole('admin');
+    $role->syncPermissions(Permission::all());
+
+    return $role;
+}
+
+/**
  * Shop access is default-deny (stage 1a): staff see only the shops assigned
  * to them. For tests about staff working in the shops the scenario creates,
  * this assigns $user to the business's shops and to every shop the test
@@ -125,16 +162,49 @@ function something()
 }
 
 /**
- * Configure the WhatsApp Cloud API for the current test.
+ * Sets (or, with nulls, removes) the current test business's own WhatsApp
+ * Cloud account (stage 3: a business sends through its own credentials).
+ */
+function useWhatsAppAccount(?string $url, ?string $token, ?string $phoneNumberId = null): void
+{
+    useMessagingAccount('whatsapp_cloud', $url, $token, ['phone_number_id' => $phoneNumberId]);
+}
+
+/**
+ * Sets (or, with nulls, removes) the current test business's own SMS account.
+ */
+function useSmsAccount(?string $url, ?string $token, ?string $senderId = 'TEST'): void
+{
+    useMessagingAccount('sms', $url, $token, ['sender_id' => $senderId]);
+}
+
+/**
+ * @param  array<string, ?string>  $extra
+ */
+function useMessagingAccount(string $type, ?string $url, ?string $token, array $extra): void
+{
+    $query = BusinessIntegration::query()->whereNull('shop_id')->where('type', $type);
+    $query->delete();
+
+    if ($url === null && $token === null) {
+        return;
+    }
+
+    BusinessIntegration::create([
+        'type' => $type,
+        'status' => 'active',
+        'credentials' => array_filter(['api_url' => $url, 'api_token' => $token, ...$extra], fn ($value): bool => $value !== null),
+    ]);
+}
+
+/**
+ * The test business's WhatsApp Cloud account, as most notification tests need it.
  *
- * phpunit.xml leaves it unconfigured, and a notification whose via() returns
- * no channels is never recorded by Notification::fake(), so any test that
- * expects a WhatsApp notification must call this first.
+ * A notification whose via() returns no channels is never recorded by
+ * Notification::fake(), so any test that expects a WhatsApp notification must
+ * call this first.
  */
 function configureWhatsApp(): void
 {
-    config([
-        'services.whatsapp.api_url' => 'https://api.example.com',
-        'services.whatsapp.api_token' => 'test-token',
-    ]);
+    useWhatsAppAccount('https://api.example.com', 'test-token');
 }

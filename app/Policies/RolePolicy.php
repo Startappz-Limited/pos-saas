@@ -56,8 +56,8 @@ class RolePolicy
      */
     public function delete(User $user, Role $role): bool
     {
-        // Cannot delete super-admin role
-        if ($role->name === 'super-admin') {
+        // The owner role can't be deleted
+        if ($role->name === 'admin') {
             return false;
         }
 

@@ -5,7 +5,9 @@ namespace App\Models;
 use App\Models\Concerns\Auditable;
 use App\Models\Scopes\BusinessOrSharedScope;
 use Illuminate\Support\Str;
+use Spatie\Permission\Contracts\Role as RoleContract;
 use Spatie\Permission\Models\Role as SpatieRole;
+use Spatie\Permission\PermissionRegistrar;
 
 class Role extends SpatieRole
 {
@@ -39,6 +41,30 @@ class Role extends SpatieRole
                 $role->uuid = (string) Str::uuid();
             }
         });
+    }
+
+    /**
+     * Spatie's lookup by name, preferring the current business's own role to
+     * a shared template of the same name (stage 3: each business has its own
+     * copies of the templates).
+     */
+    protected static function findByParam(array $params = []): ?RoleContract
+    {
+        $query = static::query();
+        $registrar = app(PermissionRegistrar::class);
+
+        if ($registrar->teams) {
+            $teamsKey = $registrar->teamsKey;
+            $query->where(fn ($q) => $q->whereNull($teamsKey)->orWhere($teamsKey, $params[$teamsKey] ?? getPermissionsTeamId()))
+                ->orderByRaw("{$teamsKey} is null");
+            unset($params[$teamsKey]);
+        }
+
+        foreach ($params as $key => $value) {
+            $query->where($key, $value);
+        }
+
+        return $query->first();
     }
 
     /**

@@ -166,6 +166,21 @@
                 @endphp
 
                 @include('shops.partials.tax-settings', ['shop' => $shop])
+                <div class="card mt-3">
+                    <div class="card-body d-flex justify-content-between align-items-center">
+                        <div>
+                            <h5 class="card-title mb-1">{{ __('M-Pesa Till / Paybill') }}</h5>
+                            <span class="text-muted">
+                                @if ($shop->mpesa_verified_at)
+                                    {{ ucfirst($shop->mpesa_shortcode_type) }} {{ $shop->mpesa_shortcode }}
+                                @else
+                                    {{ __('Not set up') }}
+                                @endif
+                            </span>
+                        </div>
+                        <a href="{{ route('shops.mpesa.edit', $shop) }}" class="btn btn-light">{{ __('Set up') }}</a>
+                    </div>
+                </div>
 
                 <!-- E-Commerce Integration -->
                 <div class="card">

@@ -57,7 +57,7 @@ class ShopifyOrderSyncService
                     'error' => $response->json() ?? $response->body(),
                 ]);
 
-                return ['success' => false, 'message' => 'API request failed: ' . $response->status()];
+                return ['success' => false, 'message' => 'API request failed: '.$response->status()];
             }
 
             return ['success' => true, 'orders' => $response->json('orders') ?? []];
@@ -95,7 +95,7 @@ class ShopifyOrderSyncService
                 ])->get("https://{$shopDomain}/admin/api/2024-01/orders/{$orderId}.json");
 
             if (! $response->successful()) {
-                return ['success' => false, 'message' => 'API request failed: ' . $response->status()];
+                return ['success' => false, 'message' => 'API request failed: '.$response->status()];
             }
 
             return ['success' => true, 'order' => $response->json('order')];
@@ -148,7 +148,7 @@ class ShopifyOrderSyncService
                     'error' => $response->json(),
                 ]);
 
-                return ['success' => false, 'message' => 'Status update failed: ' . $response->status()];
+                return ['success' => false, 'message' => 'Status update failed: '.$response->status()];
             }
 
             return ['success' => true];
@@ -343,8 +343,8 @@ GRAPHQL;
     {
         $order->loadMissing('items');
         $submittedByOrderItemId = collect($items)
-            ->filter(fn(array $item): bool => ! empty($item['order_item_id']))
-            ->keyBy(fn(array $item): int => (int) $item['order_item_id']);
+            ->filter(fn (array $item): bool => ! empty($item['order_item_id']))
+            ->keyBy(fn (array $item): int => (int) $item['order_item_id']);
 
         $operations = [];
 
@@ -500,7 +500,7 @@ GRAPHQL;
             ]);
 
         if (! $response->successful()) {
-            return ['success' => false, 'message' => 'Shopify GraphQL request failed: ' . $response->status()];
+            return ['success' => false, 'message' => 'Shopify GraphQL request failed: '.$response->status()];
         }
 
         $payload = $response->json();
@@ -545,7 +545,7 @@ GRAPHQL;
         $originalLineItemId = $orderItem->platform_data['admin_graphql_api_id'] ?? null;
 
         if (! $originalLineItemId && $orderItem->platform_line_item_id) {
-            $originalLineItemId = 'gid://shopify/LineItem/' . $orderItem->platform_line_item_id;
+            $originalLineItemId = 'gid://shopify/LineItem/'.$orderItem->platform_line_item_id;
         }
 
         return $originalLineItemId ? ($lineItemMap[$originalLineItemId] ?? null) : null;
@@ -568,14 +568,14 @@ GRAPHQL;
 
         return str_starts_with((string) $variantId, 'gid://')
             ? (string) $variantId
-            : 'gid://shopify/ProductVariant/' . $variantId;
+            : 'gid://shopify/ProductVariant/'.$variantId;
     }
 
     protected function shopifyOrderGid(EcommerceOrder $order): string
     {
         $orderGid = $order->platform_data['admin_graphql_api_id'] ?? null;
 
-        return $orderGid ?: 'gid://shopify/Order/' . $order->platform_order_id;
+        return $orderGid ?: 'gid://shopify/Order/'.$order->platform_order_id;
     }
 
     protected function shopifyOrderEditNote(EcommerceOrder $order, ?float $shippingTotal): string
@@ -583,7 +583,7 @@ GRAPHQL;
         $note = 'Order items adjusted during POS conversion.';
 
         if ($shippingTotal !== null && (float) $order->shipping_total !== $shippingTotal) {
-            $note .= ' POS delivery fee selected: ' . $order->currency . ' ' . number_format($shippingTotal, 2);
+            $note .= ' POS delivery fee selected: '.$order->currency.' '.number_format($shippingTotal, 2);
         }
 
         return $note;
@@ -625,16 +625,16 @@ GRAPHQL;
     public function mapToLocal(array $apiOrder): array
     {
         $customer = $apiOrder['customer'] ?? [];
-        $customerName = trim(($customer['first_name'] ?? '') . ' ' . ($customer['last_name'] ?? ''));
+        $customerName = trim(($customer['first_name'] ?? '').' '.($customer['last_name'] ?? ''));
         if (empty($customerName)) {
             $billing = $apiOrder['billing_address'] ?? [];
-            $customerName = trim(($billing['first_name'] ?? '') . ' ' . ($billing['last_name'] ?? ''));
+            $customerName = trim(($billing['first_name'] ?? '').' '.($billing['last_name'] ?? ''));
         }
 
         return [
             'platform' => 'shopify',
             'platform_order_id' => (string) $apiOrder['id'],
-            'order_number' => $apiOrder['name'] ?? '#' . $apiOrder['order_number'] ?? (string) $apiOrder['id'],
+            'order_number' => $apiOrder['name'] ?? '#'.$apiOrder['order_number'] ?? (string) $apiOrder['id'],
             'status' => $this->mapStatus($apiOrder),
             'payment_method' => 'cod',
             'payment_status' => 'unpaid',

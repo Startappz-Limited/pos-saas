@@ -29,7 +29,7 @@ class CampaignService
      */
     public function getStatistics(?int $shopId = null): array
     {
-        $base = Campaign::query()->when($shopId, fn($q) => $q->forShop($shopId));
+        $base = Campaign::query()->when($shopId, fn ($q) => $q->forShop($shopId));
 
         return [
             'total' => (clone $base)->count(),
@@ -61,7 +61,7 @@ class CampaignService
         if (is_array($productIds)) {
             $campaign->products()->sync(
                 collect($productIds)
-                    ->mapWithKeys(fn($id, $i) => [$id => ['display_order' => $i]])
+                    ->mapWithKeys(fn ($id, $i) => [$id => ['display_order' => $i]])
                     ->all()
             );
         }
@@ -101,7 +101,7 @@ class CampaignService
     protected function applyFilters(Builder $query, array $filters): void
     {
         if (! empty($filters['search'])) {
-            $term = '%' . $filters['search'] . '%';
+            $term = '%'.$filters['search'].'%';
             $query->where(function (Builder $q) use ($term): void {
                 $q->where('name', 'like', $term)
                     ->orWhere('code', 'like', $term)

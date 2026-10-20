@@ -28,7 +28,11 @@ const ALLOWED_RAW_QUERIES = [
     'app/Services/VatReportService.php' => [2, SCOPED],
 
     // Internal reads and writes by id, on ids that came through scoped models.
+    'app/Actions/Business/ExportBusinessData.php' => [3, 'the export reads only rows BusinessData found to be the business\'s, its members and its audit rows'],
+    'app/Actions/Business/PurgeBusiness.php' => [9, 'the erasure deletes only rows BusinessData found to be the business\'s, and its own logins'],
+    'app/Actions/Business/CopyRoleTemplates.php' => [5, 'role templates copied into the business being created'],
     'app/Actions/ConvertEcommerceOrderToSale.php' => [1, 'the register of a session the action just found or opened'],
+    'app/Actions/Shop/SaveShopMpesaAccount.php' => [1, 'a shortcode is unique on the platform: reads only whether another shop holds the number'],
     'app/Actions/PurchaseReturn/MarkPurchaseReturnShippedAction.php' => [1, 'the cost layer of a scoped intake'],
     'app/Console/Commands/BackfillShopProductPivot.php' => [2, 'pivot rows for a scoped product and its sync record\'s shop'],
     'app/Console/Commands/RecomputeSaleProfit.php' => [3, 'allocations and layers of scoped sales\' lines'],

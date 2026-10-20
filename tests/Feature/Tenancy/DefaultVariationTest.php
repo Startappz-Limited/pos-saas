@@ -4,7 +4,6 @@ use App\Actions\Product\CreateProductAction;
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\ProductVariation;
-use App\Models\Role;
 use App\Models\Shop;
 use App\Models\User;
 use Illuminate\Database\QueryException;
@@ -77,7 +76,7 @@ it('keys per-shop stock rows on shop and variation, in every shop of the product
 
 it('doesn\'t change what the flat API returns for a simple product', function () {
     $owner = User::factory()->create();
-    $owner->assignRole(Role::findOrCreate('super-admin', 'web'));
+    $owner->assignRole(ownerRole());
     $product = Product::factory()->create(['has_variations' => false]);
     Sanctum::actingAs($owner, ['*']);
 

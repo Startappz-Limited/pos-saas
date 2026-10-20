@@ -30,6 +30,16 @@ class User extends Authenticatable
      *
      * @var list<string>
      */
+    /**
+     * The column's default, so a login just created reads as active before
+     * it's reloaded (the account status is checked on every request, stage 3).
+     *
+     * @var array<string, mixed>
+     */
+    protected $attributes = [
+        'status' => 'active',
+    ];
+
     protected $fillable = [
         'uuid',
         'name',
@@ -64,6 +74,8 @@ class User extends Authenticatable
     {
         return [
             'email_verified_at' => 'datetime',
+            // Never fillable: only the platform grants it.
+            'is_platform_operator' => 'boolean',
             'password' => 'hashed',
             'date_of_birth' => 'date',
             'status' => UserStatus::class,
@@ -181,6 +193,55 @@ class User extends Authenticatable
     }
 
     /**
+     * Adds `business_status`: the user's status in the current business
+     * (stage 3), which is what a business's screens and the API show.
+     */
+    public function scopeWithBusinessStatus($query)
+    {
+        return $query->addSelect(['business_status' => BusinessMembership::query()->select('status')
+            ->whereColumn('business_user.user_id', 'users.id')
+            ->where('business_id', app(TenantContext::class)->id() ?? 0)
+            ->limit(1)]);
+    }
+
+    /**
+     * Members with $status in the current business.
+     */
+    public function scopeWhereBusinessStatus($query, UserStatus|string $status)
+    {
+        $status = $status instanceof UserStatus ? $status->value : $status;
+
+        return $query->whereHas('memberships', fn ($membership) => $membership
+            ->where('business_id', app(TenantContext::class)->id() ?? 0)
+            ->where('status', $status));
+    }
+
+    /**
+     * The user's status in the current business (stage 3): suspending or
+     * deactivating someone from a business's screens changes only this. The
+     * account's own `status` is the platform operator's (Phase 5).
+     */
+    public function businessStatus(): ?UserStatus
+    {
+        $status = $this->getAttribute('business_status')
+            ?? $this->memberships()->where('business_id', app(TenantContext::class)->id() ?? 0)->value('status');
+
+        return $status === null ? null : UserStatus::tryFrom($status);
+    }
+
+    /**
+     * For a response from a business's screens or the API: `status` shows the
+     * status in the current business, keeping the field the Flutter app reads.
+     * Never save the model after this.
+     */
+    public function presentBusinessStatus(): static
+    {
+        $this->setAttribute('status', $this->businessStatus() ?? $this->status);
+
+        return $this;
+    }
+
+    /**
      * Scope: Suspended users
      */
     public function scopeSuspended($query)
@@ -259,6 +320,37 @@ class User extends Authenticatable
     }
 
     /**
+     * The business a sign-in opens (decision 4.4): the usable default, else the
+     * only usable business; null when the user has several and no usable
+     * default (they pick one), or none.
+     */
+    public function businessToOpen(): ?int
+    {
+        if ($this->canEnterBusiness($this->default_business_id)) {
+            return $this->default_business_id;
+        }
+
+        $usable = $this->usableBusinesses();
+
+        return $usable->count() === 1 ? $usable->first()->id : null;
+    }
+
+    /**
+     * The businesses this login can work in now: an active membership in an
+     * active business, by name.
+     *
+     * @return \Illuminate\Database\Eloquent\Collection<int, Business>
+     */
+    public function usableBusinesses(): \Illuminate\Database\Eloquent\Collection
+    {
+        return $this->businesses()
+            ->wherePivot('status', BusinessMembership::STATUS_ACTIVE)
+            ->where('businesses.status', Business::STATUS_ACTIVE)
+            ->orderBy('businesses.name')
+            ->get();
+    }
+
+    /**
      * Adds an active membership in $business, and makes it the default
      * business when the user has none.
      */
@@ -323,13 +415,32 @@ class User extends Authenticatable
     }
 
     /**
-     * An owner sees every shop of the business (decision 4.4). Until Phase 3
-     * splits the platform operator from business owners, the owner is the
-     * super-admin role.
+     * An owner sees every shop of the business (decision 4.4). Owners hold
+     * the admin role in the business; a business may have several.
      */
     public function isBusinessOwner(): bool
     {
-        return $this->hasRole('super-admin');
+        // The owner role, held in the current business (decision 4.4).
+        return app(TenantContext::class)->has() && $this->hasRole('admin');
+    }
+
+    /**
+     * The founding owner of the current business (stage 3).
+     */
+    public function isPrimaryOwner(): bool
+    {
+        $business = app(TenantContext::class)->business();
+
+        return $business !== null && $business->primary_owner_id === $this->id;
+    }
+
+    /**
+     * The platform operator (decision 4.4): global, never a business member,
+     * the only user Gate::before lets do everything.
+     */
+    public function isPlatformOperator(): bool
+    {
+        return (bool) $this->is_platform_operator;
     }
 
     /**

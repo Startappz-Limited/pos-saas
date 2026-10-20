@@ -132,6 +132,8 @@ it('makes every user a member, inactive users inactive, with grants held in the 
     $target = DB::connection('import_testing');
 
     expect($target->table('business_user')->orderBy('user_id')->pluck('status', 'user_id')->all())->toBe([10 => 'active', 11 => 'inactive'])
+        // Status is per business (stage 3): the account itself is active.
+        ->and($target->table('users')->where('id', 11)->value('status'))->toBe('active')
         ->and($target->table('users')->distinct()->pluck('default_business_id')->all())->toBe([$businessId])
         ->and($target->table('model_has_roles')->value('business_id'))->toBe($businessId)
         // Roles stay shared templates.

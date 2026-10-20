@@ -7,6 +7,11 @@ use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\Baileys\BroadcastController;
 use App\Http\Controllers\Baileys\InboxController;
 use App\Http\Controllers\Baileys\SessionController;
+use App\Http\Controllers\BusinessDataController;
+use App\Http\Controllers\BusinessIntegrationController;
+use App\Http\Controllers\BusinessInviteController;
+use App\Http\Controllers\BusinessSettingsController;
+use App\Http\Controllers\BusinessSwitchController;
 use App\Http\Controllers\CalendarController;
 use App\Http\Controllers\CampaignController;
 use App\Http\Controllers\CashRegisterController;
@@ -19,10 +24,12 @@ use App\Http\Controllers\EcommerceOrderController;
 use App\Http\Controllers\ExpenseCategoryController;
 use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\InventorySnapshotController;
+use App\Http\Controllers\InvitationController;
 use App\Http\Controllers\LowStockAlertController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\PricingRuleController;
 use App\Http\Controllers\ProductController;
+use App\Http\Controllers\ProductImportController;
 use App\Http\Controllers\ProductPurchaseCostController;
 use App\Http\Controllers\ProductSyncController;
 use App\Http\Controllers\ProfileController;
@@ -34,6 +41,7 @@ use App\Http\Controllers\ReturnController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\SaleController;
 use App\Http\Controllers\ShopController;
+use App\Http\Controllers\ShopMpesaController;
 use App\Http\Controllers\SocialAccountController;
 use App\Http\Controllers\StockAdjustmentController;
 use App\Http\Controllers\StockIntakeController;
@@ -43,6 +51,7 @@ use App\Http\Controllers\TenantFileController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\VatReportController;
 use Illuminate\Support\Facades\Route;
+use Spatie\Honeypot\ProtectAgainstSpam;
 
 Route::get('/', function () {
     // redirect to ogin
@@ -51,7 +60,7 @@ Route::get('/', function () {
 
 Route::get('/dashboard', function () {
     return view('dashboard');
-})->middleware(['auth', 'verified'])->name('dashboard');
+})->middleware(['auth', 'verified', 'business'])->name('dashboard');
 
 // Public signed routes (no auth required)
 Route::get('orders/{order:uuid}/invoice', [EcommerceOrderController::class, 'invoicePdf'])
@@ -68,7 +77,34 @@ Route::get('credit-accounts/{creditAccount:uuid}/statement-pdf', [CreditAccountC
     ->name('credit-accounts.statement-pdf')
     ->middleware('signed');
 
+// Invite links (stage 3): opened signed out, or signed in to any business.
+Route::prefix('invitations/{token}')->name('invitations.')->group(function () {
+    Route::get('/', [InvitationController::class, 'show'])->name('show');
+    Route::get('sign-in', [InvitationController::class, 'signIn'])->middleware('guest')->name('sign-in');
+    Route::post('accept', [InvitationController::class, 'accept'])->middleware(['auth', 'throttle:6,1'])->name('accept');
+    Route::post('register', [InvitationController::class, 'register'])
+        ->middleware(['guest', 'throttle:6,1', ProtectAgainstSpam::class])->name('register');
+});
+
+// A business's export download and cancelling its closure (stage 3): they work
+// while the business is closing and can't be opened; owners of it only.
 Route::middleware('auth')->group(function () {
+    Route::get('business/exports/{export}/download', [BusinessDataController::class, 'download'])
+        ->middleware('signed')->name('business.exports.download');
+    Route::post('business-closures/{closure:uuid}/cancel', [BusinessDataController::class, 'cancelClosure'])
+        ->name('business.closure.cancel');
+});
+
+// The business picker, switcher and default business (stage 3): reachable
+// with no business chosen, so outside the `business` middleware.
+Route::middleware('auth')->prefix('businesses')->name('businesses.')->group(function () {
+    Route::get('/', [BusinessSwitchController::class, 'index'])->name('index');
+    Route::get('{business:uuid}/open', [BusinessSwitchController::class, 'open'])->middleware('signed')->name('open');
+    Route::post('{business:uuid}/switch', [BusinessSwitchController::class, 'switch'])->name('switch');
+    Route::post('{business:uuid}/default', [BusinessSwitchController::class, 'makeDefault'])->name('default');
+});
+
+Route::middleware(['auth', 'business'])->group(function () {
     // Private business files (stage 1c): WhatsApp media, profile photos.
     Route::get('files/{path}', TenantFileController::class)->where('path', '.*')->name('tenant-files.show');
 
@@ -82,6 +118,25 @@ Route::middleware('auth')->group(function () {
     Route::post('users/{user}/deactivate', [UserController::class, 'deactivate'])->name('users.deactivate');
     Route::post('users/{user}/suspend', [UserController::class, 'suspend'])->name('users.suspend');
 
+    // The business's data: exports and closure (stage 3; owners only).
+    Route::get('business/integrations', [BusinessIntegrationController::class, 'edit'])->name('business.integrations.edit');
+    Route::put('business/integrations/{type}', [BusinessIntegrationController::class, 'update'])->middleware('throttle:20,1')->name('business.integrations.update');
+    Route::delete('business/integrations/{type}', [BusinessIntegrationController::class, 'destroy'])->name('business.integrations.destroy');
+    Route::get('business/settings', [BusinessSettingsController::class, 'edit'])->name('business.settings.edit');
+    Route::put('business/settings', [BusinessSettingsController::class, 'update'])->name('business.settings.update');
+    Route::get('business/data', [BusinessDataController::class, 'index'])->name('business.data');
+    Route::post('business/exports', [BusinessDataController::class, 'export'])->name('business.exports.store');
+    Route::post('business/closure/code', [BusinessDataController::class, 'closureCode'])->middleware('throttle:5,1')->name('business.closure.code');
+    Route::post('business/closure', [BusinessDataController::class, 'close'])->middleware('throttle:10,1')->name('business.closure.confirm');
+    Route::post('business/handover/code', [BusinessDataController::class, 'handoverCode'])->middleware('throttle:5,1')->name('business.handover.code');
+    Route::post('business/handover', [BusinessDataController::class, 'handover'])->middleware('throttle:10,1')->name('business.handover.confirm');
+
+    // Invitations to the business (stage 3).
+    Route::get('invites', [BusinessInviteController::class, 'index'])->name('invites.index');
+    Route::post('invites', [BusinessInviteController::class, 'store'])->name('invites.store');
+    Route::post('invites/{invite:uuid}/resend', [BusinessInviteController::class, 'resend'])->name('invites.resend');
+    Route::delete('invites/{invite:uuid}', [BusinessInviteController::class, 'destroy'])->name('invites.destroy');
+
     // Role Management Routes
     Route::resource('roles', RoleController::class);
     Route::get('roles/{role}/permissions', [RoleController::class, 'permissions'])->name('roles.permissions');
@@ -89,6 +144,8 @@ Route::middleware('auth')->group(function () {
 
     // Shop Management Routes
     Route::post('shops/test-integration', [ShopController::class, 'testIntegration'])->name('shops.testIntegration');
+    Route::get('shops/{shop}/mpesa', [ShopMpesaController::class, 'edit'])->name('shops.mpesa.edit');
+    Route::put('shops/{shop}/mpesa', [ShopMpesaController::class, 'update'])->middleware('throttle:10,1')->name('shops.mpesa.update');
     Route::resource('shops', ShopController::class);
     Route::post('shops/{shop}/activate', [ShopController::class, 'activate'])->name('shops.activate');
     Route::post('shops/{shop}/deactivate', [ShopController::class, 'deactivate'])->name('shops.deactivate');
@@ -117,6 +174,9 @@ Route::middleware('auth')->group(function () {
         ->name('products.purchase-costs.update');
 
     // Product Management Routes
+    Route::get('products/import', [ProductImportController::class, 'create'])->name('products.import.create');
+    Route::get('products/import/template', [ProductImportController::class, 'template'])->name('products.import.template');
+    Route::post('products/import', [ProductImportController::class, 'store'])->middleware('throttle:10,1')->name('products.import.store');
     Route::resource('products', ProductController::class);
     Route::get('products/low-stock/list', [ProductController::class, 'lowStock'])->name('products.lowStock');
     Route::post('products/{product}/activate', [ProductController::class, 'activate'])->name('products.activate');

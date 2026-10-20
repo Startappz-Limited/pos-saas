@@ -1,6 +1,9 @@
 <?php
 
-uses(Tests\TestCase::class);
+use Illuminate\Support\Facades\Crypt;
+use Tests\TestCase;
+
+uses(TestCase::class);
 
 // --- WooCommerce HMAC Signature Verification Tests ---
 
@@ -89,8 +92,8 @@ test('shopify order topics are recognized', function () {
 test('webhook secret survives encrypt/decrypt round-trip', function () {
     $originalSecret = 'my-super-secret-webhook-key-12345';
 
-    $encrypted = Illuminate\Support\Facades\Crypt::encrypt($originalSecret);
-    $decrypted = Illuminate\Support\Facades\Crypt::decrypt($encrypted);
+    $encrypted = Crypt::encrypt($originalSecret);
+    $decrypted = Crypt::decrypt($encrypted);
 
     expect($decrypted)->toBe($originalSecret);
 });
@@ -99,8 +102,8 @@ test('hmac verification works with encrypted then decrypted secret', function ()
     $secret = 'round-trip-test-secret';
     $payload = json_encode(['order_id' => 789]);
 
-    $encrypted = Illuminate\Support\Facades\Crypt::encrypt($secret);
-    $decrypted = Illuminate\Support\Facades\Crypt::decrypt($encrypted);
+    $encrypted = Crypt::encrypt($secret);
+    $decrypted = Crypt::decrypt($encrypted);
 
     $sigFromOriginal = base64_encode(hash_hmac('sha256', $payload, $secret, true));
     $sigFromDecrypted = base64_encode(hash_hmac('sha256', $payload, $decrypted, true));
