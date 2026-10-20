@@ -34,6 +34,10 @@ class Business extends Model
         'primary_owner_id',
         'currency',
         'timezone',
+        'logo_path',
+        'receipt_header',
+        'receipt_footer',
+        'invoice_prefix',
         'trial_started_at',
     ];
 
@@ -107,6 +111,25 @@ class Business extends Model
     public function primaryOwner(): BelongsTo
     {
         return $this->belongsTo(User::class, 'primary_owner_id');
+    }
+
+    /**
+     * The logo as a data URI, for PDFs (dompdf can't reach the storage
+     * link); null when none is set or the file is gone.
+     */
+    public function logoDataUri(): ?string
+    {
+        if (blank($this->logo_path)) {
+            return null;
+        }
+
+        $disk = \Illuminate\Support\Facades\Storage::disk(\App\Support\Tenancy\TenantFiles::PUBLIC_DISK);
+
+        if (! $disk->exists($this->logo_path)) {
+            return null;
+        }
+
+        return 'data:'.($disk->mimeType($this->logo_path) ?: 'image/png').';base64,'.base64_encode($disk->get($this->logo_path));
     }
 
     public function members(): BelongsToMany

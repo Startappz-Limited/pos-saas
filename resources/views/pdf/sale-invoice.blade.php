@@ -288,7 +288,13 @@
         {{-- Header --}}
         <div class="header">
             <div class="header-left">
-                <div class="shop-name">{{ $shop?->name ?? config('app.name') }}</div>
+                @if ($logo = current_business()?->logoDataUri())
+                    <img src="{{ $logo }}" alt="" style="max-height: 60px; max-width: 180px; margin-bottom: 6px;">
+                @endif
+                <div class="shop-name">{{ $shop?->name ?? business_name() }}</div>
+                @if (current_business()?->receipt_header)
+                    <div class="shop-details">{!! nl2br(e(current_business()->receipt_header)) !!}</div>
+                @endif
                 <div class="shop-details">
                     @if ($shop?->address)
                         {{ $shop->address }}<br>
@@ -519,7 +525,13 @@
 
         {{-- Footer --}}
         <div class="footer">
-            Thank you for your business — {{ $shop?->name ?? config('app.name') }}
+            @if (current_business()?->receipt_footer)
+                {!! nl2br(e(current_business()->receipt_footer)) !!}<br>
+            @endif
+            @if ($shop?->mpesa_verified_at)
+                M-Pesa {{ $shop->mpesa_shortcode_type === 'paybill' ? 'Paybill' : 'Till' }}: {{ $shop->mpesa_shortcode }}<br>
+            @endif
+            Thank you for your business — {{ $shop?->name ?? business_name() }}
         </div>
     </div>
 </body>

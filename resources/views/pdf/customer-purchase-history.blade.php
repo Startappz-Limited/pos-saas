@@ -32,7 +32,7 @@
     <div class="container">
         <div class="header">
             <div class="header-left">
-                <div class="shop-name">{{ $customer->shop?->name ?? config('app.name') }}</div>
+                <div class="shop-name">{{ $customer->shop?->name ?? business_name() }}</div>
                 <div class="muted">
                     @if ($customer->shop?->address){{ $customer->shop->address }}<br>@endif
                     @if ($customer->shop?->phone){{ $customer->shop->phone }}<br>@endif
@@ -91,7 +91,7 @@
             </tbody>
         </table>
 
-        <div class="footer">This purchase history was generated from {{ config('app.name') }}.</div>
+        <div class="footer">This purchase history was generated from {{ business_name() }}.</div>
     </div>
 </body>
 

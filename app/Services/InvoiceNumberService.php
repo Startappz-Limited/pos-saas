@@ -130,7 +130,8 @@ class InvoiceNumberService
     {
         $separator = (string) config('invoicing.separator', '-');
 
-        $parts = [(string) config('invoicing.prefix', 'INV')];
+        // The business's own prefix (stage 3), else the platform's.
+        $parts = [(string) (current_business()?->invoice_prefix ?: config('invoicing.prefix', 'INV'))];
 
         if (config('invoicing.include_shop_code', true) && $shopCode) {
             $parts[] = $this->code($shopCode, 'SHOP');

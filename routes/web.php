@@ -9,6 +9,7 @@ use App\Http\Controllers\Baileys\InboxController;
 use App\Http\Controllers\Baileys\SessionController;
 use App\Http\Controllers\BusinessDataController;
 use App\Http\Controllers\BusinessInviteController;
+use App\Http\Controllers\BusinessSettingsController;
 use App\Http\Controllers\BusinessSwitchController;
 use App\Http\Controllers\CalendarController;
 use App\Http\Controllers\CampaignController;
@@ -115,6 +116,8 @@ Route::middleware(['auth', 'business'])->group(function () {
     Route::post('users/{user}/suspend', [UserController::class, 'suspend'])->name('users.suspend');
 
     // The business's data: exports and closure (stage 3; owners only).
+    Route::get('business/settings', [BusinessSettingsController::class, 'edit'])->name('business.settings.edit');
+    Route::put('business/settings', [BusinessSettingsController::class, 'update'])->name('business.settings.update');
     Route::get('business/data', [BusinessDataController::class, 'index'])->name('business.data');
     Route::post('business/exports', [BusinessDataController::class, 'export'])->name('business.exports.store');
     Route::post('business/closure/code', [BusinessDataController::class, 'closureCode'])->middleware('throttle:5,1')->name('business.closure.code');

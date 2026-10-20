@@ -213,7 +213,10 @@
     <div class="receipt">
         <!-- Header -->
         <div class="receipt-header">
-            <div class="shop-name">{{ $sale->shop->name ?? config('app.name') }}</div>
+            <div class="shop-name">{{ $sale->shop->name ?? business_name() }}</div>
+            @if (current_business()?->receipt_header)
+                <div class="shop-info">{!! nl2br(e(current_business()->receipt_header)) !!}</div>
+            @endif
             @if ($sale->shop)
                 <div class="shop-info">
                     @if ($sale->shop->address)
@@ -389,7 +392,14 @@
         <!-- Footer -->
         <div class="receipt-footer">
             <div class="thank-you">Thank You!</div>
-            <div>Please keep this receipt for your records</div>
+            @if ($sale->shop?->mpesa_verified_at)
+                <div>M-Pesa {{ $sale->shop->mpesa_shortcode_type === 'paybill' ? 'Paybill' : 'Till' }}: {{ $sale->shop->mpesa_shortcode }}</div>
+            @endif
+            @if (current_business()?->receipt_footer)
+                <div>{!! nl2br(e(current_business()->receipt_footer)) !!}</div>
+            @else
+                <div>Please keep this receipt for your records</div>
+            @endif
             @if ($sale->source)
                 <div style="margin-top: 5px;">Source: {{ $sale->source->name }}</div>
             @endif
