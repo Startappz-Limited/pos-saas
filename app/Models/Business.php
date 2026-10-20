@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Actions\Business\CopyRoleTemplates;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
@@ -30,6 +31,7 @@ class Business extends Model
         'name',
         'settings',
         'status',
+        'primary_owner_id',
         'currency',
         'timezone',
         'trial_started_at',
@@ -96,6 +98,15 @@ class Business extends Model
     public function memberships(): HasMany
     {
         return $this->hasMany(BusinessMembership::class);
+    }
+
+    /**
+     * The founding owner: protected from other owners, the only one who
+     * hands the business over.
+     */
+    public function primaryOwner(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'primary_owner_id');
     }
 
     public function members(): BelongsToMany

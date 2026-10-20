@@ -3,6 +3,7 @@
 namespace App\Notifications\Channels;
 
 use App\Http\Startappz\Services\SMSservice;
+use App\Notifications\NewEcommerceOrderNotification;
 use Illuminate\Notifications\Notification;
 use Illuminate\Support\Facades\Log;
 
@@ -23,7 +24,7 @@ class SmsChannel
             return;
         }
 
-        /** @var \App\Notifications\NewEcommerceOrderNotification $notification */
+        /** @var NewEcommerceOrderNotification $notification */
         $message = $notification->toSms($notifiable);
 
         if (empty($message)) {

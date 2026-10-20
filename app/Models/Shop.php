@@ -78,6 +78,12 @@ class Shop extends Model
         });
 
         static::updating(function (self $shop) {
+            // A shop never moves to another business; it leaves only by being
+            // deleted (decision 4.9, stage 3).
+            if ($shop->isDirty('business_id')) {
+                throw new \LogicException('A shop cannot be moved to another business.');
+            }
+
             if (Auth::check()) {
                 $shop->updated_by = Auth::id();
             }

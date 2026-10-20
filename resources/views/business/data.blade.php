@@ -58,6 +58,39 @@
         </div>
 
         <div class="col-lg-5">
+            @if ($isPrimaryOwner)
+                <x-ui-card title="{{ __('Hand the business over') }}" class="mb-3">
+                    <p class="text-muted">
+                        {{ __('Pass ownership to another owner of this business. We email you a code to confirm. You stay a co-owner.') }}
+                    </p>
+
+                    @if ($coOwners->isEmpty())
+                        <p class="small text-muted mb-0">{{ __('Make someone else an owner first (Users).') }}</p>
+                    @elseif ($pendingHandover)
+                        <form method="POST" action="{{ route('business.handover.confirm') }}">
+                            @csrf
+                            <x-ui-form-input name="code" label="{{ __('Confirmation code from your email') }}" inputmode="numeric"
+                                autocomplete="one-time-code" maxlength="6" required />
+                            <x-ui-button variant="warning" type="submit" class="w-100">{{ __('Hand the business over') }}</x-ui-button>
+                        </form>
+                    @else
+                        <form method="POST" action="{{ route('business.handover.code') }}">
+                            @csrf
+                            <div class="mb-3">
+                                <label class="form-label" for="owner">{{ __('New owner') }}</label>
+                                <select name="owner" id="owner" class="form-select @error('owner') is-invalid @enderror" required>
+                                    @foreach ($coOwners as $coOwner)
+                                        <option value="{{ $coOwner->uuid }}">{{ $coOwner->name }} ({{ $coOwner->email }})</option>
+                                    @endforeach
+                                </select>
+                                @error('owner')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                            </div>
+                            <x-ui-button variant="outline-warning" type="submit" class="w-100">{{ __('Email me a confirmation code') }}</x-ui-button>
+                        </form>
+                    @endif
+                </x-ui-card>
+            @endif
+
             <x-ui-card title="{{ __('Close the business') }}">
                 <p class="text-muted">
                     {{ __('Closing stops everyone from working in the business and emails its owners a final export. :days days later, all of its data, audit trail and files are erased for good. Until then, any owner can cancel the closure.', ['days' => $graceDays]) }}

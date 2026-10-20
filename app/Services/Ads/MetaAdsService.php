@@ -49,10 +49,10 @@ class MetaAdsService
                 'success' => true,
                 'message' => 'Meta Ad created (simulated – fake credentials).',
                 'ids' => [
-                    'campaign_id' => 'sim_cmp_' . uniqid(),
-                    'adset_id' => 'sim_set_' . uniqid(),
-                    'creative_id' => 'sim_cre_' . uniqid(),
-                    'ad_id' => 'sim_ad_' . uniqid(),
+                    'campaign_id' => 'sim_cmp_'.uniqid(),
+                    'adset_id' => 'sim_set_'.uniqid(),
+                    'creative_id' => 'sim_cre_'.uniqid(),
+                    'ad_id' => 'sim_ad_'.uniqid(),
                 ],
                 'raw' => ['simulated' => true],
             ];
@@ -90,7 +90,7 @@ class MetaAdsService
 
             return [
                 'success' => false,
-                'message' => 'Meta Ads error: ' . $e->getMessage(),
+                'message' => 'Meta Ads error: '.$e->getMessage(),
             ];
         }
     }
@@ -104,7 +104,7 @@ class MetaAdsService
 
         return [
             'success' => false,
-            'message' => $context . ': ' . ($response->json('error.message') ?? $response->status()),
+            'message' => $context.': '.($response->json('error.message') ?? $response->status()),
             'raw' => $response->json(),
         ];
     }

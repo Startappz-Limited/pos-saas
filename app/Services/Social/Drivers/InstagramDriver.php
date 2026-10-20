@@ -43,7 +43,7 @@ class InstagramDriver implements SocialPoster
         if (str_starts_with((string) $token, 'fake_')) {
             return [
                 'success' => true,
-                'external_post_id' => 'ig_test_' . uniqid(),
+                'external_post_id' => 'ig_test_'.uniqid(),
                 'external_post_url' => 'https://instagram.com/p/test',
                 'message' => 'Posted (simulated – fake credentials).',
                 'raw' => ['simulated' => true],
@@ -63,7 +63,7 @@ class InstagramDriver implements SocialPoster
             if (! $container->successful()) {
                 return [
                     'success' => false,
-                    'message' => 'Instagram media container failed: ' . ($container->json('error.message') ?? $container->status()),
+                    'message' => 'Instagram media container failed: '.($container->json('error.message') ?? $container->status()),
                     'raw' => $container->json(),
                 ];
             }
@@ -78,7 +78,7 @@ class InstagramDriver implements SocialPoster
             if (! $publish->successful()) {
                 return [
                     'success' => false,
-                    'message' => 'Instagram publish failed: ' . ($publish->json('error.message') ?? $publish->status()),
+                    'message' => 'Instagram publish failed: '.($publish->json('error.message') ?? $publish->status()),
                     'raw' => $publish->json(),
                 ];
             }
@@ -97,7 +97,7 @@ class InstagramDriver implements SocialPoster
 
             return [
                 'success' => false,
-                'message' => 'Instagram publish failed: ' . $e->getMessage(),
+                'message' => 'Instagram publish failed: '.$e->getMessage(),
             ];
         }
     }

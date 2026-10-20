@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Actions\Business\CloseBusiness;
+use App\Actions\Business\HandOverBusiness;
 use App\Actions\Business\SendOwnerConfirmationCode;
 use App\Http\Middleware\ResolveTenant;
 use App\Jobs\BuildBusinessExport;
@@ -28,6 +29,7 @@ class BusinessDataController extends Controller
         private TenantContext $tenant,
         private SendOwnerConfirmationCode $codes,
         private CloseBusiness $closer,
+        private HandOverBusiness $handover,
     ) {}
 
     public function index(Request $request): View
@@ -38,6 +40,9 @@ class BusinessDataController extends Controller
             'exports' => BusinessExport::query()->with('requester:id,name')->latest()->limit(10)->get(),
             'pendingCode' => $this->codes->pending($request->user(), OwnerConfirmation::PURPOSE_CLOSE),
             'graceDays' => CloseBusiness::graceDays(),
+            'isPrimaryOwner' => $this->mayHandOver($request->user()),
+            'coOwners' => $this->handover->candidates($request->user()),
+            'pendingHandover' => $this->codes->pending($request->user(), OwnerConfirmation::PURPOSE_HANDOVER),
         ]);
     }
 
@@ -92,6 +97,55 @@ class BusinessDataController extends Controller
         return redirect()->route('dashboard')->with('success', __(':business is open again.', ['business' => $closure->business_name]));
     }
 
+    /**
+     * Step 1 of a handover: a code emailed to the owner, naming the co-owner.
+     */
+    public function handoverCode(Request $request): RedirectResponse
+    {
+        abort_unless($this->mayHandOver($request->user()), 403);
+
+        $validated = $request->validate(['owner' => ['required', 'string']]);
+        $target = $this->handover->candidates($request->user())->firstWhere('uuid', $validated['owner']);
+
+        if ($target === null) {
+            return back()->withErrors(['owner' => __('Ownership can only pass to an existing co-owner of this business.')]);
+        }
+
+        $this->codes->execute($request->user(), OwnerConfirmation::PURPOSE_HANDOVER, ['owner_id' => $target->id]);
+
+        return redirect()->route('business.data')
+            ->with('success', __('We emailed you a confirmation code. Enter it below to hand the business over to :name.', ['name' => $target->name]));
+    }
+
+    /**
+     * Step 2: the code confirms, and ownership passes.
+     */
+    public function handover(Request $request): RedirectResponse
+    {
+        abort_unless($this->mayHandOver($request->user()), 403);
+
+        $validated = $request->validate(['code' => ['required', 'string', 'size:6']]);
+        $confirmation = $this->codes->pending($request->user(), OwnerConfirmation::PURPOSE_HANDOVER);
+
+        if ($confirmation === null || ! $confirmation->attempt($validated['code'])) {
+            return back()->withErrors(['code' => __('That code is wrong or has expired. Ask for a new one if needed.')]);
+        }
+
+        // Checked again: the co-owner may have been removed since the code was sent.
+        $target = $this->handover->candidates($request->user())->firstWhere('id', $confirmation->payload['owner_id'] ?? 0);
+
+        if ($target === null) {
+            return back()->withErrors(['code' => __('That person is no longer an owner of this business.')]);
+        }
+
+        $this->handover->execute($request->user(), $target);
+
+        return redirect()->route('business.data')->with('success', __(':name is now the owner of :business. You remain a co-owner.', [
+            'name' => $target->name,
+            'business' => $this->tenant->business()->name,
+        ]));
+    }
+
     public function export(Request $request): RedirectResponse
     {
         $this->ownersOnly($request);
@@ -121,6 +175,21 @@ class BusinessDataController extends Controller
     private function ownersOnly(Request $request): void
     {
         abort_unless($this->isOwner($request->user()), 403);
+    }
+
+    /**
+     * Only the founding owner hands the business over (any owner, if the
+     * business has none recorded).
+     */
+    private function mayHandOver(?User $user): bool
+    {
+        if (! $this->isOwner($user)) {
+            return false;
+        }
+
+        $primary = $this->tenant->business()->primary_owner_id;
+
+        return $primary === null || $primary === $user->id;
     }
 
     private function isOwner(?User $user): bool

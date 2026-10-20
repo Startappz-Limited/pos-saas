@@ -113,8 +113,8 @@ class UserService
     public function update(User $user, array $data): User
     {
         // The business keeps at least one owner.
-        if (isset($data['roles']) && ! in_array(CopyRoleTemplates::OWNER_ROLE, $data['roles'], true) && $this->isLastOwner($user)) {
-            throw ValidationException::withMessages(['roles' => [__('The business needs at least one owner.')]]);
+        if (isset($data['roles']) && ! in_array(CopyRoleTemplates::OWNER_ROLE, $data['roles'], true) && ($this->isLastOwner($user) || $user->isPrimaryOwner())) {
+            throw ValidationException::withMessages(['roles' => [$user->isPrimaryOwner() ? __('Hand the business over to another owner before changing this role.') : __('The business needs at least one owner.')]]);
         }
 
         // Handle profile photo upload if provided

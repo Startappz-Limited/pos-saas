@@ -22,7 +22,7 @@ class WhatsAppTemplateMessage
     {
         $this->components[] = [
             'type' => 'body',
-            'parameters' => array_map(fn(string $value) => [
+            'parameters' => array_map(fn (string $value) => [
                 'type' => 'text',
                 'text' => $value,
             ], $parameters),

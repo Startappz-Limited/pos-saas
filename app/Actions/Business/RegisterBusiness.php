@@ -33,6 +33,7 @@ class RegisterBusiness
             $business = Business::create([
                 'name' => $data['business_name'],
                 'status' => Business::STATUS_PENDING_VERIFICATION,
+                'primary_owner_id' => $user->id,
             ]);
 
             $user->joinBusiness($business);

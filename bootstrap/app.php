@@ -4,6 +4,7 @@ use App\Http\Middleware\EnsureAccountActive;
 use App\Http\Middleware\EnsureActiveBusiness;
 use App\Http\Middleware\ResolveTenant;
 use App\Http\Middleware\SecurityHeaders;
+use App\Http\Middleware\VerifyFormBusiness;
 use Illuminate\Contracts\Auth\Middleware\AuthenticatesRequests;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -40,6 +41,11 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->web(append: [EnsureAccountActive::class]);
         $middleware->api(append: [EnsureAccountActive::class]);
         $middleware->appendToPriorityList(AuthenticatesRequests::class, EnsureAccountActive::class);
+
+        // A form loaded for another business than the active one is refused
+        // (stage 3, decision 4.9); after ResolveTenant, web only (API tokens
+        // are bound to one business).
+        $middleware->web(append: [VerifyFormBusiness::class]);
 
         // Pages that work on a business need one (stage 3).
         $middleware->alias(['business' => EnsureActiveBusiness::class]);

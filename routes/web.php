@@ -118,6 +118,8 @@ Route::middleware(['auth', 'business'])->group(function () {
     Route::post('business/exports', [BusinessDataController::class, 'export'])->name('business.exports.store');
     Route::post('business/closure/code', [BusinessDataController::class, 'closureCode'])->middleware('throttle:5,1')->name('business.closure.code');
     Route::post('business/closure', [BusinessDataController::class, 'close'])->middleware('throttle:10,1')->name('business.closure.confirm');
+    Route::post('business/handover/code', [BusinessDataController::class, 'handoverCode'])->middleware('throttle:5,1')->name('business.handover.code');
+    Route::post('business/handover', [BusinessDataController::class, 'handover'])->middleware('throttle:10,1')->name('business.handover.confirm');
 
     // Invitations to the business (stage 3).
     Route::get('invites', [BusinessInviteController::class, 'index'])->name('invites.index');

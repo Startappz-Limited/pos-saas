@@ -31,7 +31,7 @@ class FacebookDriver implements SocialPoster
         if (str_starts_with((string) $token, 'fake_')) {
             return [
                 'success' => true,
-                'external_post_id' => 'fb_test_' . uniqid(),
+                'external_post_id' => 'fb_test_'.uniqid(),
                 'external_post_url' => "https://facebook.com/{$pageId}/posts/test",
                 'message' => 'Posted (simulated – fake credentials).',
                 'raw' => ['simulated' => true],
@@ -68,7 +68,7 @@ class FacebookDriver implements SocialPoster
 
                 return [
                     'success' => false,
-                    'message' => 'Facebook API error: ' . ($response->json('error.message') ?? $response->status()),
+                    'message' => 'Facebook API error: '.($response->json('error.message') ?? $response->status()),
                     'raw' => $response->json(),
                 ];
             }
@@ -88,7 +88,7 @@ class FacebookDriver implements SocialPoster
 
             return [
                 'success' => false,
-                'message' => 'Facebook publish failed: ' . $e->getMessage(),
+                'message' => 'Facebook publish failed: '.$e->getMessage(),
             ];
         }
     }

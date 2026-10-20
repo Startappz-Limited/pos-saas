@@ -32,6 +32,7 @@ use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Log\Context\Repository as ContextRepository;
 use Illuminate\Pagination\Paginator;
+use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Context;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
@@ -68,6 +69,10 @@ class AppServiceProvider extends ServiceProvider
     {
         // Use Bootstrap 5 pagination views
         Paginator::useBootstrapFive();
+
+        // Every form carries the business it was loaded for (decision 4.9):
+        // `@csrf` also writes the `_business` field VerifyFormBusiness checks.
+        Blade::directive('csrf', fn (): string => '<?php echo csrf_field(); echo \App\Support\Tenancy\BusinessField::html(); ?>');
 
         $this->registerRateLimiters();
         $this->enforceHttps();

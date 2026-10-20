@@ -45,6 +45,7 @@ class UserPolicy
     {
         return ! $user->is($model)
             && $user->isBusinessOwner()
+            && ! $model->isPrimaryOwner()
             && ! $this->isLastOwner($model);
     }
 
@@ -59,10 +60,15 @@ class UserPolicy
     }
 
     /**
-     * Owners are managed only by owners.
+     * Owners are managed only by owners; the founding owner only by themselves
+     * (or by handing the business over).
      */
     private function mayManage(User $user, User $model): bool
     {
+        if ($model->isPrimaryOwner()) {
+            return $user->is($model);
+        }
+
         return ! $model->isBusinessOwner() || $user->isBusinessOwner();
     }
 

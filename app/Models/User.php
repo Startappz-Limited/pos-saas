@@ -425,6 +425,16 @@ class User extends Authenticatable
     }
 
     /**
+     * The founding owner of the current business (stage 3).
+     */
+    public function isPrimaryOwner(): bool
+    {
+        $business = app(TenantContext::class)->business();
+
+        return $business !== null && $business->primary_owner_id === $this->id;
+    }
+
+    /**
      * The platform operator (decision 4.4): global, never a business member,
      * the only user Gate::before lets do everything.
      */

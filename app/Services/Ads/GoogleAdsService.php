@@ -40,8 +40,8 @@ class GoogleAdsService
                 'success' => true,
                 'message' => 'Google Ads campaign created (simulated – fake credentials).',
                 'ids' => [
-                    'campaign_id' => 'sim_gads_' . uniqid(),
-                    'ad_group_id' => 'sim_grp_' . uniqid(),
+                    'campaign_id' => 'sim_gads_'.uniqid(),
+                    'ad_group_id' => 'sim_grp_'.uniqid(),
                 ],
                 'raw' => ['simulated' => true],
             ];

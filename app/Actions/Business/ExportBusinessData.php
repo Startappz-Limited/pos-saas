@@ -25,7 +25,7 @@ use ZipArchive;
 class ExportBusinessData
 {
     /** Columns never written to an export. */
-    public const SECRET_COLUMNS = ['password', 'remember_token', 'token_hash', 'code_hash', 'two_factor_secret', 'two_factor_recovery_codes'];
+    public const SECRET_COLUMNS = ['password', 'remember_token', 'token_hash', 'code_hash', 'two_factor_secret', 'two_factor_recovery_codes', 'credentials'];
 
     /** Tables never written to an export (beyond the login tables): secrets or the export's own bookkeeping. */
     private const SKIPPED_TABLES = ['owner_confirmations', 'business_exports', 'users'];
