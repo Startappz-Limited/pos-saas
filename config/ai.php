@@ -79,4 +79,23 @@ return [
         'hashtag_count' => 8,
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Prepaid credit (decision 4.6, stage Phase 4)
+    |--------------------------------------------------------------------------
+    |
+    | Every AI call is metered against the business's prepaid balance. The
+    | credit unit is a configurable conversion: a top-up of KES x buys
+    | x * credits_per_kes credits. A call reserves `per_call` credits before it
+    | runs and settles the real cost afterwards (tokens used * per_1k_tokens);
+    | a driver that reports no tokens costs `per_call`.
+    |
+    */
+
+    'credits' => [
+        'per_kes' => (float) env('AI_CREDITS_PER_KES', 10),
+        'per_call' => (float) env('AI_CREDITS_PER_CALL', 20),
+        'per_1k_tokens' => (float) env('AI_CREDITS_PER_1K_TOKENS', 10),
+    ],
+
 ];

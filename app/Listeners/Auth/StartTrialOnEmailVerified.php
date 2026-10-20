@@ -2,6 +2,7 @@
 
 namespace App\Listeners\Auth;
 
+use App\Actions\Business\StartTrial;
 use App\Models\Business;
 use App\Models\BusinessMembership;
 use App\Models\User;
@@ -23,9 +24,16 @@ class StartTrialOnEmailVerified
             ->where('status', BusinessMembership::STATUS_ACTIVE)
             ->pluck('business_id');
 
-        Business::query()
+        $pending = Business::query()
             ->whereIn('id', $businessIds)
             ->where('status', Business::STATUS_PENDING_VERIFICATION)
-            ->update(['status' => Business::STATUS_ACTIVE, 'trial_started_at' => now(), 'updated_at' => now()]);
+            ->get();
+
+        foreach ($pending as $business) {
+            $business->update(['status' => Business::STATUS_ACTIVE, 'trial_started_at' => now()]);
+
+            // The trial, as a subscription on the top tier (Phase 4).
+            app(StartTrial::class)->execute($business);
+        }
     }
 }
