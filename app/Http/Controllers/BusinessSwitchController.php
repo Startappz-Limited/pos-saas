@@ -8,6 +8,7 @@ use App\Models\BusinessClosure;
 use App\Models\BusinessExport;
 use App\Models\BusinessMembership;
 use App\Models\User;
+use App\Support\Tenancy\BusinessLink;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -53,6 +54,23 @@ class BusinessSwitchController extends Controller
 
         return redirect()->route('dashboard')
             ->with('success', __('Now working in :business.', ['business' => $business->name]));
+    }
+
+    /**
+     * The target of a signed link in a notification (BusinessLink): switches
+     * the session to the business the notification is about, then goes to its
+     * page. A business the user can't work in is a 404.
+     */
+    public function open(Request $request, Business $business): RedirectResponse
+    {
+        $this->member($request, $business);
+
+        $to = (string) $request->query('to', '/dashboard');
+        abort_unless(BusinessLink::isLocalPath($to), 404);
+
+        $request->session()->put(ResolveTenant::SESSION_KEY, $business->id);
+
+        return redirect($to);
     }
 
     /**

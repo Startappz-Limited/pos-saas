@@ -98,6 +98,7 @@ Route::middleware('auth')->group(function () {
 // with no business chosen, so outside the `business` middleware.
 Route::middleware('auth')->prefix('businesses')->name('businesses.')->group(function () {
     Route::get('/', [BusinessSwitchController::class, 'index'])->name('index');
+    Route::get('{business:uuid}/open', [BusinessSwitchController::class, 'open'])->middleware('signed')->name('open');
     Route::post('{business:uuid}/switch', [BusinessSwitchController::class, 'switch'])->name('switch');
     Route::post('{business:uuid}/default', [BusinessSwitchController::class, 'makeDefault'])->name('default');
 });

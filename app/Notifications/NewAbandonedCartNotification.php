@@ -4,6 +4,7 @@ namespace App\Notifications;
 
 use App\Models\AbandonedCart;
 use App\Notifications\Channels\SmsChannel;
+use App\Support\Tenancy\BusinessLink;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
@@ -55,7 +56,7 @@ class NewAbandonedCartNotification extends Notification implements ShouldQueue
         }
 
         return $mail
-            ->action('View Cart', url("/abandoned-carts/{$cart->uuid}"))
+            ->action('View Cart', BusinessLink::to("/abandoned-carts/{$cart->uuid}"))
             ->line('Follow up with the customer to recover the sale.');
     }
 

@@ -7,6 +7,7 @@ use App\Notifications\Channels\SmsChannel;
 use App\Notifications\Channels\WhatsAppChannel;
 use App\Notifications\Messages\WhatsAppTemplateMessage;
 use App\Support\DocumentLinks;
+use App\Support\Tenancy\BusinessLink;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
@@ -41,7 +42,7 @@ class NewEcommerceOrderNotification extends Notification implements ShouldQueue
     {
         $order = $this->order;
         $order->loadMissing('items');
-        $url = url("/ecommerce-orders/{$order->uuid}");
+        $url = BusinessLink::to("/ecommerce-orders/{$order->uuid}");
 
         $mail = (new MailMessage)
             ->subject("New Order {$order->order_number} from {$order->shop->name}")
