@@ -18,8 +18,10 @@ use App\Models\ExpenseCategory;
 use App\Models\PricingRule;
 use App\Models\PurchaseOrder;
 use App\Models\SocialAccount;
+use App\Support\Tenancy\BusinessLink;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\URL;
 use Laravel\Sanctum\PersonalAccessToken;
@@ -202,4 +204,31 @@ it('refuses business B\'s export download and closure cancel to business A\'s ow
     $this->actingAs($this->fixture->a->owner)->post(route('business.closure.cancel', $closure))->assertNotFound();
 
     expect($closure->fresh()->cancelled_at)->toBeNull();
+});
+
+it('refuses business B\'s shop, business and people on the stage 3 routes to business A\'s owner', function () {
+    $b = $this->fixture->b;
+    $a = $this->fixture->a;
+
+    // A shop's M-Pesa page and its test-query save.
+    $this->actingAs($a->owner)->get(route('shops.mpesa.edit', $b->shops[0]))->assertNotFound();
+    $this->actingAs($a->owner)->put(route('shops.mpesa.update', $b->shops[0]), [
+        'shortcode' => '123456', 'type' => 'till', 'consumer_key' => 'k', 'consumer_secret' => 's',
+    ])->assertNotFound();
+
+    // The CSV import into a shop of another business.
+    $this->actingAs($a->owner)->post(route('products.import.store'), [
+        'shop_id' => $b->shops[0]->id,
+        'file' => UploadedFile::fake()->createWithContent('p.csv', "name,selling_price\nX,1\n"),
+    ])->assertSessionHasErrors('shop_id');
+
+    // A signed notification link into a business the user is not a member of.
+    $link = app(TenantContext::class)->run($b->business, fn () => BusinessLink::to('/customers'));
+    $this->actingAs($a->owner)->get($link)->assertNotFound();
+
+    // Handing the business over to another business's owner.
+    $a->business->update(['primary_owner_id' => $a->owner->id]);
+    $this->actingAs($a->owner)->post(route('business.handover.code'), ['owner' => $b->owner->uuid])->assertSessionHasErrors('owner');
+
+    expect($b->shops[0]->fresh()->mpesa_shortcode)->toBeNull();
 });

@@ -160,7 +160,12 @@ class BusinessData
         foreach ($tables as $table) {
             $parents[$table] = array_values(array_unique(array_filter(
                 array_map(fn (array $key): string => $key['foreign_table'], $this->foreignKeys()[$table] ?? []),
-                fn (string $parent): bool => $parent !== $table && in_array($parent, $tables, true),
+                // The business's founding owner (businesses.primary_owner_id) is
+                // a nullable pointer back to users, which point at businesses
+                // (default_business_id): not an ordering constraint, the
+                // erasure clears both.
+                fn (string $parent): bool => $parent !== $table && in_array($parent, $tables, true)
+                    && ! ($table === 'businesses' && $parent === 'users'),
             )));
         }
 

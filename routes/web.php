@@ -29,6 +29,7 @@ use App\Http\Controllers\LowStockAlertController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\PricingRuleController;
 use App\Http\Controllers\ProductController;
+use App\Http\Controllers\ProductImportController;
 use App\Http\Controllers\ProductPurchaseCostController;
 use App\Http\Controllers\ProductSyncController;
 use App\Http\Controllers\ProfileController;
@@ -173,6 +174,9 @@ Route::middleware(['auth', 'business'])->group(function () {
         ->name('products.purchase-costs.update');
 
     // Product Management Routes
+    Route::get('products/import', [ProductImportController::class, 'create'])->name('products.import.create');
+    Route::get('products/import/template', [ProductImportController::class, 'template'])->name('products.import.template');
+    Route::post('products/import', [ProductImportController::class, 'store'])->middleware('throttle:10,1')->name('products.import.store');
     Route::resource('products', ProductController::class);
     Route::get('products/low-stock/list', [ProductController::class, 'lowStock'])->name('products.lowStock');
     Route::post('products/{product}/activate', [ProductController::class, 'activate'])->name('products.activate');

@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Contracts\MpesaGateway;
 use App\Listeners\AuditAuthorizationChanges;
 use App\Models\BaileysSession;
 use App\Models\Campaign;
@@ -26,6 +27,8 @@ use App\Policies\SalePolicy;
 use App\Policies\ShopPolicy;
 use App\Policies\SocialAccountPolicy;
 use App\Policies\StockAdjustmentPolicy;
+use App\Services\Mpesa\NullMpesaGateway;
+use App\Support\Onboarding\OnboardingChecklist;
 use App\Support\Tenancy\TenantContext;
 use App\Support\Tenancy\TenantPresenceVerifier;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -39,6 +42,7 @@ use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\URL;
+use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rules\Password;
@@ -55,7 +59,7 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         // Until the private M-Pesa package is connected, nothing is accepted.
-        $this->app->bind(\App\Contracts\MpesaGateway::class, \App\Services\Mpesa\NullMpesaGateway::class);
+        $this->app->bind(MpesaGateway::class, NullMpesaGateway::class);
 
         // The business the current request, job or command acts for; reset
         // between requests and queued jobs (stage 1a).
@@ -76,6 +80,8 @@ class AppServiceProvider extends ServiceProvider
         // Every form carries the business it was loaded for (decision 4.9):
         // `@csrf` also writes the `_business` field VerifyFormBusiness checks.
         Blade::directive('csrf', fn (): string => '<?php echo csrf_field(); echo \App\Support\Tenancy\BusinessField::html(); ?>');
+
+        View::composer('partials.onboarding-checklist', fn ($view) => $view->with('steps', app(OnboardingChecklist::class)->steps()));
 
         $this->registerRateLimiters();
         $this->enforceHttps();
