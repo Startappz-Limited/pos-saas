@@ -69,7 +69,9 @@ class RoleController extends Controller
     {
         $this->authorize('view', $role);
 
-        $role->load(['permissions', 'users:id,name,email,avatar,is_active,created_at']);
+        // Holders in this business only (roles are held per business).
+        $role->load(['permissions', 'users' => fn ($query) => $query->inCurrentBusiness()
+            ->select('users.id', 'users.name', 'users.email', 'users.profile_photo', 'users.status', 'users.email_verified_at', 'users.created_at')]);
 
         return view('roles.show', compact('role'));
     }
