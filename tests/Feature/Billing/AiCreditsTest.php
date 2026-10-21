@@ -214,3 +214,22 @@ describe('work waiting for credit', function () {
         Notification::assertSentToTimes($this->a->owner, AiCreditExhausted::class, 2);
     });
 });
+
+it('shows a top-up under the minimum as a field error, on the web and /api/v1', function () {
+    $this->tenant->forget();
+
+    $this->actingAs($this->a->owner)->from(route('billing.show'))
+        ->post(route('billing.ai-topup'), ['phone' => '0712345678', 'amount' => 499])
+        ->assertRedirect(route('billing.show'))->assertSessionHasErrors('amount');
+
+    $this->tenant->forget();
+    $token = $this->postJson(route('api.v1.auth.sign-in'), ['email' => $this->a->owner->email, 'password' => 'password', 'device_name' => 'Till'])
+        ->json('data.token');
+    app('auth')->forgetGuards();
+    $this->tenant->forget();
+    $this->withHeaders(['Authorization' => "Bearer {$token}"])
+        ->postJson(route('api.v1.billing.ai-topup'), ['phone' => '0712345678', 'amount' => 499])
+        ->assertUnprocessable()->assertJsonValidationErrors('amount');
+
+    expect($this->tenant->run($this->a->business, fn () => PlatformPayment::count()))->toBe(0);
+});

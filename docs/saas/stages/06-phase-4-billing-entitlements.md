@@ -83,11 +83,11 @@ package, and AI runs on prepaid credit.
       recorded by (for manual entries).
 - [x] `ai_credit_balances`, `ai_usage_events`.
 
-## Pending decisions (Proposed, review)
+## Decisions taken
 
-- **Atomic AI credit reservation (4.6).** Proposed: each call reserves its estimated cost atomically
-  before it runs and settles the actual cost afterwards, so concurrent calls can't take the balance below
-  zero. (The work list and acceptance criteria above already assume this.)
+- **Atomic AI credit reservation (4.6).** Built as proposed: each call reserves its estimated cost with
+  one conditional update (`balance >= estimate`) before it runs, and settles or releases the difference
+  afterwards (`App\Services\Billing\AiCredits`), so concurrent calls can't take the balance below zero.
 
 ## Dependencies
 
@@ -119,7 +119,7 @@ package, and AI runs on prepaid credit.
 
 ## Definition of done
 
-- [ ] Acceptance criteria met, with tests.
-- [ ] New models, routes and endpoints added to the isolation resource matrix; isolation suite green.
-- [ ] Pint, the full suite (SQLite and MySQL 8) and both API contract test sets pass.
-- [ ] Hotspot checklist items for billing and AI metering ticked in saas-plan.md section 2.
+- [x] Acceptance criteria met, with tests.
+- [x] New models, routes and endpoints added to the isolation resource matrix; isolation suite green.
+- [x] Pint, the full suite (SQLite and MySQL 8) and both API contract test sets pass.
+- [x] Hotspot checklist items for billing and AI metering ticked in saas-plan.md section 2.

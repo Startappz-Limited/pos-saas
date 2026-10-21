@@ -260,22 +260,30 @@ answered before Phase 1** (Open question 1):
       **Done (stage 1c):** `TenantContext::restrictToShops()` on every query-builder read, listed in `RawQueryScopeTest`; reports always name their shops.
 - [x] CSV and PDF exports.
       **Done (stage 1c):** tested with two businesses.
-- [ ] `AuditService` reads (audit rows gain `business_id`); the SQLite audit database included in export
+- [x] `AuditService` reads (audit rows gain `business_id`); the SQLite audit database included in export
       and closure erasure.
       **Partly done (stage 1c):** `business_id` on audit rows, reads and binding limited to the business, `audit:backfill-business`. Export and closure erasure come with the closure flow (Phase 3).
+      **Done (stage 3):** the business export carries its audit rows; the closure's erasure deletes them (`BusinessErasureTest`).
 - [x] Signed invoice and statement links made temporary (`temporarySignedRoute`).
       **Done (stage 1c):** `DocumentLinks`, 30 days by default.
 
 **Auth and roles**
-- [ ] Platform operator (`super-admin`, outside every business) versus business owner (`admin`).
-- [ ] Roles per business: default role templates plus custom roles (Spatie teams on `business_id`).
+- [x] Platform operator (`super-admin`, outside every business) versus business owner (`admin`).
+      **Done (stage 3):** the operator is the `users.is_platform_operator` flag (a Spatie role is always held in a business); the owner is `admin`, held per business.
+- [x] Roles per business: default role templates plus custom roles (Spatie teams on `business_id`).
       **Partly done (stage 1a):** Spatie teams on `business_id`; the seeded roles are templates shared by every business. Copies per business and custom roles: Phase 3.
-- [ ] Business picker at sign-in, a switcher, and a default business.
-- [ ] New API tokens bound to one business; legacy API tokens act on the default business.
+      **Done (stage 3):** templates copied into each business (`CopyRoleTemplates`); custom roles apply only in their business.
+- [x] Business picker at sign-in, a switcher, and a default business.
+      **Done (stage 3):** `ResolveTenant`, `/businesses`, the top-bar switcher.
+- [x] New API tokens bound to one business; legacy API tokens act on the default business.
       **Half done (stage 1a):** legacy tokens act on the default business; business-bound tokens come with `/api/v1` (Phase 6).
-- [ ] Signup creates a business and its owner, after the email is verified (no trial before that).
-- [ ] Account status enforced on web and API.
-- [ ] Hard self-delete replaced by deactivation and owner-controlled deletion.
+      **Done (stage 3):** `/api/v1` sign-in issues tokens bound to one business (`personal_access_tokens.business_id`).
+- [x] Signup creates a business and its owner, after the email is verified (no trial before that).
+      **Done (stage 3, trial in Phase 4):** `RegisterBusiness`; the business opens and the trial starts on verification.
+- [x] Account status enforced on web and API.
+      **Done (stage 3):** `EnsureAccountActive`; status per business on memberships (decided 19 October 2026).
+- [x] Hard self-delete replaced by deactivation and owner-controlled deletion.
+      **Done (stage 3):** `DeactivateOwnAccount`; owners remove people from the business (`RemoveFromBusiness`); closure erases a business.
 
 **Background work**
 - [x] Jobs carry the business explicitly (scopes don't apply without a signed-in user).
@@ -285,8 +293,9 @@ answered before Phase 1** (Open question 1):
 - [x] E-commerce stock push triggered by per-shop stock changes (`ProductObserver` only watches
       `Product::updated` today, so it would stop firing).
       **Done (stage 1c):** the stock ledger queues `PushShopStockJob` for the shop that changed.
-- [ ] Notifications carry the business they belong to; their links switch to it.
+- [x] Notifications carry the business they belong to; their links switch to it.
       **Partly done (stage 1c):** queued notifications carry their business; links switching to it need the business switcher (Phase 3).
+      **Done (stage 3):** links go through the signed `businesses.open` URL, which switches first.
 
 **Cache, files, config**
 - [x] Every cache key includes the business (`sms_settings` and `sms_query_parameters` are global today).
@@ -295,12 +304,18 @@ answered before Phase 1** (Open question 1):
       **Done (stage 1c):** WhatsApp media and profile photos private; product images public under the prefix (decided 15 October 2026); per-business quota; `files:move-to-business`.
 - [ ] Business and shop settings replace `config('app.name')`, currency, timezone, country code, invoice
       prefix, the hard-coded till, the WooCommerce webhook name and the template URL.
+      **Partly done (stage 3):** business settings drive the name on receipts and PDFs, currency, timezone, invoice prefix and the shop's Till/Paybill. Still global: the phone country code, `Supplier` and the AI and importer `KES` fallbacks, and the Meta template's URL prefix.
 
 **Integrations and API**
-- [ ] Per-tenant SMS (fixed) and WhatsApp Cloud credentials, encrypted.
+- [x] Per-tenant SMS (fixed) and WhatsApp Cloud credentials, encrypted.
+      **Done (stage 3):** `TenantMessagingCredentials`; a business never falls back to the platform's accounts.
 - [ ] Per-shop M-Pesa Till or Paybill, used for STK Push and payment webhooks through the private M-Pesa
       package. The number alone isn't enough: Daraja needs that shortcode's own credentials and go-live,
       unless the package is an aggregator (Open question 2). Shortcodes unique across the platform.
+      **Partly done (stage 3):** each shop's number, unique platform-wide and accepted only after a test query with its own encrypted account details (`SaveShopMpesaAccount`). STK Push and payment webhooks for shop sales come with Phase 6.
+- [x] Subscriptions per shop, plan limits on every create path, and read-only mode for a lapsed or
+      over-quota business on the web and both APIs.
+      **Done (Phase 4):** `Entitlements`, `PlanLimits`, `EnforceSubscription`, `billing:sweep`. Still open: the sync push joins read-only mode with sync (Phase 6); collecting through the private M-Pesa package waits for go-live (`BILLING_MPESA_ENABLED`, `NullPaymentCollector` until then).
 - [x] AI usage metered against a prepaid balance per business.
 - [ ] The current flat `/api` keeps working unchanged on the new schema; a new `/api/v1` covers every
       feature the Flutter app needs.

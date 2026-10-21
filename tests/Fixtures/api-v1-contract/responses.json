@@ -1,0 +1,130 @@
+{
+    "GET api/v1/billing": {
+        "status": 200,
+        "shape": {
+            "success": "bool",
+            "message": "null",
+            "data": {
+                "plan": "null",
+                "status": "string",
+                "ends_at": "null",
+                "grace_ends_at": "null",
+                "read_only_reason": "null",
+                "shops_paid": "null",
+                "shops_used": "number",
+                "monthly_total": "null",
+                "ai_credits": "number",
+                "ai_min_topup": "number",
+                "online_payment": "bool"
+            }
+        }
+    },
+    "GET api/v1/business/integrations": {
+        "status": 200,
+        "shape": {
+            "success": "bool",
+            "message": "null",
+            "data": {
+                "sms": {
+                    "connected": "bool"
+                },
+                "whatsapp_cloud": {
+                    "connected": "bool"
+                }
+            }
+        }
+    },
+    "GET api/v1/business/onboarding": {
+        "status": 200,
+        "shape": {
+            "success": "bool",
+            "message": "null",
+            "data": {
+                "steps": [
+                    {
+                        "key": "string",
+                        "label": "string",
+                        "done": "bool"
+                    }
+                ],
+                "complete": "bool"
+            }
+        }
+    },
+    "GET api/v1/business/settings": {
+        "status": 200,
+        "shape": {
+            "success": "bool",
+            "message": "null",
+            "data": {
+                "name": "string",
+                "currency": "string",
+                "currencies": [
+                    "string"
+                ],
+                "timezone": "string",
+                "invoice_prefix": "null",
+                "receipt_header": "null",
+                "receipt_footer": "null",
+                "logo_url": "null"
+            }
+        }
+    },
+    "GET api/v1/businesses": {
+        "status": 200,
+        "shape": {
+            "success": "bool",
+            "message": "null",
+            "data": [
+                {
+                    "uuid": "string",
+                    "name": "string",
+                    "currency": "string",
+                    "timezone": "string",
+                    "is_default": "bool",
+                    "is_current": "bool"
+                }
+            ]
+        }
+    },
+    "POST api/v1/auth/sign-in": {
+        "status": 200,
+        "shape": {
+            "success": "bool",
+            "message": "string",
+            "data": {
+                "business_required": "bool",
+                "token": "string",
+                "business": {
+                    "uuid": "string",
+                    "name": "string",
+                    "currency": "string",
+                    "timezone": "string",
+                    "is_default": "bool"
+                },
+                "businesses": [
+                    {
+                        "uuid": "string",
+                        "name": "string",
+                        "currency": "string",
+                        "timezone": "string",
+                        "is_default": "bool",
+                        "is_current": "bool"
+                    }
+                ],
+                "user": {
+                    "uuid": "string",
+                    "name": "string",
+                    "email": "string",
+                    "phone": "string",
+                    "roles": [
+                        "string"
+                    ],
+                    "permissions": [
+                        "string"
+                    ]
+                }
+            }
+        }
+    }
+}

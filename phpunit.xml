@@ -17,6 +17,8 @@
             <!-- Re-records the flat API contract fixtures; run it on purpose by
                  naming this group (see tests/Feature/FlatApiContractTest.php). -->
             <group>api-contract-record</group>
+            <!-- Re-records the /api/v1 contract fixtures (tests/Feature/ApiV1ContractTest.php). -->
+            <group>api-v1-contract-record</group>
         </exclude>
     </groups>
     <source>

@@ -1,0 +1,235 @@
+[
+    {
+        "method": "POST",
+        "uri": "api/v1/auth/sign-in",
+        "name": "api.v1.auth.sign-in",
+        "middleware": [
+            "api",
+            "throttle:auth"
+        ]
+    },
+    {
+        "method": "POST",
+        "uri": "api/v1/auth/sign-out",
+        "name": "api.v1.auth.sign-out",
+        "middleware": [
+            "api",
+            "auth:sanctum",
+            "App\\Http\\Middleware\\EnsureBusinessToken"
+        ]
+    },
+    {
+        "method": "GET",
+        "uri": "api/v1/billing",
+        "name": "api.v1.billing.show",
+        "middleware": [
+            "api",
+            "auth:sanctum",
+            "App\\Http\\Middleware\\EnsureBusinessToken"
+        ]
+    },
+    {
+        "method": "POST",
+        "uri": "api/v1/billing/ai-topup",
+        "name": "api.v1.billing.ai-topup",
+        "middleware": [
+            "api",
+            "auth:sanctum",
+            "App\\Http\\Middleware\\EnsureBusinessToken",
+            "throttle:writes"
+        ]
+    },
+    {
+        "method": "POST",
+        "uri": "api/v1/billing/pay",
+        "name": "api.v1.billing.pay",
+        "middleware": [
+            "api",
+            "auth:sanctum",
+            "App\\Http\\Middleware\\EnsureBusinessToken",
+            "throttle:writes"
+        ]
+    },
+    {
+        "method": "POST",
+        "uri": "api/v1/billing/payments/{payment}/check",
+        "name": "api.v1.billing.payments.check",
+        "middleware": [
+            "api",
+            "auth:sanctum",
+            "App\\Http\\Middleware\\EnsureBusinessToken",
+            "throttle:writes"
+        ]
+    },
+    {
+        "method": "POST",
+        "uri": "api/v1/billing/shops",
+        "name": "api.v1.billing.shops",
+        "middleware": [
+            "api",
+            "auth:sanctum",
+            "App\\Http\\Middleware\\EnsureBusinessToken",
+            "throttle:writes"
+        ]
+    },
+    {
+        "method": "POST",
+        "uri": "api/v1/business/closure",
+        "name": "api.v1.business.closure",
+        "middleware": [
+            "api",
+            "auth:sanctum",
+            "App\\Http\\Middleware\\EnsureBusinessToken",
+            "throttle:destructive"
+        ]
+    },
+    {
+        "method": "POST",
+        "uri": "api/v1/business/closure/code",
+        "name": "api.v1.business.closure.code",
+        "middleware": [
+            "api",
+            "auth:sanctum",
+            "App\\Http\\Middleware\\EnsureBusinessToken",
+            "throttle:writes"
+        ]
+    },
+    {
+        "method": "POST",
+        "uri": "api/v1/business/exports",
+        "name": "api.v1.business.exports",
+        "middleware": [
+            "api",
+            "auth:sanctum",
+            "App\\Http\\Middleware\\EnsureBusinessToken",
+            "throttle:writes"
+        ]
+    },
+    {
+        "method": "POST",
+        "uri": "api/v1/business/handover",
+        "name": "api.v1.business.handover",
+        "middleware": [
+            "api",
+            "auth:sanctum",
+            "App\\Http\\Middleware\\EnsureBusinessToken",
+            "throttle:writes"
+        ]
+    },
+    {
+        "method": "POST",
+        "uri": "api/v1/business/handover/code",
+        "name": "api.v1.business.handover.code",
+        "middleware": [
+            "api",
+            "auth:sanctum",
+            "App\\Http\\Middleware\\EnsureBusinessToken",
+            "throttle:writes"
+        ]
+    },
+    {
+        "method": "GET",
+        "uri": "api/v1/business/integrations",
+        "name": "api.v1.business.integrations",
+        "middleware": [
+            "api",
+            "auth:sanctum",
+            "App\\Http\\Middleware\\EnsureBusinessToken"
+        ]
+    },
+    {
+        "method": "DELETE",
+        "uri": "api/v1/business/integrations/{type}",
+        "name": "api.v1.business.integrations.delete",
+        "middleware": [
+            "api",
+            "auth:sanctum",
+            "App\\Http\\Middleware\\EnsureBusinessToken",
+            "throttle:destructive"
+        ]
+    },
+    {
+        "method": "PUT",
+        "uri": "api/v1/business/integrations/{type}",
+        "name": "api.v1.business.integrations.save",
+        "middleware": [
+            "api",
+            "auth:sanctum",
+            "App\\Http\\Middleware\\EnsureBusinessToken",
+            "throttle:writes"
+        ]
+    },
+    {
+        "method": "GET",
+        "uri": "api/v1/business/onboarding",
+        "name": "api.v1.business.onboarding",
+        "middleware": [
+            "api",
+            "auth:sanctum",
+            "App\\Http\\Middleware\\EnsureBusinessToken"
+        ]
+    },
+    {
+        "method": "GET",
+        "uri": "api/v1/business/settings",
+        "name": "api.v1.business.settings",
+        "middleware": [
+            "api",
+            "auth:sanctum",
+            "App\\Http\\Middleware\\EnsureBusinessToken"
+        ]
+    },
+    {
+        "method": "POST",
+        "uri": "api/v1/business/settings",
+        "name": "api.v1.business.settings.update",
+        "middleware": [
+            "api",
+            "auth:sanctum",
+            "App\\Http\\Middleware\\EnsureBusinessToken",
+            "throttle:writes"
+        ]
+    },
+    {
+        "method": "GET",
+        "uri": "api/v1/businesses",
+        "name": "api.v1.businesses.index",
+        "middleware": [
+            "api",
+            "auth:sanctum",
+            "App\\Http\\Middleware\\EnsureBusinessToken"
+        ]
+    },
+    {
+        "method": "POST",
+        "uri": "api/v1/businesses/{business}/switch",
+        "name": "api.v1.businesses.switch",
+        "middleware": [
+            "api",
+            "auth:sanctum",
+            "App\\Http\\Middleware\\EnsureBusinessToken"
+        ]
+    },
+    {
+        "method": "POST",
+        "uri": "api/v1/products/import",
+        "name": "api.v1.products.import",
+        "middleware": [
+            "api",
+            "auth:sanctum",
+            "App\\Http\\Middleware\\EnsureBusinessToken",
+            "throttle:writes"
+        ]
+    },
+    {
+        "method": "PUT",
+        "uri": "api/v1/shops/{shop}/mpesa",
+        "name": "api.v1.shops.mpesa",
+        "middleware": [
+            "api",
+            "auth:sanctum",
+            "App\\Http\\Middleware\\EnsureBusinessToken",
+            "throttle:writes"
+        ]
+    }
+]

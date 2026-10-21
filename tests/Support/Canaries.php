@@ -13,6 +13,7 @@ use App\Models\DeliveryCompany;
 use App\Models\EcommerceOrder;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
+use App\Models\PlatformPayment;
 use App\Models\PricingRule;
 use App\Models\PurchaseOrder;
 use App\Models\SaleSource;
@@ -57,6 +58,11 @@ final class Canaries
             $invite = BusinessInvite::factory()->create(['email' => strtolower($marker).'-invitee@example.test']);
             // Known by its uuid, in its download link on the data page.
             $export = BusinessExport::create(['status' => BusinessExport::STATUS_READY, 'path' => 'canary.zip']);
+            // Billing (Phase 4): the billing page lists payments with their receipt and check link.
+            $payment = PlatformPayment::create([
+                'purpose' => PlatformPayment::SUBSCRIPTION, 'amount' => 1500, 'method' => 'mpesa', 'status' => 'confirmed',
+                'mpesa_receipt' => "{$marker}RECEIPT", 'checkout_request_id' => "ws_CO_{$marker}",
+            ]);
 
             return [
                 $marker,
@@ -66,6 +72,8 @@ final class Canaries
                 $fixture->sale->uuid,
                 $invite->uuid,
                 $export->uuid,
+                "{$marker}RECEIPT",
+                $payment->uuid,
             ];
         });
     }
