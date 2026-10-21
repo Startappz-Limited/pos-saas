@@ -21,8 +21,9 @@ class OnboardingChecklist
     public function steps(): array
     {
         $business = current_business();
+        $hasShop = Shop::query()->exists();
 
-        return [
+        $steps = [
             [
                 'key' => 'business',
                 'label' => __('Set up your business'),
@@ -34,7 +35,7 @@ class OnboardingChecklist
                 'key' => 'shop',
                 'label' => __('Add your first shop'),
                 'hint' => __('Where you sell from.'),
-                'done' => Shop::query()->exists(),
+                'done' => $hasShop,
                 'url' => route('shops.create'),
             ],
             [
@@ -51,14 +52,20 @@ class OnboardingChecklist
                 'done' => Product::query()->exists(),
                 'url' => route('products.import.create'),
             ],
-            [
+        ];
+
+        // A sale needs a shop to sell from, so only offer this step once one exists.
+        if ($hasShop) {
+            $steps[] = [
                 'key' => 'sale',
                 'label' => __('Make your first sale'),
                 'hint' => __('Ring up a sale at the till.'),
                 'done' => Sale::query()->exists(),
                 'url' => route('sales.create'),
-            ],
-        ];
+            ];
+        }
+
+        return $steps;
     }
 
     public function complete(): bool

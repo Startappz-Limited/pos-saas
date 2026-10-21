@@ -1,7 +1,9 @@
 <?php
 
+use App\Models\Business;
 use App\Models\Category;
 use App\Models\Product;
+use App\Models\Shop;
 use App\Models\StockMovement;
 use App\Support\Onboarding\OnboardingChecklist;
 use App\Support\Tenancy\TenantContext;
@@ -83,6 +85,17 @@ it('lists the steps and ticks them off from the business\'s data', function () {
     expect($steps())->toMatchArray(['shop' => true, 'products' => true, 'sale' => true]);
 
     $this->actingAs($this->a->owner)->get(route('dashboard'))->assertOk();
+});
+
+it('offers the first sale only once the business has a shop to sell from', function () {
+    $business = Business::factory()->create();
+    $keys = fn () => $this->tenant->run($business, fn () => collect(app(OnboardingChecklist::class)->steps())->pluck('key')->all());
+
+    expect($keys())->toBe(['business', 'shop', 'register', 'products']);
+
+    $this->tenant->run($business, fn () => Shop::factory()->create());
+
+    expect($keys())->toBe(['business', 'shop', 'register', 'products', 'sale']);
 });
 
 it('shows the checklist to a new owner until everything is done', function () {
