@@ -96,7 +96,7 @@
                         Cancel
                     </x-ui-button>
                     @if (!$role->is_system)
-                        @can('roles.destroy')
+                        @can('delete', $role)
                             <x-ui-button variant="danger" data-bs-toggle="modal" data-bs-target="#deleteRoleModal"
                                 class="float-end">
                                 Delete Role
@@ -109,7 +109,7 @@
     </div>
 
     @if (!$role->is_system)
-        @can('roles.destroy')
+        @can('delete', $role)
             @push('modals')
                 <x-ui-modal id="deleteRoleModal" title="Confirm Delete" centered>
                     <x-slot:body>

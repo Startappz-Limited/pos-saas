@@ -30,7 +30,7 @@
                     </div>
 
                     <div class="mt-4 d-flex gap-2 justify-content-center">
-                        @can('roles.edit')
+                        @can('update', $role)
                             <x-ui-button variant="primary" size="sm" href="{{ route('roles.edit', $role) }}"
                                 icon="solar:pen-2-broken">
                                 Edit Role
@@ -38,7 +38,7 @@
                         @endcan
 
                         @if (!$role->is_system)
-                            @can('roles.destroy')
+                            @can('delete', $role)
                                 <x-ui-button variant="danger" size="sm" data-bs-toggle="modal"
                                     data-bs-target="#deleteRoleModal">
                                     Delete
@@ -155,7 +155,7 @@
                                 <tr>
                                     <td>
                                         <div class="d-flex align-items-center">
-                                            <img src="{{ $user->avatar ?? asset('assets/images/users/avatar-1.jpg') }}"
+                                            <img src="{{ $user->profile_photo_url }}"
                                                 alt="{{ $user->name }}" class="avatar-sm rounded-circle me-2">
                                             <div>
                                                 <h6 class="mb-0">{{ $user->name }}</h6>
@@ -164,9 +164,7 @@
                                     </td>
                                     <td>{{ $user->email }}</td>
                                     <td>
-                                        <x-ui-badge :variant="$user->is_active ? 'success' : 'danger'">
-                                            {{ $user->is_active ? 'Active' : 'Inactive' }}
-                                        </x-ui-badge>
+                                        @include('users.partials.status-badge', ['user' => $user])
                                     </td>
                                     <td>{{ $user->created_at->format('M d, Y') }}</td>
                                 </tr>
@@ -182,7 +180,7 @@
     </div>
 
     @if (!$role->is_system)
-        @can('roles.destroy')
+        @can('delete', $role)
             @push('modals')
                 <x-ui-modal id="deleteRoleModal" title="Confirm Delete" centered>
                     <x-slot:body>
