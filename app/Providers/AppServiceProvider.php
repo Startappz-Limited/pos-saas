@@ -34,6 +34,7 @@ use App\Policies\StockAdjustmentPolicy;
 use App\Services\Billing\NullPaymentCollector;
 use App\Services\Billing\PlanLimits;
 use App\Services\Mpesa\NullMpesaGateway;
+use App\Support\Database\ColumnDefaults;
 use App\Support\Onboarding\OnboardingChecklist;
 use App\Support\Tenancy\TenantContext;
 use App\Support\Tenancy\TenantPresenceVerifier;
@@ -86,6 +87,15 @@ class AppServiceProvider extends ServiceProvider
     {
         // Use Bootstrap 5 pagination views
         Paginator::useBootstrapFive();
+
+        // A blank optional field means "use the default": a null in a column
+        // that can't be null becomes the column's default, instead of the
+        // database refusing the row. On creating/updating, not saving: a model's
+        // own hooks for these events run first (a supplier's currency from the
+        // app's settings), so the column's default is only the last resort.
+        Event::listen(['eloquent.creating: *', 'eloquent.updating: *'], function (string $event, array $payload): void {
+            ColumnDefaults::apply($payload[0]);
+        });
 
         // Every form carries the business it was loaded for (decision 4.9):
         // `@csrf` also writes the `_business` field VerifyFormBusiness checks.
