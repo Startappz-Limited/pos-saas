@@ -595,7 +595,7 @@
                         if (data.success) {
                             window.location.reload();
                         } else {
-                            alert(data.message || 'Failed to collect payment.');
+                            alert(window.responseErrorText(data, 'Failed to collect payment.'));
                             btn.disabled = false;
                             spinner.classList.add('d-none');
                         }

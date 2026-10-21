@@ -2,6 +2,7 @@
 
 namespace App\Services\Integration;
 
+use App\Exceptions\BusinessRuleException;
 use App\Models\EcommerceOrder;
 use App\Models\EcommerceOrderItem;
 use App\Models\Product;
@@ -563,7 +564,7 @@ GRAPHQL;
         if (! $variantId) {
             $productName = Product::find($productId)?->name ?? 'Selected product';
 
-            throw new \RuntimeException("{$productName} is not synced with Shopify and cannot be added to the website order.");
+            throw new BusinessRuleException("{$productName} is not synced with Shopify and cannot be added to the website order.");
         }
 
         return str_starts_with((string) $variantId, 'gid://')

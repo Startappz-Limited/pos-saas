@@ -6,9 +6,6 @@
         </p>
     </div>
 
-    @if (session('error'))
-        <div class="alert alert-danger" role="alert">{{ session('error') }}</div>
-    @endif
 
     @if ($user && strtolower($user->email) === $invite->email)
         <form method="POST" action="{{ route('invitations.accept', $token) }}">

@@ -943,8 +943,8 @@
                     saleSourceModal.hide();
                 } else {
                     document.getElementById('new-source-name').classList.add('is-invalid');
-                    document.getElementById('source-name-error').textContent = data.message ||
-                        'Failed to create source.';
+                    document.getElementById('source-name-error').textContent =
+                        window.responseErrorText(data, 'Failed to create source.');
                 }
             } catch (error) {
                 console.error('Error:', error);
@@ -1013,7 +1013,7 @@
                     select.value = data.data.id;
                     deliveryCompanyModal.hide();
                 } else {
-                    alert(data.message || 'Failed to create delivery company.');
+                    alert(window.responseErrorText(data, 'Failed to create delivery company.'));
                 }
             } catch (error) {
                 console.error('Error:', error);
@@ -1081,7 +1081,7 @@
                     paymentModal.hide();
                     successModal.show();
                 } else {
-                    alert(data.message || 'Failed to complete sale. Please try again.');
+                    alert(window.responseErrorText(data, 'Failed to complete sale. Please try again.'));
                 }
             } catch (error) {
                 console.error('Error:', error);

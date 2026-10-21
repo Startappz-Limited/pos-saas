@@ -4,9 +4,6 @@
         <p class="text-muted">{{ __('Pick the business to work in. You can switch at any time from the top bar.') }}</p>
     </div>
 
-    @if (session('success'))
-        <div class="alert alert-success" role="alert">{{ session('success') }}</div>
-    @endif
 
     <div class="list-group mb-4">
         @foreach ($businesses as $business)

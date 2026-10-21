@@ -3,6 +3,7 @@
 namespace App\Actions\PurchaseReturn;
 
 use App\Enums\PurchaseReturnStatus;
+use App\Exceptions\BusinessRuleException;
 use App\Models\PurchaseReturn;
 
 class CompletePurchaseReturnAction
@@ -10,7 +11,7 @@ class CompletePurchaseReturnAction
     public function execute(PurchaseReturn $purchaseReturn, array $data, int $userId): PurchaseReturn
     {
         if (! $purchaseReturn->canComplete()) {
-            throw new \Exception('Supplier return must be returned to supplier before it can be completed.');
+            throw new BusinessRuleException('Supplier return must be returned to supplier before it can be completed.');
         }
 
         $purchaseReturn->update([

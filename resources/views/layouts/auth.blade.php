@@ -62,6 +62,8 @@
     </div>
 
     @stack('scripts')
+
+    @include('partials.form-errors-script')
 </body>
 
 </html>

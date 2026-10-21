@@ -395,6 +395,11 @@
 </head>
 
 <body>
+    {{-- Messages and errors float above the full-screen till. --}}
+    <div class="position-fixed top-0 start-50 translate-middle-x mt-2 z-3 w-100 px-3" style="max-width: 640px;">
+        @include('partials.flash-messages')
+    </div>
+
     @yield('content')
 
     <!-- Vendor Javascript (Require in all Page) -->
@@ -404,6 +409,8 @@
     <script src="{{ asset('assets/js/app.js') }}"></script>
 
     @stack('scripts')
+
+    @include('partials.form-errors-script')
 </body>
 
 </html>

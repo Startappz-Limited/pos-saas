@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\ReturnReason;
 use App\Enums\ReturnStatus;
 use App\Enums\StockMovementType;
+use App\Exceptions\BusinessRuleException;
 use App\Models\CostLayer;
 use App\Models\Product;
 use App\Models\ProductVariation;
@@ -126,7 +127,7 @@ class ReturnService
     public function updateReturn(SaleReturn $saleReturn, array $data): SaleReturn
     {
         if (! $saleReturn->isPending()) {
-            throw new \Exception('Only pending returns can be updated.');
+            throw new BusinessRuleException('Only pending returns can be updated.');
         }
 
         return DB::transaction(function () use ($saleReturn, $data) {
@@ -189,7 +190,7 @@ class ReturnService
     public function approveReturn(SaleReturn $saleReturn, int $userId): SaleReturn
     {
         if (! $saleReturn->canBeApproved()) {
-            throw new \Exception('Return cannot be approved in its current status.');
+            throw new BusinessRuleException('Return cannot be approved in its current status.');
         }
 
         $saleReturn->update([
@@ -204,7 +205,7 @@ class ReturnService
     public function rejectReturn(SaleReturn $saleReturn, int $userId, ?string $reason = null): SaleReturn
     {
         if (! $saleReturn->canBeRejected()) {
-            throw new \Exception('Return cannot be rejected in its current status.');
+            throw new BusinessRuleException('Return cannot be rejected in its current status.');
         }
 
         $saleReturn->update([
@@ -220,7 +221,7 @@ class ReturnService
     public function receiveReturn(SaleReturn $saleReturn): SaleReturn
     {
         if (! $saleReturn->canBeReceived()) {
-            throw new \Exception('Return must be approved before items can be received.');
+            throw new BusinessRuleException('Return must be approved before items can be received.');
         }
 
         return DB::transaction(function () use ($saleReturn): SaleReturn {
@@ -255,7 +256,7 @@ class ReturnService
     public function inspectReturn(SaleReturn $saleReturn, int $userId, ?string $inspectionNotes = null): SaleReturn
     {
         if (! $saleReturn->canBeInspected()) {
-            throw new \Exception('Return must be received before inspection.');
+            throw new BusinessRuleException('Return must be received before inspection.');
         }
 
         $saleReturn->update([
@@ -271,7 +272,7 @@ class ReturnService
     public function createRefund(SaleReturn $saleReturn, array $data, int $userId): Refund
     {
         if (! $saleReturn->canBeRefunded()) {
-            throw new \Exception('Return is not eligible for a refund in its current status.');
+            throw new BusinessRuleException('Return is not eligible for a refund in its current status.');
         }
 
         return DB::transaction(function () use ($saleReturn, $data, $userId) {
@@ -296,7 +297,7 @@ class ReturnService
     public function processRefund(Refund $refund, int $userId, ?string $transactionId = null): Refund
     {
         if (! $refund->isPending()) {
-            throw new \Exception('Refund has already been processed.');
+            throw new BusinessRuleException('Refund has already been processed.');
         }
 
         $refund->update([
@@ -312,7 +313,7 @@ class ReturnService
     public function deleteReturn(SaleReturn $saleReturn): bool
     {
         if (! $saleReturn->isPending()) {
-            throw new \Exception('Only pending returns can be deleted.');
+            throw new BusinessRuleException('Only pending returns can be deleted.');
         }
 
         return DB::transaction(function () use ($saleReturn) {

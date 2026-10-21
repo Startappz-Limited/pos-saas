@@ -177,10 +177,7 @@ class EcommerceOrderController extends Controller
                 'data' => ['sale' => $sale],
             ], 201);
         } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to convert order: '.$e->getMessage(),
-            ], 500);
+            return $this->failed($e, __('Failed to convert order:'));
         }
     }
 

@@ -3,6 +3,7 @@
 namespace App\Actions\PurchaseOrder;
 
 use App\Enums\PurchaseOrderStatus;
+use App\Exceptions\BusinessRuleException;
 use App\Models\PurchaseOrder;
 
 class ApprovePurchaseOrderAction
@@ -10,7 +11,7 @@ class ApprovePurchaseOrderAction
     public function execute(PurchaseOrder $purchaseOrder, ?int $userId = null): PurchaseOrder
     {
         if (! $purchaseOrder->canApprove()) {
-            throw new \Exception('Purchase order cannot be approved in current status.');
+            throw new BusinessRuleException('Purchase order cannot be approved in current status.');
         }
 
         $purchaseOrder->update([

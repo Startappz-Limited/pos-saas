@@ -4,6 +4,7 @@ namespace App\Actions\PurchaseReturn;
 
 use App\Enums\PurchaseReturnStatus;
 use App\Enums\StockMovementType;
+use App\Exceptions\BusinessRuleException;
 use App\Models\ProductVariation;
 use App\Models\PurchaseReturn;
 use App\Services\Stock\StockLedger;
@@ -16,7 +17,7 @@ class MarkPurchaseReturnShippedAction
     public function execute(PurchaseReturn $purchaseReturn, int $userId, ?string $shipmentReference = null): PurchaseReturn
     {
         if (! $purchaseReturn->canShip()) {
-            throw new \Exception('Supplier return must be approved before it can be marked as returned to supplier.');
+            throw new BusinessRuleException('Supplier return must be approved before it can be marked as returned to supplier.');
         }
 
         return DB::transaction(function () use ($purchaseReturn, $userId, $shipmentReference): PurchaseReturn {
@@ -29,7 +30,7 @@ class MarkPurchaseReturnShippedAction
                 $currentStock = $this->ledger->quantity((int) $purchaseReturn->shop_id, $variation->id);
 
                 if ($currentStock < $item->quantity) {
-                    throw new \Exception("Cannot return {$item->product->name}: only {$currentStock} units are available in stock.");
+                    throw new BusinessRuleException("Cannot return {$item->product->name}: only {$currentStock} units are available in stock.");
                 }
 
                 // The returned intake's own cost layer goes first (stage 1b).

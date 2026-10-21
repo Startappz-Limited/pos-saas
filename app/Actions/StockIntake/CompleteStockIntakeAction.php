@@ -5,6 +5,7 @@ namespace App\Actions\StockIntake;
 use App\Enums\PurchaseOrderStatus;
 use App\Enums\StockIntakeStatus;
 use App\Enums\StockMovementType;
+use App\Exceptions\BusinessRuleException;
 use App\Models\CostLayer;
 use App\Models\ProductVariation;
 use App\Models\PurchaseOrder;
@@ -17,7 +18,7 @@ class CompleteStockIntakeAction
     public function execute(StockIntake $stockIntake, ?int $userId = null): StockIntake
     {
         if (! $stockIntake->canComplete()) {
-            throw new \Exception('Stock intake cannot be completed in current status.');
+            throw new BusinessRuleException('Stock intake cannot be completed in current status.');
         }
 
         return DB::transaction(function () use ($stockIntake, $userId) {

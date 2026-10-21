@@ -154,7 +154,7 @@ class ReturnController extends Controller
                 ->route('returns.show', $return)
                 ->with('success', 'Return updated successfully.');
         } catch (\Exception $e) {
-            return back()->withInput()->with('error', $e->getMessage());
+            return $this->failed($e);
         }
     }
 
@@ -169,7 +169,7 @@ class ReturnController extends Controller
                 ->route('returns.index')
                 ->with('success', 'Return deleted successfully.');
         } catch (\Exception $e) {
-            return back()->with('error', $e->getMessage());
+            return $this->failed($e);
         }
     }
 
@@ -182,7 +182,7 @@ class ReturnController extends Controller
 
             return back()->with('success', 'Return approved successfully.');
         } catch (\Exception $e) {
-            return back()->with('error', $e->getMessage());
+            return $this->failed($e);
         }
     }
 
@@ -203,7 +203,7 @@ class ReturnController extends Controller
 
             return back()->with('success', 'Return rejected.');
         } catch (\Exception $e) {
-            return back()->with('error', $e->getMessage());
+            return $this->failed($e);
         }
     }
 
@@ -216,7 +216,7 @@ class ReturnController extends Controller
 
             return back()->with('success', 'Return items marked as received.');
         } catch (\Exception $e) {
-            return back()->with('error', $e->getMessage());
+            return $this->failed($e);
         }
     }
 
@@ -237,7 +237,7 @@ class ReturnController extends Controller
 
             return back()->with('success', 'Return items inspected.');
         } catch (\Exception $e) {
-            return back()->with('error', $e->getMessage());
+            return $this->failed($e);
         }
     }
 

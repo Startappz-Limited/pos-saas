@@ -2,6 +2,7 @@
 
 namespace App\Actions;
 
+use App\Exceptions\BusinessRuleException;
 use App\Jobs\SyncOrderStatusJob;
 use App\Models\CashRegister;
 use App\Models\EcommerceOrder;
@@ -32,7 +33,7 @@ class ConvertEcommerceOrderToSale
     public function execute(EcommerceOrder $order, array $data, User $user): Sale
     {
         if (! $order->can_be_converted) {
-            throw new \RuntimeException('This order cannot be converted to a sale.');
+            throw new BusinessRuleException('This order cannot be converted to a sale.');
         }
 
         $this->syncOrderItemsToPlatform($order, $data);
@@ -246,7 +247,7 @@ class ConvertEcommerceOrderToSale
         };
 
         if (! ($result['success'] ?? false)) {
-            throw new \RuntimeException('Could not update website order items: '.($result['message'] ?? 'Unknown platform sync error.'));
+            throw new BusinessRuleException('Could not update website order items: '.($result['message'] ?? 'Unknown platform sync error.'));
         }
     }
 }

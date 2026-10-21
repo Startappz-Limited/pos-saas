@@ -247,10 +247,7 @@ class SaleController extends Controller
         } catch (\Exception $e) {
             DB::rollBack();
 
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to create sale: '.$e->getMessage(),
-            ], 500);
+            return $this->failed($e, __('Failed to create sale:'));
         }
     }
 
@@ -460,10 +457,7 @@ class SaleController extends Controller
         } catch (\Exception $e) {
             DB::rollBack();
 
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to collect payment: '.$e->getMessage(),
-            ], 500);
+            return $this->failed($e, __('Failed to collect payment:'));
         }
     }
 

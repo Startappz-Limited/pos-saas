@@ -9,6 +9,7 @@ use App\Actions\PurchaseReturn\CreatePurchaseReturnAction;
 use App\Actions\PurchaseReturn\MarkPurchaseReturnShippedAction;
 use App\Actions\PurchaseReturn\UpdatePurchaseReturnAction;
 use App\Enums\PurchaseReturnStatus;
+use App\Exceptions\BusinessRuleException;
 use App\Models\PurchaseReturn;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
@@ -105,7 +106,7 @@ class PurchaseReturnService
     public function deleteReturn(PurchaseReturn $purchaseReturn): bool
     {
         if (! $purchaseReturn->canEdit()) {
-            throw new \Exception('Only draft or pending supplier returns can be deleted.');
+            throw new BusinessRuleException('Only draft or pending supplier returns can be deleted.');
         }
 
         return $purchaseReturn->delete();

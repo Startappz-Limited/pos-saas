@@ -1,6 +1,7 @@
 <?php
 
-use Spatie\Honeypot\SpamResponder\BlankPageResponder;
+use App\Http\Responses\HoneypotResponder;
+use Spatie\Honeypot\SpamProtection;
 
 return [
     /*
@@ -48,7 +49,7 @@ return [
      * A valid responder is any class that implements
      * `Spatie\Honeypot\SpamResponder\SpamResponder`
      */
-    'respond_to_spam_with' => BlankPageResponder::class,
+    'respond_to_spam_with' => HoneypotResponder::class,
 
     /*
      * When activated, requests will be checked if honeypot fields are missing,
@@ -62,7 +63,7 @@ return [
      * rules for a request. In most cases, you shouldn't change
      * this value.
      */
-    'spam_protection' => \Spatie\Honeypot\SpamProtection::class,
+    'spam_protection' => SpamProtection::class,
 
     /*
      * need to add @cspNonce https://github.com/spatie/laravel-csp in style tag hidden items

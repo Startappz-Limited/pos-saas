@@ -7,10 +7,14 @@ use App\Http\Middleware\RequireFeature;
 use App\Http\Middleware\ResolveTenant;
 use App\Http\Middleware\SecurityHeaders;
 use App\Http\Middleware\VerifyFormBusiness;
+use App\Support\Logging\RequestContext;
 use Illuminate\Contracts\Auth\Middleware\AuthenticatesRequests;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -58,5 +62,21 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias(['business' => EnsureActiveBusiness::class, 'feature' => RequireFeature::class]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        //
+        // Every logged error says who hit it, in which business, on which route.
+        $exceptions->context(fn (): array => RequestContext::toArray());
+
+        // An expired form (419) goes back to the form with a message and what
+        // was typed (passwords excepted), rather than to an error page.
+        // (Laravel turns the TokenMismatchException into a 419 before this runs.)
+        $exceptions->render(function (HttpException $e, Request $request) {
+            if ($e->getStatusCode() !== 419 || $request->expectsJson()) {
+                return null;
+            }
+
+            Log::info('Form sent after its session expired (419)', RequestContext::toArray());
+
+            return back()
+                ->withInput($request->except(['password', 'password_confirmation', 'current_password', '_token']))
+                ->with('error', __('Your session expired, so the form was not sent. Please try again.'));
+        });
     })->create();

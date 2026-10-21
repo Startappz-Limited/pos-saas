@@ -7,6 +7,7 @@ use App\Enums\BaileysMessageDirection;
 use App\Enums\BaileysMessageStatus;
 use App\Enums\BaileysMessageType;
 use App\Enums\BaileysSessionStatus;
+use App\Exceptions\BusinessRuleException;
 use App\Models\BaileysChat;
 use App\Models\BaileysMessage;
 use App\Models\BaileysSession;
@@ -39,7 +40,7 @@ class SendBaileysMediaMessage
         ?int $customerId = null,
     ): BaileysMessage {
         if ($session->status !== BaileysSessionStatus::Connected) {
-            throw new \RuntimeException('Baileys session is not connected.');
+            throw new BusinessRuleException('Baileys session is not connected.');
         }
 
         [$chat, $message] = DB::transaction(function () use ($session, $toJid, $mediaType, $url, $caption, $extras, $sentBy, $customerId) {

@@ -97,10 +97,7 @@ class PurchaseOrderController extends Controller
                 'data' => $purchaseOrder->fresh(['supplier', 'shop']),
             ]);
         } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => $e->getMessage(),
-            ], 422);
+            return $this->failed($e);
         }
     }
 
@@ -118,10 +115,7 @@ class PurchaseOrderController extends Controller
                 'data' => $purchaseOrder->fresh(['supplier', 'shop']),
             ]);
         } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => $e->getMessage(),
-            ], 422);
+            return $this->failed($e);
         }
     }
 
@@ -139,10 +133,7 @@ class PurchaseOrderController extends Controller
                 'data' => $purchaseOrder->fresh(['supplier', 'shop']),
             ]);
         } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => $e->getMessage(),
-            ], 422);
+            return $this->failed($e);
         }
     }
 }
