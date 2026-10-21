@@ -72,6 +72,11 @@ class Shop extends Model
             if (empty($shop->uuid)) {
                 $shop->uuid = (string) Str::uuid();
             }
+            // A shop created without a code (the flat API makes it optional) gets
+            // one, as suppliers and expense categories do: the column has none.
+            if (empty($shop->code)) {
+                $shop->code = 'SHOP-'.strtoupper(Str::random(6));
+            }
             if (Auth::check() && empty($shop->created_by)) {
                 $shop->created_by = Auth::id();
             }

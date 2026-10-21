@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\CategoryStatus;
 use App\Http\Controllers\Controller;
 use App\Models\ExpenseCategory;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class ExpenseCategoryController extends Controller
 {
@@ -109,7 +111,8 @@ class ExpenseCategoryController extends Controller
             'icon' => ['nullable', 'string', 'max:50'],
             'color' => ['nullable', 'string', 'max:20'],
             'sort_order' => ['nullable', 'integer', 'min:0'],
-            'status' => ['nullable', 'string'],
+            // Required when sent: the column can't be empty and has no default.
+            'status' => ['sometimes', 'required', Rule::enum(CategoryStatus::class)],
         ]);
 
         $validated['updated_by'] = auth()->id();
