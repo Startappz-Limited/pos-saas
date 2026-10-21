@@ -7,6 +7,7 @@ use App\Enums\BaileysMessageDirection;
 use App\Enums\BaileysMessageStatus;
 use App\Enums\BaileysMessageType;
 use App\Enums\BaileysSessionStatus;
+use App\Exceptions\BusinessRuleException;
 use App\Models\BaileysChat;
 use App\Models\BaileysMessage;
 use App\Models\BaileysSession;
@@ -38,7 +39,7 @@ class UpdateBaileysStatus
     public function execute(BaileysSession $session, array $payload, ?int $sentBy = null): BaileysMessage
     {
         if ($session->status !== BaileysSessionStatus::Connected) {
-            throw new \RuntimeException('Baileys session is not connected.');
+            throw new BusinessRuleException('Baileys session is not connected.');
         }
 
         $type = match ($payload['type'] ?? 'text') {

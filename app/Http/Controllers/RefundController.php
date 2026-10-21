@@ -76,7 +76,7 @@ class RefundController extends Controller
                 ->route('refunds.show', $refund)
                 ->with('success', 'Refund created successfully.');
         } catch (\Exception $e) {
-            return back()->withInput()->with('error', $e->getMessage());
+            return $this->failed($e);
         }
     }
 
@@ -97,7 +97,7 @@ class RefundController extends Controller
 
             return back()->with('success', 'Refund processed successfully.');
         } catch (\Exception $e) {
-            return back()->with('error', $e->getMessage());
+            return $this->failed($e);
         }
     }
 }

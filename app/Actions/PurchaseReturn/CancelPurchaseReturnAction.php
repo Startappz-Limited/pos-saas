@@ -3,6 +3,7 @@
 namespace App\Actions\PurchaseReturn;
 
 use App\Enums\PurchaseReturnStatus;
+use App\Exceptions\BusinessRuleException;
 use App\Models\PurchaseReturn;
 
 class CancelPurchaseReturnAction
@@ -10,7 +11,7 @@ class CancelPurchaseReturnAction
     public function execute(PurchaseReturn $purchaseReturn, int $userId, ?string $reason = null): PurchaseReturn
     {
         if (! $purchaseReturn->canCancel()) {
-            throw new \Exception('Supplier return cannot be cancelled in its current status.');
+            throw new BusinessRuleException('Supplier return cannot be cancelled in its current status.');
         }
 
         $purchaseReturn->update([

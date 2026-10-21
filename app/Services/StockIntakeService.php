@@ -6,6 +6,7 @@ use App\Actions\StockIntake\CompleteStockIntakeAction;
 use App\Actions\StockIntake\CreateStockIntakeAction;
 use App\Actions\StockIntake\UpdateStockIntakeAction;
 use App\Enums\StockIntakeStatus;
+use App\Exceptions\BusinessRuleException;
 use App\Models\PurchaseOrderItem;
 use App\Models\StockIntake;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -110,7 +111,7 @@ class StockIntakeService
     public function cancelStockIntake(StockIntake $stockIntake, ?int $userId = null): StockIntake
     {
         if (! $stockIntake->canCancel()) {
-            throw new \Exception('Stock intake cannot be cancelled in current status.');
+            throw new BusinessRuleException('Stock intake cannot be cancelled in current status.');
         }
 
         return $this->changeStatus($stockIntake, StockIntakeStatus::CANCELLED, $userId);

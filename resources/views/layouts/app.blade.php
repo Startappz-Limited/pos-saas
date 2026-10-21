@@ -81,6 +81,8 @@
     <script src="{{ asset('assets/js/layout.js') }}"></script>
 
     @stack('scripts')
+
+    @include('partials.form-errors-script')
     @stack('modals')
 
 </body>

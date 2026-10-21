@@ -3,6 +3,7 @@
 namespace App\Exceptions;
 
 use App\Enums\Feature;
+use App\Exceptions\Concerns\LogsAsRefusal;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -14,6 +15,8 @@ use RuntimeException;
  */
 class FeatureUnavailable extends RuntimeException
 {
+    use LogsAsRefusal;
+
     public function __construct(public readonly Feature $feature)
     {
         parent::__construct(__('Your plan does not include this feature. Upgrade to use it.'));

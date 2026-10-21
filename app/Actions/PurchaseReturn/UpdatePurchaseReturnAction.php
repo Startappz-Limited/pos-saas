@@ -2,6 +2,7 @@
 
 namespace App\Actions\PurchaseReturn;
 
+use App\Exceptions\BusinessRuleException;
 use App\Models\PurchaseReturn;
 use App\Models\PurchaseReturnItem;
 use App\Models\ReturnItem;
@@ -14,7 +15,7 @@ class UpdatePurchaseReturnAction
     public function execute(PurchaseReturn $purchaseReturn, array $data, ?int $userId = null): PurchaseReturn
     {
         if (! $purchaseReturn->canEdit()) {
-            throw new \Exception('Only draft or pending supplier returns can be updated.');
+            throw new BusinessRuleException('Only draft or pending supplier returns can be updated.');
         }
 
         return DB::transaction(function () use ($purchaseReturn, $data, $userId): PurchaseReturn {

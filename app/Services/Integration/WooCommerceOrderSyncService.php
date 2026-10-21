@@ -2,6 +2,7 @@
 
 namespace App\Services\Integration;
 
+use App\Exceptions\BusinessRuleException;
 use App\Models\EcommerceOrder;
 use App\Models\EcommerceOrderItem;
 use App\Models\Product;
@@ -319,7 +320,7 @@ class WooCommerceOrderSyncService
         if (! $platformProductId) {
             $productName = Product::find($item['product_id'])?->name ?? 'Selected product';
 
-            throw new \RuntimeException("{$productName} is not synced with WooCommerce and cannot be added to the website order.");
+            throw new BusinessRuleException("{$productName} is not synced with WooCommerce and cannot be added to the website order.");
         }
 
         $lineItem['product_id'] = (int) $platformProductId;

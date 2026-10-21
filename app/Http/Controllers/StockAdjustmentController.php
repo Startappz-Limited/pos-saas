@@ -120,7 +120,7 @@ class StockAdjustmentController extends Controller
                 ->route('stock-adjustments.show', $stockAdjustment)
                 ->with('success', 'Stock adjustment updated successfully.');
         } catch (\Exception $e) {
-            return back()->withInput()->with('error', $e->getMessage());
+            return $this->failed($e);
         }
     }
 
@@ -135,7 +135,7 @@ class StockAdjustmentController extends Controller
                 ->route('stock-adjustments.index')
                 ->with('success', 'Stock adjustment deleted successfully.');
         } catch (\Exception $e) {
-            return back()->with('error', $e->getMessage());
+            return $this->failed($e);
         }
     }
 
@@ -151,7 +151,7 @@ class StockAdjustmentController extends Controller
 
             return back()->with('success', 'Stock adjustment approved successfully.');
         } catch (\Exception $e) {
-            return back()->with('error', $e->getMessage());
+            return $this->failed($e);
         }
     }
 
@@ -172,7 +172,7 @@ class StockAdjustmentController extends Controller
 
             return back()->with('success', 'Stock adjustment rejected.');
         } catch (\Exception $e) {
-            return back()->with('error', $e->getMessage());
+            return $this->failed($e);
         }
     }
 
@@ -185,7 +185,7 @@ class StockAdjustmentController extends Controller
 
             return back()->with('success', 'Stock adjustment completed. Inventory has been updated.');
         } catch (\Exception $e) {
-            return back()->with('error', $e->getMessage());
+            return $this->failed($e);
         }
     }
 }

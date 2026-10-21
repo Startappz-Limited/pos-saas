@@ -2,6 +2,7 @@
 
 namespace App\Exceptions;
 
+use App\Exceptions\Concerns\LogsAsRefusal;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -15,6 +16,8 @@ use RuntimeException;
  */
 class SubscriptionInactive extends RuntimeException
 {
+    use LogsAsRefusal;
+
     public const LAPSED = 'subscription_inactive';
 
     public const OVER_QUOTA = 'shops_over_quota';

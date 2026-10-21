@@ -3,6 +3,7 @@
 namespace App\Exceptions;
 
 use App\Enums\Limit;
+use App\Exceptions\Concerns\LogsAsRefusal;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -14,6 +15,8 @@ use RuntimeException;
  */
 class PlanLimitExceeded extends RuntimeException
 {
+    use LogsAsRefusal;
+
     public function __construct(public readonly Limit $limit, public readonly int $allowed)
     {
         parent::__construct(__('Your plan allows :allowed :what. Upgrade or add shops to your plan to add more.', [

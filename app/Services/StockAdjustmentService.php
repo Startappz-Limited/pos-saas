@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Enums\AdjustmentType;
 use App\Enums\StockMovementType;
+use App\Exceptions\BusinessRuleException;
 use App\Models\CostLayer;
 use App\Models\Product;
 use App\Models\StockAdjustment;
@@ -82,7 +83,7 @@ class StockAdjustmentService
     public function updateAdjustment(StockAdjustment $adjustment, array $data): StockAdjustment
     {
         if (! $adjustment->isPending()) {
-            throw new \Exception('Only pending adjustments can be updated.');
+            throw new BusinessRuleException('Only pending adjustments can be updated.');
         }
 
         return DB::transaction(function () use ($adjustment, $data) {
@@ -133,7 +134,7 @@ class StockAdjustmentService
     public function approveAdjustment(StockAdjustment $adjustment, int $userId): StockAdjustment
     {
         if (! $adjustment->canBeApproved()) {
-            throw new \Exception('Adjustment cannot be approved in current status.');
+            throw new BusinessRuleException('Adjustment cannot be approved in current status.');
         }
 
         $adjustment->update([
@@ -148,7 +149,7 @@ class StockAdjustmentService
     public function rejectAdjustment(StockAdjustment $adjustment, int $userId, ?string $reason = null): StockAdjustment
     {
         if (! $adjustment->canBeRejected()) {
-            throw new \Exception('Adjustment cannot be rejected in current status.');
+            throw new BusinessRuleException('Adjustment cannot be rejected in current status.');
         }
 
         $adjustment->update([
@@ -164,7 +165,7 @@ class StockAdjustmentService
     public function completeAdjustment(StockAdjustment $adjustment): StockAdjustment
     {
         if (! $adjustment->canBeCompleted()) {
-            throw new \Exception('Adjustment must be approved before completion.');
+            throw new BusinessRuleException('Adjustment must be approved before completion.');
         }
 
         return DB::transaction(function () use ($adjustment) {
@@ -188,7 +189,7 @@ class StockAdjustmentService
 
                 // Ensure stock doesn't go negative
                 if ($this->ledger->quantity($shopId, $variation->id) - $quantity < 0) {
-                    throw new \Exception("Cannot complete adjustment: would result in negative stock for {$product->name}.");
+                    throw new BusinessRuleException("Cannot complete adjustment: would result in negative stock for {$product->name}.");
                 }
 
                 $this->ledger->consume($shopId, $variation, $quantity, StockMovementType::ADJUSTMENT_REMOVE, $item, $context);
@@ -203,7 +204,7 @@ class StockAdjustmentService
     public function deleteAdjustment(StockAdjustment $adjustment): bool
     {
         if (! $adjustment->isPending()) {
-            throw new \Exception('Only pending adjustments can be deleted.');
+            throw new BusinessRuleException('Only pending adjustments can be deleted.');
         }
 
         return $adjustment->delete();

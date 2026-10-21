@@ -211,7 +211,13 @@
                                     product_id: productId || null
                                 }),
                             });
-                            const json = await res.json();
+                            const json = await res.json().catch(() => ({}));
+                            if (!res.ok) {
+                                // Out of AI credit (402), not permitted, invalid…: say so, keep the caption.
+                                aiBtn.textContent = 'Failed';
+                                alert(window.responseErrorText(json, 'Could not generate the content.'));
+                                return;
+                            }
                             const content = json.data || {};
                             document.getElementById('postCaption').value = content.caption || '';
                             hashInput.value = (content.hashtags || []).join(', ');

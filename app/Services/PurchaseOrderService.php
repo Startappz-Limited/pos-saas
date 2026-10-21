@@ -7,6 +7,7 @@ use App\Actions\PurchaseOrder\CreatePurchaseOrderAction;
 use App\Actions\PurchaseOrder\DeletePurchaseOrderAction;
 use App\Actions\PurchaseOrder\UpdatePurchaseOrderAction;
 use App\Enums\PurchaseOrderStatus;
+use App\Exceptions\BusinessRuleException;
 use App\Models\PurchaseOrder;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
@@ -111,7 +112,7 @@ class PurchaseOrderService
     public function submitForApproval(PurchaseOrder $purchaseOrder, ?int $userId = null): PurchaseOrder
     {
         if (! $purchaseOrder->isDraft()) {
-            throw new \Exception('Only draft purchase orders can be submitted for approval.');
+            throw new BusinessRuleException('Only draft purchase orders can be submitted for approval.');
         }
 
         return $this->changeStatus($purchaseOrder, PurchaseOrderStatus::PENDING, $userId);
@@ -130,7 +131,7 @@ class PurchaseOrderService
     public function cancelPurchaseOrder(PurchaseOrder $purchaseOrder, ?int $userId = null): PurchaseOrder
     {
         if (! $purchaseOrder->canCancel()) {
-            throw new \Exception('Purchase order cannot be cancelled in current status.');
+            throw new BusinessRuleException('Purchase order cannot be cancelled in current status.');
         }
 
         return $this->changeStatus($purchaseOrder, PurchaseOrderStatus::CANCELLED, $userId);
@@ -139,7 +140,7 @@ class PurchaseOrderService
     public function markAsOrdered(PurchaseOrder $purchaseOrder, ?int $userId = null): PurchaseOrder
     {
         if (! $purchaseOrder->isApproved()) {
-            throw new \Exception('Only approved purchase orders can be marked as ordered.');
+            throw new BusinessRuleException('Only approved purchase orders can be marked as ordered.');
         }
 
         return $this->changeStatus($purchaseOrder, PurchaseOrderStatus::ORDERED, $userId);

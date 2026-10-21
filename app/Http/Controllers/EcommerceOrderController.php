@@ -206,7 +206,7 @@ class EcommerceOrderController extends Controller
                 ->route('sales.show', $sale)
                 ->with('success', "Order {$order->order_number} has been converted to sale {$sale->invoice_number}.");
         } catch (\Exception $e) {
-            return back()->with('error', 'Failed to convert order: '.$e->getMessage());
+            return $this->failed($e, __('Failed to convert order:'));
         }
     }
 

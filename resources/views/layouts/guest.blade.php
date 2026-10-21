@@ -40,6 +40,8 @@
                                     </a>
                                 </div>
 
+                                @include('partials.flash-messages')
+
                                 {{ $slot }}
 
                             </div>
@@ -66,6 +68,8 @@
     <script src="{{ asset('assets/js/app.js') }}"></script>
 
     @stack('scripts')
+
+    @include('partials.form-errors-script')
 </body>
 
 </html>
