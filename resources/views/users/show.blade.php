@@ -19,9 +19,7 @@
                     @endforeach
 
                     <div class="mt-3">
-                        <x-ui-badge :variant="$user->is_active ? 'success' : 'danger'">
-                            {{ $user->is_active ? 'Active' : 'Inactive' }}
-                        </x-ui-badge>
+                        @include('users.partials.status-badge', ['user' => $user])
                     </div>
 
                     <div class="mt-4 d-flex gap-2 justify-content-center">
@@ -148,9 +146,7 @@
                             <tr>
                                 <td class="fw-medium">Status:</td>
                                 <td>
-                                    <x-ui-badge :variant="$user->is_active ? 'success' : 'danger'">
-                                        {{ $user->is_active ? 'Active' : 'Inactive' }}
-                                    </x-ui-badge>
+                                    @include('users.partials.status-badge', ['user' => $user])
                                 </td>
                             </tr>
                             <tr>
