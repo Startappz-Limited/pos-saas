@@ -70,7 +70,7 @@ class BillingController extends Controller
     {
         $this->ownersOnly($request);
 
-        $data = $request->validate(['phone' => ['required', 'string', 'max:20'], 'amount' => ['required', 'numeric', 'min:1', 'max:1000000']]);
+        $data = $request->validate(['phone' => ['required', 'string', 'max:20'], 'amount' => ['required', 'numeric', 'min:'.(int) config('billing.ai_min_topup', 500), 'max:1000000']]);
 
         try {
             $payments->execute(PlatformPayment::AI_TOPUP, $data['phone'], $request->user(), (float) $data['amount']);

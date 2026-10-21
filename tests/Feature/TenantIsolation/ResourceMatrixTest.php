@@ -19,6 +19,7 @@ use App\Models\PlatformPayment;
 use App\Models\PricingRule;
 use App\Models\PurchaseOrder;
 use App\Models\SocialAccount;
+use App\Services\Billing\AiCredits;
 use App\Support\Tenancy\BusinessLink;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Model;
@@ -245,6 +246,40 @@ it('refuses business B\'s payment and billing page to business A\'s owner (Phase
 
     $this->actingAs($a->owner)->post(route('billing.payments.check', $payment))->assertNotFound();
     $this->actingAs($a->cashier)->get(route('billing.show'))->assertForbidden();
+
+    expect($payment->fresh()->status)->toBe('pending');
+});
+
+it('refuses business B\'s billing to business A on /api/v1 (Phase 4)', function () {
+    $a = $this->fixture->a;
+    $b = $this->fixture->b;
+    $payment = app(TenantContext::class)->run($b->business, fn () => PlatformPayment::create([
+        'purpose' => 'subscription', 'amount' => 1500, 'method' => 'mpesa', 'status' => 'pending', 'checkout_request_id' => 'ws_CO_B_V1',
+    ]));
+    foreach ([[$a, 5], [$b, 777]] as [$side, $credits]) {
+        app(TenantContext::class)->run($side->business, fn () => app(AiCredits::class)->topUp($side->business->id, $credits));
+    }
+    app(TenantContext::class)->forget();
+
+    $token = $this->postJson(route('api.v1.auth.sign-in'), ['email' => $a->owner->email, 'password' => 'password', 'device_name' => 'Till'])
+        ->json('data.token');
+    app('auth')->forgetGuards();
+    app(TenantContext::class)->forget();
+    $headers = ['Authorization' => "Bearer {$token}"];
+
+    $this->withHeaders($headers)->postJson(route('api.v1.billing.payments.check', $payment))->assertNotFound();
+    // A's summary is A's own: its credit balance, not B's.
+    $this->withHeaders($headers)->getJson(route('api.v1.billing.show'))->assertOk()->assertJsonPath('data.ai_credits', 5);
+
+    // Billing is for owners only.
+    $this->flushHeaders();
+    app('auth')->forgetGuards();
+    app(TenantContext::class)->forget();
+    $cashierToken = $this->postJson(route('api.v1.auth.sign-in'), ['email' => $a->cashier->email, 'password' => 'password', 'device_name' => 'Till'])
+        ->json('data.token');
+    app('auth')->forgetGuards();
+    app(TenantContext::class)->forget();
+    $this->withHeaders(['Authorization' => "Bearer {$cashierToken}"])->getJson(route('api.v1.billing.show'))->assertForbidden();
 
     expect($payment->fresh()->status)->toBe('pending');
 });
