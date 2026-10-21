@@ -6,23 +6,22 @@
     <div class="row">
         <!-- Stats Cards -->
         <div class="col-md-6 col-xl-3">
-            <x-ui-card-stats title="Total Users" value="{{ $totalUsers ?? '0' }}" icon="solar:users-group-rounded-bold-duotone"
-                trend="+5.2%" trendDirection="up" trendLabel="This Month" />
+            <x-ui-card-stats title="{{ __('Total Users') }}" value="{{ $statistics['total'] ?? 0 }}" icon="solar:users-group-rounded-bold-duotone" />
         </div>
 
         <div class="col-md-6 col-xl-3">
-            <x-ui-card-stats title="Active Users" value="{{ $activeUsers ?? '0' }}"
-                icon="solar:user-check-rounded-bold-duotone" trend="+3.1%" trendDirection="up" trendLabel="This Week" />
+            <x-ui-card-stats title="{{ __('Active Users') }}" value="{{ $statistics['active'] ?? 0 }}"
+                icon="solar:user-check-rounded-bold-duotone" />
         </div>
 
         <div class="col-md-6 col-xl-3">
-            <x-ui-card-stats title="New This Month" value="{{ $newUsers ?? '0' }}"
-                icon="solar:user-plus-rounded-bold-duotone" trend="+12%" trendDirection="up" trendLabel="Last Month" />
+            <x-ui-card-stats title="{{ __('New in the Last 30 Days') }}" value="{{ $statistics['recent'] ?? 0 }}"
+                icon="solar:user-plus-rounded-bold-duotone" />
         </div>
 
         <div class="col-md-6 col-xl-3">
-            <x-ui-card-stats title="Inactive Users" value="{{ $inactiveUsers ?? '0' }}"
-                icon="solar:user-block-rounded-bold-duotone" trend="-1.5%" trendDirection="down" trendLabel="This Week" />
+            <x-ui-card-stats title="{{ __('Inactive or Suspended') }}" value="{{ ($statistics['inactive'] ?? 0) + ($statistics['suspended'] ?? 0) }}"
+                icon="solar:user-block-rounded-bold-duotone" />
         </div>
     </div>
 
@@ -97,9 +96,7 @@
                                 @endforeach
                             </td>
                             <td>
-                                <x-ui-badge :variant="$user->is_active ? 'success' : 'danger'">
-                                    {{ $user->is_active ? 'Active' : 'Inactive' }}
-                                </x-ui-badge>
+                                @include('users.partials.status-badge', ['user' => $user])
                             </td>
                             <td>{{ $user->created_at->format('M d, Y') }}</td>
                             <td>
