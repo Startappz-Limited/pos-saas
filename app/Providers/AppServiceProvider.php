@@ -37,6 +37,7 @@ use App\Services\Mpesa\NullMpesaGateway;
 use App\Support\Database\ColumnDefaults;
 use App\Support\Onboarding\OnboardingChecklist;
 use App\Support\Platform\Impersonation;
+use App\Support\Signup\EmailPolicy;
 use App\Support\Tenancy\TenantAwarePermissionRegistrar;
 use App\Support\Tenancy\TenantContext;
 use App\Support\Tenancy\TenantPresenceVerifier;
@@ -276,6 +277,15 @@ class AppServiceProvider extends ServiceProvider
             Limit::perMinute(config('ratelimit.auth'))->by('auth-ip:'.$request->ip()),
             Limit::perMinute(config('ratelimit.auth'))
                 ->by('auth-email:'.Str::lower((string) $request->input('email'))),
+        ]);
+
+        // Signup (Phase 6): per IP and per submitted email, so a script can't try
+        // many addresses from one place or hammer one address from many.
+        RateLimiter::for('signup', fn (Request $request) => [
+            Limit::perMinutes(config('security.signup.window_minutes'), config('security.signup.attempts_per_window'))
+                ->by('signup-ip:'.$request->ip()),
+            Limit::perMinutes(config('security.signup.window_minutes'), config('security.signup.attempts_per_window'))
+                ->by('signup-email:'.EmailPolicy::normalise((string) $request->input('email'))),
         ]);
 
         // Inbound platform webhooks are public, so key per shop from the route

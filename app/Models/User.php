@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\UserStatus;
 use App\Models\Concerns\Auditable;
+use App\Support\Signup\EmailPolicy;
 use App\Support\Tenancy\TenantContext;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -96,6 +97,12 @@ class User extends Authenticatable
             }
             if (auth()->check() && empty($user->created_by)) {
                 $user->created_by = auth()->id();
+            }
+        });
+
+        static::saving(function (self $user) {
+            if ($user->isDirty('email') || $user->email_normalized === null) {
+                $user->email_normalized = EmailPolicy::normalise((string) $user->email);
             }
         });
 

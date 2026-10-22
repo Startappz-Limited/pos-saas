@@ -21,7 +21,7 @@ function signupForm(array $overrides = []): array
     return [
         'name' => 'Test User',
         'business_name' => 'Mama Mboga Stores',
-        'email' => 'test@example.com',
+        'email' => 'owner@mamamboga.co.ke',
         'password' => 'Str0ng-P0S-Pass!',
         'password_confirmation' => 'Str0ng-P0S-Pass!',
         ...$overrides,
@@ -49,7 +49,7 @@ test('new users can register', function () {
 test('signup creates a business and its owner, waiting for the email to be verified (stage 3)', function () {
     $this->post('/register', signupForm());
 
-    $user = User::where('email', 'test@example.com')->firstOrFail();
+    $user = User::where('email', 'owner@mamamboga.co.ke')->firstOrFail();
     $business = Business::where('name', 'Mama Mboga Stores')->firstOrFail();
 
     expect($business->status)->toBe(Business::STATUS_PENDING_VERIFICATION)
@@ -71,7 +71,7 @@ test('a new owner is sent to verify their email until they do', function () {
 
 test('verifying the email opens the business and starts its trial', function () {
     $this->post('/register', signupForm());
-    $user = User::where('email', 'test@example.com')->firstOrFail();
+    $user = User::where('email', 'owner@mamamboga.co.ke')->firstOrFail();
 
     $this->get(verificationUrl($user))->assertRedirect(route('dashboard', absolute: false).'?verified=1');
 
@@ -85,7 +85,7 @@ test('verifying the email opens the business and starts its trial', function () 
 
 test('verifying again does not restart the trial', function () {
     $this->post('/register', signupForm());
-    $user = User::where('email', 'test@example.com')->firstOrFail();
+    $user = User::where('email', 'owner@mamamboga.co.ke')->firstOrFail();
     $this->get(verificationUrl($user));
     $started = Business::where('name', 'Mama Mboga Stores')->value('trial_started_at');
 
@@ -99,14 +99,14 @@ test('a signup caught by the honeypot creates nothing', function () {
     $this->post('/register', signupForm(['my_name' => 'I am a bot']));
 
     $this->assertGuest();
-    expect(User::where('email', 'test@example.com')->exists())->toBeFalse()
+    expect(User::where('email', 'owner@mamamboga.co.ke')->exists())->toBeFalse()
         ->and(Business::where('name', 'Mama Mboga Stores')->exists())->toBeFalse();
 });
 
 test('a business name is required', function () {
     $this->post('/register', signupForm(['business_name' => '']))->assertSessionHasErrors('business_name');
 
-    expect(User::where('email', 'test@example.com')->exists())->toBeFalse();
+    expect(User::where('email', 'owner@mamamboga.co.ke')->exists())->toBeFalse();
 });
 
 test('a signed-in user with no business sees that, not an error', function () {

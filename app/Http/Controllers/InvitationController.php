@@ -6,12 +6,12 @@ use App\Actions\Business\AcceptBusinessInvite;
 use App\Http\Middleware\ResolveTenant;
 use App\Models\BusinessInvite;
 use App\Models\User;
+use App\Rules\StrongPassword;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Validation\Rules\Password;
 use Illuminate\View\View;
 use InvalidArgumentException;
 
@@ -75,7 +75,7 @@ class InvitationController extends Controller
 
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
-            'password' => ['required', 'confirmed', Password::defaults()],
+            'password' => ['required', 'confirmed', new StrongPassword([$invite->email])],
         ]);
 
         $user = User::create([

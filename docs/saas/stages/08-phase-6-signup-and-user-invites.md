@@ -58,31 +58,31 @@ No open question blocks this stage.
 ### 1. Signup validation
 
 #### 1.1 Email
-- [ ] Syntactically valid email (RFC 5322-compatible validator).
-- [ ] **Blocked local parts** (case-insensitive, after stripping `+tags` and, for Gmail, dots): `test`,
+- [x] Syntactically valid email (RFC 5322-compatible validator).
+- [x] **Blocked local parts** (case-insensitive, after stripping `+tags` and, for Gmail, dots): `test`,
       `testing`, `tester`, `test1`–`test999`, `demo`, `example`, `sample`, `user`, `asdf`, `qwerty`, `abc`,
       `abc123`, `aaa`, `xxx`, `fake`, `noreply`, `no-reply`, `null`, `foo`, `bar`, `foobar`.
-- [ ] **Blocked domains:** `example.com`, `example.org`, `example.net`, `test.com`, `test.org`, `test.net`,
+- [x] **Blocked domains:** `example.com`, `example.org`, `example.net`, `test.com`, `test.org`, `test.net`,
       `domain.com`, `email.com`, `*.test`, `*.example`, `*.invalid`, `*.localhost`, plus a disposable-provider
       list (e.g. `disposable-email-domains`) stored as data so it can be updated without a deploy.
-- [ ] **Role-style addresses allowed:** `info@`, `sales@`, `support@`, `accounts@` and similar on a real domain.
-- [ ] Domain must accept mail (MX or A lookup, cached); on DNS timeout allow and log.
-- [ ] Unique among owners (normalised, lowercase).
-- [ ] Generic error text that doesn't reveal the blocklist: "Please use a real email address you have access to."
+- [x] **Role-style addresses allowed:** `info@`, `sales@`, `support@`, `accounts@` and similar on a real domain.
+- [x] Domain must accept mail (MX or A lookup, cached); on DNS timeout allow and log.
+- [x] Unique among owners (normalised, lowercase).
+- [x] Generic error text that doesn't reveal the blocklist: "Please use a real email address you have access to."
 
 #### 1.2 Password
-- [ ] 10–128 characters.
-- [ ] Not in a common-passwords list (top 10k–100k, case-insensitive).
-- [ ] Not breached: Have I Been Pwned range API (k-anonymity); on failure fall back to the local list.
-- [ ] Doesn't contain the email local part, the person's name or the business name.
-- [ ] No trivial patterns: repeated characters, sequences (`12345678`, `qwertyui`), common word plus digits or
+- [x] 10–128 characters.
+- [x] Not in a common-passwords list (top 10k–100k, case-insensitive).
+- [x] Not breached: Have I Been Pwned range API (k-anonymity); on failure fall back to the local list.
+- [x] Doesn't contain the email local part, the person's name or the business name.
+- [x] No trivial patterns: repeated characters, sequences (`12345678`, `qwertyui`), common word plus digits or
       year (`Password123`, `Welcome2024`, `Admin@123`).
 - [ ] Strength meter on the form (zxcvbn, minimum score 3); the server check is authoritative.
 
 #### 1.3 Shared
 - [ ] Email and password rules as reusable validation rules, used by signup, invite acceptance (section 4),
       password reset and owner email change.
-- [ ] Signup rate-limited per IP and per email (e.g. 5 per 15 minutes).
+- [x] Signup rate-limited per IP and per email (e.g. 5 per 15 minutes).
 
 ### 2. Plans and trials at signup
 
