@@ -658,7 +658,18 @@ isolation suite. No known baseline failures.
 
 | Step | Commit | Tests added | Suite (SQLite) | Suite (MySQL 8) | Notes |
 |---|---|---|---|---|---|
+| A1. Isolation and escalation | `d75e049` | `Roles/RolePolicyTest` (16); `ResourceMatrixTest` +6 (B's role: show, edit, update, destroy, permissions, updatePermissions) | 1,644 passed, 59 skipped (6.8 min) | 1,655 passed, 49 skipped (15.9 min), contract tests included | **Policy:** a business changes only its own roles (another business's role is already a 404 through route binding, now pinned in the matrix); shared templates and the owner role (`admin`) are read-only from a business, with a message; `roles.full-access` counts as each `roles.*` permission instead of passing everything (its blanket `before()` is gone); a non-owner can't change a role they hold. **No escalation:** a non-owner gives only permissions they hold, and the role's permissions out of their reach are kept on save (`SyncRolePermissions`), so a partial view never strips them. The form requests check the policy first, so a refused role is 403 before its fields are judged. **Names** (`RoleName`): unique within the business, never a built-in role's name; create and edit share one rule (`StoreRoleRequest`/`UpdateRoleRequest`, which existed unused). **Holders** (`Role::holders()`): counts, the role page and the delete check count only the current business (Spatie's `users()` spans every business). **Bug found on `main` and fixed:** Spatie's permission cache is shared by every business but was loaded through the role scope, so it held only the shared roles and the roles of whichever business's request built it; other businesses' staff lost their own roles' permissions until the cache was cleared. `TenantAwarePermissionRegistrar` (bound by an extender, since the package binds the registrar after the app provider) loads it with the scopes lifted; listed in `TenantScopeBypassTest`; a regression test fails without it. **Tests adapted (not weakened), `RoleTest`:** refusing the owner role is now 403 instead of a redirect with an error (the role still asserted unchanged); the two tests giving permissions now have the editor hold them |
 
 ### Differences from the stage file
 
+- **There is no role API** (flat or `/api/v1`) besides `GET api/users/roles`, a list; the role criteria saying
+  "web and API" are met on the web, and the API list is checked for isolation (A1).
+- **The platform operator is `users.is_platform_operator`**, not a `super-admin` role (as built in Phase 3).
+- **The owner role `admin` is one shared row**, not copied: a console edit (B6) changes every business's owners
+  at once, so "Apply to all copies" doesn't apply to it.
+
 ### Follow-ups
+
+- **Flutter:** no checkout of the app on this machine (`MOBILE_APP_PATH` points nowhere here), so
+  `authorization_helper.dart` was not searched for `super-admin` as the owner role. Since Phase 3 the owner's
+  role is reported as `admin`; check the app before release.
