@@ -32,6 +32,7 @@ use App\Http\Controllers\Platform\BusinessController as PlatformBusinessControll
 use App\Http\Controllers\Platform\DashboardController as PlatformDashboardController;
 use App\Http\Controllers\Platform\ImpersonationController as PlatformImpersonationController;
 use App\Http\Controllers\Platform\PaymentController as PlatformPaymentController;
+use App\Http\Controllers\Platform\RoleTemplateController as PlatformRoleTemplateController;
 use App\Http\Controllers\PricingRuleController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProductImportController;
@@ -488,6 +489,12 @@ Route::middleware(['auth', 'platform'])->prefix('platform')->name('platform.')->
     Route::post('businesses/{business}/trial', [PlatformBusinessController::class, 'extendTrial'])->name('businesses.trial');
     Route::post('businesses/{business}/payments', [PlatformPaymentController::class, 'store'])->name('businesses.payments.store');
     Route::post('businesses/{business}/members/{member}/impersonate', [PlatformImpersonationController::class, 'start'])->name('businesses.impersonate');
+    Route::post('businesses/{business}/roles/{copy}/reset', [PlatformRoleTemplateController::class, 'resetCopy'])->name('businesses.roles.reset');
+
+    Route::get('roles', [PlatformRoleTemplateController::class, 'index'])->name('roles.index');
+    Route::get('roles/{role}/edit', [PlatformRoleTemplateController::class, 'edit'])->name('roles.edit');
+    Route::put('roles/{role}', [PlatformRoleTemplateController::class, 'update'])->name('roles.update');
+    Route::post('roles/{role}/apply', [PlatformRoleTemplateController::class, 'applyToCopies'])->name('roles.apply');
 });
 
 // Ending an impersonation (Phase 5): by then the signed-in user is the

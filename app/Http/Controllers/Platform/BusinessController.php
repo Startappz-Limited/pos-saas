@@ -13,6 +13,7 @@ use App\Http\Requests\Platform\SuspendBusinessRequest;
 use App\Models\Business;
 use App\Models\Plan;
 use App\Models\PlatformPayment;
+use App\Models\Role;
 use App\Models\Subscription;
 use App\Models\User;
 use App\Services\Billing\Entitlements;
@@ -53,11 +54,12 @@ class BusinessController extends Controller
         $figures = BusinessDirectory::query()->whereKey($business->id)->firstOrFail();
 
         // Read in the business: its subscription and its members' roles there.
-        [$subscription, $readOnly, $members, $payments] = $this->tenant->run($business, fn (): array => [
+        [$subscription, $readOnly, $members, $payments, $roles] = $this->tenant->run($business, fn (): array => [
             Subscription::query()->with('plan')->first(),
             app(Entitlements::class)->readOnlyReason(),
             User::query()->inCurrentBusiness()->withBusinessStatus()->with('roles')->orderBy('name')->get(),
             PlatformPayment::query()->with('recorder:id,name')->latest()->limit(20)->get(),
+            Role::query()->where('business_id', $business->id)->withCount(['holders', 'permissions'])->orderBy('name')->get(),
         ]);
 
         PlatformAudit::record('business.viewed', $business);
@@ -68,6 +70,7 @@ class BusinessController extends Controller
             'readOnly' => $readOnly,
             'members' => $members,
             'payments' => $payments,
+            'roles' => $roles,
             'minTopUp' => (int) config('billing.ai_min_topup', 500),
             'plans' => Plan::query()->where('is_active', true)->orderBy('sort_order')->get(),
         ]);

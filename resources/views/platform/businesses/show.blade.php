@@ -89,6 +89,8 @@
                 </div>
             </x-ui-card>
 
+            @include('platform.businesses.partials.roles')
+
             @include('platform.businesses.partials.payments')
         </div>
 
