@@ -12,6 +12,7 @@
             data-swal-button="{{ __('Switch off') }}"
         @endif>
         @csrf
+        @honeypot
         @method('PATCH')
         <input type="hidden" name="active" value="{{ $role->is_active ? 0 : 1 }}">
         @if ($role->is_active)

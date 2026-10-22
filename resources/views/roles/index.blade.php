@@ -79,6 +79,7 @@
                                         <form action="{{ route('roles.destroy', $role) }}" method="POST" class="d-inline"
                                             onsubmit="return confirm('Are you sure you want to delete this role?')">
                                             @csrf
+                                            @honeypot
                                             @method('DELETE')
                                             <button type="submit" class="btn btn-sm btn-soft-danger">
                                                 <i class="bx bx-trash"></i>

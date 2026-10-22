@@ -188,6 +188,7 @@
                         <x-ui-button variant="secondary" data-bs-dismiss="modal">Cancel</x-ui-button>
                         <form action="{{ route('roles.destroy', $role) }}" method="POST" class="d-inline">
                             @csrf
+                            @honeypot
                             @method('DELETE')
                             <x-ui-button variant="danger" type="submit">
                                 Delete Role

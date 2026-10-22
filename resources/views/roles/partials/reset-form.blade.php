@@ -5,6 +5,7 @@
         data-swal-text="{{ __('Its permissions will be replaced by the built-in role\'s current permissions, in this business only.') }}"
         data-swal-button="{{ __('Reset to default') }}">
         @csrf
+        @honeypot
         <input type="hidden" name="confirm" value="0">
         <noscript>
             <div class="form-check text-start mb-2">

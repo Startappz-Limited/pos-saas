@@ -120,3 +120,12 @@ it('shows no field that saves nothing', function () {
             ->assertDontSee('name="display_name"', false)->assertDontSee('name="description"', false);
     }
 });
+
+it('carries the honeypot on the role forms and refuses a request that fills it in', function () {
+    $this->actingAs($this->owner)->get(route('roles.create'))->assertOk()->assertSee('name="valid_from"', false);
+
+    $this->tenant->forget();
+    $this->actingAs($this->owner)->post(route('roles.store'), ['name' => 'bot-made', 'my_name' => 'I am a bot']);
+
+    expect(Role::withoutGlobalScopes()->where('name', 'bot-made')->exists())->toBeFalse();
+});

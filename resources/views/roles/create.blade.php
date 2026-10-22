@@ -7,6 +7,7 @@
         <div class="col-xl-10 col-lg-11 mx-auto">
             <form action="{{ route('roles.store') }}" method="POST">
                 @csrf
+                @honeypot
 
                 <!-- Role Information -->
                 <x-ui-card title="Role Information" class="mb-3">

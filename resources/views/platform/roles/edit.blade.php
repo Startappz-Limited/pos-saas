@@ -28,6 +28,7 @@
             data-swal-button="{{ __('Save for every owner') }}"
         @endif>
         @csrf
+        @honeypot
         @method('PUT')
         @if ($role->isOwnerRole())
             <input type="hidden" name="confirm" value="0">
@@ -60,6 +61,7 @@
                 data-swal-text="{{ trans_choice('{0} No business has a copy yet.|{1} 1 business\'s copy will get exactly this template\'s permissions.|[2,*] :count businesses\' copies will get exactly this template\'s permissions.', $copies, ['count' => $copies]) }}"
                 data-swal-button="{{ __('Apply to all copies') }}">
                 @csrf
+                @honeypot
                 <input type="hidden" name="confirm" value="0">
                 <noscript>
                     <div class="form-check mb-2">

@@ -101,3 +101,12 @@ it('records every console page an operator opens, cross-business reads included'
             ->and($row->tags)->toContain('platform');
     }
 });
+
+it('carries the honeypot on the console forms and refuses a request that fills it in', function () {
+    $b = $this->fixture->b->business;
+    $this->actingAs($this->operator)->get(route('platform.businesses.show', $b))->assertOk()->assertSee('name="valid_from"', false);
+
+    $this->actingAs($this->operator)->post(route('platform.businesses.suspend', $b), ['reason' => 'x', 'confirm' => '1', 'my_name' => 'I am a bot']);
+
+    expect($b->fresh()->status)->toBe('active');
+});

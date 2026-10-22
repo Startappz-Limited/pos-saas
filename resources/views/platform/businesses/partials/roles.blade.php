@@ -27,6 +27,7 @@
                                     data-swal-text="{{ __('Its permissions in :business are replaced by the template\'s current ones.', ['business' => $business->name]) }}"
                                     data-swal-button="{{ __('Reset to default') }}">
                                     @csrf
+                                    @honeypot
                                     <input type="hidden" name="confirm" value="0">
                                     <noscript>
                                         <input class="form-check-input" type="checkbox" name="confirm" value="1" aria-label="{{ __('Confirm the reset') }}">

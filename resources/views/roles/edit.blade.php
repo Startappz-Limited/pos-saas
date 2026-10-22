@@ -14,6 +14,7 @@
                     data-swal-button="{{ __('Save and switch off') }}"
                 @endif>
                 @csrf
+                @honeypot
                 @method('PUT')
                 @if ($role->is_active)
                     <input type="hidden" name="confirm" value="0">
@@ -142,6 +143,7 @@
                         <x-ui-button variant="secondary" data-bs-dismiss="modal">Cancel</x-ui-button>
                         <form action="{{ route('roles.destroy', $role) }}" method="POST" class="d-inline">
                             @csrf
+                            @honeypot
                             @method('DELETE')
                             <x-ui-button variant="danger" type="submit">
                                 Delete Role

@@ -2,6 +2,7 @@
 <x-ui-card :title="__('Payments')">
     <form method="POST" action="{{ route('platform.businesses.payments.store', $business) }}" class="row g-2 mb-4">
         @csrf
+        @honeypot
         <div class="col-md-3">
             <label class="form-label" for="purpose">{{ __('For') }}</label>
             <select name="purpose" id="purpose" class="form-select form-select-sm @error('purpose') is-invalid @enderror">

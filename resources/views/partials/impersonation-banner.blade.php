@@ -19,6 +19,7 @@
         </span>
         <form method="POST" action="{{ route('impersonation.end') }}" class="m-0">
             @csrf
+            @honeypot
             <button type="submit" class="btn btn-sm btn-dark">{{ __('End impersonation') }}</button>
         </form>
     </div>

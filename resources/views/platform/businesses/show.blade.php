@@ -108,6 +108,7 @@
 
                 <form method="POST" action="{{ route('platform.businesses.plan', $business) }}" class="mb-3">
                     @csrf
+                    @honeypot
                     @method('PUT')
                     <label class="form-label" for="plan_id">{{ __('Plan') }}</label>
                     <div class="input-group input-group-sm">
@@ -129,6 +130,7 @@
                 @if ($subscription?->status === \App\Models\Subscription::TRIALING)
                     <form method="POST" action="{{ route('platform.businesses.trial', $business) }}">
                         @csrf
+                        @honeypot
                         <label class="form-label" for="days">{{ __('Extend the trial by (days)') }}</label>
                         <div class="input-group input-group-sm">
                             <input type="number" min="1" max="90" name="days" id="days" value="{{ old('days', 14) }}"
@@ -146,6 +148,7 @@
                 @if ($business->isSuspended())
                     <form method="POST" action="{{ route('platform.businesses.reactivate', $business) }}">
                         @csrf
+                        @honeypot
                         <button type="submit" class="btn btn-success btn-sm">{{ __('Reactivate') }}</button>
                     </form>
                 @elseif (in_array($business->status, ['active', 'pending_verification'], true))
@@ -154,6 +157,7 @@
                         data-swal-text="{{ __('Nobody in this business will be able to work in it, on the web, the app or the API, until it is reactivated.') }}"
                         data-swal-button="{{ __('Suspend') }}">
                         @csrf
+                        @honeypot
                         <input type="hidden" name="confirm" value="0">
                         <label class="form-label" for="reason">{{ __('Reason') }}</label>
                         <textarea name="reason" id="reason" rows="2" maxlength="500" required
