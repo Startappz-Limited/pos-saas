@@ -4,7 +4,6 @@
 > (after Phase 4), decision 4.4 (accounts model), Phase 3 as built (roles per business, templates copied per
 > business, owner = `admin`).
 > **Branch:** `saas/phase-5-platform-console` · **Depends on:** Phase 4, `fix/ui-button-links` merged
-> (replaces the separate `fix/roles-per-business` branch)
 
 ---
 
