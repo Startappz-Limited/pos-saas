@@ -47,6 +47,7 @@ const ALLOWED_RAW_QUERIES = [
     'app/Support/Tenancy/TenantContext.php' => [2, 'builds the accessible-shops subquery itself'],
 
     // The platform console (Phase 5): cross-business on purpose, each subquery naming its business, every read audited.
+    'app/Http/Requests/Platform/RecordPlatformPaymentRequest.php' => [1, 'an M-Pesa receipt is recorded once on the whole platform (the column is unique across businesses)'],
     'app/Support/Platform/BusinessDirectory.php' => [9, 'the platform console\'s figures for every business (operators only, audited); each subquery is correlated to its business'],
     // Platform-wide repairs.
     'app/Console/Commands/PruneBaileysMedia.php' => [1, 'every business\'s session uuids, so another business\'s media is never taken for an orphan'],

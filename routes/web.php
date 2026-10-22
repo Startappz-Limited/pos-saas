@@ -30,6 +30,7 @@ use App\Http\Controllers\LowStockAlertController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\Platform\BusinessController as PlatformBusinessController;
 use App\Http\Controllers\Platform\DashboardController as PlatformDashboardController;
+use App\Http\Controllers\Platform\PaymentController as PlatformPaymentController;
 use App\Http\Controllers\PricingRuleController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProductImportController;
@@ -484,4 +485,5 @@ Route::middleware(['auth', 'platform'])->prefix('platform')->name('platform.')->
     Route::post('businesses/{business}/reactivate', [PlatformBusinessController::class, 'reactivate'])->name('businesses.reactivate');
     Route::put('businesses/{business}/plan', [PlatformBusinessController::class, 'changePlan'])->name('businesses.plan');
     Route::post('businesses/{business}/trial', [PlatformBusinessController::class, 'extendTrial'])->name('businesses.trial');
+    Route::post('businesses/{business}/payments', [PlatformPaymentController::class, 'store'])->name('businesses.payments.store');
 });

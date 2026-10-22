@@ -89,7 +89,7 @@
                 </div>
             </x-ui-card>
 
-            @stack('business-sections')
+            @include('platform.businesses.partials.payments')
         </div>
 
         <div class="col-xl-4">
