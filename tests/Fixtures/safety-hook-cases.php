@@ -34,6 +34,8 @@ return [
         'restoring a snapshot into a live connection' => 'php artisan db:restore-snapshot snap.sql.gz --database=mysql --yes',
         'legacy import into the .env database' => 'php artisan saas:import-legacy --from=rehearsal_testing --business-name=Acme',
         'legacy import into a live connection' => 'php artisan saas:import-legacy --from=rehearsal_testing --database=mysql --business-name=Acme',
+        // Phase 5: writes a login to the .env database; the user runs it on UAT.
+        'creating a platform operator' => 'php artisan platform:create-operator --name=Ops --email=ops@example.test --generate-password',
 
         // destructive SQL against a live database
         'drop table' => 'mysql -e "DROP TABLE sales"',
