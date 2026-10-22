@@ -622,3 +622,43 @@ how it works: [billing.md](billing.md).
 - **Concurrency of AI credit** has a logic test, not a multi-process one like the invoice numbers.
 - **Plan section 2 still open:** business settings (phone country code, `KES` fallbacks, the Meta template
   URL) and shop M-Pesa STK Push and webhooks (Phase 6).
+
+## Stage 5 (Phase 5): Platform console and roles per business
+
+Branch: `saas/phase-5-platform-console` (from `main` at `3a2fe4f`). Plan: the stage file itself
+([07-phase-5-platform-console.md](stages/07-phase-5-platform-console.md)). **Status: in progress.**
+
+### Scope (merged 21 October 2026)
+
+Roles per business (the roles review, previously planned for a separate `fix/roles-per-business` branch,
+now retired) and the platform admin console are one stage: Part A (roles per business) first, since the
+console relies on the policy rules it sets; then Part B (the console). Depends on Phase 4 and
+`fix/ui-button-links`, both merged. The signup, trials and invites stage follows (Phase 6,
+`saas/signup-trials-invites`).
+
+### Decisions recorded
+
+- **Impersonation (21 October 2026):** the operator acts strictly as the impersonated user. No
+  `Gate::before`, no template edits and no `/platform` routes while impersonating; operator rights return
+  only when impersonation ends, manually or at its time limit.
+- **Template changes (21 October 2026):** a template edit reaches new businesses and "Reset to default"
+  only. Existing copies change only through an explicit, confirmed, audited "Apply to all copies".
+- **Roles review (22 October 2026):** copied templates can't be deleted or renamed and can be reset to
+  default; `customer` stays a protected template; `attributes.view`, `attributes.create` and `stock.view`
+  (with `attributes.update`, `attributes.delete`) become real permissions; a role can be switched off,
+  after a SweetAlert confirmation naming how many people hold it.
+
+### Starting result
+
+`main` at `3a2fe4f` (22 October 2026): **SQLite 1,622 passed, 0 failed, 59 skipped** (6.8 min); **MySQL 8
+1,633 passed, 0 failed, 49 skipped** (15.6 min), including the flat API and `/api/v1` contract tests and the
+isolation suite. No known baseline failures.
+
+### Steps
+
+| Step | Commit | Tests added | Suite (SQLite) | Suite (MySQL 8) | Notes |
+|---|---|---|---|---|---|
+
+### Differences from the stage file
+
+### Follow-ups
