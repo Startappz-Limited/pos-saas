@@ -29,6 +29,7 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\URL;
 use Laravel\Sanctum\PersonalAccessToken;
 use Laravel\Sanctum\Sanctum;
+use Tests\Support\PlatformRoutes;
 use Tests\Support\TwoBusinesses;
 
 /**
@@ -286,4 +287,16 @@ it('refuses business B\'s billing to business A on /api/v1 (Phase 4)', function 
     $this->withHeaders(['Authorization' => "Bearer {$cashierToken}"])->getJson(route('api.v1.billing.show'))->assertForbidden();
 
     expect($payment->fresh()->status)->toBe('pending');
+});
+
+it('refuses every platform console route to business A\'s owner (Phase 5)', function () {
+    // B's records as parameters; the console is for platform operators only.
+    foreach (PlatformRoutes::all($this->fixture) as [$method, $url, $name]) {
+        app(TenantContext::class)->forget();
+        $status = $this->actingAs($this->fixture->a->owner)->{$method}($url)->getStatusCode();
+
+        expect($status)->toBe(404, "{$name} answered {$status}");
+    }
+
+    expect($this->fixture->b->business->fresh()->status)->toBe('active');
 });

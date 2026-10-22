@@ -3,12 +3,11 @@
 use App\Enums\AuditEvent;
 use App\Events\AuditableEvent;
 use App\Models\AuditLog;
-use App\Models\Role;
 use App\Models\User;
 use App\Support\Platform\Impersonation;
 use App\Support\Platform\PlatformAudit;
 use App\Support\Tenancy\TenantContext;
-use Illuminate\Support\Facades\Route;
+use Tests\Support\PlatformRoutes;
 use Tests\Support\TwoBusinesses;
 
 /**
@@ -26,48 +25,13 @@ beforeEach(function () {
     app(TenantContext::class)->forget();
 });
 
-/**
- * Every console route with a URL to call, its parameters filled from the
- * fixture (business B's records, so a leak would show).
- *
- * @return list<array{0: string, 1: string, 2: string}> [method, url, name]
- */
-function platformRoutes(TwoBusinesses $fixture): array
-{
-    $values = [
-        'business' => fn () => $fixture->b->business,
-        'user' => fn () => $fixture->b->cashier,
-        'member' => fn () => $fixture->b->cashier->uuid,
-        'role' => fn () => sharedRole('manager'),
-        'copy' => fn () => Role::withoutGlobalScopes()->where('business_id', $fixture->b->business->id)->where('name', 'manager')->firstOrFail(),
-    ];
-    $routes = [];
-
-    foreach (Route::getRoutes() as $route) {
-        if (! str_starts_with((string) $route->getName(), 'platform.')) {
-            continue;
-        }
-
-        $parameters = [];
-        foreach ($route->parameterNames() as $name) {
-            expect($values)->toHaveKey($name, message: "Add a value for {{$name}} (route {$route->getName()}) to platformRoutes().");
-            $parameters[$name] = $values[$name]();
-        }
-
-        $method = collect($route->methods())->reject(fn ($m) => $m === 'HEAD')->first();
-        $routes[] = [strtolower($method), route($route->getName(), $parameters), $route->getName()];
-    }
-
-    return $routes;
-}
-
 it('has console routes to check', function () {
-    expect(platformRoutes($this->fixture))->not->toBeEmpty();
+    expect(PlatformRoutes::all($this->fixture))->not->toBeEmpty();
 });
 
 it('answers 404 on every console route to a business owner, a member and someone in two businesses', function () {
     foreach ([$this->fixture->a->owner, $this->fixture->b->cashier, $this->fixture->both] as $user) {
-        foreach (platformRoutes($this->fixture) as [$method, $url, $name]) {
+        foreach (PlatformRoutes::all($this->fixture) as [$method, $url, $name]) {
             app(TenantContext::class)->forget();
             $status = $this->actingAs($user)->{$method}($url)->getStatusCode();
             expect($status)->toBe(404, "{$name} answered {$status} to {$user->name}");
@@ -76,7 +40,7 @@ it('answers 404 on every console route to a business owner, a member and someone
 });
 
 it('sends a guest to sign in from every console route', function () {
-    foreach (platformRoutes($this->fixture) as [$method, $url, $name]) {
+    foreach (PlatformRoutes::all($this->fixture) as [$method, $url, $name]) {
         $this->{$method}($url)->assertRedirect(route('login'));
     }
 });
@@ -121,4 +85,19 @@ it('marks what is done while impersonating with the operator who really acted', 
     AuditableEvent::dispatch(auditableType: User::class, auditableId: 1, auditableUuid: null, event: AuditEvent::UPDATED, userId: $this->fixture->a->cashier->id);
 
     expect(AuditLog::query()->latest('id')->first()->tags)->toBe(['impersonated_by:'.$this->operator->id]);
+});
+
+it('records every console page an operator opens, cross-business reads included', function () {
+    foreach (PlatformRoutes::all($this->fixture) as [$method, $url, $name]) {
+        if ($method !== 'get') {
+            continue; // each change is checked for its audit row in its own test
+        }
+
+        $before = AuditLog::query()->where('user_id', $this->operator->id)->whereNotNull('tags')->count();
+        $this->actingAs($this->operator)->get($url)->assertOk();
+
+        $row = AuditLog::query()->where('user_id', $this->operator->id)->latest('id')->first();
+        expect(AuditLog::query()->where('user_id', $this->operator->id)->whereNotNull('tags')->count())->toBeGreaterThan($before, "{$name} wrote no audit row")
+            ->and($row->tags)->toContain('platform');
+    }
 });
