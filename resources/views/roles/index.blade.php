@@ -14,10 +14,20 @@
                     @endcan
                 </x-slot:headerActions>
 
+                <form method="GET" action="{{ route('roles.index') }}" class="d-flex gap-2 mb-3">
+                    <select name="status" class="form-select form-select-sm w-auto" aria-label="{{ __('Status') }}" onchange="this.form.submit()">
+                        <option value="">{{ __('All roles') }}</option>
+                        <option value="active" @selected(request('status') === 'active')>{{ __('Active') }}</option>
+                        <option value="inactive" @selected(request('status') === 'inactive')>{{ __('Inactive') }}</option>
+                    </select>
+                    <noscript><button type="submit" class="btn btn-sm btn-light">{{ __('Filter') }}</button></noscript>
+                </form>
+
                 <x-ui-table>
                     <x-slot:header>
                         <tr>
                             <th>Role Name</th>
+                            <th>{{ __('Status') }}</th>
                             <th>Users</th>
                             <th>Permissions</th>
                             <th>Created</th>
@@ -41,6 +51,11 @@
                                 </div>
                             </td>
                             <td>
+                                <x-ui-badge :variant="$role->is_active ? 'success' : 'danger'">
+                                    {{ $role->is_active ? __('Active') : __('Inactive') }}
+                                </x-ui-badge>
+                            </td>
+                            <td>
                                 <x-ui-badge variant="secondary">{{ $role->holders_count ?? 0 }}</x-ui-badge>
                             </td>
                             <td>
@@ -59,6 +74,7 @@
                                             <i class="bx bx-edit"></i>
                                         </a>
                                     @endcan
+                                    @include('roles.partials.active-form', ['holders' => $role->holders_count ?? 0])
                                     @can('delete', $role)
                                         <form action="{{ route('roles.destroy', $role) }}" method="POST" class="d-inline"
                                             onsubmit="return confirm('Are you sure you want to delete this role?')">

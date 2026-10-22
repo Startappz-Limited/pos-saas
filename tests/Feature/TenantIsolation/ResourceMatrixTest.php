@@ -97,7 +97,7 @@ const WEB_RESOURCES = [
     'pricing-rules' => ['show', 'update', 'destroy'],
     'products' => ['show', 'update', 'destroy'],
     'purchase-orders' => ['show', 'update', 'destroy'],
-    'roles' => ['show', 'edit', 'update', 'destroy', 'permissions', 'updatePermissions', 'reset'],
+    'roles' => ['show', 'edit', 'update', 'destroy', 'permissions', 'updatePermissions', 'reset', 'active'],
     'sales' => ['show', 'update', 'destroy'],
     'shops' => ['show', 'update', 'destroy'],
     // show: SocialAccountController::show doesn't exist (already on main).

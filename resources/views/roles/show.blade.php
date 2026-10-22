@@ -37,6 +37,7 @@
                             </x-ui-button>
                         @endcan
 
+                        @include('roles.partials.active-form', ['holders' => $role->holders->count(), 'label' => $role->is_active ? __('Switch off') : __('Switch on')])
                         @include('roles.partials.reset-form')
 
                         @can('delete', $role)

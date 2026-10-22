@@ -3,11 +3,21 @@
 @section('title', 'Edit Role')
 
 @section('content')
+    @include('partials.swal-confirm-script')
     <div class="row">
         <div class="col-xl-10 col-lg-11 mx-auto">
-            <form action="{{ route('roles.update', $role) }}" method="POST">
+            <form action="{{ route('roles.update', $role) }}" method="POST"
+                @if ($role->is_active)
+                    data-swal-confirm data-swal-when="is_active"
+                    data-swal-title="{{ __('Switch this role off?') }}"
+                    data-swal-text="{{ __('People with this role won\'t be able to do anything in the system with it until it\'s switched back on.') }} {{ trans_choice('{0} Nobody in this business holds it.|{1} :count person in this business holds it.|[2,*] :count people in this business hold it.', $role->holders_count, ['count' => $role->holders_count]) }}"
+                    data-swal-button="{{ __('Save and switch off') }}"
+                @endif>
                 @csrf
                 @method('PUT')
+                @if ($role->is_active)
+                    <input type="hidden" name="confirm" value="0">
+                @endif
 
                 <!-- Role Information -->
                 <x-ui-card title="Role Information" class="mb-3">
@@ -42,11 +52,26 @@
 
                         <div class="col-lg-6">
                             <div class="form-check form-switch mb-3">
+                                {{-- An unticked box sends nothing: this says "off". --}}
+                                <input type="hidden" name="is_active" value="0">
                                 <input class="form-check-input" type="checkbox" id="is_active" name="is_active"
                                     value="1" {{ old('is_active', $role->is_active) ? 'checked' : '' }}>
                                 <label class="form-check-label" for="is_active">
-                                    Active
+                                    {{ __('Active') }}
                                 </label>
+                                @if ($role->is_active)
+                                    <noscript>
+                                        <div class="form-check mt-2">
+                                            <input class="form-check-input" type="checkbox" name="confirm" value="1" id="confirm-off-edit">
+                                            <label class="form-check-label" for="confirm-off-edit">
+                                                {{ __('If unticked: yes, people with this role won\'t be able to do anything with it') }}
+                                            </label>
+                                        </div>
+                                    </noscript>
+                                @endif
+                                @error('confirm')
+                                    <div class="text-danger small mt-1">{{ $message }}</div>
+                                @enderror
                             </div>
                         </div>
                     </div>

@@ -33,6 +33,9 @@ class UpdateRoleRequest extends FormRequest
             'name' => StoreRoleRequest::nameRules(new RoleName($this->route('role'))),
             'permissions' => ['array'],
             'permissions.*' => ['integer', 'distinct', 'exists:permissions,id'],
+            // Absent leaves the state as it is; switching off needs the confirmation.
+            'is_active' => ['sometimes', 'boolean'],
+            'confirm' => SetRoleActiveRequest::confirmRules($this->route('role'), fn (): bool => $this->has('is_active') && ! $this->boolean('is_active')),
         ];
     }
 
@@ -41,7 +44,7 @@ class UpdateRoleRequest extends FormRequest
      */
     public function messages(): array
     {
-        return StoreRoleRequest::sharedMessages();
+        return StoreRoleRequest::sharedMessages() + SetRoleActiveRequest::confirmMessages();
     }
 
     /**

@@ -56,10 +56,11 @@ class UpdateUserRequest extends FormRequest
             'date_of_birth' => ['nullable', 'date', 'before:today'],
             'profile_photo' => ['nullable', 'image', 'max:2048'],
             'status' => ['required', Rule::enum(UserStatus::class)],
-            // Only roles the signer may give (stage 3).
-            'role_id' => ['nullable', new GrantableRole($this->user())],
+            // Only roles the signer may give (stage 3); a switched-off role
+            // the person holds already may stay (Phase 5).
+            'role_id' => ['nullable', new GrantableRole($this->user(), holder: $this->route('user'))],
             'roles' => ['nullable', 'array'],
-            'roles.*' => [new GrantableRole($this->user(), byName: true)],
+            'roles.*' => [new GrantableRole($this->user(), byName: true, holder: $this->route('user'))],
             'shop_ids' => ['nullable', 'array'],
             'shop_ids.*' => ['integer', 'exists:shops,id'],
         ];

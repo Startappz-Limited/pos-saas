@@ -35,6 +35,7 @@ class StoreRoleRequest extends FormRequest
             'name' => self::nameRules(new RoleName),
             'permissions' => ['array'],
             'permissions.*' => ['integer', 'distinct', 'exists:permissions,id'],
+            'is_active' => ['sometimes', 'boolean'],
         ];
     }
 

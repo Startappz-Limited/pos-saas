@@ -27,7 +27,7 @@
                 }
 
                 const confirmField = form.querySelector('input[type="hidden"][name="confirm"]');
-                const when = form.dataset.swalWhen ? form.querySelector('[name="' + form.dataset.swalWhen + '"]') : null;
+                const when = form.dataset.swalWhen ? form.querySelector('input[type="checkbox"][name="' + form.dataset.swalWhen + '"]') : null;
 
                 if (when && when.checked) {
                     return;

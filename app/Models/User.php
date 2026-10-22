@@ -16,6 +16,7 @@ use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 use Laravel\Sanctum\HasApiTokens;
+use Spatie\Permission\Contracts\Permission;
 use Spatie\Permission\Traits\HasRoles;
 
 class User extends Authenticatable
@@ -422,6 +423,32 @@ class User extends Authenticatable
     {
         // The owner role, held in the current business (decision 4.4).
         return app(TenantContext::class)->has() && $this->hasRole('admin');
+    }
+
+    /**
+     * Spatie's check through roles, ignoring roles that are switched off
+     * (Phase 5): the person keeps the assignment, and gets its permissions
+     * back when the role is switched on again. Spatie's cache keeps every role
+     * column, so is_active is known without a query.
+     */
+    protected function hasPermissionViaRole(Permission $permission): bool
+    {
+        return $this->hasRole($permission->roles->filter(fn ($role): bool => (bool) ($role->is_active ?? true)));
+    }
+
+    /**
+     * The permissions through roles, without those of roles switched off
+     * (Phase 5): what sign-in and `/api/user` report, and what GrantableRole
+     * compares against.
+     *
+     * @return Collection<int, Permission>
+     */
+    public function getPermissionsViaRoles(): Collection
+    {
+        return $this->loadMissing('roles', 'roles.permissions')
+            ->roles->filter(fn ($role): bool => (bool) ($role->is_active ?? true))
+            ->flatMap(fn ($role) => $role->permissions)
+            ->sort()->values();
     }
 
     /**

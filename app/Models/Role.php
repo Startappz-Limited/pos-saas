@@ -6,6 +6,7 @@ use App\Actions\Business\CopyRoleTemplates;
 use App\Models\Concerns\Auditable;
 use App\Models\Scopes\BusinessOrSharedScope;
 use App\Support\Tenancy\TenantContext;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Support\Str;
@@ -27,6 +28,14 @@ class Role extends SpatieRole
         'uuid',
         'name',
         'guard_name',
+        'is_active',
+    ];
+
+    /**
+     * @var array<string, string>
+     */
+    protected $casts = [
+        'is_active' => 'boolean',
     ];
 
     /**
@@ -98,6 +107,15 @@ class Role extends SpatieRole
     public function isTemplateCopy(): bool
     {
         return $this->template_id !== null;
+    }
+
+    /**
+     * Roles that grant their permissions (Phase 5): an inactive role grants
+     * nothing until it is switched back on, and can't be given to anyone.
+     */
+    public function scopeActive(Builder $query): Builder
+    {
+        return $query->where($this->qualifyColumn('is_active'), true);
     }
 
     /**

@@ -3,14 +3,17 @@
 namespace App\Http\Controllers;
 
 use App\Actions\Role\ResetRoleToTemplate;
+use App\Actions\Role\SetRoleActive;
 use App\Actions\Role\SyncRolePermissions;
 use App\Http\Requests\ResetRoleRequest;
+use App\Http\Requests\SetRoleActiveRequest;
 use App\Http\Requests\StoreRoleRequest;
 use App\Http\Requests\UpdateRolePermissionsRequest;
 use App\Http\Requests\UpdateRoleRequest;
 use App\Models\Role;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
+use Illuminate\Http\Request;
 use Spatie\Permission\Models\Permission;
 
 class RoleController extends Controller
@@ -20,14 +23,17 @@ class RoleController extends Controller
     /**
      * Display a listing of roles.
      */
-    public function index()
+    public function index(Request $request)
     {
         $this->authorize('viewAny', Role::class);
 
         // Holders in this business only (roles are held per business).
         $roles = Role::with('permissions')
             ->withCount('holders')
-            ->paginate(15);
+            ->when($request->query('status') === 'active', fn ($query) => $query->active())
+            ->when($request->query('status') === 'inactive', fn ($query) => $query->where('is_active', false))
+            ->paginate(15)
+            ->withQueryString();
 
         return view('roles.index', compact('roles'));
     }
@@ -55,6 +61,7 @@ class RoleController extends Controller
             'name' => $validated['name'],
             'guard_name' => 'web',
             'business_id' => app(TenantContext::class)->id(),
+            'is_active' => (bool) ($validated['is_active'] ?? true),
         ]);
 
         $sync->execute($role, $request->user(), $validated['permissions'] ?? []);
@@ -95,12 +102,16 @@ class RoleController extends Controller
     /**
      * Update the specified role in storage.
      */
-    public function update(UpdateRoleRequest $request, Role $role, SyncRolePermissions $sync)
+    public function update(UpdateRoleRequest $request, Role $role, SyncRolePermissions $sync, SetRoleActive $setActive)
     {
         $validated = $request->validated();
 
         $role->update(['name' => $validated['name']]);
         $sync->execute($role, $request->user(), $validated['permissions'] ?? []);
+
+        if (array_key_exists('is_active', $validated)) {
+            $setActive->execute($role, (bool) $validated['is_active']);
+        }
 
         return redirect()
             ->route('roles.index')
@@ -167,5 +178,18 @@ class RoleController extends Controller
         return redirect()
             ->route('roles.show', $role)
             ->with('success', __('The role was reset to its default permissions.'));
+    }
+
+    /**
+     * Switch a role on or off (Phase 5). Switching it off is confirmed first.
+     */
+    public function setActive(SetRoleActiveRequest $request, Role $role, SetRoleActive $setActive)
+    {
+        $active = $request->boolean('active');
+        $setActive->execute($role, $active);
+
+        return redirect()
+            ->back(fallback: route('roles.show', $role))
+            ->with('success', $active ? __('The role is switched on.') : __('The role is switched off.'));
     }
 }

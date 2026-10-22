@@ -79,7 +79,7 @@ class UserController extends Controller
             'shop_id' => ['nullable', 'exists:shops,id'],
             'status' => ['nullable', Rule::enum(UserStatus::class)],
             'roles' => ['nullable', 'array'],
-            'roles.*' => [new GrantableRole($request->user(), byName: true)],
+            'roles.*' => [new GrantableRole($request->user(), byName: true, holder: $user)],
         ]);
 
         $user = $this->userService->update($user, $validated);

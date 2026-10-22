@@ -148,6 +148,7 @@ Route::middleware(['auth', 'business'])->group(function () {
     Route::get('roles/{role}/permissions', [RoleController::class, 'permissions'])->name('roles.permissions');
     Route::put('roles/{role}/permissions', [RoleController::class, 'updatePermissions'])->name('roles.updatePermissions');
     Route::post('roles/{role}/reset', [RoleController::class, 'reset'])->name('roles.reset');
+    Route::patch('roles/{role}/active', [RoleController::class, 'setActive'])->name('roles.active');
 
     // Shop Management Routes
     Route::post('shops/test-integration', [ShopController::class, 'testIntegration'])->name('shops.testIntegration');
