@@ -246,15 +246,6 @@
                     </a>
                 </li>
 
-                @can('view-api-docs')
-                    <li>
-                        <a href="{{ route('api-docs.index') }}"
-                            class="{{ request()->routeIs('api-docs.*') ? 'active' : '' }}">
-                            <i class="bx bx-code-alt"></i>
-                            <span>API Documentation</span>
-                        </a>
-                    </li>
-                @endcan
 
             </ul>
 
