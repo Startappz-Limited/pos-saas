@@ -37,6 +37,7 @@ function platformRoutes(TwoBusinesses $fixture): array
     $values = [
         'business' => fn () => $fixture->b->business,
         'user' => fn () => $fixture->b->cashier,
+        'member' => fn () => $fixture->b->cashier->uuid,
         'role' => fn () => sharedRole('manager'),
         'copy' => fn () => Role::withoutGlobalScopes()->where('business_id', $fixture->b->business->id)->where('name', 'manager')->firstOrFail(),
     ];
@@ -91,7 +92,7 @@ it('opens the console to a platform operator and records the visit', function ()
 });
 
 it('keeps the console closed while the operator impersonates someone', function () {
-    $this->actingAs($this->operator)->withSession([Impersonation::OPERATOR_KEY => $this->operator->id])
+    $this->actingAs($this->operator)->withSession([Impersonation::OPERATOR_KEY => $this->operator->id, Impersonation::EXPIRES_KEY => now()->addMinutes(10)->getTimestamp()])
         ->get(route('platform.dashboard'))->assertNotFound();
 });
 

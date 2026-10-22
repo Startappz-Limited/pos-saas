@@ -30,6 +30,7 @@ use App\Http\Controllers\LowStockAlertController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\Platform\BusinessController as PlatformBusinessController;
 use App\Http\Controllers\Platform\DashboardController as PlatformDashboardController;
+use App\Http\Controllers\Platform\ImpersonationController as PlatformImpersonationController;
 use App\Http\Controllers\Platform\PaymentController as PlatformPaymentController;
 use App\Http\Controllers\PricingRuleController;
 use App\Http\Controllers\ProductController;
@@ -486,4 +487,9 @@ Route::middleware(['auth', 'platform'])->prefix('platform')->name('platform.')->
     Route::put('businesses/{business}/plan', [PlatformBusinessController::class, 'changePlan'])->name('businesses.plan');
     Route::post('businesses/{business}/trial', [PlatformBusinessController::class, 'extendTrial'])->name('businesses.trial');
     Route::post('businesses/{business}/payments', [PlatformPaymentController::class, 'store'])->name('businesses.payments.store');
+    Route::post('businesses/{business}/members/{member}/impersonate', [PlatformImpersonationController::class, 'start'])->name('businesses.impersonate');
 });
+
+// Ending an impersonation (Phase 5): by then the signed-in user is the
+// impersonated one, so this sits outside the console group.
+Route::post('impersonation/end', [PlatformImpersonationController::class, 'end'])->middleware('auth')->name('impersonation.end');

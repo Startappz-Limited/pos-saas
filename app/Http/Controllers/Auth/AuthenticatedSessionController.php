@@ -2,8 +2,11 @@
 
 namespace App\Http\Controllers\Auth;
 
+use App\Actions\Platform\EndImpersonation;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
+use App\Models\Impersonation as ImpersonationRecord;
+use App\Support\Platform\Impersonation;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -41,6 +44,11 @@ class AuthenticatedSessionController extends Controller
      */
     public function destroy(Request $request): RedirectResponse
     {
+        // Signing out ends an impersonation too, and closes its log (Phase 5).
+        if (Impersonation::active()) {
+            app(EndImpersonation::class)->execute($request, ImpersonationRecord::SIGNED_OUT);
+        }
+
         Auth::guard('web')->logout();
 
         $request->session()->invalidate();

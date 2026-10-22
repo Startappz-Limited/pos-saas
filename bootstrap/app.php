@@ -4,6 +4,7 @@ use App\Http\Middleware\EnforceSubscription;
 use App\Http\Middleware\EnsureAccountActive;
 use App\Http\Middleware\EnsureActiveBusiness;
 use App\Http\Middleware\EnsurePlatformOperator;
+use App\Http\Middleware\HandleImpersonation;
 use App\Http\Middleware\RequireFeature;
 use App\Http\Middleware\ResolveTenant;
 use App\Http\Middleware\SecurityHeaders;
@@ -48,6 +49,11 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->web(append: [EnsureAccountActive::class]);
         $middleware->api(append: [EnsureAccountActive::class]);
         $middleware->appendToPriorityList(AuthenticatesRequests::class, EnsureAccountActive::class);
+
+        // An operator's impersonation ends at its time limit (Phase 5): the
+        // request is redirected, whatever business was resolved for it.
+        $middleware->web(append: [HandleImpersonation::class]);
+        $middleware->appendToPriorityList(AuthenticatesRequests::class, HandleImpersonation::class);
 
         // Read-only mode for a lapsed subscription or too many shops (Phase 4).
         $middleware->web(append: [EnforceSubscription::class]);

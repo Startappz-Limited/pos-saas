@@ -5,6 +5,7 @@ use App\Models\BusinessClosure;
 use App\Models\BusinessMembership;
 use App\Models\CreditAccount;
 use App\Models\Customer;
+use App\Models\Impersonation;
 use App\Models\Product;
 use App\Models\SaleItem;
 use App\Models\Scopes\BusinessOrSharedScope;
@@ -32,6 +33,9 @@ const UNSCOPED_TENANT_MODELS = [
     // The record that a business was closed and erased: platform-wide, and
     // kept after the business is gone.
     BusinessClosure::class => 'outlives the business it records',
+    // The platform console's impersonation log (Phase 5): platform data,
+    // written and read only by platform operators, never by the business.
+    Impersonation::class => 'platform data: the console\'s impersonation log',
 ];
 
 /**
