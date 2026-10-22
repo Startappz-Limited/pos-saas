@@ -259,7 +259,7 @@ A `platform.*` route group gated to `super-admin`, under `/platform`.
       pass).
 - [x] New routes and actions (role screens and `/platform`) added to the isolation resource matrix; isolation
       suite green, with the console's cross-business reads audited and covered by tests.
-- [ ] Pint, the full suite (SQLite and MySQL 8) and both API contract test sets pass.
+- [x] Pint, the full suite (SQLite and MySQL 8) and both API contract test sets pass.
 
 ---
 
@@ -296,9 +296,9 @@ listed permissions the old templates never got, which the rollout rule grants to
 
 ## Definition of done
 
-- [ ] All acceptance criteria met, with tests.
+- [x] All acceptance criteria met, with tests.
 - [x] Isolation suite green, including the new role routes and every `/platform` route.
-- [ ] Pint, the full suite (SQLite and MySQL 8) and both API contract test sets pass.
+- [x] Pint, the full suite (SQLite and MySQL 8) and both API contract test sets pass.
 - [ ] Rollout rehearsed on `import_testing`, then run on UAT after a snapshot.
 
 ## Points to confirm
