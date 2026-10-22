@@ -4,10 +4,10 @@ use App\Models\Business;
 use App\Models\BusinessMembership;
 use App\Models\Subscription;
 use App\Models\User;
+use App\Support\Signup\VerificationLink;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Support\Facades\Notification;
-use Illuminate\Support\Facades\URL;
 
 beforeEach(function () {
     ownerRole();
@@ -31,7 +31,7 @@ function signupForm(array $overrides = []): array
 
 function verificationUrl(User $user): string
 {
-    return URL::temporarySignedRoute('verification.verify', now()->addMinutes(60), ['id' => $user->id, 'hash' => sha1($user->email)]);
+    return VerificationLink::url($user);
 }
 
 test('registration screen can be rendered', function () {

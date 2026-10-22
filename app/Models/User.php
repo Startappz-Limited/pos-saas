@@ -473,6 +473,30 @@ class User extends Authenticatable
      * The platform operator (decision 4.4): global, never a business member,
      * the only user Gate::before lets do everything.
      */
+    /**
+     * Whether this login has run out of its grace period without verifying its
+     * email (Phase 6): unverified, with a deadline that has passed. Logins with
+     * no deadline (staff an admin added) are never asked.
+     */
+    public function mustVerifyEmailNow(): bool
+    {
+        return ! $this->hasVerifiedEmail()
+            && $this->verification_deadline_at !== null
+            && $this->verification_deadline_at->lte(now());
+    }
+
+    /**
+     * Hours left to verify, rounded up; null when the login isn't on the clock.
+     */
+    public function verificationHoursLeft(): ?int
+    {
+        if ($this->hasVerifiedEmail() || $this->verification_deadline_at === null) {
+            return null;
+        }
+
+        return max(0, (int) ceil(now()->floatDiffInHours($this->verification_deadline_at, false)));
+    }
+
     public function isPlatformOperator(): bool
     {
         return (bool) $this->is_platform_operator;

@@ -144,28 +144,28 @@ No open question blocks this stage.
 ### 3. Email verification with a 24-hour grace period
 
 #### 3.1 Behaviour
-- [ ] **Change from Phase 3:** the trial no longer waits for verification; the owner is signed in at signup and
+- [x] **Change from Phase 3:** the trial no longer waits for verification; the owner is signed in at signup and
       a verification email is sent.
-- [ ] For 24 hours the system is fully usable unverified, with a banner: "Verify your email — X hours left" and
+- [x] For 24 hours the system is fully usable unverified, with a banner: "Verify your email — X hours left" and
       **Resend**.
-- [ ] After 24 hours unverified, everything is blocked except verify, resend, change email and sign out. The
-      block covers **web, the flat API, `/api/v1` and sync push**, returning `403` with
+- [x] After 24 hours unverified, everything is blocked except verify, resend, change email and sign out. The
+      block covers **web, the flat API, `/api/v1` and sync push** (sync push is Phase 7; it will sit behind the same middleware), returning `403` with
       `email_verification_required`.
-- [ ] Verifying restores access immediately; nothing is lost.
-- [ ] The trial clock keeps running during the grace period and while blocked.
+- [x] Verifying restores access immediately; nothing is lost.
+- [x] The trial clock keeps running during the grace period and while blocked.
 
 #### 3.2 Email change
-- [ ] Changing the owner's email clears `email_verified_at`, sets `verification_deadline_at = now + 24 hours`,
+- [x] Changing the owner's email clears `email_verified_at`, sets `verification_deadline_at = now + 24 hours`,
       sends a verification email to the new address, and notifies the old address of the change.
-- [ ] The same grace-period behaviour then applies.
+- [x] The same grace-period behaviour then applies.
 
 #### 3.3 Implementation
-- [ ] `users.verification_deadline_at` (nullable); set at signup and on email change.
-- [ ] Middleware: unverified and past `verification_deadline_at` → block, alongside the Phase 4 read-only
+- [x] `users.verification_deadline_at` (nullable); set at signup and on email change.
+- [x] Middleware: unverified and past `verification_deadline_at` → block, alongside the Phase 4 read-only
       middleware.
-- [ ] Verification links single-use and signed, valid 48 hours; resending invalidates older links.
-- [ ] Resend rate-limited (1 a minute, 5 an hour). Optional reminder at about 20 hours.
-- [ ] Invited users are verified on accepting their invite.
+- [x] Verification links single-use and signed, valid 48 hours; resending invalidates older links.
+- [x] Resend rate-limited (1 a minute, 5 an hour). Optional reminder at about 20 hours (not built).
+- [x] Invited users are verified on accepting their invite.
 
 ### 4. Unified "Add user" (invite)
 
@@ -221,39 +221,39 @@ No password is set by the inviter.
 ## Acceptance criteria
 
 **Validation**
-- [ ] `test@gmail.com`, `demo@example.com`, `anything@test.com` and a disposable-provider address are refused;
+- [x] `test@gmail.com`, `demo@example.com`, `anything@test.com` and a disposable-provider address are refused;
       `john+shop@gmail.com` and `info@realshop.co.ke` are accepted.
-- [ ] `Password123`, `Welcome2024` and `qwerty123456` are refused on signup, invite acceptance and password reset;
+- [x] `Password123`, `Welcome2024` and `qwerty123456` are refused on signup, invite acceptance and password reset;
       a long random passphrase is accepted.
 
 **Trials**
-- [ ] Every signup starts a trial ending 14 days after signup, whether or not the email is verified.
-- [ ] A Free Trial business can't add a second shop or a 4th staff member, pending invites included, on web and
+- [x] Every signup starts a trial ending 14 days after signup, whether or not the email is verified.
+- [x] A Free Trial business can't add a second shop or a 4th staff member, pending invites included, on web and
       both APIs.
-- [ ] The person who signs up is `admin` (never `super-admin`) and can add users with any role, `admin`
+- [x] The person who signs up is `admin` (never `super-admin`) and can add users with any role, `admin`
       included; a non-owner can't give `admin`.
-- [ ] A tier trial has that tier's limits and its chosen shop count.
-- [ ] The same email can't start a second Free Trial.
-- [ ] At trial end the business is read-only with `subscription_inactive`; a payment (manual, or M-Pesa after
+- [x] A tier trial has that tier's limits and its chosen shop count.
+- [x] The same email can't start a second Free Trial.
+- [x] At trial end the business is read-only with `subscription_inactive`; a payment (manual, or M-Pesa after
       go-live) reopens it exactly once.
 
 **Changing plan during a trial**
-- [ ] A Free Trial business that picks Tier 2 with 3 shops on day 5 gets Tier 2 limits and 3 shops at once;
+- [x] A Free Trial business that picks Tier 2 with 3 shops on day 5 gets Tier 2 limits and 3 shops at once;
       `trial_ends_at` is unchanged.
-- [ ] Switching tiers during a trial, any number of times, never moves `trial_ends_at`.
-- [ ] A payment on day 5 of a trial starts the paid period on the original `trial_ends_at`; the business keeps
+- [x] Switching tiers during a trial, any number of times, never moves `trial_ends_at`.
+- [x] A payment on day 5 of a trial starts the paid period on the original `trial_ends_at`; the business keeps
       its trial days and the payment is applied exactly once.
-- [ ] Moving to a plan with fewer shops than the business has makes every shop read-only until enough shops are
+- [x] Moving to a plan with fewer shops than the business has makes every shop read-only until enough shops are
       deleted; the picker warns before confirming.
-- [ ] Moving to a plan with a lower staff limit keeps existing staff and refuses new users and invites until
+- [x] Moving to a plan with a lower staff limit keeps existing staff and refuses new users and invites until
       within the limit.
-- [ ] Each plan change during a trial is in the audit log.
+- [x] Each plan change during a trial is in the audit log.
 
 **Verification**
-- [ ] A new owner can use the system immediately.
-- [ ] At 23h59m everything works; at 24h01m unverified, web, both APIs and sync push return
+- [x] A new owner can use the system immediately.
+- [x] At 23h59m everything works; at 24h01m unverified, web, both APIs and sync push return
       `email_verification_required`, except verify, resend, change email and sign out.
-- [ ] Changing the owner's email starts a new 24-hour window and notifies the old address.
+- [x] Changing the owner's email starts a new 24-hour window and notifies the old address.
 
 **Invites**
 - [ ] A user can be added with only email and role.

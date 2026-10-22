@@ -45,6 +45,8 @@ function signup(array $overrides = []): array
     test()->post('/register', $form)->assertSessionHasNoErrors();
 
     $user = User::where('email', $form['email'])->firstOrFail();
+    // Verified, so days of travel don't hit the 24-hour grace period (VerificationGraceTest covers that).
+    $user->markEmailAsVerified();
     $business = Business::findOrFail($user->default_business_id);
 
     return [$user, $business];

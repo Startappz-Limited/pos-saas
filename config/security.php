@@ -69,4 +69,20 @@ return [
         'window_minutes' => 15,
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Email verification grace (Phase 6)
+    |--------------------------------------------------------------------------
+    |
+    | An owner may work unverified for 24 hours after signup (or an email
+    | change). After that everything is refused with `email_verification_required`
+    | except these route names and paths: verifying, resending the link,
+    | changing the email, and signing out.
+    |
+    */
+
+    'verification_allowed' => [
+        'verification.*', 'logout', 'api/logout', 'api.v1.auth.sign-out',
+    ],
+
 ];

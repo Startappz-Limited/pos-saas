@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\User\ChangeUserEmail;
 use App\Actions\User\DeactivateOwnAccount;
 use App\Http\Requests\ProfileUpdateRequest;
 use Illuminate\Http\RedirectResponse;
@@ -25,15 +26,18 @@ class ProfileController extends Controller
     /**
      * Update the user's profile information.
      */
-    public function update(ProfileUpdateRequest $request): RedirectResponse
+    public function update(ProfileUpdateRequest $request, ChangeUserEmail $change): RedirectResponse
     {
-        $request->user()->fill($request->validated());
+        $validated = $request->validated();
 
-        if ($request->user()->isDirty('email')) {
-            $request->user()->email_verified_at = null;
+        // A new address starts unverified, with a fresh 24 hours, and the old
+        // one is told (Phase 6).
+        if (isset($validated['email'])) {
+            $change->execute($request->user(), $validated['email']);
+            unset($validated['email']);
         }
 
-        $request->user()->save();
+        $request->user()->fill($validated)->save();
 
         return Redirect::route('profile.edit')->with('status', 'profile-updated');
     }
