@@ -2,9 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\Role\SyncRolePermissions;
+use App\Http\Requests\StoreRoleRequest;
+use App\Http\Requests\UpdateRolePermissionsRequest;
+use App\Http\Requests\UpdateRoleRequest;
 use App\Models\Role;
+use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
-use Illuminate\Http\Request;
 use Spatie\Permission\Models\Permission;
 
 class RoleController extends Controller
@@ -18,8 +22,9 @@ class RoleController extends Controller
     {
         $this->authorize('viewAny', Role::class);
 
+        // Holders in this business only (roles are held per business).
         $roles = Role::with('permissions')
-            ->withCount('users')
+            ->withCount('holders')
             ->paginate(15);
 
         return view('roles.index', compact('roles'));
@@ -40,22 +45,17 @@ class RoleController extends Controller
     /**
      * Store a newly created role in storage.
      */
-    public function store(Request $request)
+    public function store(StoreRoleRequest $request, SyncRolePermissions $sync)
     {
-        $this->authorize('create', Role::class);
+        $validated = $request->validated();
 
-        $validated = $request->validate([
-            'name' => ['required', 'string', 'max:255', 'unique:roles,name', 'regex:/^[a-z0-9-]+$/'],
-            'permissions' => 'array',
-            'permissions.*' => 'exists:permissions,id',
+        $role = Role::create([
+            'name' => $validated['name'],
+            'guard_name' => 'web',
+            'business_id' => app(TenantContext::class)->id(),
         ]);
 
-        $role = Role::create(['name' => $validated['name']]);
-
-        if (isset($validated['permissions'])) {
-            $permissions = Permission::whereIn('id', $validated['permissions'])->get();
-            $role->syncPermissions($permissions);
-        }
+        $sync->execute($role, $request->user(), $validated['permissions'] ?? []);
 
         return redirect()
             ->route('roles.index')
@@ -70,7 +70,7 @@ class RoleController extends Controller
         $this->authorize('view', $role);
 
         // Holders in this business only (roles are held per business).
-        $role->load(['permissions', 'users' => fn ($query) => $query->inCurrentBusiness()
+        $role->load(['permissions', 'holders' => fn ($query) => $query->inCurrentBusiness()
             ->select('users.id', 'users.name', 'users.email', 'users.profile_photo', 'users.status', 'users.email_verified_at', 'users.created_at')]);
 
         return view('roles.show', compact('role'));
@@ -83,7 +83,7 @@ class RoleController extends Controller
     {
         $this->authorize('update', $role);
 
-        $role->load('permissions');
+        $role->load('permissions')->loadCount('holders');
 
         $permissions = Permission::all();
 
@@ -93,31 +93,12 @@ class RoleController extends Controller
     /**
      * Update the specified role in storage.
      */
-    public function update(Request $request, Role $role)
+    public function update(UpdateRoleRequest $request, Role $role, SyncRolePermissions $sync)
     {
-        $this->authorize('update', $role);
-
-        // The owner role can't be edited (owners hold every permission)
-        if ($role->name === 'admin') {
-            return redirect()
-                ->route('roles.index')
-                ->with('error', 'Super Admin role cannot be modified.');
-        }
-
-        $validated = $request->validate([
-            'name' => 'required|string|max:255|unique:roles,name,'.$role->id,
-            'permissions' => 'array',
-            'permissions.*' => 'exists:permissions,id',
-        ]);
+        $validated = $request->validated();
 
         $role->update(['name' => $validated['name']]);
-
-        if (isset($validated['permissions'])) {
-            $permissions = Permission::whereIn('id', $validated['permissions'])->get();
-            $role->syncPermissions($permissions);
-        } else {
-            $role->syncPermissions([]);
-        }
+        $sync->execute($role, $request->user(), $validated['permissions'] ?? []);
 
         return redirect()
             ->route('roles.index')
@@ -131,15 +112,8 @@ class RoleController extends Controller
     {
         $this->authorize('delete', $role);
 
-        // The owner role can't be deleted
-        if ($role->name === 'admin') {
-            return redirect()
-                ->route('roles.index')
-                ->with('error', 'Super Admin role cannot be deleted.');
-        }
-
-        // Check if role has users
-        if ($role->users()->count() > 0) {
+        // Still held by someone in this business.
+        if ($role->holders()->exists()) {
             return redirect()
                 ->route('roles.index')
                 ->with('error', 'Cannot delete role that has assigned users.');
@@ -171,23 +145,9 @@ class RoleController extends Controller
     /**
      * Update permissions for a role.
      */
-    public function updatePermissions(Request $request, Role $role)
+    public function updatePermissions(UpdateRolePermissionsRequest $request, Role $role, SyncRolePermissions $sync)
     {
-        $this->authorize('update', $role);
-
-        // The owner role's permissions can't be changed
-        if ($role->name === 'admin') {
-            return redirect()
-                ->route('roles.index')
-                ->with('error', 'Super Admin permissions cannot be modified.');
-        }
-
-        $validated = $request->validate([
-            'permissions' => 'array',
-            'permissions.*' => 'exists:permissions,id',
-        ]);
-
-        $role->syncPermissions($validated['permissions'] ?? []);
+        $sync->execute($role, $request->user(), $request->validated()['permissions'] ?? []);
 
         return redirect()
             ->route('roles.index')

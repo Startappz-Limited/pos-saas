@@ -116,9 +116,10 @@ test('the owner role cannot be updated', function () {
         'permissions' => [],
     ]);
 
-    $response->assertRedirect(route('roles.index'));
-    $response->assertSessionHas('error');
+    // The policy refuses the owner role (403, Phase 5), whatever the fields say.
+    $response->assertForbidden();
     $this->assertDatabaseHas('roles', ['name' => 'admin']);
+    $this->assertDatabaseMissing('roles', ['name' => 'hacked-role']);
 });
 
 test('user can delete role if authorized', function () {
@@ -174,6 +175,8 @@ test('permissions can be assigned to role', function () {
 
     $permission1 = Permission::create(['name' => 'test.permission1']);
     $permission2 = Permission::create(['name' => 'test.permission2']);
+    // A non-owner gives only permissions they hold (Phase 5).
+    $user->givePermissionTo([$permission1, $permission2]);
 
     $response = $this->actingAs($user)->post(route('roles.store'), [
         'name' => 'test-role-with-perms',
@@ -197,6 +200,9 @@ test('permissions can be updated for role', function () {
     $permission3 = Permission::create(['name' => 'test.permission3']);
 
     $role->givePermissionTo($permission1);
+    // A non-owner gives only permissions they hold (Phase 5); test.permission1
+    // is in their reach too, so it can be taken away.
+    $user->givePermissionTo([$permission1, $permission2, $permission3]);
 
     $response = $this->actingAs($user)->put(route('roles.updatePermissions', $role), [
         'permissions' => [$permission2->id, $permission3->id],
@@ -224,6 +230,7 @@ test('the owner role\'s permissions cannot be modified', function () {
         'permissions' => [$permission->id],
     ]);
 
-    $response->assertRedirect(route('roles.index'));
-    $response->assertSessionHas('error');
+    // The policy refuses the owner role (403, Phase 5).
+    $response->assertForbidden();
+    expect($superAdminRole->fresh()->permissions->pluck('name'))->not->toContain('test.permission');
 });

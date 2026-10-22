@@ -81,7 +81,7 @@
                             <iconify-icon icon="solar:users-group-rounded-bold-duotone"
                                 class="avatar-title fs-32 text-primary"></iconify-icon>
                         </div>
-                        <h4 class="mb-0">{{ $role->users->count() }}</h4>
+                        <h4 class="mb-0">{{ $role->holders->count() }}</h4>
                         <p class="text-muted mb-0">Users Assigned</p>
                     </x-ui-card>
                 </div>
@@ -139,7 +139,7 @@
 
             <!-- Assigned Users -->
             <x-ui-card title="Assigned Users">
-                @if ($role->users->count() > 0)
+                @if ($role->holders->count() > 0)
                     <x-ui-table hover>
                         <x-slot:header>
                             <tr>
@@ -151,7 +151,7 @@
                         </x-slot:header>
 
                         <x-slot:body>
-                            @foreach ($role->users as $user)
+                            @foreach ($role->holders as $user)
                                 <tr>
                                     <td>
                                         <div class="d-flex align-items-center">
@@ -185,9 +185,9 @@
                 <x-ui-modal id="deleteRoleModal" title="Confirm Delete" centered>
                     <x-slot:body>
                         <p class="mb-3">Are you sure you want to delete the <strong>{{ $role->name }}</strong> role?</p>
-                        @if ($role->users->count() > 0)
+                        @if ($role->holders->count() > 0)
                             <x-ui-alert variant="warning">
-                                <strong>Warning:</strong> This role is assigned to {{ $role->users->count() }} user(s).
+                                <strong>Warning:</strong> This role is assigned to {{ $role->holders->count() }} user(s).
                                 Deleting it will remove this role from all assigned users.
                             </x-ui-alert>
                         @endif

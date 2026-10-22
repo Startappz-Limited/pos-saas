@@ -31,6 +31,7 @@ const ALLOWED_RAW_QUERIES = [
     'app/Actions/Business/ExportBusinessData.php' => [3, 'the export reads only rows BusinessData found to be the business\'s, its members and its audit rows'],
     'app/Actions/Business/PurgeBusiness.php' => [9, 'the erasure deletes only rows BusinessData found to be the business\'s, and its own logins'],
     'app/Actions/Business/CopyRoleTemplates.php' => [5, 'role templates copied into the business being created'],
+    'app/Rules/RoleName.php' => [2, 'the role name rule: shared template names, and the current business\'s own roles (business_id filtered explicitly)'],
     'app/Actions/ConvertEcommerceOrderToSale.php' => [1, 'the register of a session the action just found or opened'],
     'app/Services/Billing/PlanLimits.php' => [7, 'quota counts for the one business the caller names, across all its shops whatever the viewer may see'],
     'app/Actions/Shop/SaveShopMpesaAccount.php' => [1, 'a shortcode is unique on the platform: reads only whether another shop holds the number'],

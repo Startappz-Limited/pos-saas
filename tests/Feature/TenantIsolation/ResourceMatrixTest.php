@@ -18,6 +18,7 @@ use App\Models\ExpenseCategory;
 use App\Models\PlatformPayment;
 use App\Models\PricingRule;
 use App\Models\PurchaseOrder;
+use App\Models\Role;
 use App\Models\SocialAccount;
 use App\Services\Billing\AiCredits;
 use App\Support\Tenancy\BusinessLink;
@@ -70,6 +71,8 @@ function recordOfB(TwoBusinesses $fixture, string $resource): Model
         'pricing-rules' => PricingRule::factory()->create(),
         'products' => $b->product,
         'purchase-orders' => PurchaseOrder::factory()->create([...$shop, 'supplier_id' => $b->supplier->id]),
+        // B's own copy of a template A also has, by the same name (Phase 5).
+        'roles' => Role::query()->where('business_id', $b->business->id)->where('name', 'cashier')->firstOrFail(),
         'sales' => $b->sale,
         'shops' => $b->shops[1],
         'social-accounts' => SocialAccount::factory()->create($shop),
@@ -94,6 +97,7 @@ const WEB_RESOURCES = [
     'pricing-rules' => ['show', 'update', 'destroy'],
     'products' => ['show', 'update', 'destroy'],
     'purchase-orders' => ['show', 'update', 'destroy'],
+    'roles' => ['show', 'edit', 'update', 'destroy', 'permissions', 'updatePermissions'],
     'sales' => ['show', 'update', 'destroy'],
     'shops' => ['show', 'update', 'destroy'],
     // show: SocialAccountController::show doesn't exist (already on main).

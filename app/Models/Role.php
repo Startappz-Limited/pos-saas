@@ -2,8 +2,11 @@
 
 namespace App\Models;
 
+use App\Actions\Business\CopyRoleTemplates;
 use App\Models\Concerns\Auditable;
 use App\Models\Scopes\BusinessOrSharedScope;
+use App\Support\Tenancy\TenantContext;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Support\Str;
 use Spatie\Permission\Contracts\Role as RoleContract;
 use Spatie\Permission\Models\Role as SpatieRole;
@@ -65,6 +68,42 @@ class Role extends SpatieRole
         }
 
         return $query->first();
+    }
+
+    /**
+     * The people holding this role in the current business. Spatie's
+     * users() spans every business (a role is held per business, stage 3),
+     * so counts and the "still held" check use this instead.
+     */
+    public function holders(): BelongsToMany
+    {
+        return $this->users()->wherePivot(app(PermissionRegistrar::class)->teamsKey, app(TenantContext::class)->id());
+    }
+
+    /**
+     * The owner role (decision 4.4): never changed from a business.
+     */
+    public function isOwnerRole(): bool
+    {
+        return $this->name === CopyRoleTemplates::OWNER_ROLE;
+    }
+
+    /**
+     * A shared template (no business): changed only by the platform.
+     */
+    public function isShared(): bool
+    {
+        return $this->business_id === null;
+    }
+
+    /**
+     * Whether the role belongs to the current business.
+     */
+    public function belongsToCurrentBusiness(): bool
+    {
+        $businessId = app(TenantContext::class)->id();
+
+        return $businessId !== null && (int) $this->business_id === $businessId;
     }
 
     /**

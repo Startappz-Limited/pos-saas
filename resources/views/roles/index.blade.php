@@ -41,7 +41,7 @@
                                 </div>
                             </td>
                             <td>
-                                <x-ui-badge variant="secondary">{{ $role->users_count ?? 0 }}</x-ui-badge>
+                                <x-ui-badge variant="secondary">{{ $role->holders_count ?? 0 }}</x-ui-badge>
                             </td>
                             <td>
                                 <x-ui-badge variant="info" soft>{{ $role->permissions->count() }}</x-ui-badge>
@@ -49,28 +49,26 @@
                             <td>{{ $role->created_at->format('M d, Y') }}</td>
                             <td>
                                 <div class="d-flex gap-1">
-                                    @can('roles.view')
+                                    @can('view', $role)
                                         <a href="{{ route('roles.show', $role) }}" class="btn btn-sm btn-soft-info">
                                             <i class="bx bx-show"></i>
                                         </a>
                                     @endcan
-                                    @can('roles.update')
+                                    @can('update', $role)
                                         <a href="{{ route('roles.edit', $role) }}" class="btn btn-sm btn-soft-primary">
                                             <i class="bx bx-edit"></i>
                                         </a>
                                     @endcan
-                                    @if ($role->name !== 'admin')
-                                        @can('roles.delete')
-                                            <form action="{{ route('roles.destroy', $role) }}" method="POST" class="d-inline"
-                                                onsubmit="return confirm('Are you sure you want to delete this role?')">
-                                                @csrf
-                                                @method('DELETE')
-                                                <button type="submit" class="btn btn-sm btn-soft-danger">
-                                                    <i class="bx bx-trash"></i>
-                                                </button>
-                                            </form>
-                                        @endcan
-                                    @endif
+                                    @can('delete', $role)
+                                        <form action="{{ route('roles.destroy', $role) }}" method="POST" class="d-inline"
+                                            onsubmit="return confirm('Are you sure you want to delete this role?')">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit" class="btn btn-sm btn-soft-danger">
+                                                <i class="bx bx-trash"></i>
+                                            </button>
+                                        </form>
+                                    @endcan
                                 </div>
                             </td>
                         </tr>

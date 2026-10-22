@@ -68,7 +68,7 @@
                     <div class="row">
                         <div class="col-md-4">
                             <div class="text-center">
-                                <h3 class="mb-1">{{ $role->users->count() }}</h3>
+                                <h3 class="mb-1">{{ $role->holders_count }}</h3>
                                 <p class="text-muted mb-0">Users Assigned</p>
                             </div>
                         </div>
@@ -114,9 +114,9 @@
                 <x-ui-modal id="deleteRoleModal" title="Confirm Delete" centered>
                     <x-slot:body>
                         <p class="mb-3">Are you sure you want to delete the <strong>{{ $role->name }}</strong> role?</p>
-                        @if ($role->users->count() > 0)
+                        @if ($role->holders_count > 0)
                             <x-ui-alert variant="warning">
-                                <strong>Warning:</strong> This role is assigned to {{ $role->users->count() }} user(s). Deleting
+                                <strong>Warning:</strong> This role is assigned to {{ $role->holders_count }} user(s). Deleting
                                 it will remove this role from all assigned users.
                             </x-ui-alert>
                         @endif
