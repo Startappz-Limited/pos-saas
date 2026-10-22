@@ -79,6 +79,8 @@ it('shows a banner on every page while it lasts', function () {
         ->assertSeeText('you are signed in as '.$this->cashier->name.' in Business B')
         ->assertSee(route('impersonation.end'), false);
     $this->get(route('products.index'))->assertOk()->assertSee('id="impersonation-banner"', false);
+    // Signed-in pages on the guest layout too (the business picker).
+    $this->get(route('businesses.index'))->assertOk()->assertSee('id="impersonation-banner"', false);
 });
 
 it('gives the operator exactly the user\'s permissions while impersonating', function () {
