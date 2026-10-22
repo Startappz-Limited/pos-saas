@@ -1,5 +1,6 @@
 <?php
 
+use App\Actions\Platform\CreatePlatformOperator;
 use App\Models\Business;
 use App\Models\BusinessIntegration;
 use App\Models\Plan;
@@ -14,6 +15,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 use Spatie\Permission\Models\Permission;
 use Tests\TestCase;
 
@@ -91,6 +93,15 @@ function sharedRole(string $name): Role
 function seedPermissions(): void
 {
     PermissionSeeder::insertMissing();
+}
+
+/**
+ * A platform operator (Phase 5), made as `platform:create-operator` makes one:
+ * outside every business (the user factory would join the current one).
+ */
+function platformOperator(string $name = 'Platform Ops'): User
+{
+    return app(CreatePlatformOperator::class)->execute($name, 'ops-'.Str::lower(Str::random(8)).'@platform.test', 'Operat0r!Strong-pass');
 }
 
 /**

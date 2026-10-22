@@ -3,6 +3,7 @@
 use App\Http\Middleware\EnforceSubscription;
 use App\Http\Middleware\EnsureAccountActive;
 use App\Http\Middleware\EnsureActiveBusiness;
+use App\Http\Middleware\EnsurePlatformOperator;
 use App\Http\Middleware\RequireFeature;
 use App\Http\Middleware\ResolveTenant;
 use App\Http\Middleware\SecurityHeaders;
@@ -59,7 +60,13 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->web(append: [VerifyFormBusiness::class]);
 
         // Pages that work on a business need one (stage 3).
-        $middleware->alias(['business' => EnsureActiveBusiness::class, 'feature' => RequireFeature::class]);
+        // The platform console (Phase 5): platform operators only, not while
+        // impersonating. One alias() call: a second would replace the first.
+        $middleware->alias([
+            'business' => EnsureActiveBusiness::class,
+            'feature' => RequireFeature::class,
+            'platform' => EnsurePlatformOperator::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         // Every logged error says who hit it, in which business, on which route.

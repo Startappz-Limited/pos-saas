@@ -28,6 +28,7 @@ use App\Http\Controllers\InventorySnapshotController;
 use App\Http\Controllers\InvitationController;
 use App\Http\Controllers\LowStockAlertController;
 use App\Http\Controllers\PaymentController;
+use App\Http\Controllers\Platform\DashboardController as PlatformDashboardController;
 use App\Http\Controllers\PricingRuleController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProductImportController;
@@ -470,3 +471,9 @@ Route::middleware(['auth', 'business'])->group(function () {
 });
 
 require __DIR__.'/auth.php';
+
+// The platform console (Phase 5): platform operators only, outside every
+// business, and not while impersonating; everyone else gets a 404.
+Route::middleware(['auth', 'platform'])->prefix('platform')->name('platform.')->group(function () {
+    Route::get('/', PlatformDashboardController::class)->name('dashboard');
+});

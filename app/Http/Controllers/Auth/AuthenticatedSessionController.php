@@ -28,6 +28,11 @@ class AuthenticatedSessionController extends Controller
 
         $request->session()->regenerate();
 
+        // A platform operator belongs to no business: the console is home (Phase 5).
+        if ($request->user()->isPlatformOperator()) {
+            return redirect()->intended(route('platform.dashboard', absolute: false));
+        }
+
         return redirect()->intended(route('dashboard', absolute: false));
     }
 

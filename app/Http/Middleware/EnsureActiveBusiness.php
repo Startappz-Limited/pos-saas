@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use App\Models\Business;
 use App\Models\User;
+use App\Support\Platform\Impersonation;
 use App\Support\Tenancy\TenantContext;
 use Closure;
 use Illuminate\Http\Request;
@@ -26,6 +27,13 @@ class EnsureActiveBusiness
 
         if (! $user instanceof User || $this->tenant->has()) {
             return $next($request);
+        }
+
+        // A platform operator works in the console, outside every business (Phase 5).
+        if ($user->isPlatformOperator() && ! Impersonation::active()) {
+            return $request->expectsJson()
+                ? response()->json(['success' => false, 'message' => __('Platform operators work in the platform console.')], 403)
+                : redirect()->route('platform.dashboard');
         }
 
         if (! $user->hasVerifiedEmail() && $this->awaitsVerification($user)) {
