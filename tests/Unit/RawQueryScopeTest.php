@@ -46,6 +46,8 @@ const ALLOWED_RAW_QUERIES = [
     'app/Services/Stock/StockQuery.php' => [4, 'correlated to a scoped product or variation; the viewer\'s shops'],
     'app/Support/Tenancy/TenantContext.php' => [2, 'builds the accessible-shops subquery itself'],
 
+    // The platform console (Phase 5): cross-business on purpose, each subquery naming its business, every read audited.
+    'app/Support/Platform/BusinessDirectory.php' => [9, 'the platform console\'s figures for every business (operators only, audited); each subquery is correlated to its business'],
     // Platform-wide repairs.
     'app/Console/Commands/PruneBaileysMedia.php' => [1, 'every business\'s session uuids, so another business\'s media is never taken for an orphan'],
     'app/Console/Commands/BackfillAuditBusiness.php' => [3, 'maps audit rows of every business to their business, from shops and records'],

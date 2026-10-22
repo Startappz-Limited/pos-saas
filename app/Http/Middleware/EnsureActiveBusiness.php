@@ -49,6 +49,13 @@ class EnsureActiveBusiness
                 : redirect()->guest(route('businesses.index'));
         }
 
+        // Phase 5: say so when the business was suspended by the platform.
+        if ($this->belongsToSuspendedBusiness($user)) {
+            return $request->expectsJson()
+                ? response()->json(['success' => false, 'code' => 'business_suspended', 'message' => __('This business is suspended. Nobody can work in it until it is reactivated.')], 403)
+                : response()->view('businesses.none', ['suspended' => true], 403);
+        }
+
         return $request->expectsJson()
             ? response()->json(['success' => false, 'message' => __('You are not a member of any active business.')], 403)
             : response()->view('businesses.none', status: 403);
@@ -64,6 +71,13 @@ class EnsureActiveBusiness
             ->whereHas('business', fn ($query) => $query->where('status', Business::STATUS_CLOSING))
             ->pluck('business_id')
             ->contains(fn (int $businessId): bool => $this->tenant->run($businessId, fn (): bool => $user->fresh()->isBusinessOwner()));
+    }
+
+    private function belongsToSuspendedBusiness(User $user): bool
+    {
+        return $user->memberships()->where('status', 'active')
+            ->whereHas('business', fn ($query) => $query->where('status', Business::STATUS_SUSPENDED))
+            ->exists();
     }
 
     private function awaitsVerification(User $user): bool

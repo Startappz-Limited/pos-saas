@@ -28,6 +28,7 @@ use App\Http\Controllers\InventorySnapshotController;
 use App\Http\Controllers\InvitationController;
 use App\Http\Controllers\LowStockAlertController;
 use App\Http\Controllers\PaymentController;
+use App\Http\Controllers\Platform\BusinessController as PlatformBusinessController;
 use App\Http\Controllers\Platform\DashboardController as PlatformDashboardController;
 use App\Http\Controllers\PricingRuleController;
 use App\Http\Controllers\ProductController;
@@ -476,4 +477,11 @@ require __DIR__.'/auth.php';
 // business, and not while impersonating; everyone else gets a 404.
 Route::middleware(['auth', 'platform'])->prefix('platform')->name('platform.')->group(function () {
     Route::get('/', PlatformDashboardController::class)->name('dashboard');
+
+    Route::get('businesses', [PlatformBusinessController::class, 'index'])->name('businesses.index');
+    Route::get('businesses/{business}', [PlatformBusinessController::class, 'show'])->name('businesses.show');
+    Route::post('businesses/{business}/suspend', [PlatformBusinessController::class, 'suspend'])->name('businesses.suspend');
+    Route::post('businesses/{business}/reactivate', [PlatformBusinessController::class, 'reactivate'])->name('businesses.reactivate');
+    Route::put('businesses/{business}/plan', [PlatformBusinessController::class, 'changePlan'])->name('businesses.plan');
+    Route::post('businesses/{business}/trial', [PlatformBusinessController::class, 'extendTrial'])->name('businesses.trial');
 });

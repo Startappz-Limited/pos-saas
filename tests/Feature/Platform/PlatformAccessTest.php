@@ -49,7 +49,7 @@ function platformRoutes(TwoBusinesses $fixture): array
 
         $parameters = [];
         foreach ($route->parameterNames() as $name) {
-            expect($values)->toHaveKey($name, "Add a value for {{$name}} (route {$route->getName()}) to platformRoutes().");
+            expect($values)->toHaveKey($name, message: "Add a value for {{$name}} (route {$route->getName()}) to platformRoutes().");
             $parameters[$name] = $values[$name]();
         }
 
