@@ -1,20 +1,29 @@
 @extends('layouts.app')
 
-@section('title', 'Invitations')
+@section('title', 'Add user')
 
 @section('content')
     <div class="row">
         <div class="col-lg-5">
-            <x-ui-card title="{{ __('Invite someone') }}">
+            <x-ui-card title="{{ __('Add a user') }}">
+                <p class="small text-muted">
+                    {{ __('We email them a link. They choose their own password, so you never set or see it. The link works for :hours hours.', ['hours' => \App\Models\BusinessInvite::EXPIRES_AFTER_HOURS]) }}
+                    @if ($seatLimit !== null)
+                        <br>{{ __(':used of :limit staff places are used (pending invitations count).', ['used' => $seatsUsed, 'limit' => $seatLimit]) }}
+                    @endif
+                </p>
                 <form method="POST" action="{{ route('invites.store') }}">
                     @csrf
                     @honeypot
 
                     <x-ui-form-input name="email" type="email" label="{{ __('Email address') }}" :value="old('email')"
-                        placeholder="name@example.com" required />
+                        placeholder="name@yourshop.co.ke" required />
 
                     <x-ui-form-select name="role_id" label="{{ __('Role') }}" :options="$roles->mapWithKeys(fn ($role) => [$role->id => $role->displayName()])"
                         :value="old('role_id')" placeholder="{{ __('Select role') }}" required />
+
+                    <x-ui-form-input name="name" label="{{ __('Name (optional)') }}" :value="old('name')"
+                        help="{{ __('If you leave it blank they type it in when they accept.') }}" />
 
                     @if ($shops->isNotEmpty())
                         <div class="mb-3">
@@ -47,7 +56,7 @@
                         <table class="table table-hover align-middle mb-0">
                             <thead>
                                 <tr>
-                                    <th>{{ __('Email') }}</th>
+                                    <th>{{ __('Person') }}</th>
                                     <th>{{ __('Role') }}</th>
                                     <th>{{ __('Expires') }}</th>
                                     <th class="text-end">{{ __('Actions') }}</th>
@@ -57,23 +66,41 @@
                                 @foreach ($invites as $invite)
                                     <tr>
                                         <td>
-                                            {{ $invite->email }}
+                                            {{ $invite->name ?: $invite->email }}
+                                            <span class="badge bg-warning-subtle text-warning">{{ __('Pending') }}</span>
+                                            @if ($invite->name)
+                                                <div class="small text-muted">{{ $invite->email }}</div>
+                                            @endif
                                             @if ($invite->inviter)
                                                 <div class="small text-muted">{{ __('by :name', ['name' => $invite->inviter->name]) }}</div>
                                             @endif
                                         </td>
-                                        <td>{{ $invite->role?->displayName() }}</td>
-                                        <td>{{ $invite->expires_at->toFormattedDayDateString() }}</td>
+                                        <td>
+                                            <form method="POST" action="{{ route('invites.role', $invite) }}" class="d-flex gap-1">
+                                                @csrf
+                                                @honeypot
+                                                @method('PATCH')
+                                                <select name="role_id" class="form-select form-select-sm" aria-label="{{ __('Role for :email', ['email' => $invite->email]) }}">
+                                                    @foreach ($roles as $role)
+                                                        <option value="{{ $role->id }}" @selected($role->id === $invite->role_id)>{{ $role->displayName() }}</option>
+                                                    @endforeach
+                                                </select>
+                                                <button type="submit" class="btn btn-sm btn-light">{{ __('Change') }}</button>
+                                            </form>
+                                        </td>
+                                        <td>{{ $invite->expires_at->toDayDateTimeString() }}</td>
                                         <td class="text-end">
                                             <div class="d-inline-flex gap-1">
                                                 <form method="POST" action="{{ route('invites.resend', $invite) }}">
                                                     @csrf
+                                                    @honeypot
                                                     <button type="submit" class="btn btn-sm btn-light">{{ __('Resend') }}</button>
                                                 </form>
                                                 <form method="POST" action="{{ route('invites.destroy', $invite) }}">
                                                     @csrf
+                                                    @honeypot
                                                     @method('DELETE')
-                                                    <button type="submit" class="btn btn-sm btn-outline-danger">{{ __('Withdraw') }}</button>
+                                                    <button type="submit" class="btn btn-sm btn-outline-danger">{{ __('Revoke') }}</button>
                                                 </form>
                                             </div>
                                         </td>

@@ -358,8 +358,8 @@
                             </li>
                             @can('users.create')
                                 <li class="sub-nav-item">
-                                    <a class="sub-nav-link {{ request()->routeIs('users.create') ? 'active' : '' }}"
-                                        href="{{ route('users.create') }}">Create</a>
+                                    <a class="sub-nav-link {{ request()->routeIs('invites.*') ? 'active' : '' }}"
+                                        href="{{ route('invites.index') }}">Add user</a>
                                 </li>
                             @endcan
                         </ul>

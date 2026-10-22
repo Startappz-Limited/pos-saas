@@ -31,6 +31,17 @@ return new class extends Migration
             $table->string('domain')->unique();
             $table->timestamps();
         });
+
+        // The shipped starter list; `signup:load-disposable-domains` adds more later.
+        $file = database_path('data/disposable-domains.txt');
+        $domains = is_readable($file) ? (file($file, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: []) : [];
+
+        foreach (array_chunk(array_values(array_unique(array_map(fn ($d) => strtolower(trim($d)), $domains))), 200) as $chunk) {
+            DB::table('disposable_email_domains')->insert(array_map(
+                fn ($domain) => ['domain' => $domain, 'created_at' => now(), 'updated_at' => now()],
+                $chunk,
+            ));
+        }
     }
 
     public function down(): void

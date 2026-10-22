@@ -21,11 +21,12 @@ class BusinessInvite extends Model
     use BelongsToBusiness;
     use HasFactory;
 
-    public const EXPIRES_AFTER_DAYS = 7;
+    public const EXPIRES_AFTER_HOURS = 72;
 
     protected $fillable = [
         'business_id',
         'email',
+        'name',
         'role_id',
         'shop_ids',
         'token_hash',

@@ -68,7 +68,7 @@ function recordOfB(TwoBusinesses $fixture, string $resource): Model
         'ecommerce-orders' => EcommerceOrder::factory()->create($shop),
         'expense-categories' => ExpenseCategory::factory()->create(),
         'expenses' => Expense::factory()->create($shop),
-        'invites' => BusinessInvite::factory()->create(['email' => 'invitee@bravo.test']),
+        'invites' => BusinessInvite::factory()->create(['email' => 'invitee@bravo-shop.co.ke']),
         'pricing-rules' => PricingRule::factory()->create(),
         'products' => $b->product,
         'purchase-orders' => PurchaseOrder::factory()->create([...$shop, 'supplier_id' => $b->supplier->id]),
@@ -105,7 +105,7 @@ const WEB_RESOURCES = [
     'social-accounts' => ['update', 'destroy'],
     'suppliers' => ['show', 'update', 'destroy'],
     'users' => ['show', 'update', 'destroy'],
-    'invites' => ['resend', 'destroy'],
+    'invites' => ['resend', 'destroy', 'role'],
 ];
 
 /** Resource => the actions its flat API routes offer on one record. */

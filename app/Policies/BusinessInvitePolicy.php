@@ -26,6 +26,11 @@ class BusinessInvitePolicy
         return $user->can('users.create') && $invite->isPending();
     }
 
+    public function changeRole(User $user, BusinessInvite $invite): bool
+    {
+        return $user->can('users.create') && $invite->isPending();
+    }
+
     public function delete(User $user, BusinessInvite $invite): bool
     {
         return $user->can('users.create') && $invite->isPending();

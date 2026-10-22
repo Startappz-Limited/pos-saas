@@ -73,13 +73,24 @@ class InvitationController extends Controller
 
         abort_if(User::query()->where('email', $invite->email)->exists(), 409);
 
+        // Before a login is made for it: a switched-off role or a read-only
+        // business means there is nothing to join.
+        try {
+            $this->acceptInvite->assertAcceptable($invite);
+        } catch (InvalidArgumentException $exception) {
+            return redirect()->route('invitations.show', $token)->with('error', __($exception->getMessage()));
+        }
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'password' => ['required', 'confirmed', new StrongPassword([$invite->email])],
         ]);
 
+        // The invitee's own name wins over the one the inviter typed.
+        $name = trim($validated['name']);
+
         $user = User::create([
-            'name' => $validated['name'],
+            'name' => $name,
             'email' => $invite->email,
             'password' => Hash::make($validated['password']),
         ]);

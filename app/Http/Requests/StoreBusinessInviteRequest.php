@@ -3,7 +3,9 @@
 namespace App\Http\Requests;
 
 use App\Models\BusinessMembership;
+use App\Models\User;
 use App\Rules\GrantableRole;
+use App\Rules\RealEmail;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -28,11 +30,28 @@ class StoreBusinessInviteRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'email' => ['required', 'string', 'lowercase', 'email', 'max:255'],
+            'email' => ['required', 'string', 'lowercase', 'email', 'max:255', $this->realEmailUnlessKnown()],
+            'name' => ['nullable', 'string', 'max:255'],
             'role_id' => ['required', 'integer', new GrantableRole($this->user())],
             'shop_ids' => ['nullable', 'array'],
             'shop_ids.*' => ['integer', 'exists:shops,id'],
         ];
+    }
+
+    /**
+     * The real-address check is for new addresses. An email that already has a
+     * login has been through it (or predates it), and being invited to another
+     * business doesn't change that.
+     */
+    private function realEmailUnlessKnown(): \Closure
+    {
+        return function (string $attribute, mixed $value, \Closure $fail): void {
+            if (is_string($value) && User::query()->where('email', mb_strtolower($value))->exists()) {
+                return;
+            }
+
+            (new RealEmail)->validate($attribute, $value, $fail);
+        };
     }
 
     public function after(): array

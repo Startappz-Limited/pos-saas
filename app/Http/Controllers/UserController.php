@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Enums\UserStatus;
-use App\Http\Requests\StoreUserRequest;
 use App\Http\Requests\UpdateUserRequest;
 use App\Models\Role;
 use App\Models\Shop;
@@ -33,35 +32,6 @@ class UserController extends Controller
         $roles = Role::select('id', 'name')->get();
 
         return view('users.index', compact('users', 'statistics', 'roles', 'filters'));
-    }
-
-    /**
-     * Show the form for creating a new user
-     */
-    public function create(): View
-    {
-        $this->authorize('create', User::class);
-
-        // Switched-off roles are given to nobody new (Phase 5).
-        $roles = Role::active()->select('id', 'name', 'is_active')->get();
-        $shops = Shop::select('id', 'name')->get();
-        $statuses = UserStatus::options();
-
-        return view('users.create', compact('roles', 'shops', 'statuses'));
-    }
-
-    /**
-     * Store a newly created user
-     */
-    public function store(StoreUserRequest $request): RedirectResponse
-    {
-        $this->authorize('create', User::class);
-
-        $user = $this->userService->create($request->validated());
-
-        return redirect()
-            ->route('users.show', $user)
-            ->with('success', 'User created successfully.');
     }
 
     /**

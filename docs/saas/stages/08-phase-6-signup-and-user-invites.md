@@ -77,10 +77,10 @@ No open question blocks this stage.
 - [x] Doesn't contain the email local part, the person's name or the business name.
 - [x] No trivial patterns: repeated characters, sequences (`12345678`, `qwertyui`), common word plus digits or
       year (`Password123`, `Welcome2024`, `Admin@123`).
-- [ ] Strength meter on the form (zxcvbn, minimum score 3); the server check is authoritative.
+- [x] Strength meter on the form (zxcvbn, minimum score 3); the server check is authoritative. (written, not yet checked in a browser)
 
 #### 1.3 Shared
-- [ ] Email and password rules as reusable validation rules, used by signup, invite acceptance (section 4),
+- [x] Email and password rules as reusable validation rules, used by signup, invite acceptance (section 4),
       password reset and owner email change.
 - [x] Signup rate-limited per IP and per email (e.g. 5 per 15 minutes).
 
@@ -180,26 +180,34 @@ No open question blocks this stage.
 No password is set by the inviter.
 
 #### 4.2 Flow
-- [ ] Submitting checks `limit()` (staff, including pending invites), then creates the user with
+> **As built:** the existing `business_invites` table is extended (optional `name`, 72-hour expiry) instead of a
+> new `user_invitations` table with a placeholder user. An invited person has no `users` row until they accept
+> (so `users.status = invited` and nullable `name`/`password` aren't needed), and an invite for an email that
+> already has a login adds a membership to it, as in Phase 3.
+- [x] Submitting checks `limit()` (staff, including pending invites), then creates the user with
       `status = invited` and an invitation, and emails a single-use link.
-- [ ] The **accept page** shows the business name and role; name pre-filled if given (editable), **required** if
+- [x] The **accept page** shows the business name and role; name pre-filled if given (editable), **required** if
       not; password and confirmation using the 1.2 rules.
-- [ ] Accepting saves name and password, sets `status = active` and `email_verified_at = now`, and signs the user
+- [x] Accepting saves name and password, sets `status = active` and `email_verified_at = now`, and signs the user
       in.
 
 #### 4.3 Managing invites
-- [ ] Users list shows invited users as **Pending**, with **Resend**, **Revoke** and **Change role**.
-- [ ] Links expire after **72 hours**; an expired link shows "Ask your admin to send a new invite."
-- [ ] Resending invalidates the previous link; revoking frees the staff slot.
-- [ ] An email already belonging to a member of the business is refused.
+- [x] Users list shows invited users as **Pending**, with **Resend**, **Revoke** and **Change role**.
+- [x] Links expire after **72 hours**; an expired link shows "Ask your admin to send a new invite."
+- [x] Resending invalidates the previous link; revoking frees the staff slot.
+- [x] An email already belonging to a member of the business is refused.
 
 #### 4.4 Billing and roles rules
-- [ ] Sending, resending and accepting invites are refused while the business is read-only (lapsed or over shop
+- [x] Sending, resending and accepting invites are refused while the business is read-only (lapsed or over shop
       quota) with `subscription_inactive`.
-- [ ] Accepting is refused if the role was switched off after the invite was sent; the invitee is told to ask
+- [x] Accepting is refused if the role was switched off after the invite was sent; the invitee is told to ask
       for a new invite.
 
 #### 4.5 Removing the old path
+> **As built:** the web path is gone (`users.create` redirects to Add user; there is no `users.store`; the
+> view and `StoreUserRequest` are deleted). The flat API's `POST /api/users` (admin sets a password, the
+> Flutter contract) is **still there**, awaiting a check of the app (not on this machine) and an agreed
+> replacement; so this item stays open.
 - [ ] Remove the "Create user" screen and endpoint where the admin sets a password; every entry point opens
       "Add user". Check the Flutter app for any use of the old endpoint.
 
@@ -210,11 +218,9 @@ No password is set by the inviter.
 - [x] Free Trial plan record (data): 1 shop, 3 staff, trial limits, 14 days. Trial length set to 14 days on the
       tier plans.
 - [x] `users.verification_deadline_at` nullable; existing unverified business owners get `now + 24 hours` on deploy (staff added by an admin were never asked to verify, so they get none).
-- [ ] `users.status` (`invited`, `active`, `disabled`), existing users `active`; `users.name` and
-      `users.password` nullable for invited users.
-- [ ] `user_invitations`: business, user, email, role, invited by, token hash, expires at, accepted at, revoked
-      at.
-- [ ] Disposable-domain list as data.
+- [x] ~~`users.status` invited; nullable `users.name`/`password`~~: not needed, see 4.2 "As built".
+- [x] Invitations: `business_invites` extended with `name`; pending ones cut back to 72 hours (migration `2026_10_23_000005`).
+- [x] Disposable-domain list as data (`disposable_email_domains`, loaded by the migration and `signup:load-disposable-domains`).
 - [ ] Every migration additive or carrying data across; rehearsed on `import_testing` with counts before and
       after; snapshot before UAT.
 
@@ -256,17 +262,17 @@ No password is set by the inviter.
 - [x] Changing the owner's email starts a new 24-hour window and notifies the old address.
 
 **Invites**
-- [ ] A user can be added with only email and role.
-- [ ] The invitee sets a password (and a name if none was given) on one page and is verified on accepting.
-- [ ] Expired, revoked or used links can't be reused; resend invalidates the old link.
-- [ ] An inactive role can't be offered or accepted.
-- [ ] Invites are refused while the business is read-only.
+- [x] A user can be added with only email and role.
+- [x] The invitee sets a password (and a name if none was given) on one page and is verified on accepting.
+- [x] Expired, revoked or used links can't be reused; resend invalidates the old link.
+- [x] An inactive role can't be offered or accepted.
+- [x] Invites are refused while the business is read-only.
 - [ ] The old create-with-password path no longer exists.
 
 **Contract and checks**
 - [ ] Flat API and `/api/v1` contract tests pass; any changed responses (signup, user creation) are documented
       for the Flutter app.
-- [ ] Invite and accept routes added to the isolation resource matrix: business A can't see, resend, revoke or
+- [x] Invite and accept routes added to the isolation resource matrix: business A can't see, resend, revoke or
       accept business B's invites.
 
 ## Risks

@@ -15,7 +15,7 @@ function passes(object $rule, string $value, array $data = []): bool
 }
 
 beforeEach(function () {
-    DB::table('disposable_email_domains')->insert(['domain' => 'mailinator.com', 'created_at' => now(), 'updated_at' => now()]);
+    DB::table('disposable_email_domains')->insertOrIgnore(['domain' => 'mailinator.com', 'created_at' => now(), 'updated_at' => now()]);
     Cache::forget('signup.disposable-domains');
 });
 

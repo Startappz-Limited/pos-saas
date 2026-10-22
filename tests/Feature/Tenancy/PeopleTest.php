@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\ResolveTenant;
+use App\Models\BusinessInvite;
 use App\Models\BusinessMembership;
 use App\Models\Role;
 use App\Models\User;
@@ -68,14 +69,18 @@ it('refuses the flat API\'s user endpoints to a member without the permissions',
         ->and(User::where('email', 'x@example.test')->exists())->toBeFalse();
 });
 
-it('adds a person to the business, on the web and the API, with a role held there', function () {
-    $this->actingAs($this->a->owner)->post(route('users.store'), newPersonForm(['role_id' => aRole('manager')->id]))
+it('adds a person to the business, by invitation on the web and directly on the API, with a role held there', function () {
+    // The web has one way to add someone: an invitation (Phase 6). Nobody sets a password for them.
+    $this->actingAs($this->a->owner)->post(route('invites.store'), ['email' => 'new.person@bravo-shop.co.ke', 'role_id' => aRole('manager')->id])
         ->assertSessionHasNoErrors();
+    expect(inA(fn () => BusinessInvite::query()->pending()->where('email', 'new.person@bravo-shop.co.ke')->value('role_id')))
+        ->toBe(aRole('manager')->id);
+
     Sanctum::actingAs($this->a->owner, ['*']);
     $this->postJson('/api/users', ['name' => 'Api Person', 'email' => 'api.person@example.test', 'password' => 'Str0ng-P0S-Pass!', 'roles' => ['cashier']])
         ->assertCreated();
 
-    foreach (['new.person@example.test' => 'manager', 'api.person@example.test' => 'cashier'] as $email => $role) {
+    foreach (['api.person@example.test' => 'cashier'] as $email => $role) {
         $user = User::where('email', $email)->firstOrFail();
         expect($user->canEnterBusiness($this->a->business))->toBeTrue()
             ->and(inA(fn () => $user->fresh()->hasRole($role)))->toBeTrue()
@@ -85,7 +90,7 @@ it('adds a person to the business, on the web and the API, with a role held ther
 
 it('gives only roles within the giver\'s permissions, and the owner role only from an owner', function () {
     foreach (['admin', 'cashier'] as $tooMuch) {
-        $this->actingAs($this->lead)->post(route('users.store'), newPersonForm(['email' => "{$tooMuch}@example.test", 'role_id' => aRole($tooMuch)->id]))
+        $this->actingAs($this->lead)->post(route('invites.store'), ['email' => "{$tooMuch}@bravo-shop.co.ke", 'role_id' => aRole($tooMuch)->id])
             ->assertSessionHasErrors('role_id');
     }
     Sanctum::actingAs($this->lead, ['*']);
@@ -94,10 +99,11 @@ it('gives only roles within the giver\'s permissions, and the owner role only fr
     $this->putJson(route('api.users.update', $this->a->cashier), ['roles' => ['admin']])
         ->assertUnprocessable();
 
-    $this->actingAs($this->lead)->post(route('users.store'), newPersonForm(['role_id' => aRole('sales viewer')->id]))
+    $this->actingAs($this->lead)->post(route('invites.store'), ['email' => 'viewer@bravo-shop.co.ke', 'role_id' => aRole('sales viewer')->id])
         ->assertSessionHasNoErrors();
 
-    expect(User::whereIn('email', ['admin@example.test', 'cashier@example.test', 'api.admin@example.test'])->exists())->toBeFalse()
+    expect(User::whereIn('email', ['admin@bravo-shop.co.ke', 'cashier@bravo-shop.co.ke', 'api.admin@example.test'])->exists())->toBeFalse()
+        ->and(inA(fn () => BusinessInvite::query()->whereIn('email', ['admin@bravo-shop.co.ke', 'cashier@bravo-shop.co.ke'])->exists()))->toBeFalse()
         ->and(inA(fn () => $this->a->cashier->fresh()->hasRole('admin')))->toBeFalse();
 });
 

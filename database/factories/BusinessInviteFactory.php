@@ -23,7 +23,7 @@ class BusinessInviteFactory extends Factory
                 ?? Role::query()->create(['name' => 'cashier', 'guard_name' => 'web'])->id,
             'shop_ids' => [],
             'token_hash' => BusinessInvite::hashToken(Str::random(40)),
-            'expires_at' => now()->addDays(BusinessInvite::EXPIRES_AFTER_DAYS),
+            'expires_at' => now()->addHours(BusinessInvite::EXPIRES_AFTER_HOURS),
         ];
     }
 }
