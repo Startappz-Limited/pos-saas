@@ -12,10 +12,7 @@
                         <iconify-icon icon="solar:shield-user-bold-duotone" class="fs-48 text-primary"></iconify-icon>
                     </div>
 
-                    <h4 class="mb-1">{{ $role->name }}</h4>
-                    @if ($role->display_name)
-                        <p class="text-muted mb-2">{{ $role->display_name }}</p>
-                    @endif
+                    <h4 class="mb-1">{{ $role->displayName() }}</h4>
 
                     <div class="mt-3">
                         @if ($role->isTemplateCopy() || $role->isShared())
@@ -49,12 +46,6 @@
                     </div>
                 </div>
 
-                @if ($role->description)
-                    <div class="mt-4 pt-3 border-top">
-                        <h6 class="mb-2">Description</h6>
-                        <p class="text-muted mb-0">{{ $role->description }}</p>
-                    </div>
-                @endif
 
                 <div class="mt-4 pt-3 border-top">
                     <h6 class="mb-3">Information</h6>
@@ -184,7 +175,7 @@
             @push('modals')
                 <x-ui-modal id="deleteRoleModal" title="Confirm Delete" centered>
                     <x-slot:body>
-                        <p class="mb-3">Are you sure you want to delete the <strong>{{ $role->name }}</strong> role?</p>
+                        <p class="mb-3">Are you sure you want to delete the <strong>{{ $role->displayName() }}</strong> role?</p>
                         @if ($role->holders->count() > 0)
                             <x-ui-alert variant="warning">
                                 <strong>Warning:</strong> This role is assigned to {{ $role->holders->count() }} user(s).

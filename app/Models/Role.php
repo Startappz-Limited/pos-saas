@@ -119,6 +119,38 @@ class Role extends SpatieRole
     }
 
     /**
+     * What the built-in roles are called on screen (Phase 5). The stored
+     * names stay as they are: the Flutter app and the API read them.
+     *
+     * @var array<string, string>
+     */
+    public const DISPLAY_NAMES = [
+        'admin' => 'Owner',
+        'manager' => 'Manager',
+        'cashier' => 'Cashier',
+        'inventory-clerk' => 'Inventory clerk',
+        'accountant' => 'Accountant',
+        'customer' => 'Customer',
+    ];
+
+    /**
+     * The role's name on screen: "Owner" for `admin`, the built-in roles'
+     * display names, and a custom role's name made readable
+     * ("night-shift" reads "Night shift").
+     */
+    public function displayName(): string
+    {
+        return self::displayNameFor($this->name);
+    }
+
+    public static function displayNameFor(string $name): string
+    {
+        return isset(self::DISPLAY_NAMES[$name])
+            ? __(self::DISPLAY_NAMES[$name])
+            : Str::ucfirst(str_replace(['-', '_'], ' ', $name));
+    }
+
+    /**
      * The owner role (decision 4.4): never changed from a business.
      */
     public function isOwnerRole(): bool

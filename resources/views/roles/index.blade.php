@@ -45,7 +45,7 @@
                                     </div>
                                     <div>
                                         <a href="{{ route('roles.show', $role) }}" class="text-dark fw-medium">
-                                            {{ $role->name }}
+                                            {{ $role->displayName() }}
                                         </a>
                                     </div>
                                 </div>

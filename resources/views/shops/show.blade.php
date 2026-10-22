@@ -369,7 +369,7 @@
                                                 @if ($user->roles->count() > 0)
                                                     @foreach ($user->roles as $role)
                                                         <span
-                                                            class="badge bg-info-subtle text-info">{{ $role->name }}</span>
+                                                            class="badge bg-info-subtle text-info">{{ $role->displayName() }}</span>
                                                     @endforeach
                                                 @else
                                                     <span class="text-muted">—</span>

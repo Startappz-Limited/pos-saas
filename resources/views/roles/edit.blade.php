@@ -31,24 +31,10 @@
                     <div class="row">
                         <div class="col-lg-6">
                             <x-ui-form-input name="name" label="Role Name" :value="old('name', $role->name)"
-                                placeholder="e.g., Store Manager" required :readonly="$role->isTemplateCopy()" />
+                                placeholder="e.g. night-shift" required :readonly="$role->isTemplateCopy()"
+                                :help="$role->isTemplateCopy() ? __('Shown as :name.', ['name' => $role->displayName()]) : __('Lowercase letters, numbers and hyphens.')" />
                         </div>
 
-                        <div class="col-lg-6">
-                            <x-ui-form-input name="display_name" label="Display Name" :value="old('display_name', $role->display_name)"
-                                placeholder="e.g., Store Manager" help="Human-readable name for the role" />
-                        </div>
-
-                        <div class="col-lg-12">
-                            <div class="mb-3">
-                                <label class="form-label">Description</label>
-                                <textarea class="form-control @error('description') is-invalid @enderror" name="description" rows="3"
-                                    placeholder="Describe the role's purpose and responsibilities">{{ old('description', $role->description) }}</textarea>
-                                @error('description')
-                                    <div class="invalid-feedback">{{ $message }}</div>
-                                @enderror
-                            </div>
-                        </div>
 
                         <div class="col-lg-6">
                             <div class="form-check form-switch mb-3">
@@ -85,6 +71,14 @@
                         permissions.
                     </x-ui-alert>
 
+                    @if ($outOfReach > 0)
+                        <x-ui-alert variant="secondary" class="mb-3">
+                            {{ trans_choice('{1} This role has :count more permission that you don\'t hold. It stays as it is.|[2,*] This role has :count more permissions that you don\'t hold. They stay as they are.', $outOfReach, ['count' => $outOfReach]) }}
+                        </x-ui-alert>
+                    @endif
+                    @unless (auth()->user()->isBusinessOwner())
+                        <p class="text-muted small mb-3">{{ __('Only the permissions you hold are listed: you can give a role no more than you have.') }}</p>
+                    @endunless
                     <x-ui-permission-grid :permissions="$permissions" :selectedPermissions="old('permissions', $role->permissions->pluck('id')->toArray())" groupBy="module" />
                 </x-ui-card>
 
@@ -135,7 +129,7 @@
             @push('modals')
                 <x-ui-modal id="deleteRoleModal" title="Confirm Delete" centered>
                     <x-slot:body>
-                        <p class="mb-3">Are you sure you want to delete the <strong>{{ $role->name }}</strong> role?</p>
+                        <p class="mb-3">Are you sure you want to delete the <strong>{{ $role->displayName() }}</strong> role?</p>
                         @if ($role->holders_count > 0)
                             <x-ui-alert variant="warning">
                                 <strong>Warning:</strong> This role is assigned to {{ $role->holders_count }} user(s). Deleting

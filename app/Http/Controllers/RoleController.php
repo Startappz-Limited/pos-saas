@@ -12,6 +12,7 @@ use App\Http\Requests\UpdateRolePermissionsRequest;
 use App\Http\Requests\UpdateRoleRequest;
 use App\Models\Role;
 use App\Support\Tenancy\TenantContext;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\Request;
 use Spatie\Permission\Models\Permission;
@@ -45,7 +46,7 @@ class RoleController extends Controller
     {
         $this->authorize('create', Role::class);
 
-        $permissions = Permission::all();
+        $permissions = $this->givablePermissions();
 
         return view('roles.create', compact('permissions'));
     }
@@ -94,9 +95,11 @@ class RoleController extends Controller
 
         $role->load('permissions')->loadCount('holders');
 
-        $permissions = Permission::all();
+        $permissions = $this->givablePermissions();
+        // The role's permissions the editor can't give: kept as they are on save.
+        $outOfReach = $role->permissions->pluck('id')->diff($permissions->pluck('id'))->count();
 
-        return view('roles.edit', compact('role', 'permissions'));
+        return view('roles.edit', compact('role', 'permissions', 'outOfReach'));
     }
 
     /**
@@ -140,19 +143,14 @@ class RoleController extends Controller
     }
 
     /**
-     * Display permissions for a role.
+     * The permissions of a role are chosen on its edit form (Phase 5: this
+     * page's view never existed).
      */
     public function permissions(Role $role)
     {
         $this->authorize('view', $role);
 
-        $permissions = Permission::all()->groupBy(function ($permission) {
-            return explode('.', $permission->name)[0];
-        });
-
-        $rolePermissions = $role->permissions->pluck('id')->toArray();
-
-        return view('roles.permissions', compact('role', 'permissions', 'rolePermissions'));
+        return redirect()->route('roles.edit', $role);
     }
 
     /**
@@ -191,5 +189,21 @@ class RoleController extends Controller
         return redirect()
             ->back(fallback: route('roles.show', $role))
             ->with('success', $active ? __('The role is switched on.') : __('The role is switched off.'));
+    }
+
+    /**
+     * The permissions the signed-in user may put on a role (Phase 5): every
+     * one for an owner, otherwise those they hold.
+     *
+     * @return Collection<int, Permission>
+     */
+    private function givablePermissions()
+    {
+        $givable = app(SyncRolePermissions::class)->givableIds(request()->user());
+
+        return Permission::query()
+            ->when($givable !== null, fn ($query) => $query->whereIn('id', $givable))
+            ->orderBy('name')
+            ->get();
     }
 }

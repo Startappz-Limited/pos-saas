@@ -43,7 +43,7 @@ class UserController extends Controller
         $this->authorize('create', User::class);
 
         // Switched-off roles are given to nobody new (Phase 5).
-        $roles = Role::active()->select('id', 'name')->get();
+        $roles = Role::active()->select('id', 'name', 'is_active')->get();
         $shops = Shop::select('id', 'name')->get();
         $statuses = UserStatus::options();
 
@@ -86,7 +86,7 @@ class UserController extends Controller
         // Switched-off roles are given to nobody new, but a role the person
         // holds stays selectable, so saving the form never drops it (Phase 5).
         $held = $user->roles->pluck('id');
-        $roles = Role::query()->where(fn ($query) => $query->active()->orWhereIn('id', $held))->select('id', 'name')->get();
+        $roles = Role::query()->where(fn ($query) => $query->active()->orWhereIn('id', $held))->select('id', 'name', 'is_active')->get();
         $shops = Shop::select('id', 'name')->get();
         $statuses = UserStatus::options();
         $user->load(['roles', 'shops']);

@@ -22,7 +22,7 @@
     @foreach ($groupedPermissions as $group => $perms)
         @if ($groupBy)
             <div class="permission-group mb-4">
-                <h6 class="text-uppercase fw-semibold text-muted mb-3">{{ ucfirst($group) }}</h6>
+                <h6 class="text-uppercase fw-semibold text-muted mb-3">{{ \Illuminate\Support\Str::ucfirst(str_replace(['-', '_'], ' ', $group)) }}</h6>
         @endif
 
         <div class="row g-3">
@@ -33,9 +33,17 @@
                             value="{{ $permission->id ?? $permission['id'] }}"
                             id="permission_{{ $permission->id ?? $permission['id'] }}"
                             {{ in_array($permission->id ?? $permission['id'], $selectedPermissions) ? 'checked' : '' }}>
-                        <label class="form-check-label" for="permission_{{ $permission->id ?? $permission['id'] }}">
-                            {{ $permission->name ?? $permission['name'] }}
+                        @php
+                            $permissionName = $permission->name ?? $permission['name'];
+                            $action = str_contains($permissionName, '.') ? \Illuminate\Support\Str::after($permissionName, '.') : $permissionName;
+                        @endphp
+                        <label class="form-check-label" for="permission_{{ $permission->id ?? $permission['id'] }}" title="{{ $permissionName }}">
+                            {{ \Illuminate\Support\Str::ucfirst(str_replace(['-', '_'], ' ', $action)) }}
                         </label>
+                        @if ($action === 'full-access')
+                            {{-- Phase 5: explained where it's chosen. --}}
+                            <div class="form-text">{{ __('Counts as every permission in this area.') }}</div>
+                        @endif
                     </div>
                 </div>
             @endforeach

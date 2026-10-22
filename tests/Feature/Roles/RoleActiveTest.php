@@ -193,7 +193,13 @@ it('gives an inactive role to nobody new, but lets a holder keep it', function (
     // Neither the Add User nor the invite form offers it.
     $this->app['auth']->forgetGuards();
     $this->tenant->forget();
-    $this->actingAs($owner)->get(route('users.create'))->assertOk()->assertDontSee('>clerk<', false);
+    $form = $this->actingAs($owner)->get(route('users.create'))->assertOk()->getContent();
+    $this->tenant->forget();
+    $invites = $this->actingAs($owner)->get(route('invites.index'))->assertOk()->getContent();
+    expect($form)->not->toMatch('/<option value="'.$this->role->id.'"/')
+        ->and($invites)->not->toMatch('/<option value="'.$this->role->id.'"/')
+        // ...while an active role is offered.
+        ->and($form)->toMatch('/<option value="\d+"/');
 });
 
 it('shows the true state, a filter, and the dialog with the number of holders', function () {
