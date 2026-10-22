@@ -761,3 +761,35 @@ restored copy of UAT (`rehearsal_testing`); results in the step rows.
 - **Flutter:** no checkout of the app on this machine (`MOBILE_APP_PATH` points nowhere here), so
   `authorization_helper.dart` was not searched for `super-admin` as the owner role. Since Phase 3 the owner's
   role is reported as `admin`; check the app before release.
+
+## Stage 6 (Phase 6): Signup hardening, trials, verification grace, unified invites
+
+Branch: `saas/signup-trials-invites` (from `main` at `e0d8bdf`, the merge of Phase 5). Plan: the stage file
+([08-phase-6-signup-and-user-invites.md](stages/08-phase-6-signup-and-user-invites.md)). **Status: in progress.**
+
+### Steps
+
+| Step | Commit | Tests added | Notes |
+|---|---|---|---|
+| 1. Signup email and password rules | `3be7aa4` | `Signup/SignupRulesTest` (29) | `RealEmail`, `UniqueLogin` (normalised: no `+tag`, no Gmail dots, `users.email_normalized`), `StrongPassword` (10-128, common list, Have I Been Pwned range API with local fallback, no personal words, no trivial patterns); signup limited to 5 per 15 minutes per IP and per email; disposable domains as data (`disposable_email_domains`, `signup:load-disposable-domains`). Used by signup, invite registration and password reset. **The bundled common-password list is about 100 entries and the disposable list a starter set**; swap in fuller files |
+| 2. Trials from signup | `4ecebbb` | `Signup/TrialsTest` (16); registration, entitlement and status tests adapted | Signup opens the business at once with a first shop and a 14-day trial: the **Free Trial** (plan data: 1 shop, 3 staff) or the tier picked with its shop count; plan picker on the signup form. An owner changes tier during a trial at once without moving `trial_ends_at` (`ChangeTrialPlan`, warnings before a smaller plan, confirmed by the owner, audited through `Subscription`'s audit trail). Paying early starts the paid period at the trial end (existing `ApplyPlatformPayment` already did; now tested, once only); paying on the Free Trial is refused. Pending invites hold a staff seat. Trial reminders at 3 and 1 days |
+| 3. Verification grace | `e940b07` | `Signup/VerificationGraceTest` (12) | `users.verification_deadline_at` (24 hours from signup or email change). After it, web, the flat API and `/api/v1` answer `email_verification_required` except verify, resend, change email and sign out. Links: signed, 48 hours, newest only, single use. Resend 1 a minute, 5 an hour. An email change (verification page or profile) restarts the window, mails the new address and tells the old. Banner with the hours left. Existing unverified **owners** get 24 hours on deploy; staff never |
+| 4. Unified invites | `03bf2ec` | `Signup/InviteFlowTest` (13); invite, people, role and button tests adapted | Email + role, name optional; the invitee sets name and password on one page and is verified on accepting; links 72 hours; resend invalidates; revoke frees the seat; change a pending invite's role; sending, resending and accepting refused while read-only; a switched-off role refused at accept, before any login is made. `users.create` now opens Add user; the create-with-password screen, `users.store` and `StoreUserRequest` are gone |
+
+### Differences from the stage file
+
+- **Invitations reuse `business_invites`** (plus an optional `name`) instead of a new `user_invitations` table
+  with a placeholder user at `status = invited`. An invited person has no login until they accept.
+- **The flat API's `POST /api/users` (admin sets a password) still exists.** It is part of the Flutter
+  contract and the app is not on this machine; removing it needs the app checked and a replacement agreed.
+- **Sync push** is Phase 7; it will sit behind the same verification middleware.
+- **The optional 20-hour verification reminder** is not built.
+- **Tests removed/rewritten with the old path:** the "users create" page case in `UiButtonLinkTest`, and the web
+  half of two `PeopleTest` cases (now through invites).
+
+### Not yet done
+
+- Both full suites (SQLite, MySQL 8) and both API contract test sets: CI.
+- Rollout rehearsal on `import_testing` of migrations `2026_10_23_000001` to `000005`, and the UAT run.
+- On this Windows host `CacheKeyScopeTest`, `RawQueryScopeTest` and `TenantScopeBypassTest` fail on path
+  separators with or without these changes; they pass in CI (Linux).
