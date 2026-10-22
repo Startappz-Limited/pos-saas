@@ -13,7 +13,7 @@
                     <x-ui-form-input name="email" type="email" label="{{ __('Email address') }}" :value="old('email')"
                         placeholder="name@example.com" required />
 
-                    <x-ui-form-select name="role_id" label="{{ __('Role') }}" :options="$roles->pluck('name', 'id')"
+                    <x-ui-form-select name="role_id" label="{{ __('Role') }}" :options="$roles->mapWithKeys(fn ($role) => [$role->id => $role->displayName()])"
                         :value="old('role_id')" placeholder="{{ __('Select role') }}" required />
 
                     @if ($shops->isNotEmpty())
@@ -62,7 +62,7 @@
                                                 <div class="small text-muted">{{ __('by :name', ['name' => $invite->inviter->name]) }}</div>
                                             @endif
                                         </td>
-                                        <td>{{ $invite->role?->name }}</td>
+                                        <td>{{ $invite->role?->displayName() }}</td>
                                         <td>{{ $invite->expires_at->toFormattedDayDateString() }}</td>
                                         <td class="text-end">
                                             <div class="d-inline-flex gap-1">

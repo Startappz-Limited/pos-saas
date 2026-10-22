@@ -16,6 +16,25 @@ class Attribute extends Model
     /** @use HasFactory<AttributeFactory> */
     use HasFactory, HasUuids, SoftDeletes;
 
+    /**
+     * Missing until Phase 5: creating, editing and switching an attribute
+     * failed (the screens were hidden from everyone, see A4).
+     *
+     * @var array<int, string>
+     */
+    protected $fillable = [
+        'business_id',
+        'name',
+        'slug',
+        'description',
+        'values',
+        'type',
+        'display_order',
+        'is_required',
+        'is_visible',
+        'is_active',
+    ];
+
     protected function casts(): array
     {
         return [

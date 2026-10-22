@@ -11,6 +11,8 @@ class AttributeController extends Controller
 {
     public function index(Request $request)
     {
+        $this->authorize('viewAny', Attribute::class);
+
         $query = Attribute::query();
 
         // Search
@@ -57,11 +59,15 @@ class AttributeController extends Controller
 
     public function create()
     {
+        $this->authorize('create', Attribute::class);
+
         return view('attributes.create');
     }
 
     public function store(Request $request)
     {
+        $this->authorize('create', Attribute::class);
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255', new UniqueForTenant(Attribute::class, 'name')],
             'slug' => ['nullable', 'string', 'max:255', new UniqueForTenant(Attribute::class, 'slug')],
@@ -96,6 +102,8 @@ class AttributeController extends Controller
 
     public function show(Attribute $attribute)
     {
+        $this->authorize('view', $attribute);
+
         $attribute->loadCount('products');
 
         return view('attributes.show', compact('attribute'));
@@ -103,11 +111,15 @@ class AttributeController extends Controller
 
     public function edit(Attribute $attribute)
     {
+        $this->authorize('update', $attribute);
+
         return view('attributes.edit', compact('attribute'));
     }
 
     public function update(Request $request, Attribute $attribute)
     {
+        $this->authorize('update', $attribute);
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255', (new UniqueForTenant(Attribute::class, 'name'))->ignore($attribute)],
             'slug' => ['nullable', 'string', 'max:255', (new UniqueForTenant(Attribute::class, 'slug'))->ignore($attribute)],
@@ -142,6 +154,8 @@ class AttributeController extends Controller
 
     public function destroy(Attribute $attribute)
     {
+        $this->authorize('delete', $attribute);
+
         $attribute->delete();
 
         return redirect()->route('attributes.index')
@@ -150,6 +164,8 @@ class AttributeController extends Controller
 
     public function activate(Attribute $attribute)
     {
+        $this->authorize('update', $attribute);
+
         $attribute->update(['is_active' => true]);
 
         return back()->with('success', 'Attribute activated successfully.');
@@ -157,6 +173,8 @@ class AttributeController extends Controller
 
     public function deactivate(Attribute $attribute)
     {
+        $this->authorize('update', $attribute);
+
         $attribute->update(['is_active' => false]);
 
         return back()->with('success', 'Attribute deactivated successfully.');

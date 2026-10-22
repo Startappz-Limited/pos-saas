@@ -168,9 +168,17 @@ class DatabaseSnapshot
     {
         $pdo = $db->getPdo();
 
+        // Generated columns are left out: the database computes them, and
+        // refuses a value for one on restore (found in Phase 5 on
+        // attributes.alive).
+        $stored = collect($db->getSchemaBuilder()->getColumns($table))
+            ->filter(fn (array $column): bool => empty($column['generation']))
+            ->pluck('name')
+            ->all();
+
         // One pass over the table: paging with OFFSET could skip or repeat rows
         // in tables without a unique first column (pivots).
-        $db->table($table)->cursor()
+        $db->table($table)->select($stored)->cursor()
             ->map(fn (object $row): array => (array) $row)
             ->chunk(self::BATCH)
             ->each(function ($rows) use ($pdo, $file, $table): void {

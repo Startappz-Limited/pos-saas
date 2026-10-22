@@ -36,8 +36,11 @@ use App\Services\Billing\PlanLimits;
 use App\Services\Mpesa\NullMpesaGateway;
 use App\Support\Database\ColumnDefaults;
 use App\Support\Onboarding\OnboardingChecklist;
+use App\Support\Platform\Impersonation;
+use App\Support\Tenancy\TenantAwarePermissionRegistrar;
 use App\Support\Tenancy\TenantContext;
 use App\Support\Tenancy\TenantPresenceVerifier;
+use Illuminate\Cache\CacheManager;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Log\Context\Repository as ContextRepository;
@@ -57,6 +60,7 @@ use Spatie\Permission\Events\PermissionAttached;
 use Spatie\Permission\Events\PermissionDetached;
 use Spatie\Permission\Events\RoleAttached;
 use Spatie\Permission\Events\RoleDetached;
+use Spatie\Permission\PermissionRegistrar;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -65,6 +69,12 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
+        // The permission cache holds every business's roles (Phase 5). An
+        // extender, since the package binds the registrar after this provider.
+        $this->app->extend(PermissionRegistrar::class, fn (PermissionRegistrar $registrar, $app): PermissionRegistrar => $registrar instanceof TenantAwarePermissionRegistrar
+            ? $registrar
+            : new TenantAwarePermissionRegistrar($app->make(CacheManager::class)));
+
         // Until the private M-Pesa package is connected, nothing is accepted.
         $this->app->bind(MpesaGateway::class, NullMpesaGateway::class);
 
@@ -112,8 +122,10 @@ class AppServiceProvider extends ServiceProvider
         // Only the platform operator may do everything (decision 4.4). A
         // business owner holds the admin role, with every permission in their
         // business, and the policies still apply to them.
+        // While an operator impersonates a user the signed-in user is that
+        // user; the impersonation check is a second guard (Phase 5).
         Gate::before(function ($user, $ability) {
-            return $user instanceof User && $user->isPlatformOperator() ? true : null;
+            return $user instanceof User && $user->isPlatformOperator() && ! Impersonation::active() ? true : null;
         });
 
         // Register Policies

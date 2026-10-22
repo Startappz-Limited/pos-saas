@@ -108,6 +108,15 @@ class PermissionSeeder extends Seeder
             'customers.manage-credit',
             'customers.full-access',
 
+            // Product attributes (size, colour, ...): Phase 5
+            'attributes.view',
+            'attributes.create',
+            'attributes.update',
+            'attributes.delete',
+
+            // Stock menu (intake, adjustments, movements, alerts): Phase 5
+            'stock.view',
+
             // Stock Intake
             'stock-intake.view',
             'stock-intake.create',

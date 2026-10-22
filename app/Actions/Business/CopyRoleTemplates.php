@@ -14,6 +14,9 @@ use Spatie\Permission\PermissionRegistrar;
  * (decision 4.4). The owner role, `admin`, stays shared: owners always hold
  * every permission.
  *
+ * Each copy points at its template (`template_id`, Phase 5), which "Reset to
+ * default" and later permission rollouts follow.
+ *
  * Idempotent: a role the business already has is left as it is.
  */
 class CopyRoleTemplates
@@ -34,6 +37,7 @@ class CopyRoleTemplates
 
             $copyId = DB::table('roles')->insertGetId([
                 'business_id' => $business->id,
+                'template_id' => $template->id,
                 'uuid' => (string) Str::uuid(),
                 'name' => $template->name,
                 'guard_name' => $template->guard_name,

@@ -21,6 +21,7 @@
 </head>
 
 <body class="h-100">
+    @include('partials.impersonation-banner')
     <div class="d-flex flex-column h-100 p-3">
         <div class="d-flex flex-column flex-grow-1">
             <div class="row h-100">

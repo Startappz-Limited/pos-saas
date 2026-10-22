@@ -30,6 +30,12 @@ class Business extends Model
     /** Created at signup; opens when the owner's email is verified (stage 3). */
     public const STATUS_PENDING_VERIFICATION = 'pending_verification';
 
+    /**
+     * Suspended from the platform console (Phase 5): nobody works in it, on
+     * the web, either API or sync, until it is reactivated.
+     */
+    public const STATUS_SUSPENDED = 'suspended';
+
     protected $fillable = [
         'uuid',
         'name',
@@ -50,6 +56,7 @@ class Business extends Model
         return [
             'settings' => 'array',
             'trial_started_at' => 'datetime',
+            'suspended_at' => 'datetime',
         ];
     }
 
@@ -81,6 +88,19 @@ class Business extends Model
     public function getRouteKeyName(): string
     {
         return 'uuid';
+    }
+
+    public function isSuspended(): bool
+    {
+        return $this->status === self::STATUS_SUSPENDED;
+    }
+
+    /**
+     * The platform operator who suspended it.
+     */
+    public function suspendedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'suspended_by');
     }
 
     public function isActive(): bool

@@ -1,5 +1,6 @@
 <?php
 
+use App\Actions\Platform\CreatePlatformOperator;
 use App\Models\Business;
 use App\Models\BusinessIntegration;
 use App\Models\Plan;
@@ -11,8 +12,10 @@ use App\Support\Tenancy\TenantContext;
 use Database\Seeders\PermissionSeeder;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 use Spatie\Permission\Models\Permission;
 use Tests\TestCase;
 
@@ -90,6 +93,31 @@ function sharedRole(string $name): Role
 function seedPermissions(): void
 {
     PermissionSeeder::insertMissing();
+}
+
+/**
+ * A platform operator (Phase 5), made as `platform:create-operator` makes one:
+ * outside every business (the user factory would join the current one).
+ */
+function platformOperator(string $name = 'Platform Ops'): User
+{
+    return app(CreatePlatformOperator::class)->execute($name, 'ops-'.Str::lower(Str::random(8)).'@platform.test', 'Operat0r!Strong-pass');
+}
+
+/**
+ * Gives the audit connection its schema: RefreshDatabase migrates only the
+ * default connection, and in tests the audit trail is a separate in-memory
+ * SQLite database.
+ */
+function migrateAuditDatabase(): void
+{
+    if (! Schema::connection('audit')->hasTable('audit_logs')) {
+        Artisan::call('migrate', [
+            '--database' => 'audit',
+            '--path' => 'database/migrations/audit',
+            '--force' => true,
+        ]);
+    }
 }
 
 /**

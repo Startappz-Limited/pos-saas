@@ -92,7 +92,7 @@
                             <td>{{ $user->email }}</td>
                             <td>
                                 @foreach ($user->roles as $role)
-                                    <x-ui-badge variant="info" soft>{{ $role->name }}</x-ui-badge>
+                                    <x-ui-badge variant="info" soft>{{ $role->displayName() }}</x-ui-badge>
                                 @endforeach
                             </td>
                             <td>

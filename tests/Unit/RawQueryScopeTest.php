@@ -31,6 +31,7 @@ const ALLOWED_RAW_QUERIES = [
     'app/Actions/Business/ExportBusinessData.php' => [3, 'the export reads only rows BusinessData found to be the business\'s, its members and its audit rows'],
     'app/Actions/Business/PurgeBusiness.php' => [9, 'the erasure deletes only rows BusinessData found to be the business\'s, and its own logins'],
     'app/Actions/Business/CopyRoleTemplates.php' => [5, 'role templates copied into the business being created'],
+    'app/Rules/RoleName.php' => [2, 'the role name rule: shared template names, and the current business\'s own roles (business_id filtered explicitly)'],
     'app/Actions/ConvertEcommerceOrderToSale.php' => [1, 'the register of a session the action just found or opened'],
     'app/Services/Billing/PlanLimits.php' => [7, 'quota counts for the one business the caller names, across all its shops whatever the viewer may see'],
     'app/Actions/Shop/SaveShopMpesaAccount.php' => [1, 'a shortcode is unique on the platform: reads only whether another shop holds the number'],
@@ -45,6 +46,9 @@ const ALLOWED_RAW_QUERIES = [
     'app/Services/Stock/StockQuery.php' => [4, 'correlated to a scoped product or variation; the viewer\'s shops'],
     'app/Support/Tenancy/TenantContext.php' => [2, 'builds the accessible-shops subquery itself'],
 
+    // The platform console (Phase 5): cross-business on purpose, each subquery naming its business, every read audited.
+    'app/Http/Requests/Platform/RecordPlatformPaymentRequest.php' => [1, 'an M-Pesa receipt is recorded once on the whole platform (the column is unique across businesses)'],
+    'app/Support/Platform/BusinessDirectory.php' => [9, 'the platform console\'s figures for every business (operators only, audited); each subquery is correlated to its business'],
     // Platform-wide repairs.
     'app/Console/Commands/PruneBaileysMedia.php' => [1, 'every business\'s session uuids, so another business\'s media is never taken for an orphan'],
     'app/Console/Commands/BackfillAuditBusiness.php' => [3, 'maps audit rows of every business to their business, from shops and records'],

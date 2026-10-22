@@ -28,6 +28,11 @@ use App\Http\Controllers\InventorySnapshotController;
 use App\Http\Controllers\InvitationController;
 use App\Http\Controllers\LowStockAlertController;
 use App\Http\Controllers\PaymentController;
+use App\Http\Controllers\Platform\BusinessController as PlatformBusinessController;
+use App\Http\Controllers\Platform\DashboardController as PlatformDashboardController;
+use App\Http\Controllers\Platform\ImpersonationController as PlatformImpersonationController;
+use App\Http\Controllers\Platform\PaymentController as PlatformPaymentController;
+use App\Http\Controllers\Platform\RoleTemplateController as PlatformRoleTemplateController;
 use App\Http\Controllers\PricingRuleController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProductImportController;
@@ -144,9 +149,12 @@ Route::middleware(['auth', 'business'])->group(function () {
     Route::delete('invites/{invite:uuid}', [BusinessInviteController::class, 'destroy'])->name('invites.destroy');
 
     // Role Management Routes
-    Route::resource('roles', RoleController::class);
+    // Honeypot on the role forms (Phase 5; GET requests aren't checked).
+    Route::resource('roles', RoleController::class)->middleware(ProtectAgainstSpam::class);
     Route::get('roles/{role}/permissions', [RoleController::class, 'permissions'])->name('roles.permissions');
-    Route::put('roles/{role}/permissions', [RoleController::class, 'updatePermissions'])->name('roles.updatePermissions');
+    Route::put('roles/{role}/permissions', [RoleController::class, 'updatePermissions'])->middleware(ProtectAgainstSpam::class)->name('roles.updatePermissions');
+    Route::post('roles/{role}/reset', [RoleController::class, 'reset'])->middleware(ProtectAgainstSpam::class)->name('roles.reset');
+    Route::patch('roles/{role}/active', [RoleController::class, 'setActive'])->middleware(ProtectAgainstSpam::class)->name('roles.active');
 
     // Shop Management Routes
     Route::post('shops/test-integration', [ShopController::class, 'testIntegration'])->name('shops.testIntegration');
@@ -468,3 +476,28 @@ Route::middleware(['auth', 'business'])->group(function () {
 });
 
 require __DIR__.'/auth.php';
+
+// The platform console (Phase 5): platform operators only, outside every
+// business, and not while impersonating; everyone else gets a 404.
+Route::middleware(['auth', 'platform', ProtectAgainstSpam::class])->prefix('platform')->name('platform.')->group(function () {
+    Route::get('/', PlatformDashboardController::class)->name('dashboard');
+
+    Route::get('businesses', [PlatformBusinessController::class, 'index'])->name('businesses.index');
+    Route::get('businesses/{business}', [PlatformBusinessController::class, 'show'])->name('businesses.show');
+    Route::post('businesses/{business}/suspend', [PlatformBusinessController::class, 'suspend'])->name('businesses.suspend');
+    Route::post('businesses/{business}/reactivate', [PlatformBusinessController::class, 'reactivate'])->name('businesses.reactivate');
+    Route::put('businesses/{business}/plan', [PlatformBusinessController::class, 'changePlan'])->name('businesses.plan');
+    Route::post('businesses/{business}/trial', [PlatformBusinessController::class, 'extendTrial'])->name('businesses.trial');
+    Route::post('businesses/{business}/payments', [PlatformPaymentController::class, 'store'])->name('businesses.payments.store');
+    Route::post('businesses/{business}/members/{member}/impersonate', [PlatformImpersonationController::class, 'start'])->name('businesses.impersonate');
+    Route::post('businesses/{business}/roles/{copy}/reset', [PlatformRoleTemplateController::class, 'resetCopy'])->name('businesses.roles.reset');
+
+    Route::get('roles', [PlatformRoleTemplateController::class, 'index'])->name('roles.index');
+    Route::get('roles/{role}/edit', [PlatformRoleTemplateController::class, 'edit'])->name('roles.edit');
+    Route::put('roles/{role}', [PlatformRoleTemplateController::class, 'update'])->name('roles.update');
+    Route::post('roles/{role}/apply', [PlatformRoleTemplateController::class, 'applyToCopies'])->name('roles.apply');
+});
+
+// Ending an impersonation (Phase 5): by then the signed-in user is the
+// impersonated one, so this sits outside the console group.
+Route::post('impersonation/end', [PlatformImpersonationController::class, 'end'])->middleware(['auth', ProtectAgainstSpam::class])->name('impersonation.end');

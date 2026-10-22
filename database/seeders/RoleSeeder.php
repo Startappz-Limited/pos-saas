@@ -12,6 +12,13 @@ use Spatie\Permission\PermissionRegistrar;
 class RoleSeeder extends Seeder
 {
     /**
+     * Which templates this run created (name => true), and which existed.
+     *
+     * @var array<string, bool>
+     */
+    private array $created = [];
+
+    /**
      * Run the database seeds.
      */
     public function run(): void
@@ -53,10 +60,11 @@ class RoleSeeder extends Seeder
         // business_id), whichever business is current (Spatie teams, stage 1a).
         app(TenantContext::class)->withoutBusiness(function () use ($roles): void {
             foreach ($roles as $roleData) {
-                Role::firstOrCreate(
+                $role = Role::firstOrCreate(
                     ['name' => $roleData['name']],
                     ['guard_name' => 'web']
                 );
+                $this->created[$role->name] = $role->wasRecentlyCreated;
             }
 
             // Assign permissions to roles
@@ -78,7 +86,27 @@ class RoleSeeder extends Seeder
     private function assignSuperAdminPermissions(): void
     {
         $role = Role::findByName('admin');
-        $role->givePermissionTo(Permission::all());
+        $this->grant($role, Permission::query()->pluck('name')->all());
+    }
+
+    /**
+     * Gives a template its listed permissions. A template this run created
+     * gets them all; an existing one only those created since it last
+     * changed (Phase 5), as copies do: a template edited on the platform
+     * console keeps the edit when the seeder runs again, and a permission
+     * rolled out later still reaches it.
+     *
+     * @param  array<int, string>  $names
+     */
+    private function grant(Role $role, array $names): void
+    {
+        if (! ($this->created[$role->name] ?? false)) {
+            $names = Permission::query()->whereIn('name', $names)
+                ->where('created_at', '>', $role->updated_at)
+                ->pluck('name')->all();
+        }
+
+        $role->givePermissionTo($names);
     }
 
     /**
@@ -90,12 +118,12 @@ class RoleSeeder extends Seeder
      */
     private function grantNewPermissionsToBusinessCopies(): void
     {
-        $templates = DB::table('roles')->whereNull('business_id')->where('name', '!=', 'admin')->get()->keyBy('name');
-
-        foreach (DB::table('roles')->whereNotNull('business_id')->whereIn('name', $templates->keys())->get() as $copy) {
+        // Each copy names its template (roles.template_id, Phase 5).
+        foreach (DB::table('roles as copies')->join('roles as templates', 'templates.id', '=', 'copies.template_id')
+            ->whereNotNull('copies.business_id')->get(['copies.id', 'copies.created_at', 'copies.template_id']) as $copy) {
             $newer = DB::table('role_has_permissions')
                 ->join('permissions', 'permissions.id', '=', 'role_has_permissions.permission_id')
-                ->where('role_has_permissions.role_id', $templates[$copy->name]->id)
+                ->where('role_has_permissions.role_id', $copy->template_id)
                 ->where('permissions.created_at', '>', $copy->created_at)
                 ->pluck('permissions.id');
 
@@ -134,6 +162,12 @@ class RoleSeeder extends Seeder
             'categories.create',
             'categories.update',
             'categories.delete',
+
+            // Product attributes (full access, Phase 5)
+            'attributes.view',
+            'attributes.create',
+            'attributes.update',
+            'attributes.delete',
 
             // Products (full access)
             'products.view',
@@ -175,6 +209,9 @@ class RoleSeeder extends Seeder
             'purchase_returns.ship',
             'purchase_returns.complete',
             'purchase_returns.cancel',
+
+            // The stock menu (Phase 5)
+            'stock.view',
 
             // Stock Intake (full access including approval)
             'stock-intake.view',
@@ -297,7 +334,7 @@ class RoleSeeder extends Seeder
             'settings.update',
         ];
 
-        $role->givePermissionTo($permissions);
+        $this->grant($role, $permissions);
     }
 
     /**
@@ -360,7 +397,7 @@ class RoleSeeder extends Seeder
             'reports.sales',
         ];
 
-        $role->givePermissionTo($permissions);
+        $this->grant($role, $permissions);
     }
 
     /**
@@ -392,6 +429,9 @@ class RoleSeeder extends Seeder
             'suppliers.create',
             'suppliers.update',
             'suppliers.delete',
+
+            // The stock menu (Phase 5)
+            'stock.view',
 
             // Stock Intake (full access except approval)
             'stock-intake.view',
@@ -434,7 +474,7 @@ class RoleSeeder extends Seeder
             'reports.inventory',
         ];
 
-        $role->givePermissionTo($permissions);
+        $this->grant($role, $permissions);
     }
 
     /**
@@ -492,7 +532,7 @@ class RoleSeeder extends Seeder
             'audit-logs.export',
         ];
 
-        $role->givePermissionTo($permissions);
+        $this->grant($role, $permissions);
     }
 
     /**
@@ -510,6 +550,6 @@ class RoleSeeder extends Seeder
             'dashboard.view',
         ];
 
-        $role->givePermissionTo($permissions);
+        $this->grant($role, $permissions);
     }
 }

@@ -15,7 +15,7 @@
                     <p class="text-muted mb-3">{{ $user->email }}</p>
 
                     @foreach ($user->roles as $role)
-                        <x-ui-badge variant="info" soft class="mb-2">{{ $role->name }}</x-ui-badge>
+                        <x-ui-badge variant="info" soft class="mb-2">{{ $role->displayName() }}</x-ui-badge>
                     @endforeach
 
                     <div class="mt-3">
@@ -129,7 +129,7 @@
                                 <td class="fw-medium">Role:</td>
                                 <td>
                                     @foreach ($user->roles as $role)
-                                        <x-ui-badge variant="info" soft>{{ $role->name }}</x-ui-badge>
+                                        <x-ui-badge variant="info" soft>{{ $role->displayName() }}</x-ui-badge>
                                     @endforeach
                                 </td>
                             </tr>

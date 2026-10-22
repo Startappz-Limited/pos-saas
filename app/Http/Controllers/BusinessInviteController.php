@@ -29,7 +29,7 @@ class BusinessInviteController extends Controller
 
         return view('invites.index', [
             'invites' => BusinessInvite::query()->pending()->with(['role:id,name', 'inviter:id,name'])->latest()->get(),
-            'roles' => Role::query()->select('id', 'name')->orderBy('name')->get()
+            'roles' => Role::query()->active()->select('id', 'name')->orderBy('name')->get()
                 ->reject(fn (Role $role): bool => $role->name === CopyRoleTemplates::OWNER_ROLE && ! $user->isBusinessOwner()),
             'shops' => Shop::query()->select('id', 'name')->get(),
         ]);

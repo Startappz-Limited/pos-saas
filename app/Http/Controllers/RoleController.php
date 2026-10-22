@@ -2,7 +2,17 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\Role\ResetRoleToTemplate;
+use App\Actions\Role\SetRoleActive;
+use App\Actions\Role\SyncRolePermissions;
+use App\Http\Requests\ResetRoleRequest;
+use App\Http\Requests\SetRoleActiveRequest;
+use App\Http\Requests\StoreRoleRequest;
+use App\Http\Requests\UpdateRolePermissionsRequest;
+use App\Http\Requests\UpdateRoleRequest;
 use App\Models\Role;
+use App\Support\Tenancy\TenantContext;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\Request;
 use Spatie\Permission\Models\Permission;
@@ -14,13 +24,17 @@ class RoleController extends Controller
     /**
      * Display a listing of roles.
      */
-    public function index()
+    public function index(Request $request)
     {
         $this->authorize('viewAny', Role::class);
 
+        // Holders in this business only (roles are held per business).
         $roles = Role::with('permissions')
-            ->withCount('users')
-            ->paginate(15);
+            ->withCount('holders')
+            ->when($request->query('status') === 'active', fn ($query) => $query->active())
+            ->when($request->query('status') === 'inactive', fn ($query) => $query->where('is_active', false))
+            ->paginate(15)
+            ->withQueryString();
 
         return view('roles.index', compact('roles'));
     }
@@ -32,7 +46,7 @@ class RoleController extends Controller
     {
         $this->authorize('create', Role::class);
 
-        $permissions = Permission::all();
+        $permissions = $this->givablePermissions();
 
         return view('roles.create', compact('permissions'));
     }
@@ -40,22 +54,18 @@ class RoleController extends Controller
     /**
      * Store a newly created role in storage.
      */
-    public function store(Request $request)
+    public function store(StoreRoleRequest $request, SyncRolePermissions $sync)
     {
-        $this->authorize('create', Role::class);
+        $validated = $request->validated();
 
-        $validated = $request->validate([
-            'name' => ['required', 'string', 'max:255', 'unique:roles,name', 'regex:/^[a-z0-9-]+$/'],
-            'permissions' => 'array',
-            'permissions.*' => 'exists:permissions,id',
+        $role = Role::create([
+            'name' => $validated['name'],
+            'guard_name' => 'web',
+            'business_id' => app(TenantContext::class)->id(),
+            'is_active' => (bool) ($validated['is_active'] ?? true),
         ]);
 
-        $role = Role::create(['name' => $validated['name']]);
-
-        if (isset($validated['permissions'])) {
-            $permissions = Permission::whereIn('id', $validated['permissions'])->get();
-            $role->syncPermissions($permissions);
-        }
+        $sync->execute($role, $request->user(), $validated['permissions'] ?? []);
 
         return redirect()
             ->route('roles.index')
@@ -70,7 +80,7 @@ class RoleController extends Controller
         $this->authorize('view', $role);
 
         // Holders in this business only (roles are held per business).
-        $role->load(['permissions', 'users' => fn ($query) => $query->inCurrentBusiness()
+        $role->load(['permissions', 'holders' => fn ($query) => $query->inCurrentBusiness()
             ->select('users.id', 'users.name', 'users.email', 'users.profile_photo', 'users.status', 'users.email_verified_at', 'users.created_at')]);
 
         return view('roles.show', compact('role'));
@@ -83,40 +93,27 @@ class RoleController extends Controller
     {
         $this->authorize('update', $role);
 
-        $role->load('permissions');
+        $role->load('permissions')->loadCount('holders');
 
-        $permissions = Permission::all();
+        $permissions = $this->givablePermissions();
+        // The role's permissions the editor can't give: kept as they are on save.
+        $outOfReach = $role->permissions->pluck('id')->diff($permissions->pluck('id'))->count();
 
-        return view('roles.edit', compact('role', 'permissions'));
+        return view('roles.edit', compact('role', 'permissions', 'outOfReach'));
     }
 
     /**
      * Update the specified role in storage.
      */
-    public function update(Request $request, Role $role)
+    public function update(UpdateRoleRequest $request, Role $role, SyncRolePermissions $sync, SetRoleActive $setActive)
     {
-        $this->authorize('update', $role);
-
-        // The owner role can't be edited (owners hold every permission)
-        if ($role->name === 'admin') {
-            return redirect()
-                ->route('roles.index')
-                ->with('error', 'Super Admin role cannot be modified.');
-        }
-
-        $validated = $request->validate([
-            'name' => 'required|string|max:255|unique:roles,name,'.$role->id,
-            'permissions' => 'array',
-            'permissions.*' => 'exists:permissions,id',
-        ]);
+        $validated = $request->validated();
 
         $role->update(['name' => $validated['name']]);
+        $sync->execute($role, $request->user(), $validated['permissions'] ?? []);
 
-        if (isset($validated['permissions'])) {
-            $permissions = Permission::whereIn('id', $validated['permissions'])->get();
-            $role->syncPermissions($permissions);
-        } else {
-            $role->syncPermissions([]);
+        if (array_key_exists('is_active', $validated)) {
+            $setActive->execute($role, (bool) $validated['is_active']);
         }
 
         return redirect()
@@ -131,15 +128,8 @@ class RoleController extends Controller
     {
         $this->authorize('delete', $role);
 
-        // The owner role can't be deleted
-        if ($role->name === 'admin') {
-            return redirect()
-                ->route('roles.index')
-                ->with('error', 'Super Admin role cannot be deleted.');
-        }
-
-        // Check if role has users
-        if ($role->users()->count() > 0) {
+        // Still held by someone in this business.
+        if ($role->holders()->exists()) {
             return redirect()
                 ->route('roles.index')
                 ->with('error', 'Cannot delete role that has assigned users.');
@@ -153,44 +143,67 @@ class RoleController extends Controller
     }
 
     /**
-     * Display permissions for a role.
+     * The permissions of a role are chosen on its edit form (Phase 5: this
+     * page's view never existed).
      */
     public function permissions(Role $role)
     {
         $this->authorize('view', $role);
 
-        $permissions = Permission::all()->groupBy(function ($permission) {
-            return explode('.', $permission->name)[0];
-        });
-
-        $rolePermissions = $role->permissions->pluck('id')->toArray();
-
-        return view('roles.permissions', compact('role', 'permissions', 'rolePermissions'));
+        return redirect()->route('roles.edit', $role);
     }
 
     /**
      * Update permissions for a role.
      */
-    public function updatePermissions(Request $request, Role $role)
+    public function updatePermissions(UpdateRolePermissionsRequest $request, Role $role, SyncRolePermissions $sync)
     {
-        $this->authorize('update', $role);
-
-        // The owner role's permissions can't be changed
-        if ($role->name === 'admin') {
-            return redirect()
-                ->route('roles.index')
-                ->with('error', 'Super Admin permissions cannot be modified.');
-        }
-
-        $validated = $request->validate([
-            'permissions' => 'array',
-            'permissions.*' => 'exists:permissions,id',
-        ]);
-
-        $role->syncPermissions($validated['permissions'] ?? []);
+        $sync->execute($role, $request->user(), $request->validated()['permissions'] ?? []);
 
         return redirect()
             ->route('roles.index')
             ->with('success', 'Role permissions updated successfully.');
+    }
+
+    /**
+     * Reset a business's copy of a role template to the template's current
+     * permissions (Phase 5).
+     */
+    public function reset(ResetRoleRequest $request, Role $role, ResetRoleToTemplate $reset)
+    {
+        $reset->execute($role);
+
+        return redirect()
+            ->route('roles.show', $role)
+            ->with('success', __('The role was reset to its default permissions.'));
+    }
+
+    /**
+     * Switch a role on or off (Phase 5). Switching it off is confirmed first.
+     */
+    public function setActive(SetRoleActiveRequest $request, Role $role, SetRoleActive $setActive)
+    {
+        $active = $request->boolean('active');
+        $setActive->execute($role, $active);
+
+        return redirect()
+            ->back(fallback: route('roles.show', $role))
+            ->with('success', $active ? __('The role is switched on.') : __('The role is switched off.'));
+    }
+
+    /**
+     * The permissions the signed-in user may put on a role (Phase 5): every
+     * one for an owner, otherwise those they hold.
+     *
+     * @return Collection<int, Permission>
+     */
+    private function givablePermissions()
+    {
+        $givable = app(SyncRolePermissions::class)->givableIds(request()->user());
+
+        return Permission::query()
+            ->when($givable !== null, fn ($query) => $query->whereIn('id', $givable))
+            ->orderBy('name')
+            ->get();
     }
 }

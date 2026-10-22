@@ -4,6 +4,7 @@ namespace App\Listeners;
 
 use App\Events\AuditableEvent;
 use App\Models\AuditLog;
+use App\Support\Platform\Impersonation;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Throwable;
@@ -50,6 +51,23 @@ class AuditLogger
         'ssn',
     ];
 
+    /**
+     * The event's tags, plus who really acted while a platform operator
+     * impersonates a user (Phase 5): the row's user is the impersonated one.
+     *
+     * @return array<int, string>|null
+     */
+    private function tags(AuditableEvent $event): ?array
+    {
+        $operatorId = Impersonation::operatorId();
+
+        if ($operatorId === null) {
+            return $event->tags;
+        }
+
+        return [...($event->tags ?? []), 'impersonated_by:'.$operatorId];
+    }
+
     public function handle(AuditableEvent $event): void
     {
         try {
@@ -68,7 +86,7 @@ class AuditLogger
                 'user_agent' => Str::limit((string) request()->userAgent(), 480, ''),
                 'url' => Str::limit((string) request()->fullUrl(), 480, ''),
                 'method' => request()->method(),
-                'tags' => $event->tags,
+                'tags' => $this->tags($event),
                 'shop_id' => $event->shopId,
                 'business_id' => $event->businessId,
                 'created_at' => now(),

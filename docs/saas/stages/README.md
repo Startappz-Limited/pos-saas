@@ -17,8 +17,13 @@ The plan stays the source of truth. When a stage file and the plan disagree, the
 | Phase 2 | [04-phase-2-tenant-isolation.md](./04-phase-2-tenant-isolation.md) | `saas/phase-2-isolation` | Phase 1c | None |
 | Phase 3 | [05-phase-3-accounts-roles-settings.md](./05-phase-3-accounts-roles-settings.md) | `saas/phase-3-accounts-settings` | Phase 2 | None |
 | Phase 4 | [06-phase-4-billing-entitlements.md](./06-phase-4-billing-entitlements.md) | `saas/phase-4-billing` | Phase 3 | None |
-| Phase 5 | [07-phase-5-platform-console.md](./07-phase-5-platform-console.md) | `saas/phase-5-platform-console` | Phase 4 | None |
-| Phase 6 | [08-phase-6-api-v1-sync-payments.md](./08-phase-6-api-v1-sync-payments.md) | `saas/phase-6-api-sync-payments` | Phase 2 (can run alongside 4–5) | None |
+| Phase 5: Platform Console and Roles per Business | [07-phase-5-platform-console.md](./07-phase-5-platform-console.md) | `saas/phase-5-platform-console` | Phase 4, `fix/ui-button-links` | None |
+| Phase 6: Signup, trials and invites | [08-phase-6-signup-and-user-invites.md](./08-phase-6-signup-and-user-invites.md) | `saas/signup-trials-invites` | Phase 4, Phase 5 Part A | None |
+| Phase 7: `/api/v1`, sync, till payments | [09-phase-7-api-v1-sync-payments.md](./09-phase-7-api-v1-sync-payments.md) | `saas/phase-7-api-sync-payments` | Phase 2 (can run alongside 4–6) | None |
+
+Phase 5 scope merged on 21 October 2026: roles per business (the roles review) and the platform console are
+one stage on `saas/phase-5-platform-console`. The separate `fix/roles-per-business` branch is retired; its plan
+is Part A of the Phase 5 stage file.
 
 Answered on 12 October 2026:
 - **Open question 1:** there is no live data, so the clean-baseline rewrite (4.7) stands with no import.

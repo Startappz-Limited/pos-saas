@@ -4,79 +4,122 @@ namespace App\Policies;
 
 use App\Models\Role;
 use App\Models\User;
+use Illuminate\Auth\Access\Response;
 
+/**
+ * A business manages only its own roles (Phase 5). Shared templates and the
+ * owner role are read-only from a business: only the platform operator changes
+ * them, through the console. `roles.full-access` counts as each `roles.*`
+ * permission and never passes these protections. A non-owner can't change a
+ * role they hold, so nobody raises their own permissions by editing a role.
+ *
+ * A business's copy of a template can't be deleted (it can be reset to
+ * default instead), and its name stays (RoleName).
+ *
+ * Another business's role never reaches the policy: route binding doesn't
+ * find it (BusinessOrSharedScope), so it is a 404.
+ */
 class RolePolicy
 {
-    /**
-     * Allow users with full access to bypass all checks.
-     */
-    public function before(User $user, string $ability): ?bool
-    {
-        if ($user->can('roles.full-access')) {
-            return true;
-        }
-
-        return null;
-    }
-
-    /**
-     * Determine whether the user can view any models.
-     */
     public function viewAny(User $user): bool
     {
-        return $user->can('roles.view');
+        return $this->holds($user, 'roles.view');
     }
 
-    /**
-     * Determine whether the user can view the model.
-     */
     public function view(User $user, Role $role): bool
     {
-        return $user->can('roles.view');
+        return $this->holds($user, 'roles.view');
     }
 
-    /**
-     * Determine whether the user can create models.
-     */
     public function create(User $user): bool
     {
-        return $user->can('roles.create');
+        return $this->holds($user, 'roles.create');
     }
 
-    /**
-     * Determine whether the user can update the model.
-     */
-    public function update(User $user, Role $role): bool
+    public function update(User $user, Role $role): Response
     {
-        return $user->can('roles.update');
+        return $this->changeable($user, $role, 'roles.update');
     }
 
-    /**
-     * Determine whether the user can delete the model.
-     */
-    public function delete(User $user, Role $role): bool
+    public function delete(User $user, Role $role): Response
     {
-        // The owner role can't be deleted
-        if ($role->name === 'admin') {
-            return false;
+        $changeable = $this->changeable($user, $role, 'roles.delete');
+
+        if ($changeable->allowed() && $role->isTemplateCopy()) {
+            return Response::deny(__('A built-in role can\'t be deleted. You can reset it to default instead.'));
         }
 
-        return $user->can('roles.delete');
+        return $changeable;
     }
 
     /**
-     * Determine whether the user can restore the model.
+     * Resetting a business's copy of a template to the template's current
+     * permissions. A non-owner may do it only when they hold every one of
+     * them, as when giving permissions by hand.
      */
-    public function restore(User $user, Role $role): bool
+    public function reset(User $user, Role $role): Response
     {
-        return $user->can('roles.create');
+        $changeable = $this->changeable($user, $role, 'roles.update');
+
+        if ($changeable->denied()) {
+            return $changeable;
+        }
+
+        if (! $role->isTemplateCopy() || $role->template === null) {
+            return Response::deny(__('Only a built-in role can be reset to default.'));
+        }
+
+        if (! $user->isBusinessOwner() && $role->template->permissions->pluck('name')->diff($user->getAllPermissions()->pluck('name'))->isNotEmpty()) {
+            return Response::deny(__('You can only reset a role to permissions you hold.'));
+        }
+
+        return Response::allow();
+    }
+
+    public function restore(User $user, Role $role): Response
+    {
+        return $this->changeable($user, $role, 'roles.create');
+    }
+
+    public function forceDelete(User $user, Role $role): Response
+    {
+        return $this->delete($user, $role);
     }
 
     /**
-     * Determine whether the user can permanently delete the model.
+     * Whether the user holds $permission, or `roles.full-access` in its place.
      */
-    public function forceDelete(User $user, Role $role): bool
+    private function holds(User $user, string $permission): bool
     {
-        return $user->can('roles.delete');
+        return $user->can($permission) || $user->can('roles.full-access');
+    }
+
+    /**
+     * Whether $role is one of this business's own roles that $user may change
+     * with $permission.
+     */
+    private function changeable(User $user, Role $role, string $permission): Response
+    {
+        if (! $this->holds($user, $permission)) {
+            return Response::deny();
+        }
+
+        if ($role->isOwnerRole()) {
+            return Response::deny(__('The Owner role can\'t be changed.'));
+        }
+
+        if ($role->isShared()) {
+            return Response::deny(__('Built-in role templates can only be changed by the platform.'));
+        }
+
+        if (! $role->belongsToCurrentBusiness()) {
+            return Response::denyAsNotFound();
+        }
+
+        if (! $user->isBusinessOwner() && $user->hasRole($role)) {
+            return Response::deny(__('You can\'t change a role you hold.'));
+        }
+
+        return Response::allow();
     }
 }

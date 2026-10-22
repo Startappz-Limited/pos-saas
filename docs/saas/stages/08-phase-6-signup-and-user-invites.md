@@ -35,6 +35,10 @@ No open question blocks this stage.
   - **Passwords:** common and easily guessed passwords (`Password123` and similar) are refused.
   - **Create user and invite user are one action:** email and role required, name optional; the invitee sets
     their password (and name if missing). **Invites expire after 72 hours.**
+- **Changing plan during a trial (22 October 2026):**
+  - Choosing a tier during a trial changes the plan and limits at once and keeps the trial's end date.
+  - Paying during a trial starts the paid period on the trial's end date; the remaining trial days are kept.
+  - Moving to a smaller plan follows the Phase 4 downgrade rule.
 
 ## Relevant current state
 
@@ -119,6 +123,23 @@ No open question blocks this stage.
   - **Free Trial:** pick a tier and shop count, then pay.
   - Until go-live, payment is recorded by hand in the platform console; after go-live, the M-Pesa path.
 - [ ] Users and their roles carry over unchanged when a trial becomes a paid plan.
+
+#### 2.6 Changing plan during a trial
+- [ ] **Choosing a tier without paying** (Free Trial → a tier, or one tier → another): the trial's plan, limits
+      and shop count change immediately; `trial_ends_at` stays the same. The 14 days never restart.
+- [ ] **Paying during a trial:** the payment is accepted and recorded; the trial ends and the paid period
+      starts on the original `trial_ends_at`, so the remaining trial days are kept. The first paid period runs
+      from `trial_ends_at` to `trial_ends_at` + one billing period.
+- [ ] **Moving to a smaller plan during a trial** (fewer shops or lower limits than the business already uses):
+      the Phase 4 downgrade rule applies; every shop is read-only until the business is within the new quota
+      (sign-in, viewing, export and deleting shops still work). The plan picker warns before confirming.
+- [ ] **Staff over the new limit:** existing staff stay; new users and invites are refused by `limit()` until
+      the business is within the limit.
+- [ ] Payments during a trial, manual (platform console) or M-Pesa after go-live, extend the subscription
+      exactly once, as in Phase 4.
+- [ ] The billing page shows the current plan, shop count, trial end date and, after an early payment, the date
+      the paid period starts.
+- [ ] Every plan change during a trial is recorded in the audit log (who, from, to, when).
 
 ### 3. Email verification with a 24-hour grace period
 
@@ -216,6 +237,18 @@ No password is set by the inviter.
 - [ ] At trial end the business is read-only with `subscription_inactive`; a payment (manual, or M-Pesa after
       go-live) reopens it exactly once.
 
+**Changing plan during a trial**
+- [ ] A Free Trial business that picks Tier 2 with 3 shops on day 5 gets Tier 2 limits and 3 shops at once;
+      `trial_ends_at` is unchanged.
+- [ ] Switching tiers during a trial, any number of times, never moves `trial_ends_at`.
+- [ ] A payment on day 5 of a trial starts the paid period on the original `trial_ends_at`; the business keeps
+      its trial days and the payment is applied exactly once.
+- [ ] Moving to a plan with fewer shops than the business has makes every shop read-only until enough shops are
+      deleted; the picker warns before confirming.
+- [ ] Moving to a plan with a lower staff limit keeps existing staff and refuses new users and invites until
+      within the limit.
+- [ ] Each plan change during a trial is in the audit log.
+
 **Verification**
 - [ ] A new owner can use the system immediately.
 - [ ] At 23h59m everything works; at 24h01m unverified, web, both APIs and sync push return
@@ -242,6 +275,9 @@ No password is set by the inviter.
   read-only mode in Phase 4. Mitigation: reuse the same middleware coverage and route list.
 - **Trial abuse:** repeated Free Trials with new emails. Mitigation: email rules, one trial per email; review
   usage once live.
+- **Plan changes during a trial:** an early payment applied twice, or applied from the payment date instead of
+  the trial end, would shorten or double the paid period. Mitigation: one code path sets the paid period start
+  to `trial_ends_at`, payments are idempotent, and tests cover early, on-time and late payments.
 - **Email deliverability:** a lost verification email locks the owner out at 24 hours. Mitigation: resend,
   change email, and a reminder before the deadline.
 - **Flutter:** sign-in may now return `email_verification_required`; the app must handle it. Check whether the

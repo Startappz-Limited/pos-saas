@@ -12,14 +12,11 @@
                         <iconify-icon icon="solar:shield-user-bold-duotone" class="fs-48 text-primary"></iconify-icon>
                     </div>
 
-                    <h4 class="mb-1">{{ $role->name }}</h4>
-                    @if ($role->display_name)
-                        <p class="text-muted mb-2">{{ $role->display_name }}</p>
-                    @endif
+                    <h4 class="mb-1">{{ $role->displayName() }}</h4>
 
                     <div class="mt-3">
-                        @if ($role->is_system)
-                            <x-ui-badge variant="warning">System Role</x-ui-badge>
+                        @if ($role->isTemplateCopy() || $role->isShared())
+                            <x-ui-badge variant="warning">{{ __('Built-in role') }}</x-ui-badge>
                         @else
                             <x-ui-badge variant="secondary">Custom Role</x-ui-badge>
                         @endif
@@ -37,23 +34,18 @@
                             </x-ui-button>
                         @endcan
 
-                        @if (!$role->is_system)
-                            @can('delete', $role)
-                                <x-ui-button variant="danger" size="sm" data-bs-toggle="modal"
-                                    data-bs-target="#deleteRoleModal">
-                                    Delete
-                                </x-ui-button>
-                            @endcan
-                        @endif
+                        @include('roles.partials.active-form', ['holders' => $role->holders->count(), 'label' => $role->is_active ? __('Switch off') : __('Switch on')])
+                        @include('roles.partials.reset-form')
+
+                        @can('delete', $role)
+                            <x-ui-button variant="danger" size="sm" data-bs-toggle="modal"
+                                data-bs-target="#deleteRoleModal">
+                                Delete
+                            </x-ui-button>
+                        @endcan
                     </div>
                 </div>
 
-                @if ($role->description)
-                    <div class="mt-4 pt-3 border-top">
-                        <h6 class="mb-2">Description</h6>
-                        <p class="text-muted mb-0">{{ $role->description }}</p>
-                    </div>
-                @endif
 
                 <div class="mt-4 pt-3 border-top">
                     <h6 class="mb-3">Information</h6>
@@ -81,7 +73,7 @@
                             <iconify-icon icon="solar:users-group-rounded-bold-duotone"
                                 class="avatar-title fs-32 text-primary"></iconify-icon>
                         </div>
-                        <h4 class="mb-0">{{ $role->users->count() }}</h4>
+                        <h4 class="mb-0">{{ $role->holders->count() }}</h4>
                         <p class="text-muted mb-0">Users Assigned</p>
                     </x-ui-card>
                 </div>
@@ -139,7 +131,7 @@
 
             <!-- Assigned Users -->
             <x-ui-card title="Assigned Users">
-                @if ($role->users->count() > 0)
+                @if ($role->holders->count() > 0)
                     <x-ui-table hover>
                         <x-slot:header>
                             <tr>
@@ -151,7 +143,7 @@
                         </x-slot:header>
 
                         <x-slot:body>
-                            @foreach ($role->users as $user)
+                            @foreach ($role->holders as $user)
                                 <tr>
                                     <td>
                                         <div class="d-flex align-items-center">
@@ -179,15 +171,14 @@
         </div>
     </div>
 
-    @if (!$role->is_system)
         @can('delete', $role)
             @push('modals')
                 <x-ui-modal id="deleteRoleModal" title="Confirm Delete" centered>
                     <x-slot:body>
-                        <p class="mb-3">Are you sure you want to delete the <strong>{{ $role->name }}</strong> role?</p>
-                        @if ($role->users->count() > 0)
+                        <p class="mb-3">Are you sure you want to delete the <strong>{{ $role->displayName() }}</strong> role?</p>
+                        @if ($role->holders->count() > 0)
                             <x-ui-alert variant="warning">
-                                <strong>Warning:</strong> This role is assigned to {{ $role->users->count() }} user(s).
+                                <strong>Warning:</strong> This role is assigned to {{ $role->holders->count() }} user(s).
                                 Deleting it will remove this role from all assigned users.
                             </x-ui-alert>
                         @endif
@@ -197,6 +188,7 @@
                         <x-ui-button variant="secondary" data-bs-dismiss="modal">Cancel</x-ui-button>
                         <form action="{{ route('roles.destroy', $role) }}" method="POST" class="d-inline">
                             @csrf
+                            @honeypot
                             @method('DELETE')
                             <x-ui-button variant="danger" type="submit">
                                 Delete Role
@@ -206,5 +198,4 @@
                 </x-ui-modal>
             @endpush
         @endcan
-    @endif
 @endsection

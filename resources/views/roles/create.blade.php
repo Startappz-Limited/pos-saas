@@ -7,33 +7,21 @@
         <div class="col-xl-10 col-lg-11 mx-auto">
             <form action="{{ route('roles.store') }}" method="POST">
                 @csrf
+                @honeypot
 
                 <!-- Role Information -->
                 <x-ui-card title="Role Information" class="mb-3">
                     <div class="row">
                         <div class="col-lg-6">
                             <x-ui-form-input name="name" label="Role Name" :value="old('name')"
-                                placeholder="e.g., Store Manager" required autofocus />
+                                placeholder="e.g. night-shift" required autofocus
+                                help="{{ __('Lowercase letters, numbers and hyphens. Shown with spaces: night-shift reads Night shift.') }}" />
                         </div>
 
-                        <div class="col-lg-6">
-                            <x-ui-form-input name="display_name" label="Display Name" :value="old('display_name')"
-                                placeholder="e.g., Store Manager" help="Human-readable name for the role" />
-                        </div>
-
-                        <div class="col-lg-12">
-                            <div class="mb-3">
-                                <label class="form-label">Description</label>
-                                <textarea class="form-control @error('description') is-invalid @enderror" name="description" rows="3"
-                                    placeholder="Describe the role's purpose and responsibilities">{{ old('description') }}</textarea>
-                                @error('description')
-                                    <div class="invalid-feedback">{{ $message }}</div>
-                                @enderror
-                            </div>
-                        </div>
 
                         <div class="col-lg-6">
                             <div class="form-check form-switch mb-3">
+                                <input type="hidden" name="is_active" value="0">
                                 <input class="form-check-input" type="checkbox" id="is_active" name="is_active"
                                     value="1" {{ old('is_active', true) ? 'checked' : '' }}>
                                 <label class="form-check-label" for="is_active">
@@ -52,6 +40,9 @@
                         permissions.
                     </x-ui-alert>
 
+                    @unless (auth()->user()->isBusinessOwner())
+                        <p class="text-muted small mb-3">{{ __('Only the permissions you hold are listed: you can give a role no more than you have.') }}</p>
+                    @endunless
                     <x-ui-permission-grid :permissions="$permissions" :selectedPermissions="old('permissions', [])" groupBy="module" />
                 </x-ui-card>
 

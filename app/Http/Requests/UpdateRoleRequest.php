@@ -2,53 +2,56 @@
 
 namespace App\Http\Requests;
 
+use App\Rules\RoleName;
+use Illuminate\Auth\Access\Response;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\Validator;
 
+/**
+ * Editing one of the current business's roles (Phase 5): the same name rule
+ * as creating, and only permissions the editor may give.
+ */
 class UpdateRoleRequest extends FormRequest
 {
     /**
-     * Determine if the user is authorized to make this request.
+     * The policy first, so a role the user may not change is refused (403 or
+     * 404) before its fields are judged.
      */
-    public function authorize(): bool
+    public function authorize(): Response
     {
-        return true; // Authorization handled in controller
+        return Gate::inspect('update', $this->route('role'));
     }
 
     /**
-     * Get the validation rules that apply to the request.
-     *
      * @return array<string, ValidationRule|array<mixed>|string>
      */
     public function rules(): array
     {
         return [
-            'name' => [
-                'required',
-                'string',
-                'max:255',
-                Rule::unique('roles', 'name')->ignore($this->role->id),
-                'regex:/^[a-z0-9-]+$/',
-            ],
+            'name' => StoreRoleRequest::nameRules(new RoleName($this->route('role'))),
             'permissions' => ['array'],
-            'permissions.*' => ['exists:permissions,id'],
+            'permissions.*' => ['integer', 'distinct', 'exists:permissions,id'],
+            // Absent leaves the state as it is; switching off needs the confirmation.
+            'is_active' => ['sometimes', 'boolean'],
+            'confirm' => SetRoleActiveRequest::confirmRules($this->route('role'), fn (): bool => $this->has('is_active') && ! $this->boolean('is_active')),
         ];
     }
 
     /**
-     * Get custom messages for validator errors.
-     *
      * @return array<string, string>
      */
     public function messages(): array
     {
-        return [
-            'name.required' => 'Role name is required.',
-            'name.unique' => 'This role name already exists.',
-            'name.regex' => 'Role name must only contain lowercase letters, numbers, and hyphens.',
-            'permissions.array' => 'Permissions must be an array.',
-            'permissions.*.exists' => 'One or more selected permissions are invalid.',
-        ];
+        return StoreRoleRequest::sharedMessages() + SetRoleActiveRequest::confirmMessages();
+    }
+
+    /**
+     * @return array<int, \Closure>
+     */
+    public function after(): array
+    {
+        return [fn (Validator $validator) => StoreRoleRequest::refuseUngivable($validator, $this)];
     }
 }

@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use App\Models\Business;
 use App\Models\User;
+use App\Support\Platform\Impersonation;
 use App\Support\Tenancy\TenantContext;
 use Closure;
 use Illuminate\Http\Request;
@@ -28,6 +29,13 @@ class EnsureActiveBusiness
             return $next($request);
         }
 
+        // A platform operator works in the console, outside every business (Phase 5).
+        if ($user->isPlatformOperator() && ! Impersonation::active()) {
+            return $request->expectsJson()
+                ? response()->json(['success' => false, 'message' => __('Platform operators work in the platform console.')], 403)
+                : redirect()->route('platform.dashboard');
+        }
+
         if (! $user->hasVerifiedEmail() && $this->awaitsVerification($user)) {
             return $request->expectsJson()
                 ? response()->json(['success' => false, 'message' => __('Verify your email address to start using your business.')], 403)
@@ -39,6 +47,13 @@ class EnsureActiveBusiness
             return $request->expectsJson()
                 ? response()->json(['success' => false, 'message' => __('Choose a business to work in.')], 409)
                 : redirect()->guest(route('businesses.index'));
+        }
+
+        // Phase 5: say so when the business was suspended by the platform.
+        if ($this->belongsToSuspendedBusiness($user)) {
+            return $request->expectsJson()
+                ? response()->json(['success' => false, 'code' => 'business_suspended', 'message' => __('This business is suspended. Nobody can work in it until it is reactivated.')], 403)
+                : response()->view('businesses.none', ['suspended' => true], 403);
         }
 
         return $request->expectsJson()
@@ -56,6 +71,13 @@ class EnsureActiveBusiness
             ->whereHas('business', fn ($query) => $query->where('status', Business::STATUS_CLOSING))
             ->pluck('business_id')
             ->contains(fn (int $businessId): bool => $this->tenant->run($businessId, fn (): bool => $user->fresh()->isBusinessOwner()));
+    }
+
+    private function belongsToSuspendedBusiness(User $user): bool
+    {
+        return $user->memberships()->where('status', 'active')
+            ->whereHas('business', fn ($query) => $query->where('status', Business::STATUS_SUSPENDED))
+            ->exists();
     }
 
     private function awaitsVerification(User $user): bool

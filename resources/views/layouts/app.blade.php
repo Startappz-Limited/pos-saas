@@ -24,6 +24,7 @@
 </head>
 
 <body>
+    @include('partials.impersonation-banner')
     <!-- START Wrapper -->
     <div class="wrapper">
 

@@ -50,7 +50,7 @@
                         </div>
 
                         <div class="col-lg-6">
-                            <x-ui-form-select name="role_id" label="Role" :options="$roles->pluck('name', 'id')" :value="old('role_id')"
+                            <x-ui-form-select name="role_id" label="Role" :options="$roles->mapWithKeys(fn ($role) => [$role->id => $role->displayName()])" :value="old('role_id')"
                                 placeholder="Select role" required />
                         </div>
 
