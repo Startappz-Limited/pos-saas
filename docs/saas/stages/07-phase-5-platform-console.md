@@ -141,35 +141,41 @@ Order: Part A first (the console relies on the policy rules it sets), then Part 
 
 A `platform.*` route group gated to `super-admin`, under `/platform`.
 
+> **As built (22 October 2026):** B4 `e09bcc4`, B5 `a80e669`, B1 `c7bdf85`, B2 `d6ec15e`, B3 `9e3b5fc` (banner on the
+> guest layout too: `2210798`), B6 `0db02d4`; tests in `tests/Feature/Platform/`, and every `/platform` route in
+> `ResourceMatrixTest` (`b1c298a`). The gate is the `users.is_platform_operator` flag (not a `super-admin` role,
+> as built in Phase 3) and "not impersonating"; anyone else gets a 404. Evidence per step:
+> [PROGRESS.md](../PROGRESS.md), Stage 5.
+
 #### B1. Businesses
-- [ ] List and detail: plan, shops, registers, members, usage, status, AI balance.
-- [ ] Suspend and reactivate; change plan; extend trial.
+- [x] List and detail: plan, shops, registers, members, usage, status, AI balance.
+- [x] Suspend and reactivate; change plan; extend trial.
 
 #### B2. Payments
-- [ ] **Record manual payments and AI top-ups** (needed until M-Pesa go-live), attributed to the operator who
+- [x] **Record manual payments and AI top-ups** (needed until M-Pesa go-live), attributed to the operator who
       entered them.
 
 #### B3. Impersonation
-- [ ] Audited, time-limited impersonation with a banner visible on every page while it lasts.
-- [ ] While impersonating, the operator acts with the impersonated user's permissions only; platform-operator
+- [x] Audited, time-limited impersonation with a banner visible on every page while it lasts.
+- [x] While impersonating, the operator acts with the impersonated user's permissions only; platform-operator
       rights (template edits, `Gate::before`) don't apply inside the business session.
-- [ ] Platform-operator rights return only when impersonation ends (manually or at its time limit).
+- [x] Platform-operator rights return only when impersonation ends (manually or at its time limit).
 
 #### B4. Operator command
-- [ ] **`platform:create-operator`**, a console command that creates a platform operator outside every business.
+- [x] **`platform:create-operator`**, a console command that creates a platform operator outside every business.
 
 #### B5. Audit
-- [ ] Every console action (reads across businesses included) is written to the audit log with the operator,
+- [x] Every console action (reads across businesses included) is written to the audit log with the operator,
       the business and the action.
 
 #### B6. Role templates (links Part A to the console)
-- [ ] A **Templates** screen under `/platform/roles`: view and edit the shared templates (manager, cashier,
+- [x] A **Templates** screen under `/platform/roles`: view and edit the shared templates (manager, cashier,
       inventory-clerk, accountant, customer) and the owner role's permissions. This is the only place they can be
       changed.
-- [ ] Editing a template changes what **new** businesses get and what "Reset to default" applies; it doesn't
+- [x] Editing a template changes what **new** businesses get and what "Reset to default" applies; it doesn't
       silently rewrite existing copies. The screen says how many businesses hold a copy and offers an explicit,
       confirmed **"Apply to all copies"** action (audited) for platform-wide changes.
-- [ ] Per business (from B1): view its roles, and reset a copied role to default on the business's behalf
+- [x] Per business (from B1): view its roles, and reset a copied role to default on the business's behalf
       (audited).
 
 ---
@@ -179,9 +185,9 @@ A `platform.*` route group gated to `super-admin`, under `/platform`.
 - [x] `roles.is_active` boolean, default true.
 - [x] `roles.template_id` nullable, foreign key to `roles` (`nullOnDelete`).
 - [x] Five new permissions (data, through `PermissionSeeder`).
-- [ ] A suspension status on businesses.
-- [ ] An impersonation log.
-- [ ] Every migration additive or carrying data across; rehearsed on `import_testing` with counts before and
+- [x] A suspension status on businesses.
+- [x] An impersonation log.
+- [x] Every migration additive or carrying data across; rehearsed on `import_testing` with counts before and
       after; snapshot before running on UAT.
 
 ---
@@ -193,7 +199,7 @@ A `platform.*` route group gated to `super-admin`, under `/platform`.
 **Isolation**
 - [x] Business A's owner gets a 404 for viewing, editing, switching, resetting or deleting business B's roles
       (web and API), and B's roles are unchanged.
-- [ ] *(business side done in A1; the console side is B6)* No business can change a shared template or the owner role; after a business's attempt, every other
+- [x] No business can change a shared template or the owner role; after a business's attempt, every other
       business's roles and permission checks are unchanged. The platform operator can (through the console).
 - [x] `roles.full-access` alone can't delete, rename or switch off the owner role or a template.
 
@@ -235,22 +241,23 @@ A `platform.*` route group gated to `super-admin`, under `/platform`.
 
 ### Part B: Platform console
 
-- [ ] Only platform operators reach `/platform`; a business owner gets a 404 (or 403) for every `/platform` route.
-- [ ] Impersonation is logged and shown (banner), and ends at its time limit.
-- [ ] While impersonating, the operator has exactly the impersonated user's permissions: anything that user
+- [x] Only platform operators reach `/platform`; a business owner gets a 404 (or 403) for every `/platform` route.
+- [x] Impersonation is logged and shown (banner), and ends at its time limit.
+- [x] While impersonating, the operator has exactly the impersonated user's permissions: anything that user
       can't do is refused, `Gate::before` doesn't pass, and `/platform` routes are unavailable until impersonation
       ends.
-- [ ] Suspension blocks web, both APIs and sync.
-- [ ] Manual payments are attributed to the operator who entered them.
-- [ ] The operator command creates a user outside every business.
-- [ ] Editing a template in the console changes new businesses' copies and "Reset to default", and leaves
+- [x] Suspension blocks web, both APIs and sync. *(Sync doesn't exist yet (Phase 7); it goes through the same
+      tenant resolution, which never chooses a suspended business.)*
+- [x] Manual payments are attributed to the operator who entered them.
+- [x] The operator command creates a user outside every business.
+- [x] Editing a template in the console changes new businesses' copies and "Reset to default", and leaves
       existing copies unchanged unless "Apply to all copies" is confirmed.
-- [ ] Every console action, including cross-business reads, appears in the audit log.
+- [x] Every console action, including cross-business reads, appears in the audit log.
 
 ### Contract and checks
-- [ ] Role names and permission strings in API responses are unchanged (flat API and `/api/v1` contract tests
+- [x] Role names and permission strings in API responses are unchanged (flat API and `/api/v1` contract tests
       pass).
-- [ ] New routes and actions (role screens and `/platform`) added to the isolation resource matrix; isolation
+- [x] New routes and actions (role screens and `/platform`) added to the isolation resource matrix; isolation
       suite green, with the console's cross-business reads audited and covered by tests.
 - [ ] Pint, the full suite (SQLite and MySQL 8) and both API contract test sets pass.
 
@@ -280,10 +287,17 @@ A `platform.*` route group gated to `super-admin`, under `/platform`.
    owners and managers).
 4. `php artisan platform:create-operator` for the first platform operator.
 
+**Rehearsed on `import_testing` (22 October 2026):** snapshot `storage/app/snapshots/pos_saas_import_testing-20261022-154643.sql.gz`;
+`migrate` ran the 8 pending migrations (the end of stage 3, Phase 4's billing tables and Phase 5's four); both seeders;
+`platform:create-operator`. Roles 11 → 11, copies linked 5 of 5, roles active 11 of 11, grants 6 → 6, permissions
+203 → 208, role permissions 669 → 696 (27 added, none removed: the 17 grants of the five new permissions, and 10
+listed permissions the old templates never got, which the rollout rule grants to templates only), operators 0 → 1
+(no membership), impersonations 0. Details in PROGRESS.md.
+
 ## Definition of done
 
 - [ ] All acceptance criteria met, with tests.
-- [ ] Isolation suite green, including the new role routes and every `/platform` route.
+- [x] Isolation suite green, including the new role routes and every `/platform` route.
 - [ ] Pint, the full suite (SQLite and MySQL 8) and both API contract test sets pass.
 - [ ] Rollout rehearsed on `import_testing`, then run on UAT after a snapshot.
 

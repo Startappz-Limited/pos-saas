@@ -270,9 +270,11 @@ answered before Phase 1** (Open question 1):
 **Auth and roles**
 - [x] Platform operator (`super-admin`, outside every business) versus business owner (`admin`).
       **Done (stage 3):** the operator is the `users.is_platform_operator` flag (a Spatie role is always held in a business); the owner is `admin`, held per business.
+      **Phase 5:** operators are created by `platform:create-operator` and work in the platform console (`/platform`), outside every business; impersonation is logged, time-limited and drops their rights while it lasts.
 - [x] Roles per business: default role templates plus custom roles (Spatie teams on `business_id`).
       **Partly done (stage 1a):** Spatie teams on `business_id`; the seeded roles are templates shared by every business. Copies per business and custom roles: Phase 3.
       **Done (stage 3):** templates copied into each business (`CopyRoleTemplates`); custom roles apply only in their business.
+      **Phase 5:** a business changes only its own roles; templates and the owner role change only in the console; copies are linked to their template (`roles.template_id`), can't be deleted or renamed, and can be reset to default; roles can be switched off; no escalation through role editing; the shared permission cache holds every business's roles.
 - [x] Business picker at sign-in, a switcher, and a default business.
       **Done (stage 3):** `ResolveTenant`, `/businesses`, the top-bar switcher.
 - [x] New API tokens bound to one business; legacy API tokens act on the default business.
@@ -290,6 +292,7 @@ answered before Phase 1** (Open question 1):
       **Done (stage 1c):** in every queued payload's hidden context; code with no business is refused.
 - [x] Scheduler sweeps and commands run per business and skip suspended or read-only businesses.
       **Done (stage 1c):** `TenantContext::eachBusiness()` and `--business`; read-only joins `Business::runsBackgroundWork()` with billing (Phase 4).
+      **Phase 5:** suspension is a business status set from the console; suspended businesses do no background work either.
 - [x] E-commerce stock push triggered by per-shop stock changes (`ProductObserver` only watches
       `Product::updated` today, so it would stop firing).
       **Done (stage 1c):** the stock ledger queues `PushShopStockJob` for the shop that changed.
@@ -964,6 +967,9 @@ answered.
 - **Acceptance:** only platform operators reach `/platform`; impersonation is logged and shown;
   suspension blocks web, both APIs and sync; manual payments are attributed to the operator who entered
   them; the operator command creates a user outside every business.
+- **As built (22 October 2026):** merged with roles per business (the roles review); see
+  [07-phase-5-platform-console.md](stages/07-phase-5-platform-console.md) and PROGRESS.md, Stage 5. The operator
+  is the `users.is_platform_operator` flag, not a `super-admin` role (stage 3).
 
 ### Phase 6: `/api/v1` for Flutter, offline sync, till payments
 

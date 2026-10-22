@@ -669,6 +669,44 @@ isolation suite. No known baseline failures.
 | B2. Manual payments and AI top-ups | `d6ec15e` | `Platform/ManualPaymentsTest` (4); `PlatformAccessTest` covers the new route | deferred | deferred | `POST /platform/businesses/{business}/payments` records a subscription payment or an AI top-up received by hand (decision 4.6, until M-Pesa go-live) and applies it through the Phase 4 `RecordManualPayment` (`recorded_by` = the operator, method manual); audited on the business (`payment.recorded`). Validation: purpose; amount, with the AI top-up minimum (`billing.ai_min_topup`) as a field error; an M-Pesa receipt recorded once on the whole platform (a plain query, since the `unique` rule would go through the tenant presence verifier and the operator is in no business; listed in `RawQueryScopeTest`). A payment that can't be applied (less than a month, no subscription) is a field error and leaves no record (the Phase 4 action records and applies in one transaction). The business page lists its 20 latest payments with who recorded each. **Checks:** step tests, guards, billing, isolation and both contract tests (588 passed), Pint |
 | B3. Impersonation | `9e3b5fc` | `Platform/ImpersonationTest` (10); `PlatformAccessTest` covers the new route; B5's "closed while impersonating" check given an expiry | deferred | deferred | **Start** (`POST /platform/businesses/{business}/members/{member}/impersonate`, reason required, SweetAlert confirm): an active member of an active business, never an operator; the member is looked up by uuid (User route binding finds only members of the current business, and an operator is in none). Logged in `impersonations` (operator, user, business, reason, start, expiry, end, end reason, IP, user agent) and audited as the operator. **While it lasts** the signed-in user is the user, in that business: exactly their permissions (what they can't do is 403), no console (404), and `Gate::before` skips operators while impersonating as a second guard; audit rows carry `impersonated_by`. A banner on every page of the business and POS layouts says who, which business and until when, with End impersonation. **Ends** by hand (`POST impersonation/end`), at its time limit (`HandleImpersonation`, on the next request, then the console with a message), or on signing out; the log is closed with the reason; except on sign-out the operator is signed back in and gets the console again. Time limit `config('platform.impersonation_minutes')` = 30 (`PLATFORM_IMPERSONATION_MINUTES`, in `.env.example`). **Migration** `2026_10_22_000004` (new table). Snapshot before: `storage/app/snapshots/pos_saas_demo_testing-20261022-151527.sql.gz`; applied, rolled back and re-applied on `mysql_testing`; rehearsed on the UAT copy (0 rows; users 52, businesses 5 unchanged). `Impersonation` listed in `TenantScopeReflectionTest` (platform data). **Checks:** step tests, guards, auth, audit, isolation and both contract tests (593 passed), Pint |
 | B6. Role templates in the console | `0db02d4` | `Platform/RoleTemplatesConsoleTest` (7); `PlatformAccessTest` covers the 5 new routes | deferred | deferred | **`/platform/roles`:** the shared templates and the owner role with how many businesses hold a copy; editing them here is the only way they change (`UpdateRoleTemplate`). An edit reaches new businesses and "Reset to default", not existing copies; the template is touched, so `RoleSeeder` keeps the edit (A4's rule); the owner role, not copied, changes every business's owners at once and needs an explicit confirmation. Audited with the permissions added and removed. **Apply to all copies** (`ApplyTemplateToCopies`): every business's copy takes the template's permissions, only with a confirmation (SweetAlert plus server `confirm`); one audit row with the number of copies; permission cache cleared; refused for the owner role. **Per business:** its page lists its roles (built-in or custom, state, holders, permissions) and resets a copy to default on its behalf (A2's `ResetRoleToTemplate`, confirmed, audited on the business); another business's copy through this business's route is a 404. `{role}` binds only shared roles in the console (an operator is in no business): a business's role is a 404. The two cross-business reads/writes are listed in `TenantScopeBypassTest`. **Checks:** step tests, guards, role and platform tests, isolation and both contract tests (601 passed), Pint. **Part B complete:** both full suites next |
+| Review against the stage file | `b1c298a`, `2210798` | `ResourceMatrixTest` +1 (every `/platform` route: 404 for business A's owner); `PlatformAccessTest` +1 (every console page writes an audit row); `ImpersonationTest`: the banner on the business picker | deferred | deferred | Going through the stage file before the PR found two gaps: the `/platform` routes were covered by the console's own access test but not by the isolation resource matrix (the brief asks for both; the route walker moved to `tests/Support/PlatformRoutes` and serves both), and the audit criterion was proven route by route only (a test now opens every console page and fails, naming the page, if one writes no audit row; checked by removing the dashboard's audit call). The impersonation banner was on the business and POS layouts only: signed-in pages on the guest layout (business picker, verify email, "no active business") now show it too |
+
+### Rollout rehearsal on `import_testing` (22 October 2026)
+
+The old development database's import, at the end of stage 3 minus three migrations. Snapshot first:
+`storage/app/snapshots/pos_saas_import_testing-20261022-154643.sql.gz`. Then `migrate` (8 migrations: the three
+remaining from stage 3, Phase 4's billing tables, Phase 5's four), `PermissionSeeder`, `RoleSeeder`, and
+`platform:create-operator` (through its action, since lerd's artisan can't reach the test port; see follow-ups).
+
+| | Before | After |
+|---|---|---|
+| Businesses | 1 active | 1 active |
+| Users / platform operators | 25 / 0 | 26 / 1 (no membership) |
+| Roles (business roles) | 11 (5) | 11 (5) |
+| Copies linked to their template | no column | 5 of 5 |
+| Active roles | no column | 11 of 11 |
+| Role grants (on shared templates) | 6 (0) | 6 (0) |
+| Permissions | 203 | 208 |
+| Role permissions | 669 | 696 |
+| Impersonations | no table | 0 |
+
+The 27 role permissions added (none removed, checked by a full diff on a replay): the 17 grants of the five new
+permissions (`admin` 5; manager template and copy 5 each; inventory-clerk template and copy 1 each), and 10
+permissions already listed in `RoleSeeder` that this old database's templates never got (`abandoned-carts.*` for
+the cashier and manager templates, `products.view-cost` for manager and inventory clerk), created after those
+templates last changed; they reach the templates only (copies get only permissions newer than the copy).
+
+Each migration was also applied, rolled back and re-applied on `mysql_testing`, and A2 to B3 rehearsed on a
+restored copy of UAT (`rehearsal_testing`); results in the step rows.
+
+### Rollout on UAT (for you to run; nothing here has touched UAT)
+
+1. `php artisan db:snapshot` (snapshots taken before `a47e435` can't be restored into MySQL).
+2. `php artisan migrate`: `roles.template_id` (restores business 3's deleted accountant copy), `roles.is_active`,
+   the business suspension columns, `impersonations`.
+3. `php artisan db:seed --class=PermissionSeeder`, then `php artisan db:seed --class=RoleSeeder`.
+4. `php artisan platform:create-operator` (asks for the name, email and password; `--generate-password`
+   prints one once). The operator signs in as usual and lands on `/platform`.
 
 ### Differences from the stage file
 
@@ -677,6 +715,22 @@ isolation suite. No known baseline failures.
 - **The platform operator is `users.is_platform_operator`**, not a `super-admin` role (as built in Phase 3).
 - **The owner role `admin` is one shared row**, not copied: a console edit (B6) changes every business's owners
   at once, so "Apply to all copies" doesn't apply to it.
+- **The console is a 404 for everyone but an operator** (not a 403), so it isn't advertised; the stage file
+  allows either.
+- **Console audit rows about no business** (the overview, the business list, template edits) are recorded
+  against `auditable_type` "platform", id 0: `audit_logs.auditable_id` is NOT NULL and the audit schema was left
+  alone. Rows about a business carry it, so its owner sees what the platform did there.
+- **Sync** doesn't exist yet (Phase 7): "suspension blocks sync" rests on the same tenant resolution that
+  blocks `/api/v1` tokens, tested for both APIs.
+- **Reactivating** returns a business to the status it had (active, or waiting for its owner's email).
+- **Changing plan** locks the new plan's price from the next payment, with no proration (the Phase 4 rule);
+  a business with no subscription starts the plan's trial.
+- **Impersonation** lasts 30 minutes (`PLATFORM_IMPERSONATION_MINUTES`) and is web only; it also ends when the
+  session signs out. Operators, inactive members and businesses that aren't active can't be impersonated.
+- **RoleSeeder** now grants an existing template only the permissions created since it last changed (A4), so
+  console edits survive a re-run; the rollout rehearsal shows what that adds on an old database.
+- **Full suites per step:** from B4 on, at your request, each step ran its own tests, the guards, the isolation
+  suite and both contract tests; both full suites ran once Part B was complete.
 
 ### Follow-ups
 
@@ -692,6 +746,12 @@ isolation suite. No known baseline failures.
 - **`Tenancy/RoleTemplatesTest`** (stage 3) revokes `reports.full-access` from a manager copy to show a removal
   survives the seeder, but the manager template never held that permission, so that part can't fail; it
   should revoke one the template has (B6's test does).
+- **Flutter: new refusals.** A suspended business answers 403 with `code: business_suspended` on both APIs;
+  the shipped app shows its generic error. Handle it with the Phase 4 codes (402 `subscription_inactive`, ...).
+- **Platform audit screen:** console actions are in the audit log (and a business's own rows on its audit page);
+  a console screen to browse the platform's rows is not built (a decision taken at planning).
+- **Invites sent before a role was switched off** still assign it when accepted (it grants nothing until it's
+  switched on). The signup, trials and invites stage (Phase 6) may want to refuse such an invite instead.
 - **Flutter:** no checkout of the app on this machine (`MOBILE_APP_PATH` points nowhere here), so
   `authorization_helper.dart` was not searched for `super-admin` as the owner role. Since Phase 3 the owner's
   role is reported as `admin`; check the app before release.
