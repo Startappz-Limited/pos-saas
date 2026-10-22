@@ -80,56 +80,61 @@ Order: Part A first (the console relies on the policy rules it sets), then Part 
 
 ### Part A: Roles per business
 
+> **As built (22 October 2026):** A1 `d75e049`, A2 `a47e435`, A3 `3b085fb`, A4 `21be769`, A5 `7870d06`; tests in
+> `tests/Feature/Roles/` and `ViewPermissionNamesTest`, role rows in `ResourceMatrixTest`. There is no role API
+> (flat or `/api/v1`) besides the `GET api/users/roles` list, so "web and API" is met on the web. Evidence per step:
+> [PROGRESS.md](../PROGRESS.md), Stage 5.
+
 #### A1. Isolation and escalation
-- [ ] `RolePolicy`: a business changes only its **own** roles. Shared templates and the owner role (`admin`)
+- [x] `RolePolicy`: a business changes only its **own** roles. Shared templates and the owner role (`admin`)
       are read-only from a business (update, permissions, activate/deactivate, delete); only the platform
       operator may change them (through the console, B6). `roles.full-access` counts as every other `roles.*`
       permission and never passes these protections.
-- [ ] **No escalation through role editing:** a non-owner can give a role only permissions they hold
+- [x] **No escalation through role editing:** a non-owner can give a role only permissions they hold
       themselves, and can't edit or deactivate a role they hold. Owners can edit any role of their business
       except `admin`.
-- [ ] **Names unique within the business** (a `UniqueForTenant`-style rule for roles, soft rules on the
+- [x] **Names unique within the business** (a `UniqueForTenant`-style rule for roles, soft rules on the
       shared names): a business can't create `admin` or a second role with a template's name. Create and edit
       share one name rule.
-- [ ] Holder counts and the "has holders" check before deleting count only the current business.
+- [x] Holder counts and the "has holders" check before deleting count only the current business.
 
 #### A2. Templates: link, protect, reset
-- [ ] `roles.template_id`: a copy points at the template it was copied from (migration fills it for existing
+- [x] `roles.template_id`: a copy points at the template it was copied from (migration fills it for existing
       copies by name; `CopyRoleTemplates` sets it). Name matching is no longer needed to find a copy's template.
-- [ ] **Copies can't be deleted or renamed;** they can have their permissions edited, be switched off, and be
+- [x] **Copies can't be deleted or renamed;** they can have their permissions edited, be switched off, and be
       **reset to default** (permissions replaced by the template's current ones, after a confirmation).
-- [ ] Custom roles (no template) keep edit, rename and delete (delete still refused while held).
+- [x] Custom roles (no template) keep edit, rename and delete (delete still refused while held).
 
 #### A3. Active and inactive roles
-- [ ] `roles.is_active` (boolean, default true; additive migration, every existing role active).
-- [ ] **An inactive role grants nothing:** its permissions don't count in permission checks (web, both APIs,
+- [x] `roles.is_active` (boolean, default true; additive migration, every existing role active).
+- [x] **An inactive role grants nothing:** its permissions don't count in permission checks (web, both APIs,
       the permissions returned on sign-in and `/api/user`), while the people who hold it keep the assignment, so
       switching it back on restores their access.
-- [ ] An inactive role can't be given to anyone (`GrantableRole`, invites, Add/Edit User).
-- [ ] The owner role can't be switched off. Switching a role is a policy-checked action (`roles.update`),
+- [x] An inactive role can't be given to anyone (`GrantableRole`, invites, Add/Edit User).
+- [x] The owner role can't be switched off. Switching a role is a policy-checked action (`roles.update`),
       audited like other role changes.
-- [ ] **Confirmation before switching a role off:** a SweetAlert2 dialog (already bundled in the theme's
+- [x] **Confirmation before switching a role off:** a SweetAlert2 dialog (already bundled in the theme's
       `vendor.js`/`vendor.min.css`, `Swal.fire`) warns: "People with this role won't be able to do anything in the
       system with it until it's switched back on", names how many people in the business hold it, and needs an
       explicit confirm button; cancelling changes nothing. Shown wherever a role can be switched off (role list,
       role page, edit form). Switching a role back on needs no warning. Without JavaScript, the server still
       asks for confirmation (a `confirm` field the dialog sets), so a role is never switched off by accident.
-- [ ] The role screens show the real state (badge, filter), and the forms' existing checkbox writes it.
+- [x] The role screens show the real state (badge, filter), and the forms' existing checkbox writes it.
 
 #### A4. New permissions
-- [ ] `attributes.view`, `attributes.create`, `attributes.update`, `attributes.delete` and `stock.view` in
+- [x] `attributes.view`, `attributes.create`, `attributes.update`, `attributes.delete` and `stock.view` in
       `PermissionSeeder`. Owners hold every permission; `RoleSeeder` gives them to the manager template and,
       as permissions added later, to every business's manager copy. `stock.view` also to inventory-clerk.
       The customer template's permissions are unchanged.
-- [ ] `AttributePolicy` on every `AttributeController` action, and on the matching `/api` routes if any.
-- [ ] The sidebar entries then show for the roles that hold them.
+- [x] `AttributePolicy` on every `AttributeController` action, and on the matching `/api` routes if any.
+- [x] The sidebar entries then show for the roles that hold them.
 
 #### A5. Business-facing screens
-- [ ] Display names for the templates (Owner, Manager, Cashier, Inventory clerk, Accountant, Customer) on every
+- [x] Display names for the templates (Owner, Manager, Cashier, Inventory clerk, Accountant, Customer) on every
       screen; stored names stay unchanged (the Flutter app reads them).
-- [ ] The permission picker grouped by area, listing only permissions the editor may give; `*.full-access`
+- [x] The permission picker grouped by area, listing only permissions the editor may give; `*.full-access`
       explained in place.
-- [ ] Messages no longer say "Super Admin" (the term is reserved for the platform operator and never shown to a
+- [x] Messages no longer say "Super Admin" (the term is reserved for the platform operator and never shown to a
       business).
 
 ### Part B: Platform admin console
@@ -171,9 +176,9 @@ A `platform.*` route group gated to `super-admin`, under `/platform`.
 
 ## Schema
 
-- [ ] `roles.is_active` boolean, default true.
-- [ ] `roles.template_id` nullable, foreign key to `roles` (`nullOnDelete`).
-- [ ] Five new permissions (data, through `PermissionSeeder`).
+- [x] `roles.is_active` boolean, default true.
+- [x] `roles.template_id` nullable, foreign key to `roles` (`nullOnDelete`).
+- [x] Five new permissions (data, through `PermissionSeeder`).
 - [ ] A suspension status on businesses.
 - [ ] An impersonation log.
 - [ ] Every migration additive or carrying data across; rehearsed on `import_testing` with counts before and
@@ -186,46 +191,46 @@ A `platform.*` route group gated to `super-admin`, under `/platform`.
 ### Part A: Roles per business
 
 **Isolation**
-- [ ] Business A's owner gets a 404 for viewing, editing, switching, resetting or deleting business B's roles
+- [x] Business A's owner gets a 404 for viewing, editing, switching, resetting or deleting business B's roles
       (web and API), and B's roles are unchanged.
-- [ ] No business can change a shared template or the owner role; after a business's attempt, every other
+- [ ] *(business side done in A1; the console side is B6)* No business can change a shared template or the owner role; after a business's attempt, every other
       business's roles and permission checks are unchanged. The platform operator can (through the console).
-- [ ] `roles.full-access` alone can't delete, rename or switch off the owner role or a template.
+- [x] `roles.full-access` alone can't delete, rename or switch off the owner role or a template.
 
 **Escalation**
-- [ ] A non-owner with `roles.update` can't add to a role a permission they don't hold, can't edit or switch off
+- [x] A non-owner with `roles.update` can't add to a role a permission they don't hold, can't edit or switch off
       a role they hold, and can't give an inactive role to anyone.
-- [ ] An owner can edit any role of their business except `admin`.
+- [x] An owner can edit any role of their business except `admin`.
 
 **Templates**
-- [ ] A copied template can't be deleted or renamed (web and API refuse with a clear message, 403 or 422).
-- [ ] "Reset to default" sets the copy's permissions to the template's current permissions, only in that
+- [x] A copied template can't be deleted or renamed (web and API refuse with a clear message, 403 or 422).
+- [x] "Reset to default" sets the copy's permissions to the template's current permissions, only in that
       business, and is refused for custom roles.
-- [ ] A new business gets copies of manager, cashier, inventory clerk, accountant and customer, each linked to
+- [x] A new business gets copies of manager, cashier, inventory clerk, accountant and customer, each linked to
       its template.
 
 **Active and inactive**
-- [ ] A person whose only role is inactive has none of its permissions on the web, the flat API and `/api/v1`,
+- [x] A person whose only role is inactive has none of its permissions on the web, the flat API and `/api/v1`,
       and their sign-in and `/api/user` permissions leave them out; switching the role back on restores them with
       no change to the assignment.
-- [ ] The owner role can't be switched off. Switching a role is recorded in the audit log.
-- [ ] Switching a role off first shows a SweetAlert confirmation saying the people who hold it won't be able to
+- [x] The owner role can't be switched off. Switching a role is recorded in the audit log.
+- [x] Switching a role off first shows a SweetAlert confirmation saying the people who hold it won't be able to
       do anything in the system with it, with how many hold it; cancelling leaves the role active, and a request
       without the confirmation is refused (422). Switching it back on needs no confirmation.
-- [ ] Every role screen shows a role's true active state.
+- [x] Every role screen shows a role's true active state.
 
 **Permissions**
-- [ ] `attributes.view`, `attributes.create`, `attributes.update`, `attributes.delete` and `stock.view` exist;
+- [x] `attributes.view`, `attributes.create`, `attributes.update`, `attributes.delete` and `stock.view` exist;
       owners and managers (copies included) hold them after `db:seed --class=PermissionSeeder` and
       `--class=RoleSeeder`.
-- [ ] Every attribute action is refused (403) without its permission; the Attributes and Stock menu entries show
+- [x] Every attribute action is refused (403) without its permission; the Attributes and Stock menu entries show
       for the roles that hold them.
-- [ ] No `@can()` in the views names a permission that doesn't exist (a test lists them).
+- [x] No `@can()` in the views names a permission that doesn't exist (a test lists them).
 
 **Names and screens**
-- [ ] Two businesses can each have a role with the same name; a business can't create `admin` or a second role
+- [x] Two businesses can each have a role with the same name; a business can't create `admin` or a second role
       with a template's name; create and edit apply the same name rule.
-- [ ] The owner shows as "Owner" and the templates by their display names; no business screen says
+- [x] The owner shows as "Owner" and the templates by their display names; no business screen says
       "Super Admin" or shows a fictitious state.
 
 ### Part B: Platform console
