@@ -44,6 +44,8 @@ describe('round trip on MySQL', function () {
             $table->string('name');
             $table->boolean('is_active');
             $table->json('settings')->nullable();
+            // A generated column, like attributes.alive: MySQL refuses a value for it.
+            $table->boolean('alive')->storedAs('is_active = 1');
         });
 
         $this->db->table('snapshot_probe_values')->insert([

@@ -18,8 +18,8 @@
                     @endif
 
                     <div class="mt-3">
-                        @if ($role->is_system)
-                            <x-ui-badge variant="warning">System Role</x-ui-badge>
+                        @if ($role->isTemplateCopy() || $role->isShared())
+                            <x-ui-badge variant="warning">{{ __('Built-in role') }}</x-ui-badge>
                         @else
                             <x-ui-badge variant="secondary">Custom Role</x-ui-badge>
                         @endif
@@ -37,14 +37,14 @@
                             </x-ui-button>
                         @endcan
 
-                        @if (!$role->is_system)
-                            @can('delete', $role)
-                                <x-ui-button variant="danger" size="sm" data-bs-toggle="modal"
-                                    data-bs-target="#deleteRoleModal">
-                                    Delete
-                                </x-ui-button>
-                            @endcan
-                        @endif
+                        @include('roles.partials.reset-form')
+
+                        @can('delete', $role)
+                            <x-ui-button variant="danger" size="sm" data-bs-toggle="modal"
+                                data-bs-target="#deleteRoleModal">
+                                Delete
+                            </x-ui-button>
+                        @endcan
                     </div>
                 </div>
 
@@ -179,7 +179,6 @@
         </div>
     </div>
 
-    @if (!$role->is_system)
         @can('delete', $role)
             @push('modals')
                 <x-ui-modal id="deleteRoleModal" title="Confirm Delete" centered>
@@ -206,5 +205,4 @@
                 </x-ui-modal>
             @endpush
         @endcan
-    @endif
 @endsection

@@ -90,12 +90,12 @@ class RoleSeeder extends Seeder
      */
     private function grantNewPermissionsToBusinessCopies(): void
     {
-        $templates = DB::table('roles')->whereNull('business_id')->where('name', '!=', 'admin')->get()->keyBy('name');
-
-        foreach (DB::table('roles')->whereNotNull('business_id')->whereIn('name', $templates->keys())->get() as $copy) {
+        // Each copy names its template (roles.template_id, Phase 5).
+        foreach (DB::table('roles as copies')->join('roles as templates', 'templates.id', '=', 'copies.template_id')
+            ->whereNotNull('copies.business_id')->get(['copies.id', 'copies.created_at', 'copies.template_id']) as $copy) {
             $newer = DB::table('role_has_permissions')
                 ->join('permissions', 'permissions.id', '=', 'role_has_permissions.permission_id')
-                ->where('role_has_permissions.role_id', $templates[$copy->name]->id)
+                ->where('role_has_permissions.role_id', $copy->template_id)
                 ->where('permissions.created_at', '>', $copy->created_at)
                 ->pluck('permissions.id');
 

@@ -11,17 +11,17 @@
 
                 <!-- Role Information -->
                 <x-ui-card title="Role Information" class="mb-3">
-                    @if ($role->is_system)
+                    @if ($role->isTemplateCopy())
                         <x-ui-alert variant="warning" class="mb-3">
                             <i class="bx bx-error me-1"></i>
-                            This is a system role. Some fields may be restricted.
+                            {{ __('This is a built-in role: it keeps its name and can\'t be deleted. You can change its permissions, or reset it to default.') }}
                         </x-ui-alert>
                     @endif
 
                     <div class="row">
                         <div class="col-lg-6">
                             <x-ui-form-input name="name" label="Role Name" :value="old('name', $role->name)"
-                                placeholder="e.g., Store Manager" required :readonly="$role->is_system" />
+                                placeholder="e.g., Store Manager" required :readonly="$role->isTemplateCopy()" />
                         </div>
 
                         <div class="col-lg-6">
@@ -95,20 +95,17 @@
                     <x-ui-button variant="secondary" href="{{ route('roles.index') }}">
                         Cancel
                     </x-ui-button>
-                    @if (!$role->is_system)
-                        @can('delete', $role)
-                            <x-ui-button variant="danger" data-bs-toggle="modal" data-bs-target="#deleteRoleModal"
-                                class="float-end">
-                                Delete Role
-                            </x-ui-button>
-                        @endcan
-                    @endif
+                    @can('delete', $role)
+                        <x-ui-button variant="danger" data-bs-toggle="modal" data-bs-target="#deleteRoleModal"
+                            class="float-end">
+                            Delete Role
+                        </x-ui-button>
+                    @endcan
                 </div>
             </form>
         </div>
     </div>
 
-    @if (!$role->is_system)
         @can('delete', $role)
             @push('modals')
                 <x-ui-modal id="deleteRoleModal" title="Confirm Delete" centered>
@@ -135,5 +132,4 @@
                 </x-ui-modal>
             @endpush
         @endcan
-    @endif
 @endsection

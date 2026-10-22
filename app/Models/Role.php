@@ -6,6 +6,7 @@ use App\Actions\Business\CopyRoleTemplates;
 use App\Models\Concerns\Auditable;
 use App\Models\Scopes\BusinessOrSharedScope;
 use App\Support\Tenancy\TenantContext;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Support\Str;
 use Spatie\Permission\Contracts\Role as RoleContract;
@@ -78,6 +79,25 @@ class Role extends SpatieRole
     public function holders(): BelongsToMany
     {
         return $this->users()->wherePivot(app(PermissionRegistrar::class)->teamsKey, app(TenantContext::class)->id());
+    }
+
+    /**
+     * The shared template a business's copy was made from (Phase 5). The
+     * role scope hides a template behind the business's copy of it, so the
+     * link reads past that scope.
+     */
+    public function template(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'template_id')->withoutGlobalScope(BusinessOrSharedScope::class);
+    }
+
+    /**
+     * A business's copy of a shared template: can't be deleted or renamed,
+     * can be reset to the template's permissions.
+     */
+    public function isTemplateCopy(): bool
+    {
+        return $this->template_id !== null;
     }
 
     /**

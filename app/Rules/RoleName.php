@@ -14,7 +14,7 @@ use Illuminate\Support\Facades\DB;
  * alike: unique among the business's own roles, so two businesses may each
  * have a "supervisor", and never a built-in role's name (`admin`, `manager`,
  * ...), so a business can't make a second owner role or shadow a template.
- * A business's copy of a template keeps its name.
+ * A business's copy of a template keeps its name, and can't be renamed.
  */
 class RoleName implements ValidationRule
 {
@@ -26,6 +26,12 @@ class RoleName implements ValidationRule
         $name = (string) $value;
 
         $keepsOwnName = $this->editing !== null && $this->editing->name === $name;
+
+        if ($this->editing?->isTemplateCopy() && ! $keepsOwnName) {
+            $fail(__('A built-in role keeps its name.'));
+
+            return;
+        }
 
         // Plain queries: the role scope hides a template behind the business's
         // copy, and these checks need both.

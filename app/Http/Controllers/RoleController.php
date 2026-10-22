@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\Role\ResetRoleToTemplate;
 use App\Actions\Role\SyncRolePermissions;
+use App\Http\Requests\ResetRoleRequest;
 use App\Http\Requests\StoreRoleRequest;
 use App\Http\Requests\UpdateRolePermissionsRequest;
 use App\Http\Requests\UpdateRoleRequest;
@@ -152,5 +154,18 @@ class RoleController extends Controller
         return redirect()
             ->route('roles.index')
             ->with('success', 'Role permissions updated successfully.');
+    }
+
+    /**
+     * Reset a business's copy of a role template to the template's current
+     * permissions (Phase 5).
+     */
+    public function reset(ResetRoleRequest $request, Role $role, ResetRoleToTemplate $reset)
+    {
+        $reset->execute($role);
+
+        return redirect()
+            ->route('roles.show', $role)
+            ->with('success', __('The role was reset to its default permissions.'));
     }
 }

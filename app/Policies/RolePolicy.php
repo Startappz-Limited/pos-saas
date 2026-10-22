@@ -13,6 +13,9 @@ use Illuminate\Auth\Access\Response;
  * permission and never passes these protections. A non-owner can't change a
  * role they hold, so nobody raises their own permissions by editing a role.
  *
+ * A business's copy of a template can't be deleted (it can be reset to
+ * default instead), and its name stays (RoleName).
+ *
  * Another business's role never reaches the policy: route binding doesn't
  * find it (BusinessOrSharedScope), so it is a 404.
  */
@@ -40,7 +43,37 @@ class RolePolicy
 
     public function delete(User $user, Role $role): Response
     {
-        return $this->changeable($user, $role, 'roles.delete');
+        $changeable = $this->changeable($user, $role, 'roles.delete');
+
+        if ($changeable->allowed() && $role->isTemplateCopy()) {
+            return Response::deny(__('A built-in role can\'t be deleted. You can reset it to default instead.'));
+        }
+
+        return $changeable;
+    }
+
+    /**
+     * Resetting a business's copy of a template to the template's current
+     * permissions. A non-owner may do it only when they hold every one of
+     * them, as when giving permissions by hand.
+     */
+    public function reset(User $user, Role $role): Response
+    {
+        $changeable = $this->changeable($user, $role, 'roles.update');
+
+        if ($changeable->denied()) {
+            return $changeable;
+        }
+
+        if (! $role->isTemplateCopy() || $role->template === null) {
+            return Response::deny(__('Only a built-in role can be reset to default.'));
+        }
+
+        if (! $user->isBusinessOwner() && $role->template->permissions->pluck('name')->diff($user->getAllPermissions()->pluck('name'))->isNotEmpty()) {
+            return Response::deny(__('You can only reset a role to permissions you hold.'));
+        }
+
+        return Response::allow();
     }
 
     public function restore(User $user, Role $role): Response

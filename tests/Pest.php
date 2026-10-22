@@ -11,6 +11,7 @@ use App\Support\Tenancy\TenantContext;
 use Database\Seeders\PermissionSeeder;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Spatie\Permission\Models\Permission;
@@ -90,6 +91,22 @@ function sharedRole(string $name): Role
 function seedPermissions(): void
 {
     PermissionSeeder::insertMissing();
+}
+
+/**
+ * Gives the audit connection its schema: RefreshDatabase migrates only the
+ * default connection, and in tests the audit trail is a separate in-memory
+ * SQLite database.
+ */
+function migrateAuditDatabase(): void
+{
+    if (! Schema::connection('audit')->hasTable('audit_logs')) {
+        Artisan::call('migrate', [
+            '--database' => 'audit',
+            '--path' => 'database/migrations/audit',
+            '--force' => true,
+        ]);
+    }
 }
 
 /**
