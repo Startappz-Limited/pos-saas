@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\Auditable;
 use App\Models\Concerns\BelongsToBusiness;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -18,6 +19,7 @@ use Illuminate\Support\Str;
  */
 class Subscription extends Model
 {
+    use Auditable;
     use BelongsToBusiness;
 
     public const TRIALING = 'trialing';
@@ -28,7 +30,7 @@ class Subscription extends Model
 
     protected $fillable = [
         'business_id', 'plan_id', 'shop_count', 'price_at_signup', 'status',
-        'trial_ends_at', 'current_period_end', 'renewal_reminded_at', 'lapse_warned_at',
+        'trial_ends_at', 'current_period_end', 'renewal_reminded_at', 'trial_final_reminded_at', 'lapse_warned_at',
     ];
 
     protected function casts(): array
@@ -38,6 +40,7 @@ class Subscription extends Model
             'trial_ends_at' => 'datetime',
             'current_period_end' => 'datetime',
             'renewal_reminded_at' => 'datetime',
+            'trial_final_reminded_at' => 'datetime',
             'lapse_warned_at' => 'datetime',
         ];
     }

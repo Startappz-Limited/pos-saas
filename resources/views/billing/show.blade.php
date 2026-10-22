@@ -39,6 +39,13 @@
                                 <span class="badge bg-danger-subtle text-danger">{{ __('Lapsed') }}</span>
                             @endif
                         </dd>
+                        @if ($subscription->status === 'trialing')
+                            <dt class="col-sm-4">{{ __('Trial ends') }}</dt>
+                            <dd class="col-sm-8">{{ $subscription->trial_ends_at->toFormattedDayDateString() }}</dd>
+                        @elseif ($subscription->trial_ends_at && $subscription->trial_ends_at->isFuture())
+                            <dt class="col-sm-4">{{ __('Paid period starts') }}</dt>
+                            <dd class="col-sm-8">{{ $subscription->trial_ends_at->toFormattedDayDateString() }} ({{ __('the rest of your trial is kept') }})</dd>
+                        @endif
                         <dt class="col-sm-4">{{ __('Shops paid for') }}</dt>
                         <dd class="col-sm-8">{{ $subscription->shop_count }} ({{ __(':count in use', ['count' => $usage['shops']]) }})</dd>
                         <dt class="col-sm-4">{{ __('Each month') }}</dt>
@@ -67,6 +74,48 @@
                         </form>
                     @else
                         <p class="text-muted mb-0">{{ __('Pay the platform by M-Pesa and we record it against your business. Online payment is coming soon.') }}</p>
+                    @endif
+
+                    @if ($subscription->status === 'trialing' || $plan->is_trial_plan)
+                        <hr>
+                        <form method="POST" action="{{ route('billing.plan') }}" id="plan-form">
+                            @csrf
+                            <h6>{{ __('Change plan') }}</h6>
+                            <p class="small text-muted">{{ __('Switching plan takes effect now and never changes when your trial ends. Pay after you have chosen.') }}</p>
+                            @if (session('plan_warnings'))
+                                <div class="alert alert-warning">
+                                    <ul class="mb-2">
+                                        @foreach (session('plan_warnings') as $warning)
+                                            <li>{{ $warning }}</li>
+                                        @endforeach
+                                    </ul>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="confirm" value="1" id="plan_confirm">
+                                        <label class="form-check-label" for="plan_confirm">{{ __('I understand, change my plan anyway') }}</label>
+                                    </div>
+                                </div>
+                            @endif
+                            <div class="row g-2 align-items-end">
+                                <div class="col-sm-5">
+                                    <label class="form-label" for="plan_key">{{ __('Plan') }}</label>
+                                    <select name="plan" id="plan_key" class="form-select">
+                                        @if ($plan->is_trial_plan)
+                                            <option value="{{ $plan->key }}" selected>{{ $plan->name }}</option>
+                                        @endif
+                                        @foreach ($tiers as $tier)
+                                            <option value="{{ $tier->key }}" @selected(old('plan', $plan->key) === $tier->key)>{{ $tier->name }} — KES {{ number_format((float) $tier->price_per_shop) }} / {{ __('shop / month') }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                                <div class="col-sm-3">
+                                    <label class="form-label" for="plan_shops">{{ __('Shops') }}</label>
+                                    <input type="number" name="shop_count" id="plan_shops" class="form-control" min="1" max="50" value="{{ old('shop_count', $subscription->shop_count) }}">
+                                </div>
+                                <div class="col-sm-4">
+                                    <x-ui-button variant="outline-primary" type="submit">{{ __('Change plan') }}</x-ui-button>
+                                </div>
+                            </div>
+                        </form>
                     @endif
 
                     <hr>

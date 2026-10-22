@@ -87,59 +87,59 @@ No open question blocks this stage.
 ### 2. Plans and trials at signup
 
 #### 2.1 Signup flow
-- [ ] Signup opens on a **plan picker**: the Free Trial card and the three tiers, read from plan data. Each tier
+- [x] Signup opens on a **plan picker**: the Free Trial card and the three tiers, read from plan data. Each tier
       card shows its price per shop per month and its limits (shops, staff, registers, WhatsApp sessions,
       features).
-- [ ] Picking a tier asks for the number of shops (the subscription's shop count) and shows the monthly total
+- [x] Picking a tier asks for the number of shops (the subscription's shop count) and shows the monthly total
       the business will pay after the trial.
-- [ ] Every card says "14-day trial, no payment now".
-- [ ] On submit, one transaction creates the business, the owner (role `admin`), the first shop, the role
+- [x] Every card says "14-day trial, no payment now".
+- [x] On submit, one transaction creates the business, the owner (role `admin`), the first shop, the role
       template copies (`CopyRoleTemplates`) and the subscription in its trial state with
       `trial_ends_at = signup + 14 days`.
 
 #### 2.2 Free Trial
-- [ ] A **Free Trial plan record** (plan data, not code): 1 shop, 3 staff (the owner counts as one), and trial
+- [x] A **Free Trial plan record** (plan data, not code): 1 shop, 3 staff (the owner counts as one), and trial
       limits for registers, products and WhatsApp sessions; 14 days.
-- [ ] The person who signs up is the owner (`admin`). They can add users with any role, `admin` included,
+- [x] The person who signs up is the owner (`admin`). They can add users with any role, `admin` included,
       subject to `GrantableRole` (only an owner gives `admin`). No role is locked on the Free Trial.
-- [ ] One Free Trial per owner email and per business; a second signup with the same email is refused.
+- [x] One Free Trial per owner email and per business; a second signup with the same email is refused.
 
 #### 2.3 Tier trials
-- [ ] A tier trial uses the picked tier's plan and limits, with its shop count, for 14 days.
-- [ ] Roles work as on the Free Trial and on paid plans (role templates, `GrantableRole`).
+- [x] A tier trial uses the picked tier's plan and limits, with its shop count, for 14 days.
+- [x] Roles work as on the Free Trial and on paid plans (role templates, `GrantableRole`).
 
 #### 2.4 Limits
-- [ ] All limits go through the existing `limit()`; no new checks.
-- [ ] **Pending invites count toward the staff limit:** `limit()` counts active staff plus pending (not expired,
+- [x] All limits go through the existing `limit()`; no new checks.
+- [x] **Pending invites count toward the staff limit:** `limit()` counts active staff plus pending (not expired,
       not revoked) invites.
-- [ ] Shop and register limits as built in Phase 4.
+- [x] Shop and register limits as built in Phase 4.
 
 #### 2.5 Trial end
-- [ ] Trial end is a **lapse**: the existing read-only middleware applies (read-only plus export for 30 business
+- [x] Trial end is a **lapse**: the existing read-only middleware applies (read-only plus export for 30 business
       days, `subscription_inactive`, then the closure flow). No new status.
-- [ ] Reminders before the trial ends (e.g. 3 days and 1 day before) through the Phase 4 reminder notifications.
-- [ ] Continuing after the trial:
+- [x] Reminders before the trial ends (e.g. 3 days and 1 day before) through the Phase 4 reminder notifications.
+- [x] Continuing after the trial:
   - **Tier trial:** pay for the tier and shop count.
   - **Free Trial:** pick a tier and shop count, then pay.
   - Until go-live, payment is recorded by hand in the platform console; after go-live, the M-Pesa path.
-- [ ] Users and their roles carry over unchanged when a trial becomes a paid plan.
+- [x] Users and their roles carry over unchanged when a trial becomes a paid plan.
 
 #### 2.6 Changing plan during a trial
-- [ ] **Choosing a tier without paying** (Free Trial → a tier, or one tier → another): the trial's plan, limits
+- [x] **Choosing a tier without paying** (Free Trial → a tier, or one tier → another): the trial's plan, limits
       and shop count change immediately; `trial_ends_at` stays the same. The 14 days never restart.
-- [ ] **Paying during a trial:** the payment is accepted and recorded; the trial ends and the paid period
+- [x] **Paying during a trial:** the payment is accepted and recorded; the trial ends and the paid period
       starts on the original `trial_ends_at`, so the remaining trial days are kept. The first paid period runs
       from `trial_ends_at` to `trial_ends_at` + one billing period.
-- [ ] **Moving to a smaller plan during a trial** (fewer shops or lower limits than the business already uses):
+- [x] **Moving to a smaller plan during a trial** (fewer shops or lower limits than the business already uses):
       the Phase 4 downgrade rule applies; every shop is read-only until the business is within the new quota
       (sign-in, viewing, export and deleting shops still work). The plan picker warns before confirming.
-- [ ] **Staff over the new limit:** existing staff stay; new users and invites are refused by `limit()` until
+- [x] **Staff over the new limit:** existing staff stay; new users and invites are refused by `limit()` until
       the business is within the limit.
-- [ ] Payments during a trial, manual (platform console) or M-Pesa after go-live, extend the subscription
+- [x] Payments during a trial, manual (platform console) or M-Pesa after go-live, extend the subscription
       exactly once, as in Phase 4.
-- [ ] The billing page shows the current plan, shop count, trial end date and, after an early payment, the date
+- [x] The billing page shows the current plan, shop count, trial end date and, after an early payment, the date
       the paid period starts.
-- [ ] Every plan change during a trial is recorded in the audit log (who, from, to, when).
+- [x] Every plan change during a trial is recorded in the audit log (who, from, to, when).
 
 ### 3. Email verification with a 24-hour grace period
 
@@ -207,9 +207,9 @@ No password is set by the inviter.
 
 ## Schema
 
-- [ ] Free Trial plan record (data): 1 shop, 3 staff, trial limits, 14 days. Trial length set to 14 days on the
+- [x] Free Trial plan record (data): 1 shop, 3 staff, trial limits, 14 days. Trial length set to 14 days on the
       tier plans.
-- [ ] `users.verification_deadline_at` nullable; existing unverified users get `now + 24 hours` on deploy.
+- [x] `users.verification_deadline_at` nullable; existing unverified business owners get `now + 24 hours` on deploy (staff added by an admin were never asked to verify, so they get none).
 - [ ] `users.status` (`invited`, `active`, `disabled`), existing users `active`; `users.name` and
       `users.password` nullable for invited users.
 - [ ] `user_invitations`: business, user, email, role, invited by, token hash, expires at, accepted at, revoked

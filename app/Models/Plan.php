@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\Feature;
 use App\Enums\Limit;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
@@ -14,7 +15,7 @@ use Illuminate\Support\Str;
  */
 class Plan extends Model
 {
-    protected $fillable = ['key', 'name', 'price_per_shop', 'currency', 'limits', 'features', 'trial_days', 'is_active', 'sort_order'];
+    protected $fillable = ['key', 'name', 'price_per_shop', 'currency', 'limits', 'features', 'trial_days', 'is_active', 'is_trial_plan', 'sort_order'];
 
     protected function casts(): array
     {
@@ -23,6 +24,7 @@ class Plan extends Model
             'limits' => 'array',
             'features' => 'array',
             'is_active' => 'boolean',
+            'is_trial_plan' => 'boolean',
         ];
     }
 
@@ -41,6 +43,15 @@ class Plan extends Model
     public function subscriptions(): HasMany
     {
         return $this->hasMany(Subscription::class);
+    }
+
+    /**
+     * The plans a business can pay for, cheapest first: the active tiers,
+     * not the Free Trial.
+     */
+    public function scopeTiers(Builder $query): Builder
+    {
+        return $query->where('is_active', true)->where('is_trial_plan', false)->orderBy('sort_order');
     }
 
     public function hasFeature(Feature $feature): bool

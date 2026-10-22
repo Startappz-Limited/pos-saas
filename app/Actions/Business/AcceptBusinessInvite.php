@@ -39,6 +39,10 @@ class AcceptBusinessInvite
                 throw new InvalidArgumentException('This invitation is no longer valid.');
             }
 
+            // Spent first: a pending invite holds a staff seat, and the member
+            // it becomes must not be counted against the plan twice.
+            $invite->update(['accepted_at' => now(), 'accepted_by' => $user->id]);
+
             $this->tenant->run($invite->business_id, function () use ($invite, $user): void {
                 $membership = $user->joinBusiness($invite->business, $invite->inviter);
 
@@ -57,8 +61,6 @@ class AcceptBusinessInvite
                     ->whereIn('id', $invite->shop_ids ?? [])->pluck('id');
                 $user->shops()->syncWithoutDetaching($shopIds);
             });
-
-            $invite->update(['accepted_at' => now(), 'accepted_by' => $user->id]);
 
             if (! $user->hasVerifiedEmail()) {
                 $user->markEmailAsVerified();

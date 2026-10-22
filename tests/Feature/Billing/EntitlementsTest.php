@@ -19,8 +19,18 @@ use Illuminate\Support\Carbon;
  * Plans, the trial and the one entitlements check (Phase 4, decision 4.6).
  */
 it('seeds the three tiers at 1,500, 3,000 and 5,000 per shop', function () {
-    expect(Plan::query()->orderBy('sort_order')->pluck('price_per_shop', 'key')->map(fn ($price) => (float) $price)->all())
+    expect(Plan::query()->tiers()->pluck('price_per_shop', 'key')->map(fn ($price) => (float) $price)->all())
         ->toBe(['tier-1' => 1500.0, 'tier-2' => 3000.0, 'tier-3' => 5000.0]);
+});
+
+it('seeds the Free Trial as plan data, outside the tiers (Phase 6)', function () {
+    $plan = Plan::query()->where('key', 'free-trial')->firstOrFail();
+
+    expect($plan->is_trial_plan)->toBeTrue()
+        ->and((float) $plan->price_per_shop)->toBe(0.0)
+        ->and($plan->trial_days)->toBe(14)
+        ->and($plan->limit(Limit::Staff))->toBe(3)
+        ->and(Plan::query()->tiers()->pluck('key')->all())->not->toContain('free-trial');
 });
 
 it('treats a business with no subscription as unmetered', function () {
@@ -98,23 +108,32 @@ it('adds the configured number of business days for the grace end', function () 
     Carbon::setTestNow();
 });
 
-it('starts a trial on the top tier when the owner verifies their email', function () {
+it('starts the trial at signup, not at verification (Phase 6)', function () {
     seedRolesAndPermissions();
     $user = app(RegisterBusiness::class)->execute([
-        'name' => 'Owner', 'email' => 'owner@trial.test', 'password' => 'Str0ng-P0S-Pass!', 'business_name' => 'Trial Co',
+        'name' => 'Owner', 'email' => 'owner@trialco.co.ke', 'password' => 'purple tractors drink warm milk', 'business_name' => 'Trial Co',
     ]);
     $business = $user->memberships()->first()->business;
 
-    expect(Subscription::query()->withoutGlobalScopes()->where('business_id', $business->id)->exists())->toBeFalse();
-
-    event(new Verified($user));
-
     $subscription = Subscription::query()->withoutGlobalScopes()->where('business_id', $business->id)->with('plan')->first();
-    expect($subscription->plan->key)->toBe('tier-3')
+    expect($subscription->plan->key)->toBe('free-trial')
         ->and($subscription->status)->toBe(Subscription::TRIALING)
         ->and($subscription->isInGoodStanding())->toBeTrue()
-        ->and($subscription->trial_ends_at->isSameDay(now()->addDays($subscription->plan->trial_days)))->toBeTrue()
+        ->and($subscription->trial_ends_at->isSameDay(now()->addDays(14)))->toBeTrue()
         ->and($subscription->shop_count)->toBe(1);
+
+    // Verifying later neither restarts nor replaces it.
+    event(new Verified($user));
+    expect(Subscription::query()->withoutGlobalScopes()->where('business_id', $business->id)->count())->toBe(1)
+        ->and(Subscription::query()->withoutGlobalScopes()->where('business_id', $business->id)->value('trial_ends_at'))->toEqual($subscription->trial_ends_at);
+});
+
+it('starts the top-tier trial when StartTrial is given no plan', function () {
+    $business = Business::factory()->create();
+
+    $subscription = app(StartTrial::class)->execute($business);
+
+    expect($subscription->plan->key)->toBe('tier-3');
 });
 
 it('starts a trial only once per business', function () {

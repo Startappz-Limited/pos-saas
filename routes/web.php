@@ -132,6 +132,7 @@ Route::middleware(['auth', 'business'])->group(function () {
     Route::post('billing/pay', [BillingController::class, 'pay'])->middleware('throttle:10,1')->name('billing.pay');
     Route::post('billing/ai-topup', [BillingController::class, 'topUp'])->middleware('throttle:10,1')->name('billing.ai-topup');
     Route::post('billing/shops', [BillingController::class, 'shops'])->name('billing.shops');
+    Route::post('billing/plan', [BillingController::class, 'plan'])->name('billing.plan');
     Route::post('billing/payments/{payment:uuid}/check', [BillingController::class, 'check'])->middleware('throttle:20,1')->name('billing.payments.check');
     Route::get('business/settings', [BusinessSettingsController::class, 'edit'])->name('business.settings.edit');
     Route::put('business/settings', [BusinessSettingsController::class, 'update'])->name('business.settings.update');

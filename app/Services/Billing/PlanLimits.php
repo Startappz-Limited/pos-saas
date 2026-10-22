@@ -54,7 +54,10 @@ class PlanLimits
     {
         return match ($limit) {
             Limit::Shops => DB::table('shops')->where('business_id', $businessId)->whereNull('deleted_at')->count(),
-            Limit::Staff => DB::table('business_user')->where('business_id', $businessId)->where('status', 'active')->count(),
+            // Pending invites hold a seat (Phase 6), so invites can't oversell the plan.
+            Limit::Staff => DB::table('business_user')->where('business_id', $businessId)->where('status', 'active')->count()
+                + DB::table('business_invites')->where('business_id', $businessId)
+                    ->whereNull('accepted_at')->whereNull('revoked_at')->where('expires_at', '>', now())->count(),
             Limit::Products => DB::table('products')->where('business_id', $businessId)->whereNull('deleted_at')->count(),
             Limit::Registers => DB::table('registers')->where('shop_id', $shopId)->count(),
             Limit::WhatsappSessions => DB::table('baileys_sessions')

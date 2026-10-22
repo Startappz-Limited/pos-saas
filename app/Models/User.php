@@ -76,6 +76,7 @@ class User extends Authenticatable
     {
         return [
             'email_verified_at' => 'datetime',
+            'verification_deadline_at' => 'datetime',
             // Never fillable: only the platform grants it.
             'is_platform_operator' => 'boolean',
             'password' => 'hashed',

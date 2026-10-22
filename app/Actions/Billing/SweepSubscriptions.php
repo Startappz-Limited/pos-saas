@@ -79,6 +79,15 @@ class SweepSubscriptions
                 $result['reminded']++;
             }
 
+            // A trial gets a second, last reminder the day before it ends (Phase 6).
+            if ($subscription->status === Subscription::TRIALING
+                && $subscription->trial_final_reminded_at === null
+                && $endsAt->lte(now()->addDay())) {
+                $this->notifyOwners($business, new SubscriptionReminder(SubscriptionReminder::RENEWAL, $business->name, $endsAt));
+                $subscription->update(['trial_final_reminded_at' => now()]);
+                $result['reminded']++;
+            }
+
             return;
         }
 
