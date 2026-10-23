@@ -75,6 +75,11 @@ class ApplyPlatformPayment
         $subscription = Subscription::query()->lockForUpdate()->first()
             ?? throw new PaymentRejected(__('This business has no subscription.'));
 
+        // The Free Trial has no price: pick a tier first (Phase 6).
+        if ($subscription->plan->is_trial_plan) {
+            throw new PaymentRejected(__('Choose a plan before paying: the Free Trial has no price.'));
+        }
+
         $monthly = $subscription->monthlyTotal();
         $months = $monthly > 0 ? (int) floor(((float) $payment->amount + 0.005) / $monthly) : 1;
 
@@ -89,6 +94,7 @@ class ApplyPlatformPayment
             'status' => Subscription::ACTIVE,
             'current_period_end' => $from->copy()->addMonthsNoOverflow($months),
             'renewal_reminded_at' => null,
+            'trial_final_reminded_at' => null,
             'lapse_warned_at' => null,
         ]);
     }

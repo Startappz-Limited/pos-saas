@@ -51,4 +51,38 @@ return [
         'uncompromised' => (bool) env('SECURITY_PASSWORD_UNCOMPROMISED', true),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Signup (Phase 6)
+    |--------------------------------------------------------------------------
+    |
+    | `check_dns` asks DNS whether an email's domain accepts mail; `breach_check`
+    | asks Have I Been Pwned (range API, k-anonymity) whether a password was
+    | leaked. Both are network calls: off in tests, and both fail open on error.
+    |
+    */
+
+    'signup' => [
+        'check_dns' => (bool) env('SECURITY_SIGNUP_CHECK_DNS', true),
+        'breach_check' => (bool) env('SECURITY_SIGNUP_BREACH_CHECK', true),
+        'attempts_per_window' => 5,
+        'window_minutes' => 15,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Email verification grace (Phase 6)
+    |--------------------------------------------------------------------------
+    |
+    | An owner may work unverified for 24 hours after signup (or an email
+    | change). After that everything is refused with `email_verification_required`
+    | except these route names and paths: verifying, resending the link,
+    | changing the email, and signing out.
+    |
+    */
+
+    'verification_allowed' => [
+        'verification.*', 'logout', 'api/logout', 'api.v1.auth.sign-out',
+    ],
+
 ];

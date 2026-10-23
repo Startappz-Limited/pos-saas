@@ -2,12 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\Billing\ChangeTrialPlan;
 use App\Actions\Billing\ConfirmPlatformPayment;
 use App\Actions\Billing\RequestPlatformPayment;
 use App\Contracts\PaymentCollector;
 use App\Enums\Limit;
 use App\Exceptions\PaymentRejected;
 use App\Models\AiUsageEvent;
+use App\Models\Plan;
 use App\Models\PlatformPayment;
 use App\Services\Billing\AiCredits;
 use App\Services\Billing\Entitlements;
@@ -15,6 +17,7 @@ use App\Services\Billing\PlanLimits;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 /**
@@ -36,6 +39,7 @@ class BillingController extends Controller
 
         return view('billing.show', [
             'subscription' => $subscription,
+            'tiers' => Plan::query()->tiers()->get(),
             'entitlements' => $this->entitlements,
             'usage' => [
                 'shops' => $limits->count(Limit::Shops, $businessId),
@@ -98,6 +102,44 @@ class BillingController extends Controller
     }
 
     /**
+     * Choosing a tier during a trial (Phase 6): applies at once and keeps the
+     * trial's end. When the choice would put the business over the new plan's
+     * limits, nothing changes until the owner confirms the warning.
+     */
+    public function plan(Request $request, ChangeTrialPlan $change): RedirectResponse
+    {
+        $this->ownersOnly($request);
+
+        $data = $request->validate([
+            'plan' => ['required', 'string', Rule::exists('plans', 'key')->where('is_active', true)],
+            'shop_count' => ['nullable', 'integer', 'min:1', 'max:50'],
+            'confirm' => ['nullable', 'boolean'],
+        ]);
+
+        $subscription = $this->entitlements->subscription();
+        abort_if($subscription === null, 404);
+
+        $plan = Plan::query()->where('key', $data['plan'])->firstOrFail();
+        $shopCount = (int) ($data['shop_count'] ?? $subscription->shop_count);
+
+        $warnings = $change->warnings($subscription, $plan, $shopCount);
+
+        if ($warnings !== [] && ! $request->boolean('confirm')) {
+            return back()->withInput()->with('plan_warnings', $warnings);
+        }
+
+        try {
+            $change->execute($plan, $shopCount);
+        } catch (PaymentRejected $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return back()->with('success', __('You are now on :plan. Your trial still ends on :date.', [
+            'plan' => $plan->name, 'date' => $subscription->trial_ends_at->toFormattedDayDateString(),
+        ]));
+    }
+
+    /**
      * The number of shops the subscription pays for. Raising it takes effect
      * now and is billed from the next payment; lowering it below the shops the
      * business has makes every shop read-only until enough are deleted.
@@ -110,6 +152,10 @@ class BillingController extends Controller
         $subscription = $this->entitlements->subscription();
 
         abort_if($subscription === null, 404);
+
+        if ($subscription->plan->is_trial_plan) {
+            return back()->with('error', __('The Free Trial includes one shop. Choose a plan to add more.'));
+        }
 
         $subscription->update(['shop_count' => $data['shop_count']]);
 

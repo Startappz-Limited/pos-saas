@@ -2,7 +2,7 @@
     <div class="text-center mb-4">
         <h4 class="mb-2">{{ __('Join :business', ['business' => $invite->business->name]) }}</h4>
         <p class="text-muted">
-            {{ __('You are invited as :role. This invitation is for :email.', ['role' => $invite->role?->name, 'email' => $invite->email]) }}
+            {{ __('You are invited as :role. This invitation is for :email.', ['role' => $invite->role?->displayName(), 'email' => $invite->email]) }}
         </p>
     </div>
 
@@ -28,8 +28,9 @@
             @csrf
             @honeypot
 
-            <x-ui-form-input name="name" label="{{ __('Full name') }}" :value="old('name')" required autofocus />
-            <x-ui-form-input name="password" type="password" label="{{ __('Password') }}" required />
+            <x-ui-form-input name="name" label="{{ __('Full name') }}" :value="old('name', $invite->name)" required :autofocus="! $invite->name" />
+            <x-ui-form-input name="password" type="password" label="{{ __('Password') }}" required
+                help="{{ __('10 to 128 characters. A few random words make a strong password.') }}" />
             <x-ui-form-input name="password_confirmation" type="password" label="{{ __('Confirm password') }}" required />
 
             <x-ui-button variant="primary" type="submit" class="w-100">{{ __('Create account and join') }}</x-ui-button>

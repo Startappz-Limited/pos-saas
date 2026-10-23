@@ -56,7 +56,7 @@ function inviteAs(User $sender, string $email, string $role = 'manager', array $
 
 it('creates a new login from an invite, verified, with the role and shops in the business', function () {
     $shop = $this->a->shops[1];
-    $url = inviteAs($this->a->owner, 'new.person@example.test', 'manager', [$shop->id]);
+    $url = inviteAs($this->a->owner, 'new.person@bravo-shop.co.ke', 'manager', [$shop->id]);
 
     $invite = $this->tenant->run($this->a->business, fn () => BusinessInvite::firstOrFail());
     expect($invite->token_hash)->not->toContain(basename($url))
@@ -66,7 +66,7 @@ it('creates a new login from an invite, verified, with the role and shops in the
     $this->post($url.'/register', ['name' => 'New Person', 'password' => 'Str0ng-P0S-Pass!', 'password_confirmation' => 'Str0ng-P0S-Pass!'])
         ->assertRedirect(route('dashboard'));
 
-    $user = User::where('email', 'new.person@example.test')->firstOrFail();
+    $user = User::where('email', 'new.person@bravo-shop.co.ke')->firstOrFail();
     expect($user->hasVerifiedEmail())->toBeTrue()
         ->and($user->canEnterBusiness($this->a->business))->toBeTrue()
         ->and($this->tenant->run($this->a->business, fn () => $user->fresh()->hasRole('manager')))->toBeTrue()
@@ -109,7 +109,7 @@ it('restores a former member who is invited again', function () {
 });
 
 it('refuses an invite to a login with another email', function () {
-    $url = inviteAs($this->a->owner, 'someone@example.test');
+    $url = inviteAs($this->a->owner, 'someone@bravo-shop.co.ke');
     $other = $this->fixture->b->owner;
 
     $this->actingAs($other)->get($url)->assertOk()->assertSee('You are signed in as');
@@ -120,7 +120,7 @@ it('refuses an invite to a login with another email', function () {
 });
 
 it('refuses a used, withdrawn or expired invite', function (string $case) {
-    $url = inviteAs($this->a->owner, 'late@example.test');
+    $url = inviteAs($this->a->owner, 'late@bravo-shop.co.ke');
     $invite = $this->tenant->run($this->a->business, fn () => BusinessInvite::firstOrFail());
     $invite->update(match ($case) {
         'used' => ['accepted_at' => now()],
@@ -132,12 +132,12 @@ it('refuses a used, withdrawn or expired invite', function (string $case) {
     $this->get($url)->assertOk()->assertSee('no longer valid');
     $this->post($url.'/register', ['name' => 'Late', 'password' => 'Str0ng-P0S-Pass!', 'password_confirmation' => 'Str0ng-P0S-Pass!'])
         ->assertNotFound();
-    expect(User::where('email', 'late@example.test')->exists())->toBeFalse();
+    expect(User::where('email', 'late@bravo-shop.co.ke')->exists())->toBeFalse();
 })->with(['used', 'withdrawn', 'expired']);
 
 it('sends a fresh link on resend and on a second invite, and only the newest works', function () {
-    $first = inviteAs($this->a->owner, 'twice@example.test');
-    $second = inviteAs($this->a->owner, 'twice@example.test');
+    $first = inviteAs($this->a->owner, 'twice@bravo-shop.co.ke');
+    $second = inviteAs($this->a->owner, 'twice@bravo-shop.co.ke');
 
     $this->get($first)->assertSee('no longer valid');
     $this->get($second)->assertSee('Create account and join');
@@ -150,7 +150,7 @@ it('sends a fresh link on resend and on a second invite, and only the newest wor
 });
 
 it('withdraws an invite', function () {
-    $url = inviteAs($this->a->owner, 'gone@example.test');
+    $url = inviteAs($this->a->owner, 'gone@bravo-shop.co.ke');
     $invite = $this->tenant->run($this->a->business, fn () => BusinessInvite::firstOrFail());
     $this->tenant->forget();
 
@@ -169,32 +169,32 @@ it('lets only an owner invite an owner, and others only to roles within their ow
     $this->tenant->forget();
 
     foreach (['admin', 'cashier'] as $tooMuch) {
-        $this->actingAs($lead)->post(route('invites.store'), ['email' => "{$tooMuch}@example.test", 'role_id' => roleInA($tooMuch)->id])
+        $this->actingAs($lead)->post(route('invites.store'), ['email' => "{$tooMuch}@bravo-shop.co.ke", 'role_id' => roleInA($tooMuch)->id])
             ->assertSessionHasErrors('role_id');
     }
-    $this->actingAs($lead)->post(route('invites.store'), ['email' => 'viewer@example.test', 'role_id' => roleInA('sales viewer')->id])
+    $this->actingAs($lead)->post(route('invites.store'), ['email' => 'viewer@bravo-shop.co.ke', 'role_id' => roleInA('sales viewer')->id])
         ->assertSessionHasNoErrors();
 
-    $this->actingAs($this->a->owner)->post(route('invites.store'), ['email' => 'co-owner@example.test', 'role_id' => roleInA('admin')->id])
+    $this->actingAs($this->a->owner)->post(route('invites.store'), ['email' => 'co-owner@bravo-shop.co.ke', 'role_id' => roleInA('admin')->id])
         ->assertSessionHasNoErrors();
 
     expect($this->tenant->run($this->a->business, fn () => BusinessInvite::pluck('email')->sort()->values()->all()))
-        ->toBe(['co-owner@example.test', 'viewer@example.test']);
+        ->toBe(['co-owner@bravo-shop.co.ke', 'viewer@bravo-shop.co.ke']);
 });
 
 it('refuses another business\'s role or shop, an existing member, and a sender without users.create', function () {
     $roleOfB = app(TenantContext::class)->run($this->fixture->b->business, fn () => Role::findByName('manager'));
     $this->tenant->forget();
 
-    $this->actingAs($this->a->owner)->post(route('invites.store'), ['email' => 'x@example.test', 'role_id' => $roleOfB->id])
+    $this->actingAs($this->a->owner)->post(route('invites.store'), ['email' => 'x@bravo-shop.co.ke', 'role_id' => $roleOfB->id])
         ->assertSessionHasErrors('role_id');
-    $this->actingAs($this->a->owner)->post(route('invites.store'), ['email' => 'x@example.test', 'role_id' => roleInA('cashier')->id, 'shop_ids' => [$this->fixture->b->shops[0]->id]])
+    $this->actingAs($this->a->owner)->post(route('invites.store'), ['email' => 'x@bravo-shop.co.ke', 'role_id' => roleInA('cashier')->id, 'shop_ids' => [$this->fixture->b->shops[0]->id]])
         ->assertSessionHasErrors('shop_ids.0');
     $this->actingAs($this->a->owner)->post(route('invites.store'), ['email' => $this->a->cashier->email, 'role_id' => roleInA('cashier')->id])
         ->assertSessionHasErrors('email');
 
     $this->actingAs($this->a->cashier)->get(route('invites.index'))->assertForbidden();
-    $this->actingAs($this->a->cashier)->post(route('invites.store'), ['email' => 'y@example.test', 'role_id' => roleInA('cashier')->id])
+    $this->actingAs($this->a->cashier)->post(route('invites.store'), ['email' => 'y@bravo-shop.co.ke', 'role_id' => roleInA('cashier')->id])
         ->assertForbidden();
 
     expect($this->tenant->run($this->a->business, fn () => BusinessInvite::count()))->toBe(0);

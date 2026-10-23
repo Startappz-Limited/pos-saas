@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\EnforceEmailVerification;
 use App\Http\Middleware\EnforceSubscription;
 use App\Http\Middleware\EnsureAccountActive;
 use App\Http\Middleware\EnsureActiveBusiness;
@@ -59,6 +60,12 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->web(append: [EnforceSubscription::class]);
         $middleware->api(append: [EnforceSubscription::class]);
         $middleware->appendToPriorityList(ResolveTenant::class, EnforceSubscription::class);
+
+        // An unverified email is refused once its 24 hours are up (Phase 6),
+        // on the web and both APIs; also after authentication.
+        $middleware->web(append: [EnforceEmailVerification::class]);
+        $middleware->api(append: [EnforceEmailVerification::class]);
+        $middleware->appendToPriorityList(AuthenticatesRequests::class, EnforceEmailVerification::class);
 
         // A form loaded for another business than the active one is refused
         // (stage 3, decision 4.9); after ResolveTenant, web only (API tokens

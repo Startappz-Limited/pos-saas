@@ -32,10 +32,10 @@ function userRow(string $html, string $email): string
 
 it('shows a newly signed-up owner as active once their email is verified', function () {
     $this->post('/register', [
-        'name' => 'New Owner', 'business_name' => 'Fresh Shop', 'email' => 'new.owner@example.test',
+        'name' => 'New Owner', 'business_name' => 'Fresh Shop', 'email' => 'new.owner@freshshop.co.ke',
         'password' => 'Str0ng-P0S-Pass!', 'password_confirmation' => 'Str0ng-P0S-Pass!',
     ]);
-    $owner = User::where('email', 'new.owner@example.test')->firstOrFail();
+    $owner = User::where('email', 'new.owner@freshshop.co.ke')->firstOrFail();
 
     $this->get(URL::temporarySignedRoute('verification.verify', now()->addHour(), ['id' => $owner->id, 'hash' => sha1($owner->email)]));
     app(TenantContext::class)->forget();
@@ -45,7 +45,7 @@ it('shows a newly signed-up owner as active once their email is verified', funct
         ->and(BusinessMembership::where('business_id', $business->id)->where('user_id', $owner->id)->value('status'))->toBe('active');
 
     $html = $this->get(route('users.index'))->assertOk()->getContent();
-    $row = userRow($html, 'new.owner@example.test');
+    $row = userRow($html, 'new.owner@freshshop.co.ke');
 
     expect($row)->toContain('Active')->not->toContain('Inactive')->not->toContain('Email not verified');
 });

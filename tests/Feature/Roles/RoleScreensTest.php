@@ -29,7 +29,7 @@ it('names the built-in roles by their display names on every role and people scr
     $this->actingAs($this->owner)->get(route('users.index'))->assertOk()->assertSeeText('Owner')->assertSeeText('Cashier');
     $this->tenant->forget();
     $clerkCopy = Role::withoutGlobalScopes()->where('business_id', $this->fixture->a->business->id)->where('name', 'inventory-clerk')->value('id');
-    foreach ([route('users.create'), route('invites.index')] as $form) {
+    foreach ([route('invites.index')] as $form) {
         $this->tenant->forget();
         expect($this->actingAs($this->owner)->get($form)->assertOk()->getContent())
             ->toMatch('/<option value="'.$clerkCopy.'"[^>]*>\s*Inventory clerk\s*<\/option>/');

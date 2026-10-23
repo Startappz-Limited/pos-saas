@@ -2,7 +2,7 @@
     <div class="text-center mb-4">
         <h4 class="mb-2">{{ __('This invitation is no longer valid') }}</h4>
         <p class="text-muted">
-            {{ __('It may have expired, been withdrawn or already been used. Ask the person who invited you to send a new one.') }}
+            {{ __('It may have expired, been revoked or already been used. Ask your admin to send a new invite.') }}
         </p>
     </div>
 

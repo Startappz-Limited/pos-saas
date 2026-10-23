@@ -33,7 +33,7 @@ const ALLOWED_RAW_QUERIES = [
     'app/Actions/Business/CopyRoleTemplates.php' => [5, 'role templates copied into the business being created'],
     'app/Rules/RoleName.php' => [2, 'the role name rule: shared template names, and the current business\'s own roles (business_id filtered explicitly)'],
     'app/Actions/ConvertEcommerceOrderToSale.php' => [1, 'the register of a session the action just found or opened'],
-    'app/Services/Billing/PlanLimits.php' => [7, 'quota counts for the one business the caller names, across all its shops whatever the viewer may see'],
+    'app/Services/Billing/PlanLimits.php' => [8, 'quota counts for the one business the caller names, across all its shops whatever the viewer may see'],
     'app/Actions/Shop/SaveShopMpesaAccount.php' => [1, 'a shortcode is unique on the platform: reads only whether another shop holds the number'],
     'app/Actions/PurchaseReturn/MarkPurchaseReturnShippedAction.php' => [1, 'the cost layer of a scoped intake'],
     'app/Console/Commands/BackfillShopProductPivot.php' => [2, 'pivot rows for a scoped product and its sync record\'s shop'],
@@ -54,6 +54,8 @@ const ALLOWED_RAW_QUERIES = [
     'app/Console/Commands/BackfillAuditBusiness.php' => [3, 'maps audit rows of every business to their business, from shops and records'],
 
     // Not tenant data.
+    'app/Console/Commands/LoadDisposableDomains.php' => [3, 'the platform-wide disposable email domain list'],
+    'app/Support/Signup/EmailPolicy.php' => [1, 'reads the platform-wide disposable email domain list'],
     'app/Console/Commands/BuildDatasetCommand.php' => [1, 'row counts of a _testing dataset database'],
 ];
 

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\UserStatus;
 use App\Models\Concerns\Auditable;
+use App\Support\Signup\EmailPolicy;
 use App\Support\Tenancy\TenantContext;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -75,6 +76,7 @@ class User extends Authenticatable
     {
         return [
             'email_verified_at' => 'datetime',
+            'verification_deadline_at' => 'datetime',
             // Never fillable: only the platform grants it.
             'is_platform_operator' => 'boolean',
             'password' => 'hashed',
@@ -96,6 +98,12 @@ class User extends Authenticatable
             }
             if (auth()->check() && empty($user->created_by)) {
                 $user->created_by = auth()->id();
+            }
+        });
+
+        static::saving(function (self $user) {
+            if ($user->isDirty('email') || $user->email_normalized === null) {
+                $user->email_normalized = EmailPolicy::normalise((string) $user->email);
             }
         });
 
@@ -465,6 +473,30 @@ class User extends Authenticatable
      * The platform operator (decision 4.4): global, never a business member,
      * the only user Gate::before lets do everything.
      */
+    /**
+     * Whether this login has run out of its grace period without verifying its
+     * email (Phase 6): unverified, with a deadline that has passed. Logins with
+     * no deadline (staff an admin added) are never asked.
+     */
+    public function mustVerifyEmailNow(): bool
+    {
+        return ! $this->hasVerifiedEmail()
+            && $this->verification_deadline_at !== null
+            && $this->verification_deadline_at->lte(now());
+    }
+
+    /**
+     * Hours left to verify, rounded up; null when the login isn't on the clock.
+     */
+    public function verificationHoursLeft(): ?int
+    {
+        if ($this->hasVerifiedEmail() || $this->verification_deadline_at === null) {
+            return null;
+        }
+
+        return max(0, (int) ceil(now()->floatDiffInHours($this->verification_deadline_at, false)));
+    }
+
     public function isPlatformOperator(): bool
     {
         return (bool) $this->is_platform_operator;

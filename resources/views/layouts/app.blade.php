@@ -25,6 +25,7 @@
 
 <body>
     @include('partials.impersonation-banner')
+    @include('partials.verification-banner')
     <!-- START Wrapper -->
     <div class="wrapper">
 

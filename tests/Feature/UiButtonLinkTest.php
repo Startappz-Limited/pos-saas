@@ -97,8 +97,7 @@ describe('every page that gives it a link', function () {
         }
         expect(buttonsWithHref($html))->toBe(0);
     })->with([
-        'users index' => ['users.index', fn ($t) => route('users.index'), ['Add User' => fn () => route('users.create'), 'Invite' => fn () => route('invites.index')]],
-        'users create' => ['users.create', fn ($t) => route('users.create'), ['Cancel' => fn () => route('users.index')]],
+        'users index' => ['users.index', fn ($t) => route('users.index'), ['Add User' => fn () => route('invites.index')]],
         'users edit' => ['users.edit', fn ($t) => route('users.edit', $t->owner), ['Cancel' => fn () => route('users.index')]],
         'users show' => ['users.show', fn ($t) => route('users.show', $t->owner), ['Edit Profile' => fn ($t) => route('users.edit', $t->owner)]],
         'roles index' => ['roles.index', fn ($t) => route('roles.index'), ['Add Role' => fn () => route('roles.create')]],

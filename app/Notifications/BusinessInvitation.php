@@ -41,7 +41,7 @@ class BusinessInvitation extends Notification
                 ? __(':inviter invited you to join :business.', ['inviter' => $inviter, 'business' => $business])
                 : __('You are invited to join :business.', ['business' => $business]))
             ->action(__('Accept the invitation'), $this->acceptUrl())
-            ->line(__('The invitation expires on :date.', ['date' => $this->invite->expires_at->toFormattedDayDateString()]))
+            ->line(__('The invitation expires in :hours hours, on :date.', ['hours' => BusinessInvite::EXPIRES_AFTER_HOURS, 'date' => $this->invite->expires_at->toDayDateTimeString()]))
             ->line(__('If you were not expecting it, you can ignore this email.'));
     }
 }

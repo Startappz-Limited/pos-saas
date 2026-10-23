@@ -37,9 +37,12 @@ use App\Services\Mpesa\NullMpesaGateway;
 use App\Support\Database\ColumnDefaults;
 use App\Support\Onboarding\OnboardingChecklist;
 use App\Support\Platform\Impersonation;
+use App\Support\Signup\EmailPolicy;
+use App\Support\Signup\VerificationLink;
 use App\Support\Tenancy\TenantAwarePermissionRegistrar;
 use App\Support\Tenancy\TenantContext;
 use App\Support\Tenancy\TenantPresenceVerifier;
+use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Cache\CacheManager;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
@@ -117,6 +120,9 @@ class AppServiceProvider extends ServiceProvider
         $this->registerRateLimiters();
         $this->enforceHttps();
         $this->definePasswordPolicy();
+
+        // Verification links: signed, 48 hours, only the newest works (Phase 6).
+        VerifyEmail::createUrlUsing(fn (User $user): string => VerificationLink::url($user));
         $this->carryTenantIntoQueuedWork();
 
         // Only the platform operator may do everything (decision 4.4). A
@@ -276,6 +282,21 @@ class AppServiceProvider extends ServiceProvider
             Limit::perMinute(config('ratelimit.auth'))->by('auth-ip:'.$request->ip()),
             Limit::perMinute(config('ratelimit.auth'))
                 ->by('auth-email:'.Str::lower((string) $request->input('email'))),
+        ]);
+
+        // Resending the verification link: 1 a minute and 5 an hour (Phase 6).
+        RateLimiter::for('verification-resend', fn (Request $request) => [
+            Limit::perMinute(1)->by('verify-resend-min:'.$request->user()?->id),
+            Limit::perHour(5)->by('verify-resend-hour:'.$request->user()?->id),
+        ]);
+
+        // Signup (Phase 6): per IP and per submitted email, so a script can't try
+        // many addresses from one place or hammer one address from many.
+        RateLimiter::for('signup', fn (Request $request) => [
+            Limit::perMinutes(config('security.signup.window_minutes'), config('security.signup.attempts_per_window'))
+                ->by('signup-ip:'.$request->ip()),
+            Limit::perMinutes(config('security.signup.window_minutes'), config('security.signup.attempts_per_window'))
+                ->by('signup-email:'.EmailPolicy::normalise((string) $request->input('email'))),
         ]);
 
         // Inbound platform webhooks are public, so key per shop from the route

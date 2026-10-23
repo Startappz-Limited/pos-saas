@@ -30,11 +30,8 @@
             <x-ui-card title="All Users">
                 <x-slot:headerActions>
                     @can('users.create')
-                        <x-ui-button variant="primary" icon="solar:user-plus-broken" href="{{ route('users.create') }}">
+                        <x-ui-button variant="primary" icon="solar:user-plus-broken" href="{{ route('invites.index') }}">
                             Add User
-                        </x-ui-button>
-                        <x-ui-button variant="outline-primary" icon="solar:letter-broken" href="{{ route('invites.index') }}">
-                            {{ __('Invite') }}
                         </x-ui-button>
                     @endcan
 
@@ -108,7 +105,7 @@
                             <td colspan="7">
                                 <x-ui-empty-state icon="solar:users-group-rounded-broken" title="No users found"
                                     message="Get started by adding your first user" actionText="Add User"
-                                    actionUrl="{{ route('users.create') }}" actionIcon="solar:user-plus-broken" />
+                                    actionUrl="{{ route('invites.index') }}" actionIcon="solar:user-plus-broken" />
                             </td>
                         </tr>
                     @endforelse

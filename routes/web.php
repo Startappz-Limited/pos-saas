@@ -56,6 +56,7 @@ use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\TenantFileController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\VatReportController;
+use App\Models\User;
 use Illuminate\Support\Facades\Route;
 use Spatie\Honeypot\ProtectAgainstSpam;
 
@@ -119,7 +120,9 @@ Route::middleware(['auth', 'business'])->group(function () {
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
     // User Management Routes
-    Route::resource('users', UserController::class);
+    // Adding a user is the invite flow (Phase 6); there is no create/store with a password.
+    Route::get('users/create', fn () => redirect()->route('invites.index'))->name('users.create')->middleware('can:create,'.User::class);
+    Route::resource('users', UserController::class)->except(['create', 'store']);
     Route::post('users/{user}/activate', [UserController::class, 'activate'])->name('users.activate');
     Route::post('users/{user}/deactivate', [UserController::class, 'deactivate'])->name('users.deactivate');
     Route::post('users/{user}/suspend', [UserController::class, 'suspend'])->name('users.suspend');
@@ -132,6 +135,7 @@ Route::middleware(['auth', 'business'])->group(function () {
     Route::post('billing/pay', [BillingController::class, 'pay'])->middleware('throttle:10,1')->name('billing.pay');
     Route::post('billing/ai-topup', [BillingController::class, 'topUp'])->middleware('throttle:10,1')->name('billing.ai-topup');
     Route::post('billing/shops', [BillingController::class, 'shops'])->name('billing.shops');
+    Route::post('billing/plan', [BillingController::class, 'plan'])->name('billing.plan');
     Route::post('billing/payments/{payment:uuid}/check', [BillingController::class, 'check'])->middleware('throttle:20,1')->name('billing.payments.check');
     Route::get('business/settings', [BusinessSettingsController::class, 'edit'])->name('business.settings.edit');
     Route::put('business/settings', [BusinessSettingsController::class, 'update'])->name('business.settings.update');
@@ -146,6 +150,7 @@ Route::middleware(['auth', 'business'])->group(function () {
     Route::get('invites', [BusinessInviteController::class, 'index'])->name('invites.index');
     Route::post('invites', [BusinessInviteController::class, 'store'])->name('invites.store');
     Route::post('invites/{invite:uuid}/resend', [BusinessInviteController::class, 'resend'])->name('invites.resend');
+    Route::patch('invites/{invite:uuid}/role', [BusinessInviteController::class, 'changeRole'])->name('invites.role');
     Route::delete('invites/{invite:uuid}', [BusinessInviteController::class, 'destroy'])->name('invites.destroy');
 
     // Role Management Routes
