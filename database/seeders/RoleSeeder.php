@@ -325,10 +325,6 @@ class RoleSeeder extends Seeder
             'dashboard.view',
             'dashboard.analytics',
 
-            // Audit Logs (view and export)
-            'audit-logs.view',
-            'audit-logs.export',
-
             // Settings (view and update)
             'settings.view',
             'settings.update',
@@ -527,9 +523,6 @@ class RoleSeeder extends Seeder
             'reports.profit-loss',
             'reports.export',
 
-            // Audit Logs (view and export)
-            'audit-logs.view',
-            'audit-logs.export',
         ];
 
         $this->grant($role, $permissions);

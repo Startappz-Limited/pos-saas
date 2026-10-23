@@ -254,7 +254,9 @@ class PermissionSeeder extends Seeder
             'baileys.send',       // send messages, post to groups/channels, status
             'baileys.full-access',
 
-            // Audit Trail (read-only — the trail is never mutable)
+            // Audit Trail (read-only — the trail is never mutable). Only owners hold
+            // these by default; an owner may give them to a role in their business.
+            // (The old audit-logs.* names were never checked and are retired.)
             'audit.view',
             'audit.export',
             'audit.full-access',
@@ -280,11 +282,6 @@ class PermissionSeeder extends Seeder
             'dashboard.view',
             'dashboard.analytics',
             'dashboard.full-access',
-
-            // Audit Logs
-            'audit-logs.view',
-            'audit-logs.export',
-            'audit-logs.full-access',
 
             // System Settings
             'settings.view',

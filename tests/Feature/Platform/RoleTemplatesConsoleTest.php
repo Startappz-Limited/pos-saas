@@ -89,16 +89,16 @@ it('changes a template for new businesses and Reset to default, leaving existing
 it('changes the owner role for every business\'s owners, only with the confirmation', function () {
     $admin = sharedRole('admin');
     $all = Permission::query()->pluck('id')->all();
-    $withoutAudit = Permission::query()->where('name', '!=', 'audit-logs.export')->pluck('id')->all();
+    $withoutAudit = Permission::query()->where('name', '!=', 'audit.export')->pluck('id')->all();
 
     $this->actingAs($this->operator)->put(route('platform.roles.update', $admin), ['permissions' => $withoutAudit])
         ->assertSessionHasErrors('confirm');
-    expect(namesOf($admin))->toContain('audit-logs.export');
+    expect(namesOf($admin))->toContain('audit.export');
 
     $this->actingAs($this->operator)->put(route('platform.roles.update', $admin), ['permissions' => $withoutAudit, 'confirm' => '1'])
         ->assertSessionHasNoErrors();
 
-    $can = fn (Business $business, $owner) => $this->tenant->run($business, fn () => $owner->fresh()->can('audit-logs.export'));
+    $can = fn (Business $business, $owner) => $this->tenant->run($business, fn () => $owner->fresh()->can('audit.export'));
     expect($can($this->fixture->a->business, $this->fixture->a->owner))->toBeFalse()
         ->and($can($this->fixture->b->business, $this->fixture->b->owner))->toBeFalse();
 
