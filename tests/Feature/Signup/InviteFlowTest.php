@@ -36,7 +36,7 @@ function invite(array $data): TestResponse
     return test()->actingAs(test()->a->owner)->post(route('invites.store'), ['role_id' => $roleId, ...$data]);
 }
 
-function linkFor(string $email): string
+function invitationLinkFor(string $email): string
 {
     $url = null;
     Notification::assertSentTo(new AnonymousNotifiable, BusinessInvitation::class, function ($n, $c, $notifiable) use ($email, &$url): bool {
@@ -77,7 +77,7 @@ it('adds a user with only an email and a role, and sets no password for them', f
 
 it('has the invitee set their own password and name on one page, and verifies them', function () {
     invite(['email' => 'amina@bravo-shop.co.ke']);
-    $url = linkFor('amina@bravo-shop.co.ke');
+    $url = invitationLinkFor('amina@bravo-shop.co.ke');
 
     $this->get($url)->assertOk()->assertSee('Cashier')->assertSee('Create account and join');
 
@@ -99,7 +99,7 @@ it('has the invitee set their own password and name on one page, and verifies th
 
 it('pre-fills the name the inviter gave, editable', function () {
     invite(['email' => 'amina@bravo-shop.co.ke', 'name' => 'Amina Otieno']);
-    $url = linkFor('amina@bravo-shop.co.ke');
+    $url = invitationLinkFor('amina@bravo-shop.co.ke');
 
     $this->get($url)->assertOk()->assertSee('value="Amina Otieno"', false);
 
@@ -109,7 +109,7 @@ it('pre-fills the name the inviter gave, editable', function () {
 
 it('holds the invitee to the password rules', function (string $password) {
     invite(['email' => 'amina@bravo-shop.co.ke']);
-    $url = linkFor('amina@bravo-shop.co.ke');
+    $url = invitationLinkFor('amina@bravo-shop.co.ke');
 
     $this->post($url.'/register', ['name' => 'Amina', 'password' => $password, 'password_confirmation' => $password])
         ->assertSessionHasErrors('password');
@@ -124,7 +124,7 @@ it('refuses a placeholder address, and a person who is already a member', functi
 
 it('expires a link after 72 hours', function () {
     invite(['email' => 'amina@bravo-shop.co.ke']);
-    $url = linkFor('amina@bravo-shop.co.ke');
+    $url = invitationLinkFor('amina@bravo-shop.co.ke');
 
     $this->travel(71)->hours();
     $this->get($url)->assertOk()->assertSee('Create account and join');
@@ -137,7 +137,7 @@ it('expires a link after 72 hours', function () {
 
 it('invalidates the old link on resend, and a revoked link stops working', function () {
     invite(['email' => 'amina@bravo-shop.co.ke']);
-    $old = linkFor('amina@bravo-shop.co.ke');
+    $old = invitationLinkFor('amina@bravo-shop.co.ke');
     $invite = $this->tenant->run($this->a->business, fn () => BusinessInvite::firstOrFail());
 
     $this->tenant->forget();
@@ -194,7 +194,7 @@ it('lets the same person be invited again without taking a second seat', functio
 it('accepting uses the seat the invite held, not a second one', function () {
     limitStaffTo(activeStaff() + 1);
     invite(['email' => 'one@bravo-shop.co.ke']);
-    $url = linkFor('one@bravo-shop.co.ke');
+    $url = invitationLinkFor('one@bravo-shop.co.ke');
 
     $this->post($url.'/register', ['name' => 'One', 'password' => 'purple tractors drink warm milk', 'password_confirmation' => 'purple tractors drink warm milk'])
         ->assertRedirect(route('dashboard'));
@@ -204,7 +204,7 @@ it('accepting uses the seat the invite held, not a second one', function () {
 
 it('refuses to send, resend or accept while the business is read-only', function () {
     invite(['email' => 'amina@bravo-shop.co.ke']);
-    $url = linkFor('amina@bravo-shop.co.ke');
+    $url = invitationLinkFor('amina@bravo-shop.co.ke');
     $invite = $this->tenant->run($this->a->business, fn () => BusinessInvite::firstOrFail());
 
     subscribe($this->a->business, 'tier-2', ['status' => 'active', 'current_period_end' => now()->subDay()]);
@@ -223,7 +223,7 @@ it('refuses to send, resend or accept while the business is read-only', function
 
 it('refuses an invite whose role was switched off, and makes no login for it', function () {
     invite(['email' => 'amina@bravo-shop.co.ke']);
-    $url = linkFor('amina@bravo-shop.co.ke');
+    $url = invitationLinkFor('amina@bravo-shop.co.ke');
     $this->tenant->run($this->a->business, fn () => Role::findByName('cashier')->update(['is_active' => false]));
 
     $this->post($url.'/register', ['name' => 'Amina', 'password' => 'purple tractors drink warm milk', 'password_confirmation' => 'purple tractors drink warm milk'])
