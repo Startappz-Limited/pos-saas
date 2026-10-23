@@ -151,7 +151,7 @@ silently mixing patterns (see the skill's `CONFLICT:` protocol).
     uniqueness use `new UniqueForTenant(Model::class, 'code')`, **not** `unique:` (keys are per business and
     ignore soft-deleted rows).
   - **The isolation suite** (Phase 2: `tests/Feature/TenantIsolation` plus `tests/Feature/Tenancy`, run by the
-    CI `isolation` job on SQLite and MySQL) must stay green. **Every new model, route or endpoint adds its row
+    local pre-push checks on SQLite and MySQL; see "Before pushing" below) must stay green. **Every new model, route or endpoint adds its row
     to `TenantIsolation/ResourceMatrixTest`** (and, for a page, appears in the canary crawl automatically; a
     new kind of record gets a marker in `tests/Support/Canaries.php`). Users carry no tenant scope: `User`
     binds only members of the current business.
@@ -300,6 +300,19 @@ php artisan ecommerce:sync-products --business=1   # SyncEcommerceProducts
 php artisan mobile:contract-diff              # needs MOBILE_APP_PATH in .env
 php artisan mobile:contract-diff --fail-on-drift   # non-zero exit for CI
 ```
+
+### Before pushing (there is no CI)
+
+Run these locally and push only when all pass; they are what the removed GitHub Actions workflow ran:
+
+```bash
+vendor/bin/pint --test --diff=origin/main                              # style, on the files the branch changes
+php artisan test --compact                                             # full suite on SQLite (isolation suite included)
+vendor/bin/pest --configuration=phpunit.mysql.local.xml --compact      # full suite on MySQL 8, both API contract tests included
+```
+
+`SafetyHookTest` skips inside lerd's PHP container (no `jq`); when the hook or its cases change, run the cases
+through `.claude/hooks/block-destructive-db.sh` on the host.
 
 Prefer Laravel Boost MCP tools (`search-docs`, `database-query`, `database-schema`, `list-artisan-commands`,
 `get-absolute-url`, `browser-logs`) over manual equivalents. The app is served by Laravel Herd at a
@@ -488,10 +501,9 @@ Reported from evidence in the repo — not invented:
   `order-notifications`, `ecommerce`); a default worker drains none of them. `composer run dev` now
   passes the full `--queue=` list, but production deployment is undocumented — if WhatsApp "stopped
   working", check the worker's queue list *first*, then `select queue, count(*) from jobs group by queue;`
-- **CI exists; CD and container config don't.** [.github/workflows/ci.yml](.github/workflows/ci.yml)
-  runs Pint and the suite on SQLite, the suite and flat API contract on MySQL 8, and a migration
-  rehearsal on the live-like dataset (it needs the `COMPOSER_AUTH` repository secret). There's no
-  `Dockerfile` or `docker-compose.yml`. Deployment is undocumented, and nothing establishes that the **queue worker** and
+- **No CI, CD or container config.** The GitHub Actions workflow was removed (24 October 2026: runs took too
+  long); tests are run locally before pushing (see "Before pushing" under Commands). There's no
+`Dockerfile` or `docker-compose.yml`. Deployment is undocumented, and nothing establishes that the **queue worker** and
   **`schedule:run`** are running in production — without them, every sync job and the campaign sweep silently
   never execute.
 - **Dead frontend scaffolding.** `resources/css/app.css` holds Tailwind directives and `package.json`
