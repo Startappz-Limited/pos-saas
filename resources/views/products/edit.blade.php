@@ -205,11 +205,12 @@
                             <div class="row">
                                 <div class="col-md-6">
                                     <div class="mb-3">
-                                        <label for="stock_quantity" class="form-label">Stock Quantity</label>
-                                        <input type="number"
+                                        <label for="stock_quantity" class="form-label">{{ __('Stock in :shop', ['shop' => $stockShop?->name ?? __('the owning shop')]) }}</label>
+                                        <input type="number" min="0"
                                             class="form-control @error('stock_quantity') is-invalid @enderror"
-                                            id="stock_quantity" name="stock_quantity"
-                                            value="{{ old('stock_quantity', $product->stock_quantity) }}">
+                                            id="stock_quantity" name="stock_quantity" aria-describedby="stock_quantity-help"
+                                            value="{{ old('stock_quantity', $stockInShop) }}">
+                                        <div class="form-text" id="stock_quantity-help">{{ __('Changing it records a stock adjustment. Other shops\' stock is changed through Stock adjustments.') }}</div>
                                         @error('stock_quantity')
                                             <div class="invalid-feedback">{{ $message }}</div>
                                         @enderror
@@ -217,12 +218,13 @@
                                 </div>
                                 <div class="col-md-6">
                                     <div class="mb-3">
-                                        <label for="low_stock_threshold" class="form-label">Low Stock Threshold</label>
-                                        <input type="number"
-                                            class="form-control @error('low_stock_threshold') is-invalid @enderror"
-                                            id="low_stock_threshold" name="low_stock_threshold"
-                                            value="{{ old('low_stock_threshold', $product->low_stock_threshold) }}">
-                                        @error('low_stock_threshold')
+                                        <label for="reorder_level" class="form-label">{{ __('Low-stock threshold') }}</label>
+                                        <input type="number" min="0"
+                                            class="form-control @error('reorder_level') is-invalid @enderror"
+                                            id="reorder_level" name="reorder_level" aria-describedby="reorder_level-help"
+                                            value="{{ old('reorder_level', $product->reorder_level) }}">
+                                        <div class="form-text" id="reorder_level-help">{{ __('An alert when stock falls to this.') }}</div>
+                                        @error('reorder_level')
                                             <div class="invalid-feedback">{{ $message }}</div>
                                         @enderror
                                     </div>

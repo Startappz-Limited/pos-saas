@@ -53,7 +53,7 @@ class CreateProductAction
 
         if ($product->has_variations && ! empty($variations)) {
             foreach ($variations as $variationData) {
-                $product->variations()->create([
+                $variation = $product->variations()->create([
                     'uuid' => (string) Str::uuid(),
                     'name' => $variationData['name'],
                     'sku' => $variationData['sku'],
@@ -64,9 +64,13 @@ class CreateProductAction
                     'wholesale_price' => $variationData['wholesale_price'] ?? null,
                     'tax_class' => $variationData['tax_class'] ?? null,
                     'stock_quantity' => $variationData['stock_quantity'] ?? 0,
-                    'reorder_level' => $variationData['reorder_level'] ?? 1,
                     'status' => ProductStatus::ACTIVE,
                 ]);
+
+                // A variation's threshold lives on its row in the owning shop.
+                if (isset($variationData['reorder_level']) && $variationData['reorder_level'] !== '' && ($shopId = $product->stockShopId()) !== null) {
+                    $variation->setShopReorderLevel($shopId, (int) $variationData['reorder_level']);
+                }
             }
         }
 

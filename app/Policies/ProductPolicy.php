@@ -53,6 +53,15 @@ class ProductPolicy
         return $user->can('products.set-cost');
     }
 
+    /**
+     * Importing products from a file (fix/product-stock-import): the import
+     * button, page and the API import.
+     */
+    public function import(User $user): bool
+    {
+        return $user->can('products.import');
+    }
+
     public function restore(User $user, Product $product): bool
     {
         return $user->can('products.delete');

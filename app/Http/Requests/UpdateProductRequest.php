@@ -16,6 +16,17 @@ class UpdateProductRequest extends FormRequest
         return true;
     }
 
+    /**
+     * The form used to send the threshold as `low_stock_threshold`, which was
+     * then dropped; it is still accepted, as `reorder_level`.
+     */
+    protected function prepareForValidation(): void
+    {
+        if ($this->has('low_stock_threshold') && ! $this->has('reorder_level')) {
+            $this->merge(['reorder_level' => $this->input('low_stock_threshold')]);
+        }
+    }
+
     public function rules(): array
     {
         $productId = $this->route('product')->id;
@@ -48,6 +59,7 @@ class UpdateProductRequest extends FormRequest
             'variations.*.selling_price' => ['required_with:has_variations', 'numeric', 'min:0'],
             'variations.*.wholesale_price' => ['nullable', 'numeric', 'min:0'],
             'variations.*.stock_quantity' => ['nullable', 'integer', 'min:0'],
+            'variations.*.reorder_level' => ['nullable', 'integer', 'min:0'],
             'image' => ['nullable', 'image', 'max:2048'],
             'images' => ['nullable', 'array'],
             'unit' => ['nullable', 'string', 'max:255'],
