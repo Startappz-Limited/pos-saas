@@ -79,7 +79,7 @@ it('has the invitee set their own password and name on one page, and verifies th
     invite(['email' => 'amina@bravo-shop.co.ke']);
     $url = invitationLinkFor('amina@bravo-shop.co.ke');
 
-    $this->get($url)->assertOk()->assertSee('Cashier')->assertSee('Create account and join');
+    $this->get($url)->assertOk()->assertSee('Cashier')->assertSee('Choose a password');
 
     // A name is required when the inviter gave none.
     $this->post($url.'/register', ['name' => '', 'password' => 'purple tractors drink warm milk', 'password_confirmation' => 'purple tractors drink warm milk'])
@@ -127,7 +127,7 @@ it('expires a link after 72 hours', function () {
     $url = invitationLinkFor('amina@bravo-shop.co.ke');
 
     $this->travel(71)->hours();
-    $this->get($url)->assertOk()->assertSee('Create account and join');
+    $this->get($url)->assertOk()->assertSee('Choose a password');
 
     $this->travel(2)->hours();
     $this->get($url)->assertOk()->assertSee('Ask your admin to send a new invite');

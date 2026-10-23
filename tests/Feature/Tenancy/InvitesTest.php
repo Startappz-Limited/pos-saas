@@ -62,7 +62,7 @@ it('creates a new login from an invite, verified, with the role and shops in the
     expect($invite->token_hash)->not->toContain(basename($url))
         ->and($invite->token_hash)->toBe(BusinessInvite::hashToken(basename($url)));
 
-    $this->get($url)->assertOk()->assertSee('Create account and join');
+    $this->get($url)->assertOk()->assertSee('Choose a password');
     $this->post($url.'/register', ['name' => 'New Person', 'password' => 'Str0ng-P0S-Pass!', 'password_confirmation' => 'Str0ng-P0S-Pass!'])
         ->assertRedirect(route('dashboard'));
 
@@ -140,7 +140,7 @@ it('sends a fresh link on resend and on a second invite, and only the newest wor
     $second = inviteAs($this->a->owner, 'twice@bravo-shop.co.ke');
 
     $this->get($first)->assertSee('no longer valid');
-    $this->get($second)->assertSee('Create account and join');
+    $this->get($second)->assertSee('Choose a password');
 
     $invite = $this->tenant->run($this->a->business, fn () => BusinessInvite::query()->pending()->sole());
     $this->tenant->forget();

@@ -103,16 +103,16 @@
                                     class="align-middle me-1"></iconify-icon>
                                 Low Stock
                             </a>
-                            @can('import', App\Models\Product::class)
-                                <a href="{{ route('products.import.create') }}" class="btn btn-outline-primary btn-sm">
-                                    <iconify-icon icon="solar:upload-minimalistic-bold-duotone" class="align-middle me-1" aria-hidden="true"></iconify-icon>
-                                    {{ __('Import') }}
-                                </a>
-                            @endcan
                             @can('create', App\Models\Product::class)
                                 <a href="{{ route('products.create') }}" class="btn btn-primary btn-sm">
                                     <iconify-icon icon="solar:add-circle-bold-duotone" class="align-middle me-1"></iconify-icon>
                                     Add Product
+                                </a>
+                            @endcan
+                            @can('import', App\Models\Product::class)
+                                <a href="{{ route('products.import.create') }}" class="btn btn-outline-primary btn-sm">
+                                    <iconify-icon icon="solar:upload-minimalistic-bold-duotone" class="align-middle me-1" aria-hidden="true"></iconify-icon>
+                                    {{ __('Import') }}
                                 </a>
                             @endcan
                         </div>
