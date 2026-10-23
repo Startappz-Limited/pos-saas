@@ -70,12 +70,12 @@ it('starts a Free Trial by default: one shop, three staff, 14 days from signup',
         ->and($this->tenant->run($business, fn () => $user->fresh()->isBusinessOwner()))->toBeTrue();
 });
 
-it('starts a trial of the tier picked, with its shop count', function () {
-    [, $business] = signup(['plan' => 'tier-2', 'shop_count' => 3]);
+it('starts a trial of the tier picked, paying for one shop', function () {
+    [, $business] = signup(['plan' => 'tier-2']);
     $subscription = subscriptionOf($business);
 
     expect($subscription->plan->key)->toBe('tier-2')
-        ->and($subscription->shop_count)->toBe(3)
+        ->and($subscription->shop_count)->toBe(1)
         ->and((float) $subscription->price_at_signup)->toBe(3000.0)
         ->and($subscription->status)->toBe(Subscription::TRIALING);
 });
@@ -88,14 +88,14 @@ it('does not take a trial from an unknown plan', function () {
     ])->assertSessionHasErrors('plan');
 });
 
-it('offers the plans from plan data, folded away, with the Free Trial chosen', function () {
+it('offers the plans from plan data, in a window, with the Free Trial chosen', function () {
     $html = $this->get('/register')->assertOk()
         ->assertSee('Free Trial')->assertSee('Tier 1')->assertSee('Tier 2')->assertSee('Tier 3')
         ->assertSee('No card needed')
         ->getContent();
 
     expect($html)->toMatch('/id="plan-free-trial"[^>]*checked/')
-        ->and($html)->toMatch('/class="collapse "[^>]*id="plan-panel"/');
+        ->and($html)->toContain('id="plan-modal"')->not->toContain('data-open-on-load');
 });
 
 it('will not start a second Free Trial for the same email, however it is spelled', function () {
@@ -175,7 +175,8 @@ it('audits each plan change during a trial', function () {
 });
 
 it('warns before a smaller plan puts the business over its limits, and changes nothing until confirmed', function () {
-    [$owner, $business] = signup(['plan' => 'tier-3', 'shop_count' => 3]);
+    [$owner, $business] = signup(['plan' => 'tier-3']);
+    $this->actingAs($owner)->post(route('billing.shops'), ['shop_count' => 3])->assertSessionHas('success');
     $this->tenant->run($business, function () use ($business): void {
         Shop::create(['business_id' => $business->id, 'name' => 'Branch 2']);
         Shop::create(['business_id' => $business->id, 'name' => 'Branch 3']);
@@ -221,7 +222,7 @@ it('refuses a payment while on the Free Trial', function () {
 });
 
 it('starts the paid period at the trial end when paid early, and applies a payment once', function () {
-    [$owner, $business] = signup(['plan' => 'tier-1', 'shop_count' => 1]);
+    [$owner, $business] = signup(['plan' => 'tier-1']);
     $ends = subscriptionOf($business)->trial_ends_at;
 
     $this->travel(5)->days();

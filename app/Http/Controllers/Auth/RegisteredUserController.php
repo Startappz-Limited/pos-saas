@@ -44,8 +44,9 @@ class RegisteredUserController extends Controller
             'email' => ['required', 'string', 'lowercase', 'email', 'max:255', new RealEmail, new UniqueLogin],
             // No confirmation field: the form has a show/hide toggle instead.
             'password' => ['required', new StrongPassword],
+            // No shop count: every trial starts paying for one shop. How more
+            // shops are paid for is settled in Billing.
             'plan' => ['nullable', 'string', Rule::exists('plans', 'key')->where('is_active', true)],
-            'shop_count' => ['nullable', 'integer', 'min:1', 'max:50'],
             'agree_terms' => ['accepted'],
         ], [
             'agree_terms.accepted' => __('Please accept the Terms and Privacy Policy to continue.'),

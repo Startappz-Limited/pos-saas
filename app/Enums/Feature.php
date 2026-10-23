@@ -16,4 +16,21 @@ enum Feature: string
     case Ai = 'ai';
     case Marketing = 'marketing';
     case Api = 'api';
+
+    /**
+     * The name a customer sees, as on the plan cards at sign-up.
+     */
+    public function label(): string
+    {
+        return match ($this) {
+            self::Pos => __('Point of sale'),
+            self::Inventory => __('Stock and inventory'),
+            self::Reports => __('Reports'),
+            self::EcommerceSync => __('Online store sync (WooCommerce, Shopify)'),
+            self::Whatsapp => __('WhatsApp receipts and messages'),
+            self::Ai => __('AI assistant'),
+            self::Marketing => __('Marketing and ads'),
+            self::Api => __('API access'),
+        };
+    }
 }

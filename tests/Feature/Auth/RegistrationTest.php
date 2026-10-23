@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\Feature;
 use App\Models\Business;
 use App\Models\BusinessMembership;
 use App\Models\Subscription;
@@ -144,21 +145,49 @@ test('the page asks only for name, business, email, password and the terms', fun
         ->toContain('name="valid_from"');
 });
 
-test('the Free Trial is chosen and the plans stay folded away, with no shop count', function () {
+test('the Free Trial is chosen, the plan cards wait in a window, and there is no shop count', function () {
     $html = $this->get('/register')->assertOk()->getContent();
 
     expect($html)->toMatch('/id="plan-free-trial"[^>]*checked/')
-        ->toMatch('/class="collapse "[^>]*id="plan-panel"/')
-        ->toMatch('/id="shop-count-group"[^>]*hidden/')
-        ->and(substr_count($html, 'name="plan"'))->toBe(4);
+        ->toContain('id="plan-modal"')
+        ->toMatch('/data-bs-target="#plan-modal"/')
+        ->not->toContain('data-open-on-load')
+        ->not->toContain('name="shop_count"')
+        ->and(substr_count($html, 'name="plan"'))->toBe(4)
+        ->and(substr_count($html, 'form="signup-form"'))->toBe(4);
 });
 
-test('a pricing page link preselects a tier and opens the plans with the shop count', function () {
+test('each plan card shows its price, limits and features from plan data', function () {
+    $html = $this->get('/register')->assertOk()->getContent();
+
+    expect($html)->toContain('KES 1,500')->toContain('KES 3,000')->toContain('KES 5,000')
+        ->toContain('Unlimited')
+        ->toContain(Feature::EcommerceSync->label())
+        ->toContain('Not included:')->toContain('Included:')
+        ->and(substr_count($html, 'class="card plan-card'))->toBe(4);
+});
+
+test('a pricing page link preselects a tier without opening the window', function () {
     $html = $this->get('/register?plan=tier-2')->assertOk()->getContent();
 
     expect($html)->toMatch('/id="plan-tier-2"[^>]*checked/')
-        ->toMatch('/class="collapse show"[^>]*id="plan-panel"/')
-        ->not->toMatch('/id="shop-count-group"[^>]*hidden/');
+        ->toMatch('/id="plan-summary">Tier 2</')
+        ->toContain('KES 3,000 per shop a month after the 14-day trial')
+        ->not->toContain('data-open-on-load');
+});
+
+test('a plan error opens the window', function () {
+    $this->from('/register')->post('/register', signupForm(['plan' => 'enterprise']));
+
+    expect($this->get('/register')->getContent())->toContain('data-open-on-load="1"')->toContain('id="plan-error"');
+});
+
+test('a shop count sent with the form is ignored: the trial pays for one shop', function () {
+    $this->post('/register', signupForm(['plan' => 'tier-2', 'shop_count' => 5]))->assertRedirect();
+
+    $business = Business::where('name', 'Mama Mboga Stores')->firstOrFail();
+
+    expect(app(TenantContext::class)->run($business, fn () => Subscription::query()->firstOrFail()->shop_count))->toBe(1);
 });
 
 test('shows each error under its field, marked for screen readers', function () {
