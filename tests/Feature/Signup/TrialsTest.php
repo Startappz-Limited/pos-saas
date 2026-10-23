@@ -114,7 +114,7 @@ it('stops a Free Trial business adding a second shop or a fourth staff member, i
         // The owner is one of three; one more fits, and a pending invite holds the last seat.
         $a->joinBusiness($business);
         BusinessInvite::create([
-            'business_id' => $business->id, 'email' => 'pending@mamamboga.co.ke', 'role_id' => 1,
+            'business_id' => $business->id, 'email' => 'pending@mamamboga.co.ke', 'role_id' => sharedRole('admin')->id,
             'token_hash' => 'x', 'expires_at' => now()->addDay(),
         ]);
 
@@ -128,7 +128,7 @@ it('lets an expired invite stop holding a seat', function () {
 
     $this->tenant->run($business, function () use ($business, $a, $b): void {
         BusinessInvite::create([
-            'business_id' => $business->id, 'email' => 'old@mamamboga.co.ke', 'role_id' => 1,
+            'business_id' => $business->id, 'email' => 'old@mamamboga.co.ke', 'role_id' => sharedRole('admin')->id,
             'token_hash' => 'y', 'expires_at' => now()->subMinute(),
         ]);
         $a->joinBusiness($business);
