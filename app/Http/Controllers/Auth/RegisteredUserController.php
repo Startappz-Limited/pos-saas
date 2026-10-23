@@ -42,12 +42,16 @@ class RegisteredUserController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'business_name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'lowercase', 'email', 'max:255', new RealEmail, new UniqueLogin],
-            'password' => ['required', 'confirmed', new StrongPassword],
+            // No confirmation field: the form has a show/hide toggle instead.
+            'password' => ['required', new StrongPassword],
             'plan' => ['nullable', 'string', Rule::exists('plans', 'key')->where('is_active', true)],
             'shop_count' => ['nullable', 'integer', 'min:1', 'max:50'],
+            'agree_terms' => ['accepted'],
+        ], [
+            'agree_terms.accepted' => __('Please accept the Terms and Privacy Policy to continue.'),
         ]);
 
-        $user = $registerBusiness->execute($validated);
+        $user = $registerBusiness->execute(collect($validated)->except('agree_terms')->all());
 
         event(new Registered($user));
 

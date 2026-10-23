@@ -90,6 +90,11 @@ No open question blocks this stage.
 - [x] Signup opens on a **plan picker**: the Free Trial card and the three tiers, read from plan data. Each tier
       card shows its price per shop per month and its limits (shops, staff, registers, WhatsApp sessions,
       features).
+      **Changed 23 October 2026 (`fix/signup-page-ui`, decided by the product owner):** the cards are no longer
+      shown. The Free Trial is chosen by default; the plans (name and price) are folded behind "Change", which
+      opens by itself when a pricing page preselects a tier (`?plan=tier-2`). The form keeps four fields (name,
+      business, email, password with a show/hide toggle; no password confirmation) and a Terms checkbox, required
+      by the server (`agree_terms`); its links come from `TERMS_URL` and `PRIVACY_URL`.
 - [x] Picking a tier asks for the number of shops (the subscription's shop count) and shows the monthly total
       the business will pay after the trial.
 - [x] Every card says "14-day trial, no payment now".
