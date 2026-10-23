@@ -7,10 +7,10 @@
         $impersonationEnds = \Illuminate\Support\Carbon::createFromTimestamp((int) session(\App\Support\Platform\Impersonation::EXPIRES_KEY));
         $impersonatedBusiness = app(\App\Support\Tenancy\TenantContext::class)->business();
     @endphp
-    <div class="alert alert-warning rounded-0 mb-0 d-flex flex-wrap align-items-center justify-content-between gap-2 py-2 px-3"
-        role="status" id="impersonation-banner" style="position: sticky; top: 0; z-index: 1100;">
+    <div class="alert alert-danger d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3"
+        role="status" id="impersonation-banner">
         <span>
-            <iconify-icon icon="solar:incognito-bold-duotone" class="align-middle me-1"></iconify-icon>
+            <iconify-icon icon="solar:incognito-bold-duotone" class="align-middle me-1" aria-hidden="true"></iconify-icon>
             {{ __('Platform operator: you are signed in as :name in :business until :time. Everything you do is recorded.', [
                 'name' => auth()->user()->name,
                 'business' => $impersonatedBusiness?->name ?? '—',

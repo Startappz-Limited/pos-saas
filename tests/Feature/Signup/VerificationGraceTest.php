@@ -180,5 +180,30 @@ it('limits resending to one a minute and five an hour', function () {
 
 it('shows the banner with the hours left, and not once the account is paused', function () {
     $this->travel(5)->hours();
-    $this->actingAs($this->owner)->get('/dashboard')->assertOk()->assertSee('Verify your email — 19 hours left');
+    $this->actingAs($this->owner)->get('/dashboard')->assertOk()
+        ->assertSeeText('Confirm your email address')
+        ->assertSeeText('We sent a link to wanjiku@mamamboga.co.ke. Confirm it within 19 hours to keep using your account.');
+});
+
+it('places the banner in the content area, beside the sidebar rather than under it, with both actions', function () {
+    $html = $this->actingAs($this->owner)->get('/dashboard')->assertOk()->getContent();
+
+    $content = strpos($html, '<div class="page-content">');
+    $banner = strpos($html, 'id="verification-banner"');
+    expect($banner)->toBeGreaterThan($content)
+        ->and($html)->toContain('action="'.route('verification.send').'"')
+        ->and($html)->toContain('href="'.route('verification.notice').'"')
+        ->and($html)->toContain('Resend email')->toContain('Change email');
+});
+
+it('confirms on the banner that a new link was sent', function () {
+    $this->actingAs($this->owner)->from('/dashboard')->post(route('verification.send'))->assertRedirect('/dashboard');
+
+    $this->actingAs($this->owner)->get('/dashboard')->assertSeeText('A new link is on its way.');
+});
+
+it('shows no banner once the email is verified', function () {
+    $this->owner->forceFill(['email_verified_at' => now()])->save();
+
+    $this->actingAs($this->owner)->get('/dashboard')->assertOk()->assertDontSee('id="verification-banner"', false);
 });

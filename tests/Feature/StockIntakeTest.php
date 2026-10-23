@@ -19,8 +19,8 @@ beforeEach(function () {
 
 // Authorization Tests
 test('authorized user can view stock intakes', function () {
-    Permission::create(['name' => 'stock_intakes.view']);
-    $this->user->givePermissionTo('stock_intakes.view');
+    Permission::create(['name' => 'stock-intake.view']);
+    $this->user->givePermissionTo('stock-intake.view');
 
     StockIntake::factory()->count(3)->create();
 
@@ -36,8 +36,8 @@ test('unauthorized user cannot view stock intakes', function () {
 });
 
 test('authorized user can create stock intake', function () {
-    Permission::create(['name' => 'stock_intakes.create']);
-    $this->user->givePermissionTo('stock_intakes.create');
+    Permission::create(['name' => 'stock-intake.create']);
+    $this->user->givePermissionTo('stock-intake.create');
 
     $purchaseOrder = PurchaseOrder::factory()->ordered()->create();
     // Enough ordered to receive 50: the factory orders 10–1000 at random, and
@@ -67,8 +67,8 @@ test('authorized user can create stock intake', function () {
 
 // Validation Tests
 test('manual stock intake requires product and shop', function () {
-    Permission::create(['name' => 'stock_intakes.create']);
-    $this->user->givePermissionTo('stock_intakes.create');
+    Permission::create(['name' => 'stock-intake.create']);
+    $this->user->givePermissionTo('stock-intake.create');
 
     $data = [
         'intake_date' => now()->toDateString(),
@@ -83,8 +83,8 @@ test('manual stock intake requires product and shop', function () {
 });
 
 test('quantity received is required', function () {
-    Permission::create(['name' => 'stock_intakes.create']);
-    $this->user->givePermissionTo('stock_intakes.create');
+    Permission::create(['name' => 'stock-intake.create']);
+    $this->user->givePermissionTo('stock-intake.create');
 
     $item = PurchaseOrderItem::factory()->create();
 
@@ -101,8 +101,8 @@ test('quantity received is required', function () {
 });
 
 test('expiry date must be in future', function () {
-    Permission::create(['name' => 'stock_intakes.create']);
-    $this->user->givePermissionTo('stock_intakes.create');
+    Permission::create(['name' => 'stock-intake.create']);
+    $this->user->givePermissionTo('stock-intake.create');
 
     $item = PurchaseOrderItem::factory()->create();
 
@@ -122,8 +122,8 @@ test('expiry date must be in future', function () {
 
 // CRUD Tests
 test('can update stock intake', function () {
-    Permission::create(['name' => 'stock_intakes.update']);
-    $this->user->givePermissionTo('stock_intakes.update');
+    Permission::create(['name' => 'stock-intake.update']);
+    $this->user->givePermissionTo('stock-intake.update');
 
     $stockIntake = StockIntake::factory()->pending()->create();
 
@@ -145,8 +145,8 @@ test('can update stock intake', function () {
 });
 
 test('can delete pending stock intake', function () {
-    Permission::create(['name' => 'stock_intakes.delete']);
-    $this->user->givePermissionTo('stock_intakes.delete');
+    Permission::create(['name' => 'stock-intake.delete']);
+    $this->user->givePermissionTo('stock-intake.delete');
 
     $stockIntake = StockIntake::factory()->pending()->create();
 
@@ -157,8 +157,8 @@ test('can delete pending stock intake', function () {
 });
 
 test('can complete stock intake', function () {
-    Permission::create(['name' => 'stock_intakes.complete']);
-    $this->user->givePermissionTo('stock_intakes.complete');
+    Permission::create(['name' => 'stock-intake.approve']);
+    $this->user->givePermissionTo('stock-intake.approve');
 
     // Stock is held per shop (stage 1b): the product's 100 units and the
     // intake are in the same shop.
@@ -181,8 +181,8 @@ test('can complete stock intake', function () {
 });
 
 test('can cancel stock intake', function () {
-    Permission::create(['name' => 'stock_intakes.update']);
-    $this->user->givePermissionTo('stock_intakes.update');
+    Permission::create(['name' => 'stock-intake.update']);
+    $this->user->givePermissionTo('stock-intake.update');
 
     $stockIntake = StockIntake::factory()->pending()->create();
 
@@ -312,8 +312,8 @@ test('example', function () {
 
 // PO ↔ Stock Intake Linking Tests
 test('creating stock intake from PO item links them correctly', function () {
-    Permission::create(['name' => 'stock_intakes.create']);
-    $this->user->givePermissionTo('stock_intakes.create');
+    Permission::create(['name' => 'stock-intake.create']);
+    $this->user->givePermissionTo('stock-intake.create');
 
     $purchaseOrder = PurchaseOrder::factory()->ordered()->create();
     $item = PurchaseOrderItem::factory()->create([
@@ -343,8 +343,8 @@ test('creating stock intake from PO item links them correctly', function () {
 });
 
 test('completing stock intake updates PO status to partially received', function () {
-    Permission::create(['name' => 'stock_intakes.complete']);
-    $this->user->givePermissionTo('stock_intakes.complete');
+    Permission::create(['name' => 'stock-intake.approve']);
+    $this->user->givePermissionTo('stock-intake.approve');
 
     $purchaseOrder = PurchaseOrder::factory()->ordered()->create();
     $item = PurchaseOrderItem::factory()->create([
@@ -368,8 +368,8 @@ test('completing stock intake updates PO status to partially received', function
 });
 
 test('completing all items sets PO status to received', function () {
-    Permission::create(['name' => 'stock_intakes.complete']);
-    $this->user->givePermissionTo('stock_intakes.complete');
+    Permission::create(['name' => 'stock-intake.approve']);
+    $this->user->givePermissionTo('stock-intake.approve');
 
     $purchaseOrder = PurchaseOrder::factory()->ordered()->create();
     $item = PurchaseOrderItem::factory()->create([
@@ -393,8 +393,8 @@ test('completing all items sets PO status to received', function () {
 });
 
 test('cannot receive more than remaining quantity on PO item', function () {
-    Permission::create(['name' => 'stock_intakes.create']);
-    $this->user->givePermissionTo('stock_intakes.create');
+    Permission::create(['name' => 'stock-intake.create']);
+    $this->user->givePermissionTo('stock-intake.create');
 
     $purchaseOrder = PurchaseOrder::factory()->ordered()->create();
     $item = PurchaseOrderItem::factory()->create([
@@ -417,8 +417,8 @@ test('cannot receive more than remaining quantity on PO item', function () {
 });
 
 test('accepted plus rejected cannot exceed received', function () {
-    Permission::create(['name' => 'stock_intakes.create']);
-    $this->user->givePermissionTo('stock_intakes.create');
+    Permission::create(['name' => 'stock-intake.create']);
+    $this->user->givePermissionTo('stock-intake.create');
 
     $product = Product::factory()->create();
     $shop = Shop::factory()->create();
@@ -437,8 +437,8 @@ test('accepted plus rejected cannot exceed received', function () {
 });
 
 test('manual intake without PO creates successfully', function () {
-    Permission::create(['name' => 'stock_intakes.create']);
-    $this->user->givePermissionTo('stock_intakes.create');
+    Permission::create(['name' => 'stock-intake.create']);
+    $this->user->givePermissionTo('stock-intake.create');
 
     $product = Product::factory()->create();
     $shop = Shop::factory()->create();

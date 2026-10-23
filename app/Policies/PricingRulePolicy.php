@@ -28,7 +28,7 @@ class PricingRulePolicy
      */
     public function create(User $user): bool
     {
-        return $user->can('pricing.create');
+        return $user->can('pricing.update');
     }
 
     /**
@@ -44,7 +44,7 @@ class PricingRulePolicy
      */
     public function delete(User $user, PricingRule $pricingRule): bool
     {
-        return $user->can('pricing.delete');
+        return $user->can('pricing.update');
     }
 
     /**
@@ -52,7 +52,7 @@ class PricingRulePolicy
      */
     public function restore(User $user, PricingRule $pricingRule): bool
     {
-        return $user->can('pricing.delete');
+        return $user->can('pricing.update');
     }
 
     /**
@@ -60,6 +60,6 @@ class PricingRulePolicy
      */
     public function forceDelete(User $user, PricingRule $pricingRule): bool
     {
-        return $user->can('pricing.delete');
+        return $user->can('pricing.update');
     }
 }

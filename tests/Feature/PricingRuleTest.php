@@ -11,15 +11,13 @@ beforeEach(function () {
     $this->user = User::factory()->create();
     $this->actingAs($this->user);
 
-    // Create permissions
+    // The seeded pricing permissions: viewing, and managing the rules.
     Permission::create(['name' => 'pricing.view']);
-    Permission::create(['name' => 'pricing.create']);
     Permission::create(['name' => 'pricing.update']);
-    Permission::create(['name' => 'pricing.delete']);
 
     // Assign permissions to user
     $role = Role::create(['name' => 'admin']);
-    $role->givePermissionTo(['pricing.view', 'pricing.create', 'pricing.update', 'pricing.delete']);
+    $role->givePermissionTo(['pricing.view', 'pricing.update']);
     $this->user->assignRole($role);
 
     $this->product = Product::factory()->create();

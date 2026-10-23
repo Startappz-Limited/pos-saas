@@ -24,8 +24,6 @@
 </head>
 
 <body>
-    @include('partials.impersonation-banner')
-    @include('partials.verification-banner')
     <!-- START Wrapper -->
     <div class="wrapper">
 
@@ -39,6 +37,10 @@
 
             <!-- Start Container Fluid -->
             <div class="container-fluid">
+
+                {{-- Account notices: in the content area, so the fixed sidebar never covers them. --}}
+                @include('partials.impersonation-banner')
+                @include('partials.verification-banner')
 
                 <!-- Breadcrumb -->
                 <div class="row">

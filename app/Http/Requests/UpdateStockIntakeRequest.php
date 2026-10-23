@@ -12,7 +12,7 @@ class UpdateStockIntakeRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return $this->user()->can('stock_intakes.update');
+        return $this->user()->can('stock-intake.update');
     }
 
     /**
