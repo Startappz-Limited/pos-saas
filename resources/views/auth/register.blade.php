@@ -2,17 +2,22 @@
     Sign up: a new owner, their business and a 14-day trial.
 
     Kept to what is needed to start: four fields and the terms. The Free Trial is
-    chosen by default; the other plans are folded away behind "Change", so most
-    people never see them. A pricing page can still preselect a tier with
-    ?plan=tier-2, which opens the panel. Errors show under their field, and the
-    first one gets focus.
+    chosen by default; "Change" opens a window of plan cards (price, limits and
+    features, all from plan data) so the plans can be compared without crowding
+    the form. There is no shop count: every trial starts with one shop. A pricing
+    page can preselect a tier with ?plan=tier-2. Errors show under their field,
+    and the first one gets focus; a plan error opens the window.
 --}}
 <x-guest-layout>
     @php
         $plans = collect([$freeTrial])->filter()->merge($tiers);
         $selected = old('plan', request('plan', $freeTrial?->key));
         $selectedPlan = $plans->firstWhere('key', $selected) ?? $freeTrial;
-        $planOpen = ($selectedPlan && ! $selectedPlan->is_trial_plan) || $errors->hasAny(['plan', 'shop_count']);
+        $features = \App\Enums\Feature::cases();
+        $limits = [\App\Enums\Limit::Staff, \App\Enums\Limit::Products, \App\Enums\Limit::Registers, \App\Enums\Limit::WhatsappSessions];
+        $priceLine = fn ($plan) => $plan->is_trial_plan
+            ? __('Free for 14 days, 1 shop')
+            : __('KES :price per shop a month after the 14-day trial', ['price' => number_format((float) $plan->price_per_shop)]);
         $termsUrl = config('legal.terms_url');
         $privacyUrl = config('legal.privacy_url');
         $describedBy = fn (string $field, ?string $help = null) => trim(($help ?? '').' '.($errors->has($field) ? $field.'-error' : ''));
@@ -87,48 +92,19 @@
             <div class="form-text" id="password-help" aria-live="polite">{{ __('At least 10 characters. A few random words work well.') }}</div>
         </div>
 
-        {{-- The plan: Free Trial unless changed; the choices stay folded away. --}}
-        <div class="mb-3 border rounded px-3 py-2">
+        {{-- The plan: Free Trial unless changed; the cards are in the window below. --}}
+        <div class="mb-3 border rounded px-3 py-2 @error('plan') border-danger @enderror">
             <div class="d-flex justify-content-between align-items-center gap-2">
-                <span class="small">
+                <div class="small">
                     {{ __('Plan') }}: <strong id="plan-summary">{{ $selectedPlan?->name ?? __('Free Trial') }}</strong>
-                </span>
-                <button type="button" class="btn btn-link btn-sm p-0" data-bs-toggle="collapse" data-bs-target="#plan-panel"
-                    aria-expanded="{{ $planOpen ? 'true' : 'false' }}" aria-controls="plan-panel">
+                    <div class="text-muted" id="plan-summary-price">{{ $selectedPlan ? $priceLine($selectedPlan) : '' }}</div>
+                </div>
+                <button type="button" class="btn btn-link btn-sm p-0 text-nowrap" data-bs-toggle="modal" data-bs-target="#plan-modal"
+                    aria-haspopup="dialog" aria-controls="plan-modal" id="plan-change">
                     {{ __('Change') }}
                 </button>
             </div>
-
-            <div class="collapse {{ $planOpen ? 'show' : '' }}" id="plan-panel">
-                <fieldset class="pt-2">
-                    <legend class="visually-hidden">{{ __('Plan') }}</legend>
-                    @foreach ($plans as $plan)
-                        <div class="form-check">
-                            <input class="form-check-input" type="radio" name="plan" id="plan-{{ $plan->key }}" value="{{ $plan->key }}"
-                                data-name="{{ $plan->name }}" data-price="{{ $plan->price_per_shop }}" data-trial="{{ $plan->is_trial_plan ? 1 : 0 }}"
-                                @checked($selectedPlan?->key === $plan->key)>
-                            <label class="form-check-label small" for="plan-{{ $plan->key }}">
-                                {{ $plan->name }} ·
-                                @if ($plan->is_trial_plan)
-                                    {{ __('free, 1 shop') }}
-                                @else
-                                    KES {{ number_format((float) $plan->price_per_shop) }} {{ __('per shop a month after the trial') }}
-                                @endif
-                            </label>
-                        </div>
-                    @endforeach
-                    @error('plan')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
-
-                    <div class="mt-2" id="shop-count-group" @if ($selectedPlan?->is_trial_plan ?? true) hidden @endif>
-                        <label for="shop_count" class="form-label small mb-1">{{ __('How many shops?') }}</label>
-                        <input type="number" min="1" max="50" name="shop_count" id="shop_count" value="{{ old('shop_count', 1) }}"
-                            inputmode="numeric" class="form-control form-control-sm w-auto @error('shop_count') is-invalid @enderror"
-                            aria-describedby="shop-total">
-                        @error('shop_count')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                        <div class="form-text" id="shop-total"></div>
-                    </div>
-                </fieldset>
-            </div>
+            @error('plan')<div class="text-danger small mt-1" id="plan-error">{{ $message }}</div>@enderror
         </div>
 
         <div class="form-check mb-3">
@@ -158,9 +134,105 @@
         </button>
     </form>
 
+    {{--
+        The plan cards. Outside the form so the window isn't nested in it; the
+        radios join the form through form="signup-form". Each card is the label
+        of its radio, so arrow keys move between plans and screen readers read
+        the whole card.
+    --}}
+    <div class="modal fade" id="plan-modal" tabindex="-1" aria-labelledby="plan-modal-title" aria-hidden="true"
+        @if ($errors->has('plan')) data-open-on-load="1" @endif>
+        <div class="modal-dialog modal-xl modal-dialog-scrollable modal-fullscreen-lg-down">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div>
+                        <h5 class="modal-title" id="plan-modal-title">{{ __('Choose a plan') }}</h5>
+                        <p class="text-muted small mb-0">{{ __('Every plan starts with 14 days free. No card needed. You can change plan later in Billing.') }}</p>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ __('Close') }}"></button>
+                </div>
+                <div class="modal-body">
+                    <fieldset>
+                        <legend class="visually-hidden">{{ __('Plan') }}</legend>
+                        <div class="row g-3">
+                            @foreach ($plans as $plan)
+                                <div class="col-md-6 col-xl-3">
+                                    <input class="btn-check" type="radio" name="plan" form="signup-form" id="plan-{{ $plan->key }}"
+                                        value="{{ $plan->key }}" data-name="{{ $plan->name }}" data-price-line="{{ $priceLine($plan) }}"
+                                        @checked($selectedPlan?->key === $plan->key)>
+                                    <label class="card plan-card h-100 mb-0" for="plan-{{ $plan->key }}">
+                                        <span class="card-body d-flex flex-column">
+                                            <span class="d-flex justify-content-between align-items-start gap-2 mb-1">
+                                                <span class="h5 mb-0">{{ $plan->name }}</span>
+                                                <span class="badge bg-primary plan-selected">{{ __('Selected') }}</span>
+                                            </span>
+                                            <span class="mb-3">
+                                                @if ($plan->is_trial_plan)
+                                                    <span class="h4 d-block mb-0">{{ __('Free') }}</span>
+                                                    <span class="text-muted small">{{ __('for 14 days, 1 shop') }}</span>
+                                                @else
+                                                    <span class="h4 d-block mb-0">KES {{ number_format((float) $plan->price_per_shop) }}</span>
+                                                    <span class="text-muted small">{{ __('per shop a month, after 14 days free') }}</span>
+                                                @endif
+                                            </span>
+
+                                            <span class="small fw-semibold mb-1">{{ __('Limits') }}</span>
+                                            <span class="list-unstyled small mb-3 d-block">
+                                                @foreach ($limits as $limit)
+                                                    @php($cap = $plan->limit($limit))
+                                                    <span class="d-flex justify-content-between gap-2">
+                                                        <span class="text-muted">{{ ucfirst($limit->label()) }}</span>
+                                                        <span>{{ $cap === null ? __('Unlimited') : number_format($cap) }}</span>
+                                                    </span>
+                                                @endforeach
+                                            </span>
+
+                                            <span class="small fw-semibold mb-1">{{ __('Includes') }}</span>
+                                            <span class="small d-block">
+                                                @foreach ($features as $feature)
+                                                    @if ($plan->hasFeature($feature))
+                                                        <span class="d-flex gap-1">
+                                                            <iconify-icon icon="solar:check-circle-broken" class="text-success flex-shrink-0 mt-1" aria-hidden="true"></iconify-icon>
+                                                            <span><span class="visually-hidden">{{ __('Included:') }}</span> {{ $feature->label() }}</span>
+                                                        </span>
+                                                    @else
+                                                        <span class="d-flex gap-1 text-muted">
+                                                            <iconify-icon icon="solar:close-circle-broken" class="flex-shrink-0 mt-1" aria-hidden="true"></iconify-icon>
+                                                            <span><span class="visually-hidden">{{ __('Not included:') }}</span> <s>{{ $feature->label() }}</s></span>
+                                                        </span>
+                                                    @endif
+                                                @endforeach
+                                            </span>
+                                        </span>
+                                    </label>
+                                </div>
+                            @endforeach
+                        </div>
+                    </fieldset>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">{{ __('Cancel') }}</button>
+                    <button type="button" class="btn btn-primary" id="plan-apply">{{ __('Use this plan') }}</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <p class="text-center mt-4 mb-0">
         {{ __('Already have an account?') }} <a href="{{ route('login') }}" class="fw-semibold">{{ __('Sign in') }}</a>
     </p>
+
+    @push('styles')
+        <style>
+            /* Plan cards: the chosen one is outlined in the theme's primary colour. */
+            .plan-card { cursor: pointer; border: 1px solid var(--bs-border-color); transition: border-color .15s, box-shadow .15s; }
+            .plan-card:hover { border-color: var(--bs-primary); }
+            .plan-card .plan-selected { visibility: hidden; }
+            .btn-check:checked + .plan-card { border-color: var(--bs-primary); box-shadow: 0 0 0 .2rem rgba(var(--bs-primary-rgb), .25); }
+            .btn-check:checked + .plan-card .plan-selected { visibility: visible; }
+            .btn-check:focus-visible + .plan-card { outline: 2px solid var(--bs-primary); outline-offset: 2px; }
+        </style>
+    @endpush
 
     @push('scripts')
         <script>
@@ -173,28 +245,47 @@
                     invalid.focus();
                 }
 
-                // Plan: the summary line follows the choice; shops only for a paid tier.
-                const group = document.getElementById('shop-count-group');
-                const shops = document.getElementById('shop_count');
-                const total = document.getElementById('shop-total');
-                const summary = document.getElementById('plan-summary');
+                // Plan: the window's choice takes effect on "Use this plan"; closing it any
+                // other way puts the earlier choice back.
+                const modalEl = document.getElementById('plan-modal');
+                const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+                const radios = () => document.querySelectorAll('input[name=plan]');
+                const checked = () => document.querySelector('input[name=plan]:checked');
+                let before = checked();
+                let applied = false;
 
-                function refreshPlan() {
-                    const chosen = form.querySelector('input[name=plan]:checked');
-                    if (!chosen) {
-                        return;
+                modalEl.addEventListener('show.bs.modal', function () {
+                    before = checked();
+                    applied = false;
+                });
+                modalEl.addEventListener('shown.bs.modal', function () {
+                    (checked() || radios()[0]).focus();
+                });
+                modalEl.addEventListener('hidden.bs.modal', function () {
+                    if (!applied && before) {
+                        before.checked = true;
                     }
-                    summary.textContent = chosen.dataset.name;
-                    const paid = chosen.dataset.trial === '0';
-                    group.hidden = !paid;
-                    if (paid) {
-                        const sum = Math.max(1, parseInt(shops.value || '1', 10)) * parseFloat(chosen.dataset.price);
-                        total.textContent = @json(__('After the trial: KES')) + ' ' + sum.toLocaleString() + ' ' + @json(__('a month.'));
+                    document.getElementById('plan-change').focus();
+                });
+                document.getElementById('plan-apply').addEventListener('click', function () {
+                    const chosen = checked();
+                    if (chosen) {
+                        document.getElementById('plan-summary').textContent = chosen.dataset.name;
+                        document.getElementById('plan-summary-price').textContent = chosen.dataset.priceLine;
                     }
+                    applied = true;
+                    modal.hide();
+                });
+                // Enter on a plan chooses it rather than submitting the whole form.
+                radios().forEach(r => r.addEventListener('keydown', function (event) {
+                    if (event.key === 'Enter') {
+                        event.preventDefault();
+                        document.getElementById('plan-apply').click();
+                    }
+                }));
+                if (modalEl.dataset.openOnLoad) {
+                    modal.show();
                 }
-                form.querySelectorAll('input[name=plan]').forEach(p => p.addEventListener('change', refreshPlan));
-                shops.addEventListener('input', refreshPlan);
-                refreshPlan();
 
                 // Show or hide the password, in place of a second "confirm" field.
                 const password = document.getElementById('password');
