@@ -37,7 +37,7 @@
                                     @endif
                                     @if ($product->stock_quantity <= 0)
                                         <span class="badge bg-danger-subtle text-danger">Out of Stock</span>
-                                    @elseif($product->stock_quantity <= $product->low_stock_threshold)
+                                    @elseif($product->stock_quantity <= $product->reorder_level)
                                         <span class="badge bg-warning-subtle text-warning">Low Stock</span>
                                     @endif
                                 </div>
@@ -77,7 +77,7 @@
                                     </div>
                                     <div class="col-6">
                                         <p class="text-muted mb-1">Low Stock Alert:</p>
-                                        <p class="fw-medium">{{ $product->low_stock_threshold }} units</p>
+                                        <p class="fw-medium">{{ $product->reorder_level }} units</p>
                                     </div>
                                 </div>
                             </div>
@@ -154,7 +154,7 @@
                                     </tr>
                                     <tr>
                                         <th scope="row">Low Stock Threshold:</th>
-                                        <td>{{ $product->low_stock_threshold }} units</td>
+                                        <td>{{ $product->reorder_level }} units</td>
                                     </tr>
                                     <tr>
                                         <th scope="row">Status:</th>
@@ -397,7 +397,7 @@
                         <div class="mb-3 pb-3 border-bottom">
                             <div class="d-flex justify-content-between align-items-center">
                                 <span class="text-muted">Current Stock:</span>
-                                @if ($product->stock_quantity > $product->low_stock_threshold)
+                                @if ($product->stock_quantity > $product->reorder_level)
                                     <span
                                         class="badge bg-success-subtle text-success">{{ $product->stock_quantity }}</span>
                                 @elseif($product->stock_quantity > 0)

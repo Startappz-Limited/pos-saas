@@ -195,7 +195,10 @@ Route::middleware(['auth', 'business'])->group(function () {
     // Product Management Routes
     Route::get('products/import', [ProductImportController::class, 'create'])->name('products.import.create');
     Route::get('products/import/template', [ProductImportController::class, 'template'])->name('products.import.template');
-    Route::post('products/import', [ProductImportController::class, 'store'])->middleware('throttle:10,1')->name('products.import.store');
+    Route::post('products/import', [ProductImportController::class, 'store'])->middleware(['throttle:10,1', ProtectAgainstSpam::class])->name('products.import.store');
+    // A file holding products that already exist is confirmed first.
+    Route::get('products/import/confirm', [ProductImportController::class, 'confirm'])->name('products.import.confirm');
+    Route::post('products/import/confirm', [ProductImportController::class, 'decide'])->middleware(['throttle:10,1', ProtectAgainstSpam::class])->name('products.import.decide');
     Route::resource('products', ProductController::class);
     Route::get('products/low-stock/list', [ProductController::class, 'lowStock'])->name('products.lowStock');
     Route::post('products/{product}/activate', [ProductController::class, 'activate'])->name('products.activate');

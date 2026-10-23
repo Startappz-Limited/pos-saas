@@ -7,6 +7,7 @@ use App\Http\Requests\UpdateProductRequest;
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\Shop;
+use App\Models\ShopVariation;
 use App\Models\Supplier;
 use App\Services\ProductService;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
@@ -77,7 +78,15 @@ class ProductController extends Controller
         $suppliers = Supplier::active()->orderBy('name')->get();
         $shops = Shop::active()->orderBy('name')->get();
 
-        return view('products.edit', compact('product', 'categories', 'suppliers', 'shops'));
+        // Saving sets the owning shop's stock, so the form shows that shop's
+        // figure, not the total across shops (which saving would copy into it).
+        $stockShop = Shop::query()->find($product->stockShopId());
+        $variation = $product->defaultVariation()->first();
+        $stockInShop = $stockShop && $variation
+            ? (int) ShopVariation::query()->where('shop_id', $stockShop->id)->where('variation_id', $variation->id)->value('stock_quantity')
+            : 0;
+
+        return view('products.edit', compact('product', 'categories', 'suppliers', 'shops', 'stockShop', 'stockInShop'));
     }
 
     public function update(UpdateProductRequest $request, Product $product): RedirectResponse

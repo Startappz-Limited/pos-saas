@@ -5,6 +5,7 @@ namespace App\Actions\Product;
 use App\Actions\Product\Concerns\GuardsPurchaseCost;
 use App\Enums\ProductStatus;
 use App\Models\Product;
+use App\Models\ProductVariation;
 use App\Support\Tenancy\TenantFiles;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -71,7 +72,6 @@ class UpdateProductAction
                             'wholesale_price' => $variationData['wholesale_price'] ?? null,
                             'tax_class' => $variationData['tax_class'] ?? null,
                             'stock_quantity' => $variationData['stock_quantity'] ?? 0,
-                            'reorder_level' => $variationData['reorder_level'] ?? 1,
                         ];
 
                         // Absent key means "not submitted" (filtered out for a
@@ -82,6 +82,7 @@ class UpdateProductAction
                         }
 
                         $variation->update($payload);
+                        $this->setVariationThreshold($product, $variation, $variationData);
                         $submittedIds[] = $variation->id;
                     }
                 } else {
@@ -99,6 +100,7 @@ class UpdateProductAction
                         'stock_quantity' => $variationData['stock_quantity'] ?? 0,
                         'status' => ProductStatus::ACTIVE,
                     ]);
+                    $this->setVariationThreshold($product, $newVariation, $variationData);
                     $submittedIds[] = $newVariation->id;
                 }
             }
@@ -116,5 +118,20 @@ class UpdateProductAction
         }
 
         return $product->fresh();
+    }
+
+    /**
+     * A variation's threshold lives on its row in the owning shop (what the
+     * low-stock check reads); left alone when the form sends none.
+     *
+     * @param  array<string, mixed>  $variationData
+     */
+    private function setVariationThreshold(Product $product, ProductVariation $variation, array $variationData): void
+    {
+        if (! isset($variationData['reorder_level']) || $variationData['reorder_level'] === '' || ($shopId = $product->stockShopId()) === null) {
+            return;
+        }
+
+        $variation->setShopReorderLevel($shopId, (int) $variationData['reorder_level']);
     }
 }

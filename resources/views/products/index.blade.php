@@ -103,6 +103,12 @@
                                     class="align-middle me-1"></iconify-icon>
                                 Low Stock
                             </a>
+                            @can('import', App\Models\Product::class)
+                                <a href="{{ route('products.import.create') }}" class="btn btn-outline-primary btn-sm">
+                                    <iconify-icon icon="solar:upload-minimalistic-bold-duotone" class="align-middle me-1" aria-hidden="true"></iconify-icon>
+                                    {{ __('Import') }}
+                                </a>
+                            @endcan
                             @can('create', App\Models\Product::class)
                                 <a href="{{ route('products.create') }}" class="btn btn-primary btn-sm">
                                     <iconify-icon icon="solar:add-circle-bold-duotone" class="align-middle me-1"></iconify-icon>
@@ -244,7 +250,7 @@
                                                 </div>
                                             </td>
                                             <td>
-                                                @if ($product->stock_quantity > $product->low_stock_threshold)
+                                                @if ($product->stock_quantity > $product->reorder_level)
                                                     <span
                                                         class="badge bg-success-subtle text-success">{{ $product->stock_quantity }}</span>
                                                 @elseif($product->stock_quantity > 0)

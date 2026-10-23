@@ -163,4 +163,17 @@ class ProductVariation extends Model
     {
         return $this;
     }
+
+    /**
+     * The low-stock threshold for this variation in $shopId, on its per-shop
+     * row: what the low-stock check reads (a variation has no threshold of
+     * its own). Null falls back to the product's.
+     */
+    public function setShopReorderLevel(int $shopId, ?int $level): void
+    {
+        ShopVariation::query()->firstOrCreate(
+            ['shop_id' => $shopId, 'variation_id' => $this->id],
+            ['product_id' => $this->product_id, 'stock_quantity' => 0],
+        )->update(['reorder_level' => $level]);
+    }
 }

@@ -62,19 +62,20 @@ it('imports nothing when any line is wrong, and says which', function () {
     expect($this->tenant->run($this->a->business, fn () => Product::query()->where('name', 'Good')->exists()))->toBeFalse();
 });
 
-it('refuses a repeated SKU in the file or one already in the business', function () {
+it('refuses a repeated SKU in the file, and asks first about one already in the business', function () {
 
     importAs($this, $this->a->owner, $this->a->shops[0], "name,selling_price,sku\nOne,1,X-1\nTwo,2,x-1\n")
         ->assertSessionHas('import_errors');
+    // An existing product's SKU is confirmed first (fix/product-stock-import), not refused.
     importAs($this, $this->a->owner, $this->a->shops[0], "name,selling_price,sku\nThree,3,SKU-1\n")
-        ->assertSessionHas('import_errors');
+        ->assertRedirect(route('products.import.confirm'));
 });
 
 it('requires the name and selling_price columns', function () {
     importAs($this, $this->a->owner, $this->a->shops[0], "title,price\nA,1\n")->assertSessionHas('import_errors');
 });
 
-it('keeps another business\'s shop out of reach, and needs the permission to create products', function () {
+it('keeps another business\'s shop out of reach, and needs the permission to import products', function () {
     importAs($this, $this->a->owner, $this->b->shops[0], "name,selling_price\nA,1\n")->assertSessionHasErrors('shop_id');
     importAs($this, $this->fixture->a->cashier, $this->a->shops[0], "name,selling_price\nA,1\n")->assertForbidden();
 });

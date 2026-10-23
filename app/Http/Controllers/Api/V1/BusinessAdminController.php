@@ -136,7 +136,8 @@ class BusinessAdminController extends Controller
 
     public function importProducts(Request $request, ImportProductsFromCsv $import): JsonResponse
     {
-        $this->authorize('create', Product::class);
+        // No confirmation screen here: a file with SKUs that already exist is refused.
+        $this->authorize('import', Product::class);
 
         $validated = $request->validate([
             'shop' => ['required', 'string', 'exists:shops,uuid'],
@@ -146,7 +147,7 @@ class BusinessAdminController extends Controller
         $result = $import->execute($request->file('file')->getRealPath(), Shop::query()->where('uuid', $validated['shop'])->firstOrFail(), $request->user()->id);
 
         return $result['errors'] === []
-            ? $this->ok(['imported' => $result['imported']], __(':count products imported.', ['count' => $result['imported']]))
+            ? $this->ok(['imported' => $result['imported'], 'opening_stock' => $result['opening_stock'], 'ignored_columns' => $result['ignored']], __(':count products imported.', ['count' => $result['imported']]))
             : response()->json(['success' => false, 'message' => __('Nothing was imported.'), 'errors' => ['file' => $result['errors']]], 422);
     }
 

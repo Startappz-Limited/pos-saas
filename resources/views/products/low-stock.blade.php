@@ -76,7 +76,7 @@
                                             </td>
                                             <td>
                                                 <span
-                                                    class="badge bg-secondary-subtle text-secondary">{{ $product->low_stock_threshold }}</span>
+                                                    class="badge bg-secondary-subtle text-secondary">{{ $product->reorder_level }}</span>
                                             </td>
                                             <td>
                                                 @if ($product->stock_quantity <= 0)
