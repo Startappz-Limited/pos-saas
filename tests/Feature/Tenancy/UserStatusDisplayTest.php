@@ -33,7 +33,7 @@ function userRow(string $html, string $email): string
 it('shows a newly signed-up owner as active once their email is verified', function () {
     $this->post('/register', [
         'name' => 'New Owner', 'business_name' => 'Fresh Shop', 'email' => 'new.owner@freshshop.co.ke',
-        'password' => 'Str0ng-P0S-Pass!', 'password_confirmation' => 'Str0ng-P0S-Pass!',
+        'password' => 'Str0ng-P0S-Pass!', 'agree_terms' => '1',
     ]);
     $owner = User::where('email', 'new.owner@freshshop.co.ke')->firstOrFail();
 

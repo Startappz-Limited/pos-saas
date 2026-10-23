@@ -23,7 +23,7 @@ beforeEach(function () {
     Notification::fake();
     $this->post('/register', [
         'name' => 'Wanjiku Kamau', 'business_name' => 'Mama Mboga Stores', 'email' => 'wanjiku@mamamboga.co.ke',
-        'password' => 'purple tractors drink warm milk', 'password_confirmation' => 'purple tractors drink warm milk',
+        'password' => 'purple tractors drink warm milk', 'agree_terms' => '1',
     ]);
     $this->owner = User::where('email', 'wanjiku@mamamboga.co.ke')->firstOrFail();
     $this->business = Business::findOrFail($this->owner->default_business_id);

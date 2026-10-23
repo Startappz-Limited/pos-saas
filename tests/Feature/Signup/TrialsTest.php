@@ -39,7 +39,7 @@ function signup(array $overrides = []): array
         'business_name' => 'Mama Mboga Stores',
         'email' => 'owner'.uniqid().'@mamamboga.co.ke',
         'password' => 'purple tractors drink warm milk',
-        'password_confirmation' => 'purple tractors drink warm milk',
+        'agree_terms' => '1',
         ...$overrides,
     ];
     test()->post('/register', $form)->assertSessionHasNoErrors();
@@ -83,15 +83,19 @@ it('starts a trial of the tier picked, with its shop count', function () {
 it('does not take a trial from an unknown plan', function () {
     $this->post('/register', [
         'name' => 'X Person', 'business_name' => 'Shop', 'email' => 'x'.uniqid().'@mamamboga.co.ke',
-        'password' => 'purple tractors drink warm milk', 'password_confirmation' => 'purple tractors drink warm milk',
+        'password' => 'purple tractors drink warm milk', 'agree_terms' => '1',
         'plan' => 'enterprise',
     ])->assertSessionHasErrors('plan');
 });
 
-it('shows the plan picker with the plans from plan data', function () {
-    $this->get('/register')->assertOk()
+it('offers the plans from plan data, folded away, with the Free Trial chosen', function () {
+    $html = $this->get('/register')->assertOk()
         ->assertSee('Free Trial')->assertSee('Tier 1')->assertSee('Tier 2')->assertSee('Tier 3')
-        ->assertSee('14-day trial, no payment now');
+        ->assertSee('No card needed')
+        ->getContent();
+
+    expect($html)->toMatch('/id="plan-free-trial"[^>]*checked/')
+        ->and($html)->toMatch('/class="collapse "[^>]*id="plan-panel"/');
 });
 
 it('will not start a second Free Trial for the same email, however it is spelled', function () {
@@ -100,7 +104,7 @@ it('will not start a second Free Trial for the same email, however it is spelled
 
     $this->post('/register', [
         'name' => 'Again', 'business_name' => 'Another', 'email' => 'ownerone+2@gmail.com',
-        'password' => 'purple tractors drink warm milk', 'password_confirmation' => 'purple tractors drink warm milk',
+        'password' => 'purple tractors drink warm milk', 'agree_terms' => '1',
     ])->assertSessionHasErrors('email');
 });
 

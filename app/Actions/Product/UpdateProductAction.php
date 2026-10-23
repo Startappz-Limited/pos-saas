@@ -71,6 +71,7 @@ class UpdateProductAction
                             'wholesale_price' => $variationData['wholesale_price'] ?? null,
                             'tax_class' => $variationData['tax_class'] ?? null,
                             'stock_quantity' => $variationData['stock_quantity'] ?? 0,
+                            'reorder_level' => $variationData['reorder_level'] ?? 1,
                         ];
 
                         // Absent key means "not submitted" (filtered out for a
