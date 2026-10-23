@@ -12,7 +12,7 @@ class StockIntakePolicy
      */
     public function viewAny(User $user): bool
     {
-        return $user->can('stock_intakes.view');
+        return $user->can('stock-intake.view');
     }
 
     /**
@@ -20,7 +20,7 @@ class StockIntakePolicy
      */
     public function view(User $user, StockIntake $stockIntake): bool
     {
-        return $user->can('stock_intakes.view');
+        return $user->can('stock-intake.view');
     }
 
     /**
@@ -28,7 +28,7 @@ class StockIntakePolicy
      */
     public function create(User $user): bool
     {
-        return $user->can('stock_intakes.create');
+        return $user->can('stock-intake.create');
     }
 
     /**
@@ -36,7 +36,7 @@ class StockIntakePolicy
      */
     public function update(User $user, StockIntake $stockIntake): bool
     {
-        return $user->can('stock_intakes.update') && $stockIntake->canEdit();
+        return $user->can('stock-intake.update') && $stockIntake->canEdit();
     }
 
     /**
@@ -44,15 +44,18 @@ class StockIntakePolicy
      */
     public function delete(User $user, StockIntake $stockIntake): bool
     {
-        return $user->can('stock_intakes.delete') && $stockIntake->isPending();
+        return $user->can('stock-intake.delete') && $stockIntake->isPending();
     }
 
     /**
      * Determine whether the user can complete the model.
      */
+    /**
+     * Completing receives the stock, so it needs the approval permission.
+     */
     public function complete(User $user, StockIntake $stockIntake): bool
     {
-        return $user->can('stock_intakes.complete') && $stockIntake->canComplete();
+        return $user->can('stock-intake.approve') && $stockIntake->canComplete();
     }
 
     /**
@@ -60,6 +63,6 @@ class StockIntakePolicy
      */
     public function cancel(User $user, StockIntake $stockIntake): bool
     {
-        return $user->can('stock_intakes.update') && $stockIntake->canCancel();
+        return $user->can('stock-intake.update') && $stockIntake->canCancel();
     }
 }

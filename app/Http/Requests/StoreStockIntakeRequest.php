@@ -14,7 +14,7 @@ class StoreStockIntakeRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return $this->user()->can('stock_intakes.create');
+        return $this->user()->can('stock-intake.create');
     }
 
     /**

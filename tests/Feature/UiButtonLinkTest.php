@@ -111,7 +111,10 @@ describe('every page that gives it a link', function () {
         $html = $this->actingAs($this->owner)->get(route('users.index'))->getContent();
 
         $this->tenant->forget();
-        $this->actingAs($this->owner)->get(linkButtonHref($html, 'Add User'))->assertOk()->assertSee('Create');
+        // The invite page (adding a user is one invite flow since the signup stage), by its own title:
+        // the word "Create" this checked for came from the old sidebar.
+        expect(linkButtonHref($html, 'Add User'))->toBe(route('invites.index'));
+        $this->actingAs($this->owner)->get(linkButtonHref($html, 'Add User'))->assertOk()->assertSee('<title>Add user</title>', false);
     });
 
     it('links the invitation pages to sign-in', function () {
