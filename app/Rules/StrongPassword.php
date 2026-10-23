@@ -10,10 +10,18 @@ use Illuminate\Support\Str;
 use Throwable;
 
 /**
- * The password rules for signup, invite acceptance, password reset and the
- * owner's email change (Phase 6): 10 to 128 characters, not common, not
- * breached, not built from the person's own details, no trivial pattern. A
- * long passphrase passes; `Password123` does not.
+ * The one password rule, wherever a password is set (Phase 6;
+ * fix/invite-first-sign-in): signup, invite acceptance, password reset,
+ * changing your own password, and an admin setting one on the web or the API.
+ * 10 to 128 characters, not a common or leaked password, not built from the
+ * person's own details, no trivial pattern. A long passphrase passes;
+ * `Password123`, `P@ssw0rd1` and `Welcome2024!` do not.
+ *
+ * Two layers against leaked passwords: an offline list of the 10,000 most
+ * common ones (database/data/common-passwords.txt, see its README), checked
+ * also with letter swaps undone and leading or trailing digits and symbols
+ * removed; then Have I Been Pwned, which fails open, so an outside service
+ * being down never blocks anyone (the offline list still applies).
  */
 class StrongPassword implements DataAwareRule, ValidationRule
 {
@@ -63,8 +71,8 @@ class StrongPassword implements DataAwareRule, ValidationRule
     {
         $lower = Str::lower($password);
 
-        if (in_array($lower, self::common(), true)) {
-            return 'That password is too common. Choose something harder to guess.';
+        if ($this->isCommon($lower)) {
+            return 'This password has appeared in data leaks, so it\'s one of the first that attackers try. Choose another; a few random words work well.';
         }
 
         foreach ($this->personalWords() as $word) {
@@ -78,7 +86,7 @@ class StrongPassword implements DataAwareRule, ValidationRule
         }
 
         if ($this->isBreached($password)) {
-            return 'That password has appeared in a data breach. Choose another.';
+            return 'This password has appeared in data leaks, so it\'s one of the first that attackers try. Choose another; a few random words work well.';
         }
 
         return null;
@@ -125,9 +133,50 @@ class StrongPassword implements DataAwareRule, ValidationRule
             return true;
         }
 
-        $stem = preg_replace('/^[\d\W_]+|[\d\W_]+$/', '', $lower) ?? '';
+        return false;
+    }
 
-        return $stem !== '' && $stem !== $lower && in_array($stem, self::common(), true);
+    /**
+     * Whether the password is a common (leaked) one, also once letter swaps
+     * are undone (`p@ssw0rd`) and leading or trailing digits and symbols
+     * removed (`Password123!`).
+     */
+    private function isCommon(string $lower): bool
+    {
+        $common = self::common();
+
+        foreach ($this->variants($lower) as $variant) {
+            if ($variant !== '' && isset($common[$variant])) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * $lower as typed, with common letter swaps undone (1 read as i and as l),
+     * and each with leading or trailing digits and symbols removed.
+     *
+     * @return list<string>
+     */
+    private function variants(string $lower): array
+    {
+        $swaps = ['@' => 'a', '4' => 'a', '0' => 'o', '3' => 'e', '$' => 's', '5' => 's', '7' => 't', '!' => 'i', '|' => 'l', '+' => 't'];
+        $forms = [$lower, strtr($lower, $swaps + ['1' => 'i']), strtr($lower, $swaps + ['1' => 'l'])];
+
+        foreach ($forms as $form) {
+            $forms[] = preg_replace('/^[\d\W_]+|[\d\W_]+$/', '', $form) ?? '';
+        }
+
+        // Undo swaps only inside the word: trailing digits stay digits ("p@ssw0rd123").
+        foreach ([$lower] as $form) {
+            $core = preg_replace('/[\d\W_]+$/', '', $form) ?? '';
+            $forms[] = strtr($core, $swaps + ['1' => 'i']);
+            $forms[] = strtr($core, $swaps + ['1' => 'l']);
+        }
+
+        return array_values(array_unique($forms));
     }
 
     private function isRun(string $s): bool
@@ -179,13 +228,18 @@ class StrongPassword implements DataAwareRule, ValidationRule
     /**
      * @return list<string>
      */
+    /**
+     * The common passwords, as a set (lowercase password => true).
+     *
+     * @return array<string, true>
+     */
     private static function common(): array
     {
-        static $list = null;
+        static $set = null;
 
-        return $list ??= array_values(array_filter(array_map(
+        return $set ??= array_fill_keys(array_values(array_filter(array_map(
             'trim',
             file(database_path('data/common-passwords.txt')) ?: [],
-        )));
+        ))), true);
     }
 }

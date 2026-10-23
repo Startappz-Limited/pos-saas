@@ -83,7 +83,8 @@ class InvitationController extends Controller
 
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
-            'password' => ['required', 'confirmed', new StrongPassword([$invite->email])],
+            // No confirmation field: the page has a show/hide toggle instead.
+            'password' => ['required', new StrongPassword([$invite->email])],
         ]);
 
         // The invitee's own name wins over the one the inviter typed.

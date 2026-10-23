@@ -8,11 +8,11 @@ use App\Models\Role;
 use App\Models\Shop;
 use App\Models\User;
 use App\Rules\GrantableRole;
+use App\Rules\StrongPassword;
 use App\Services\UserService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
-use Illuminate\Validation\Rules\Password;
 
 class UserController extends Controller
 {
@@ -39,7 +39,7 @@ class UserController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', 'unique:users,email'],
             'phone' => ['nullable', 'string', 'max:20'],
-            'password' => ['required', Password::defaults()],
+            'password' => ['required', new StrongPassword],
             'shop_id' => ['nullable', 'exists:shops,id'],
             'status' => ['nullable', Rule::enum(UserStatus::class)],
             'roles' => ['nullable', 'array'],
@@ -75,7 +75,7 @@ class UserController extends Controller
             'name' => ['sometimes', 'string', 'max:255'],
             'email' => ['sometimes', 'email', 'max:255', 'unique:users,email,'.$user->id],
             'phone' => ['nullable', 'string', 'max:20'],
-            'password' => ['nullable', Password::defaults()],
+            'password' => ['nullable', new StrongPassword([(string) $user->email])],
             'shop_id' => ['nullable', 'exists:shops,id'],
             'status' => ['nullable', Rule::enum(UserStatus::class)],
             'roles' => ['nullable', 'array'],
