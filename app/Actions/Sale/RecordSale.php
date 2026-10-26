@@ -14,6 +14,7 @@ use App\Models\SaleItem;
 use App\Models\Shop;
 use App\Services\InvoiceNumberService;
 use App\Services\Stock\StockLedger;
+use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -34,10 +35,13 @@ class RecordSale
 {
     /**
      * @param  array<string, mixed>  $validated  as StoreSaleRequest validates it
+     * @param  SaleContext|null  $context  a till's offline sale (sync push); none for a sale made now
      */
-    public function execute(array $validated): RecordedSale
+    public function execute(array $validated, ?SaleContext $context = null): RecordedSale
     {
-        [$sale, $register, $overLimit] = DB::transaction(function () use ($validated): array {
+        $context ??= new SaleContext;
+
+        [$sale, $register, $overLimit] = DB::transaction(function () use ($validated, $context): array {
             // Pre-fetch products and variations
             $productIds = collect($validated['items'])->pluck('product_id')->unique();
             $variationIds = collect($validated['items'])->pluck('variation_id')->filter()->unique();
@@ -48,18 +52,21 @@ class RecordSale
             // The sale's primary shop is the owning shop of its first product.
             // Each line records its own product's shop, so a single sale may
             // span multiple shops while still being attributed correctly.
+            // A till's sale belongs to the till's shop.
             $firstProductId = $validated['items'][0]['product_id'];
-            $shopId = $productsById[$firstProductId]?->shop_id ?? Shop::first()?->id;
+            $shopId = $context->shopId ?? $productsById[$firstProductId]?->shop_id ?? Shop::first()?->id;
 
-            // Get or auto-open register
-            $activeRegister = CashRegister::getActiveRegister($shopId);
+            // The till's cash session, else the register's open one, else a new one.
+            $activeRegister = $context->cashSession ?? CashRegister::getActiveRegister($shopId, $context->registerId);
             if (! $activeRegister) {
                 $activeRegister = CashRegister::openRegister(
                     shopId: $shopId,
                     openingBalance: 0,
-                    notes: 'Auto-opened for API sale'
+                    notes: 'Auto-opened for API sale',
+                    registerId: $context->registerId,
                 );
             }
+            $at = $context->recordedAt ?? now();
 
             // Totals, VAT and profit are derived server-side by the same shared
             // action the web POS uses, so the two paths cannot disagree.
@@ -88,18 +95,19 @@ class RecordSale
                 $status = 'completed';
                 $paymentStatus = 'unpaid';
                 $paidAmount = 0;
-                $completedAt = now();
+                $completedAt = $at;
             } else {
                 $status = 'completed';
                 $paymentStatus = 'paid';
                 $paidAmount = $totalAmount;
-                $completedAt = now();
+                $completedAt = $at;
             }
 
             $balanceDue = $totalAmount - $paidAmount;
 
             $sale = Sale::create([
                 'uuid' => (string) Str::uuid(),
+                'client_uuid' => $context->clientUuid,
                 'shop_id' => $shopId,
                 'register_id' => $activeRegister->id,
                 'customer_id' => $validated['customer_id'] ?? null,
@@ -112,7 +120,9 @@ class RecordSale
                 'customer_tax_pin' => $validated['customer_tax_pin']
                     ?? ($validated['customer_id'] ?? null ? Customer::find($validated['customer_id'])?->tax_pin : null),
                 'delivery_company_id' => $validated['delivery_company_id'] ?? null,
-                'invoice_number' => app(InvoiceNumberService::class)->next($shop ?? $shopId, $activeRegister->register_id),
+                'invoice_number' => $context->invoiceNumber !== null
+                    ? $this->adoptInvoiceNumber($shopId, (int) $activeRegister->register_id, $context->invoiceNumber, $at)
+                    : app(InvoiceNumberService::class)->next($shop ?? $shopId, $activeRegister->register_id),
                 'sale_type' => 'regular',
                 'subtotal' => $totals->subtotal,
                 'discount_amount' => $totals->discountAmount,
@@ -135,8 +145,13 @@ class RecordSale
                 'status' => $status,
                 'notes' => $validated['notes'] ?? null,
                 'completed_at' => $completedAt,
-                'created_by' => auth()->id(),
+                'created_by' => $context->soldBy ?? auth()->id(),
             ]);
+
+            // A till's offline sale keeps the time it was made.
+            if ($context->recordedAt !== null) {
+                $sale->forceFill(['created_at' => $context->recordedAt])->saveQuietly();
+            }
 
             // Create sale items
             foreach ($validated['items'] as $index => $item) {
@@ -189,5 +204,15 @@ class RecordSale
         }
 
         return new RecordedSale($sale, $overLimit);
+    }
+
+    /**
+     * The invoice number the till gave the sale, if it is in that till's series.
+     */
+    private function adoptInvoiceNumber(int $shopId, int $registerId, string $invoiceNumber, CarbonInterface $at): string
+    {
+        app(InvoiceNumberService::class)->adopt($shopId, $registerId, $invoiceNumber, $at);
+
+        return $invoiceNumber;
     }
 }

@@ -17,14 +17,14 @@
         <div class="row g-3">
             <div class="col-sm-6">
                 <label for="till_pin" class="form-label">{{ $hasTillPin ? __('New PIN') : __('PIN') }}</label>
-                <input type="password" id="till_pin" name="pin" inputmode="numeric" pattern="\d{4,6}" maxlength="6" autocomplete="off"
+                <input type="password" id="till_pin" name="pin" inputmode="numeric" pattern="\d{4}" maxlength="4" autocomplete="off"
                     class="form-control @error('pin') is-invalid @enderror" aria-describedby="till_pin_help" required>
                 @error('pin')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                <div class="form-text" id="till_pin_help">{{ __('4 to 6 digits. Avoid 1234, 0000 and your birth year.') }}</div>
+                <div class="form-text" id="till_pin_help">{{ __('4 digits. Avoid 1234, 0000 and your birth year. After 4 wrong tries the till locks you out for a while.') }}</div>
             </div>
             <div class="col-sm-6">
                 <label for="till_pin_confirmation" class="form-label">{{ __('PIN again') }}</label>
-                <input type="password" id="till_pin_confirmation" name="pin_confirmation" inputmode="numeric" maxlength="6" autocomplete="off"
+                <input type="password" id="till_pin_confirmation" name="pin_confirmation" inputmode="numeric" maxlength="4" autocomplete="off"
                     class="form-control" required>
             </div>
             <div class="col-sm-6">

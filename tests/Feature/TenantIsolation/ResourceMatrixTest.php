@@ -29,6 +29,7 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\URL;
+use Illuminate\Support\Str;
 use Laravel\Sanctum\PersonalAccessToken;
 use Laravel\Sanctum\Sanctum;
 use Tests\Support\PlatformRoutes;
@@ -107,7 +108,7 @@ const WEB_RESOURCES = [
     // show: SocialAccountController::show doesn't exist (already on main).
     'social-accounts' => ['update', 'destroy'],
     'suppliers' => ['show', 'update', 'destroy'],
-    'users' => ['show', 'update', 'destroy', 'till-pin.reset'],
+    'users' => ['show', 'update', 'destroy', 'till-pin.reset', 'till-pin.unlock'],
     'invites' => ['resend', 'destroy', 'role'],
 ];
 
@@ -343,6 +344,26 @@ it('pulls business A\'s records and deletions to A\'s till, and none of B\'s (Ph
         expect($body)->not->toContain((string) $uuid);
     }
     expect($body)->toContain((string) $this->fixture->a->product->uuid);
+});
+
+it('applies A\'s till\'s push in A only, and reaches none of B\'s records (Phase 7)', function () {
+    $aRegister = app(TenantContext::class)->run($this->fixture->a->business, fn () => Register::query()->firstOrFail());
+    $bSale = $this->fixture->b->sale;
+    $bPaid = $bSale->payment_status;
+    $token = Till::token($this->fixture->a->owner, $aRegister);
+
+    Till::freshRequest();
+    $results = $this->withToken($token)->postJson(route('api.v1.sync.push'), ['items' => [
+        ['client_uuid' => (string) Str::uuid(), 'type' => 'sale_payment', 'recorded_at' => now()->toIso8601String(), 'data' => ['sale' => (string) $bSale->uuid, 'amount' => 1, 'payment_method' => 'cash']],
+        ['client_uuid' => $customerUuid = (string) Str::uuid(), 'type' => 'customer', 'recorded_at' => now()->toIso8601String(), 'data' => ['name' => 'Pushed in A', 'phone' => $this->fixture->b->customer->phone]],
+    ]])->assertOk()->json('data.results');
+
+    expect($results[0]['code'])->toBe('not_found')
+        ->and($results[1]['status'])->toBe('applied')
+        // B's customer with the same phone is not A's duplicate.
+        ->and($results[1]['result']['flags'])->toBe([])
+        ->and(app(TenantContext::class)->run($this->fixture->b->business, fn () => $bSale->fresh()->payment_status))->toBe($bPaid)
+        ->and(DB::table('customers')->where('client_uuid', $customerUuid)->value('business_id'))->toBe($this->fixture->a->business->id);
 });
 
 it('refuses every platform console route to business A\'s owner (Phase 5)', function () {

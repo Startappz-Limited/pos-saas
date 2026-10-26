@@ -21,6 +21,7 @@ class CashRegister extends Model
     protected $fillable = [
         'business_id',
         'uuid',
+        'client_uuid',
         'shop_id',
         'register_id',
         'user_id',

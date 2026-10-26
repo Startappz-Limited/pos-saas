@@ -73,23 +73,79 @@ businesses.
 - **Assumption 13:** the till is connected when it sends an STK Push; only the confirmation can arrive
   after it goes offline.
 
+### Decisions taken during Phase 7 (26 October 2026)
+
+- **Scope: till first.** `/api/v1` covers what a till needs to trade:
+  - register pairing;
+  - sync pull and push;
+  - M-Pesa;
+  - receipts.
+
+  Reports, purchasing, suppliers, expenses and returns stay on the flat API and move to v1 in a later stage. "The
+  same features as the web" is therefore partly done in this phase.
+- **M-Pesa is built on the contract.** `MpesaGateway` gains STK Push and queries, tested with the fake gateway. The
+  null gateway stays bound until the private package is plugged in.
+- **OpenAPI:** `dedoc/scramble` documents `/api/v1` at `/docs/api`. It is open in local and to platform operators
+  only.
+- **Registers (tills):**
+  - **Pairing:** an owner or manager pairs a device to a register (`registers.pair`).
+  - **Register-bound tokens:** the pairing user's token, and a cashier's who signs in on a paired till, are bound to
+    the register and reach that register's shop only.
+  - **Re-pairing** to another device gives the register a new, never-reused code and signs the old device out.
+  - **One till per shop for now:** each shop has only its default register. Adding tills (within the plan's
+    registers-per-shop limit) is a follow-up, needed before two tills can trade in one shop.
+- **Offline trading lease:**
+  - `trade_until` is now plus 3 days (`SYNC_LEASE_DAYS`), never past the subscription's paid-up date.
+  - A lapsed business gets no offline time.
+  - Leases are signed and recorded.
+- **Offline sign-in with a till PIN:**
+  - **The PIN:** one per person per business, exactly 4 digits. Repeats (1111), runs (1234, 4321) and common PINs
+    are refused.
+  - **Setting it:** each person sets their own with their password, on the profile page or
+    `PUT /api/v1/me/till-pin`.
+  - **Resetting and unlocking:** whoever may edit a person (`users.update`) can reset or unlock their PIN, from the
+    person's page or the API.
+  - **Storage:** only a bcrypt hash is stored. The till receives it with the staff list to check PINs offline.
+  - **Lockout, applied by the till:**
+    - after **4 wrong PINs** the person waits **15 minutes**;
+    - each further lockout that day **doubles** the wait;
+    - after **3 lockouts in a day** only someone holding `users.update` can unlock them, on the till.
+    - The rules reach the till in `settings.till_pin`, so they can change without an app release.
+  - **Server lock:** the server keeps the lock that needs a manager (`till_pins.locked_at`), so the person's other
+    tills lock them too, until an unlock or a new PIN.
+  - **Audit:** every PIN sign-in, failure, lockout and unlock is pushed by the till and audited with the person, the
+    till and the time it happened. Setting, changing and resetting a PIN are audited too, without the hash.
+  - **Flutter must:**
+    - keep the staff list (with the PIN hashes) in the device's encrypted storage (Android Keystore / iOS Keychain);
+    - apply the lockout;
+    - push every sign-in event.
+
+    With 4-digit PINs, a copied hash can be guessed in under an hour, so the encrypted storage is what protects a
+    stolen till.
+- **Product images** reach the till as full URLs (`image_url`).
+
 ## Work
 
 ### API foundation
-- [ ] `/api/v1` with an OpenAPI document and the error-code registry; the same features as the web.
-- [ ] Rate limits per business on both APIs.
-- [ ] `mobile:contract-diff` extended to cover `/api/v1`.
+- [x] `/api/v1` with an OpenAPI document and the error-code registry (`ApiErrorCode`; every v1 response is
+      `{success, message, data, meta, code}`). "The same features as the web": the till's features only, per the
+      scope decision above.
+- [x] Rate limits per business on both APIs (a cap per business beside the one per user).
+- [x] `mobile:contract-diff` extended to cover `/api/v1` (reported separately from the flat API).
 
 ### Registers and offline trading
-- [ ] **Register pairing:** a device is paired to a shop's register and receives a business-bound token
+- [x] **Register pairing:** a device is paired to a shop's register and receives a business-bound token
       and the last invoice number the server has for it. Re-pairing after a reinstall issues a new
       register code (4.5).
-- [ ] **Offline trading lease:** every sync returns a server-signed "trade until" time; the app stops
+- [x] **Offline trading lease:** every sync returns a server-signed "trade until" time; the app stops
       taking sales after it, and the server accepts only sales inside a lease it issued (4.5).
+- [x] **Offline sign-in:** a till PIN per person per business, with the lockout and audit above.
+- [ ] **Adding tills** to a shop (follow-up; each shop has only its default register today).
 
 ### Sync
-- [ ] `GET /api/v1/sync/pull?since=` and `POST /api/v1/sync/push` (batched, idempotent by `client_uuid`,
-      applied in order, results per item).
+- [x] `GET /api/v1/sync/pull?since=` and `POST /api/v1/sync/push` (batched, idempotent by `client_uuid`,
+      applied in order, results per item). Push items: `customer`, `sale`, `sale_payment`, `cash_session`,
+      `till_sign_in`.
 - [ ] Last-sync tracking; the **24-hour owner warning** and the `sync_overdue` flag.
 
 ### Till payments
@@ -103,10 +159,12 @@ businesses.
 ### Offline rules (4.9)
 - [ ] Per-register invoice series checked on sync.
 - [ ] Sales recorded before a lapse and inside an issued lease accepted after it.
-- [ ] Possible duplicate customers flagged, with a review screen to merge or keep them.
+- [ ] Possible duplicate customers flagged, with a review screen to merge or keep them. (Flagged in the push
+      result since step 6; the review screen is step 8.)
 
 ### Receipts, SMS, fiscal
 - [ ] Structured receipt JSON for ESC/POS printing.
+- [x] Product images as full URLs in the pull.
 - [ ] **SMS fix, keeping the current SMS service:** replace the missing `App\Models\Setting` with the
       tenant's SMS settings (from `business_integrations`), read configuration through `config()` instead
       of `env()`, and key any cache by business.
@@ -116,7 +174,10 @@ businesses.
 
 - [ ] `payment_requests` (STK requests and the API's results per sale).
 - [ ] The Phase 1 sync columns used (`client_uuid`, `updated_at` indexes, `sync_deletions`, register
-      last-sync time and last invoice number).
+      last-sync time and last invoice number). Used so far: `client_uuid` on sales, payments, customers and cash
+      sessions; `sync_deletions`; the register's last invoice number. Last-sync time is step 7.
+- [x] Added: `register_pairings`, `register_leases`, `till_pins`, `sync_push_receipts`,
+      `personal_access_tokens.register_id`, `registers.is_default`.
 
 ## Pending decisions (Proposed, review)
 
@@ -128,7 +189,7 @@ businesses.
   for it, and re-pairing a device after a reinstall issues a **new register code**, so numbers can't
   repeat.
 
-The work list and acceptance criteria above already assume both.
+The work list and acceptance criteria above already assume both. **Both adopted** and built (steps 2 and 3).
 
 ## Dependencies
 
@@ -140,9 +201,9 @@ The work list and acceptance criteria above already assume both.
 
 ## Acceptance criteria
 
-- [ ] A paired register's token works only for its business and shop.
-- [ ] Pushing the same batch twice creates the records once.
-- [ ] A pull for business A returns only A's changes since the cursor, including deletions.
+- [x] A paired register's token works only for its business and shop.
+- [x] Pushing the same batch twice creates the records once.
+- [x] A pull for business A returns only A's changes since the cursor, including deletions.
 - [ ] A user in two businesses syncs both independently.
 - [ ] A register that hasn't synced for 24 hours triggers the owner warning and the API flag, without
       blocking sales.
@@ -152,13 +213,15 @@ The work list and acceptance criteria above already assume both.
       flagged on sync.
 - [ ] A sale recorded before the lapse is accepted after it; one recorded after is refused and kept on the
       device. A sale outside any issued lease is refused even if its recorded time is before the lapse.
-- [ ] A device re-paired after a reinstall gets a new register code, and its numbers don't repeat.
-- [ ] A customer pushed with an existing phone number is saved and flagged, not merged.
+- [x] A device re-paired after a reinstall gets a new register code, and its numbers don't repeat.
+- [x] A customer pushed with an existing phone number is saved and flagged, not merged.
 - [ ] An M-Pesa code entered on an offline till is matched to the shop's payment notification on sync; an
       unmatched or reused code stays pending and is flagged.
-- [ ] The OpenAPI document matches the routes (contract test).
+- [x] The OpenAPI document matches the routes (contract test).
 - [ ] SMS sends through the tenant's provider.
-- [ ] The flat API contract tests still pass.
+- [ ] The flat API contract tests still pass. (Passing after each step so far; ticked at the end of the phase.)
+- [x] A till PIN sign-in, failure, lockout and unlock are each in the audit trail; a lockout that needs a manager
+      reaches the business's other tills.
 
 ## Risks
 

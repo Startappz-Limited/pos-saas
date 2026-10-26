@@ -24,6 +24,7 @@ class Customer extends Model
     protected $fillable = [
         'business_id',
         'uuid',
+        'client_uuid',
         'shop_id',
         'code',
         'name',

@@ -29,4 +29,11 @@ class TillPinController extends Controller
 
         return ApiV1::ok(['reset' => $pins->reset($user)], __('Till PIN reset.'));
     }
+
+    public function unlock(User $user, ManageTillPin $pins): JsonResponse
+    {
+        $this->authorize('update', $user);
+
+        return ApiV1::ok(['unlocked' => $pins->unlock($user)], __('Unlocked.'));
+    }
 }

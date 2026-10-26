@@ -22,6 +22,7 @@ class Sale extends Model
     protected $fillable = [
         'business_id',
         'uuid',
+        'client_uuid',
         'shop_id',
         'register_id',
         'customer_id',

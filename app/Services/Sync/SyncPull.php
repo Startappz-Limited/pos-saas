@@ -240,6 +240,8 @@ class SyncPull
                 // a person out after a few wrong tries.
                 'pin_hash' => $pins->get($user->id)?->pin_hash,
                 'pin_set_at' => $pins->get($user->id)?->set_at?->toIso8601String(),
+                // Locked out on every till until someone unlocks them.
+                'pin_locked' => $pins->get($user->id)?->locked_at !== null,
             ])
             ->values()->all();
     }
@@ -278,6 +280,15 @@ class SyncPull
                 'name' => $register->name,
                 'code' => $register->code,
                 'last_invoice_number' => (int) $register->last_invoice_number,
+            ],
+            // How the till locks people out after wrong PINs (decided 26 October 2026).
+            'till_pin' => [
+                'digits' => 4,
+                'max_attempts' => (int) config('sync.pin_max_attempts'),
+                'lock_minutes' => (int) config('sync.pin_lock_minutes'),
+                'lock_doubles' => true,
+                'lockouts_before_manager' => (int) config('sync.pin_lockouts_before_manager'),
+                'unlock_permission' => (string) config('sync.pin_unlock_permission'),
             ],
         ];
     }

@@ -38,9 +38,9 @@ function tillPinAuditRows(int $businessId): array
 it('refuses short, repeated, running and common PINs, and accepts a sound one', function (string $pin, bool $passes) {
     expect(Validator::make(['pin' => $pin], ['pin' => [new ValidTillPin]])->passes())->toBe($passes);
 })->with([
-    ['123', false], ['1234567', false], ['12a4', false],
-    ['1111', false], ['1234', false], ['4321', false], ['890123', false], ['2580', false],
-    ['4071', true], ['583920', true],
+    ['123', false], ['12345', false], ['583920', false], ['12a4', false],
+    ['1111', false], ['1234', false], ['4321', false], ['8901', false], ['2580', false],
+    ['4071', true], ['5839', true],
 ]);
 
 it('lets a person set their own PIN with their password, storing only its hash, and audits it without the hash', function () {
@@ -76,7 +76,7 @@ it('shows the PIN card on the profile and the reset button to those who may edit
 
 it('lets whoever may edit a person reset their PIN, audited, and refuses others', function () {
     $cashier = $this->a->cashier;
-    $this->actingAs($cashier)->put(route('profile.till-pin.update'), ['current_password' => 'password', 'pin' => '583920', 'pin_confirmation' => '583920']);
+    $this->actingAs($cashier)->put(route('profile.till-pin.update'), ['current_password' => 'password', 'pin' => '5839', 'pin_confirmation' => '5839']);
     $this->tenant->forget();
 
     // A cashier can't reset the owner's.

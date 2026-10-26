@@ -65,6 +65,7 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         // Till PINs (Phase 7): your own, and resetting a colleague's.
         Route::put('/me/till-pin', [V1TillPinController::class, 'update'])->middleware('throttle:writes')->name('me.till-pin');
         Route::delete('/staff/{user:uuid}/till-pin', [V1TillPinController::class, 'reset'])->middleware('throttle:writes')->name('staff.till-pin.reset');
+        Route::post('/staff/{user:uuid}/till-pin/unlock', [V1TillPinController::class, 'unlock'])->middleware('throttle:writes')->name('staff.till-pin.unlock');
 
         // Registers (Phase 7): the tills of the user's shops, and pairing this device to one.
         Route::get('/registers', [V1RegisterController::class, 'index'])->name('registers.index');
@@ -74,6 +75,7 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         Route::middleware(EnsureRegisterToken::class)->prefix('sync')->name('sync.')->group(function () {
             Route::get('/lease', [V1SyncController::class, 'lease'])->name('lease');
             Route::get('/pull', [V1SyncController::class, 'pull'])->name('pull');
+            Route::post('/push', [V1SyncController::class, 'push'])->middleware('throttle:writes')->name('push');
         });
 
         // Billing (Phase 4): reachable while read-only, so a lapsed owner can pay.

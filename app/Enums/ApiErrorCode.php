@@ -32,6 +32,13 @@ enum ApiErrorCode: string
     case BusinessSuspended = 'business_suspended';
     case PlatformOperator = 'platform_operator';
 
+    // Sync push (Phase 7): per item, in the push's results.
+    case OutsideTradingLease = 'outside_trading_lease';
+    case InvalidInvoiceNumber = 'invalid_invoice_number';
+    case InvoiceNumberTaken = 'invoice_number_taken';
+    case SaleAlreadyPaid = 'sale_already_paid';
+    case UnknownItemType = 'unknown_item_type';
+
     // Billing (Phase 4).
     case SubscriptionInactive = 'subscription_inactive';
     case PlanLimitReached = 'plan_limit_reached';
@@ -78,6 +85,11 @@ enum ApiErrorCode: string
             self::NoActiveBusiness => 'The user is not a member of any active business.',
             self::BusinessSuspended => 'The platform has suspended this business.',
             self::PlatformOperator => 'Platform operators work in the platform console, not in a business.',
+            self::OutsideTradingLease => 'The item was recorded outside every trading lease this till was given; it stays on the till.',
+            self::InvalidInvoiceNumber => 'The invoice number is not in this till\'s series for the year the sale was made.',
+            self::InvoiceNumberTaken => 'Another sale of the business already has this invoice number.',
+            self::SaleAlreadyPaid => 'The sale is already fully paid.',
+            self::UnknownItemType => 'The server does not know this kind of pushed item.',
             self::SubscriptionInactive => 'The subscription has lapsed or the business is over its shops; it is read-only.',
             self::PlanLimitReached => 'The plan allows no more of this (see `limit` and `allowed`).',
             self::FeatureUnavailable => 'The plan does not include this feature.',

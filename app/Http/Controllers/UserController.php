@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\User\ManageTillPin;
 use App\Enums\UserStatus;
 use App\Http\Requests\UpdateUserRequest;
 use App\Models\Role;
@@ -42,8 +43,9 @@ class UserController extends Controller
         $this->authorize('view', $user);
 
         $user->load(['roles', 'shops', 'creator', 'updater']);
+        $tillPinLocked = app(ManageTillPin::class)->isLocked($user);
 
-        return view('users.show', compact('user'));
+        return view('users.show', compact('user', 'tillPinLocked'));
     }
 
     /**

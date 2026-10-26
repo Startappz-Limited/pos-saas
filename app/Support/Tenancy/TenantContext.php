@@ -35,8 +35,15 @@ class TenantContext
 
     public function set(Business|int|null $business): void
     {
+        $previousId = $this->business?->id;
         $this->business = is_int($business) ? Business::findOrFail($business) : $business;
-        $this->registerId = $this->registerShopId = null;
+
+        // A register belongs to one business: only a change of business ends
+        // it. Setting the same business again (work run inline, such as a
+        // sync queue job restoring its business) keeps the till's register.
+        if ($this->business?->id !== $previousId) {
+            $this->registerId = $this->registerShopId = null;
+        }
 
         // Roles and permissions are held per business (Spatie teams). Relations
         // already loaded for another business must not answer for this one.

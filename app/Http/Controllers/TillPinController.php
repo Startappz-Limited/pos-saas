@@ -28,4 +28,13 @@ class TillPinController extends Controller
             ? __(':name\'s till PIN was reset. They need to set a new one before signing in on an offline till.', ['name' => $user->name])
             : __(':name has no till PIN to reset.', ['name' => $user->name]));
     }
+
+    public function unlock(User $user, ManageTillPin $pins): RedirectResponse
+    {
+        $this->authorize('update', $user);
+
+        return back()->with('success', $pins->unlock($user)
+            ? __(':name can sign in on the tills again.', ['name' => $user->name])
+            : __(':name is not locked out.', ['name' => $user->name]));
+    }
 }

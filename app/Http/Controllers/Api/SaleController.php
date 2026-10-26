@@ -3,18 +3,17 @@
 namespace App\Http\Controllers\Api;
 
 use App\Actions\Sale\RecordSale;
+use App\Actions\Sale\RecordSalePayment;
 use App\Actions\SendSaleNotifications;
 use App\Actions\SettleCreditSalePayment;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreSaleRequest;
 use App\Jobs\SyncOrderStatusJob;
 use App\Models\Sale;
-use App\Models\SalePayment;
 use App\Models\Shop;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 
 class SaleController extends Controller
 {
@@ -224,72 +223,9 @@ class SaleController extends Controller
             'payments.*.notes' => ['nullable', 'string', 'max:500'],
         ]);
 
-        DB::beginTransaction();
         try {
-            $totalPayment = 0;
-            $settleCreditPayment = app(SettleCreditSalePayment::class);
-
-            foreach ($validated['payments'] as $paymentData) {
-                $payment = SalePayment::create([
-                    'uuid' => (string) Str::uuid(),
-                    'sale_id' => $sale->id,
-                    'payment_number' => 'PAY-'.strtoupper(Str::random(8)),
-                    'amount' => $paymentData['amount'],
-                    'payment_method' => $paymentData['payment_method'],
-                    'reference' => $paymentData['reference'] ?? null,
-                    'notes' => $paymentData['notes'] ?? null,
-                    'paid_at' => now(),
-                    'received_by' => auth()->id(),
-                ]);
-
-                // Settle the matching debt on the credit account. No-op unless
-                // this sale was sold on credit.
-                $settleCreditPayment->handle($sale, $payment);
-
-                $totalPayment += $paymentData['amount'];
-            }
-
-            $newPaidAmount = $sale->paid_amount + $totalPayment;
-            $newBalanceDue = $sale->total_amount - $newPaidAmount;
-
-            if ($newBalanceDue <= 0) {
-                $paymentStatus = 'paid';
-                $newBalanceDue = 0;
-            } elseif ($newPaidAmount > 0) {
-                $paymentStatus = 'partial';
-            } else {
-                $paymentStatus = 'unpaid';
-            }
-
-            $sale->update([
-                'paid_amount' => $newPaidAmount,
-                'balance_due' => $newBalanceDue,
-                'payment_status' => $paymentStatus,
-                'status' => $paymentStatus === 'paid' ? 'completed' : $sale->status,
-                'completed_at' => $paymentStatus === 'paid' && ! $sale->completed_at ? now() : $sale->completed_at,
-            ]);
-
-            DB::commit();
-
-            app(SendSaleNotifications::class)->paymentReceived($sale->fresh(), (float) $totalPayment);
-
-            if ($paymentStatus === 'paid') {
-                $ecommerceOrder = $sale->ecommerceOrder;
-                if ($ecommerceOrder && $ecommerceOrder->status->canChangeStatus()) {
-                    try {
-                        SyncOrderStatusJob::dispatchSync($ecommerceOrder, 'completed', 'Payment collected in full');
-                        $ecommerceOrder->update(['status' => 'completed']);
-                    } catch (\Exception $e) {
-                        // Log but don't fail the payment
-                    }
-                }
-            }
-
-            $sale->refresh();
-
-            if ($sale->register_id) {
-                $sale->register->updateSalesTotals();
-            }
+            // Resolved here, as store() does: the till's sync push uses the same action.
+            $sale = app(RecordSalePayment::class)->execute($sale, $validated['payments']);
 
             $sale->load('payments.receiver');
 
@@ -299,8 +235,6 @@ class SaleController extends Controller
                 'data' => $sale,
             ]);
         } catch (\Exception $e) {
-            DB::rollBack();
-
             return $this->failed($e, __('Failed to collect payment:'));
         }
     }

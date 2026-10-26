@@ -6,25 +6,26 @@ use Closure;
 use Illuminate\Contracts\Validation\ValidationRule;
 
 /**
- * A till PIN (Phase 7): 4 to 6 digits, and not one that is guessed first:
- * the same digit repeated, a run up or down, or a common PIN. The till checks
- * it offline against a hash it holds, so a guessable PIN is the weak point.
+ * A till PIN (Phase 7): exactly 4 digits (decided 26 October 2026), and not
+ * one that is guessed first: the same digit repeated, a run up or down, or a
+ * common PIN. The till checks it offline against a hash it holds and locks a
+ * person out after 4 wrong tries, so a guessable PIN is the weak point.
  */
 class ValidTillPin implements ValidationRule
 {
     /** Among the most used PINs, beyond repeats and runs. */
     private const COMMON = [
         '1212', '1122', '1313', '2000', '2580', '0852', '1004', '6969', '2468', '1357',
-        '0007', '1010', '2020', '1984', '1990', '2001', '4321', '121212', '112233', '696969',
-        '123123', '159753', '147258', '102030', '252525', '101010',
+        '0007', '1010', '2020', '1984', '1990', '2001', '2002', '2003', '1999', '1980',
+        '1100', '0101', '7777', '1221', '2112', '5555', '0011', '1001', '4545', '5150',
     ];
 
     public function validate(string $attribute, mixed $value, Closure $fail): void
     {
         $pin = (string) $value;
 
-        if (! preg_match('/^\d{4,6}$/', $pin)) {
-            $fail(__('The till PIN must be 4 to 6 digits.'));
+        if (! preg_match('/^\d{4}$/', $pin)) {
+            $fail(__('The till PIN must be exactly 4 digits.'));
 
             return;
         }
