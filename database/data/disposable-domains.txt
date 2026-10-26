@@ -44,3 +44,4 @@ mail.tm
 dropmail.me
 33mail.com
 anonbox.net
+example.com
