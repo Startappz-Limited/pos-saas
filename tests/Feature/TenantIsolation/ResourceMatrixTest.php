@@ -107,7 +107,7 @@ const WEB_RESOURCES = [
     // show: SocialAccountController::show doesn't exist (already on main).
     'social-accounts' => ['update', 'destroy'],
     'suppliers' => ['show', 'update', 'destroy'],
-    'users' => ['show', 'update', 'destroy'],
+    'users' => ['show', 'update', 'destroy', 'till-pin.reset'],
     'invites' => ['resend', 'destroy', 'role'],
 ];
 

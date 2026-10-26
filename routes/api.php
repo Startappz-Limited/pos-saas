@@ -25,6 +25,7 @@ use App\Http\Controllers\Api\V1\BusinessAdminController as V1BusinessAdminContro
 use App\Http\Controllers\Api\V1\BusinessController as V1BusinessController;
 use App\Http\Controllers\Api\V1\RegisterController as V1RegisterController;
 use App\Http\Controllers\Api\V1\SyncController as V1SyncController;
+use App\Http\Controllers\Api\V1\TillPinController as V1TillPinController;
 use App\Http\Controllers\PlatformPaymentWebhookController;
 use App\Http\Controllers\WebhookController;
 use App\Http\Middleware\EnsureBusinessToken;
@@ -60,6 +61,10 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         Route::post('/auth/sign-out', [V1AuthController::class, 'signOut'])->name('auth.sign-out');
         Route::get('/businesses', [V1BusinessController::class, 'index'])->name('businesses.index');
         Route::post('/businesses/{business:uuid}/switch', [V1BusinessController::class, 'switch'])->name('businesses.switch');
+
+        // Till PINs (Phase 7): your own, and resetting a colleague's.
+        Route::put('/me/till-pin', [V1TillPinController::class, 'update'])->middleware('throttle:writes')->name('me.till-pin');
+        Route::delete('/staff/{user:uuid}/till-pin', [V1TillPinController::class, 'reset'])->middleware('throttle:writes')->name('staff.till-pin.reset');
 
         // Registers (Phase 7): the tills of the user's shops, and pairing this device to one.
         Route::get('/registers', [V1RegisterController::class, 'index'])->name('registers.index');

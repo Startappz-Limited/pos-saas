@@ -91,6 +91,24 @@ class TenantFiles
     }
 
     /**
+     * The full URL of a public file (a product image), for the Flutter app
+     * and the online stores. A value that is already a URL (an image a store
+     * sync brought in) is returned as it is; none gives null.
+     */
+    public static function publicUrl(?string $path): ?string
+    {
+        if ($path === null || $path === '') {
+            return null;
+        }
+
+        if (preg_match('#^https?://#i', $path)) {
+            return $path;
+        }
+
+        return Storage::disk(self::PUBLIC_DISK)->url(ltrim($path, '/'));
+    }
+
+    /**
      * The URL a signed-in member opens a private file at.
      */
     public function url(string $path): string

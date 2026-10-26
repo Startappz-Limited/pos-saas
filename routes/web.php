@@ -54,6 +54,7 @@ use App\Http\Controllers\StockIntakeController;
 use App\Http\Controllers\StockMovementController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\TenantFileController;
+use App\Http\Controllers\TillPinController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\VatReportController;
 use App\Models\User;
@@ -118,6 +119,8 @@ Route::middleware(['auth', 'business'])->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+    // Till PIN for signing in on an offline till (Phase 7).
+    Route::put('/profile/till-pin', [TillPinController::class, 'update'])->middleware('throttle:10,1')->name('profile.till-pin.update');
 
     // User Management Routes
     // Adding a user is the invite flow (Phase 6); there is no create/store with a password.
@@ -126,6 +129,7 @@ Route::middleware(['auth', 'business'])->group(function () {
     Route::post('users/{user}/activate', [UserController::class, 'activate'])->name('users.activate');
     Route::post('users/{user}/deactivate', [UserController::class, 'deactivate'])->name('users.deactivate');
     Route::post('users/{user}/suspend', [UserController::class, 'suspend'])->name('users.suspend');
+    Route::delete('users/{user}/till-pin', [TillPinController::class, 'reset'])->name('users.till-pin.reset');
 
     // The business's data: exports and closure (stage 3; owners only).
     Route::get('business/integrations', [BusinessIntegrationController::class, 'edit'])->name('business.integrations.edit');

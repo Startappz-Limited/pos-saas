@@ -25,6 +25,8 @@ class AuditLogger
         'password',
         'password_confirmation',
         'current_password',
+        'pin',
+        'pin_hash',
         'remember_token',
         'api_token',
         'api_secret',

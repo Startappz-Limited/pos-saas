@@ -10,8 +10,10 @@ use App\Models\ProductVariation;
 use App\Models\Register;
 use App\Models\ShopVariation;
 use App\Models\SyncDeletion;
+use App\Models\TillPin;
 use App\Models\User;
 use App\Support\Tenancy\TenantContext;
+use App\Support\Tenancy\TenantFiles;
 use Closure;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -29,8 +31,9 @@ use Illuminate\Support\Collection;
  *   way. The till drops these first, then applies the changed rows: a deleted
  *   record is never among them, and a restored one comes back as changed.
  * - Snapshots, sent whole whenever their content differs from what the till
- *   last had: the staff who can work at this till, and the business, shop and
- *   register settings.
+ *   last had: the staff who can work at this till (with their till PIN's
+ *   hash, for signing in offline), and the business, shop and register
+ *   settings.
  *
  * Rows are read up to a second ago, so one written later in the same second
  * is never skipped: the next pull sends it. Every query goes through the
@@ -146,7 +149,8 @@ class SyncPull
                 'unit' => $product->unit,
                 'track_stock' => (bool) $product->track_stock,
                 'has_variations' => (bool) $product->has_variations,
-                'image' => $product->image,
+                'image_url' => TenantFiles::publicUrl($product->image),
+                'images' => array_values(array_filter(array_map(fn ($image) => TenantFiles::publicUrl(is_string($image) ? $image : null), (array) $product->images))),
                 'status' => self::plain($product->status),
                 'updated_at' => $product->updated_at?->toIso8601String(),
             ]],
@@ -158,6 +162,7 @@ class SyncPull
                 'sku' => $variation->sku,
                 'barcode' => $variation->barcode,
                 'attributes' => $variation->getAttribute('attributes'),
+                'image_url' => TenantFiles::publicUrl($variation->image),
                 'selling_price' => self::money($variation->selling_price),
                 'wholesale_price' => self::money($variation->wholesale_price),
                 'tax_class' => self::plain($variation->tax_class),
@@ -219,6 +224,8 @@ class SyncPull
      */
     private function staff(Register $register): array
     {
+        $pins = TillPin::query()->get()->keyBy('user_id');
+
         return User::query()->inCurrentBusiness()->withBusinessStatus()->orderBy('users.id')->get()
             ->filter(fn (User $user): bool => in_array($register->shop_id, $this->tenant->accessibleShopIdsFor($user), true))
             ->map(fn (User $user): array => [
@@ -229,6 +236,10 @@ class SyncPull
                 'status' => $user->getAttribute('business_status'),
                 'roles' => $user->getRoleNames()->values()->all(),
                 'permissions' => $user->getAllPermissions()->pluck('name')->sort()->values()->all(),
+                // A bcrypt hash: the till checks a PIN offline, and should lock
+                // a person out after a few wrong tries.
+                'pin_hash' => $pins->get($user->id)?->pin_hash,
+                'pin_set_at' => $pins->get($user->id)?->set_at?->toIso8601String(),
             ])
             ->values()->all();
     }
