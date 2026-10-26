@@ -20,6 +20,10 @@ The plan stays the source of truth. When a stage file and the plan disagree, the
 | Phase 5: Platform Console and Roles per Business | [07-phase-5-platform-console.md](./07-phase-5-platform-console.md) | `saas/phase-5-platform-console` | Phase 4, `fix/ui-button-links` | None |
 | Phase 6: Signup, trials and invites | [08-phase-6-signup-and-user-invites.md](./08-phase-6-signup-and-user-invites.md) | `saas/signup-trials-invites` | Phase 4, Phase 5 Part A | None |
 | Phase 7: `/api/v1`, sync, till payments | [09-phase-7-api-v1-sync-payments.md](./09-phase-7-api-v1-sync-payments.md) | `saas/phase-7-api-sync-payments` | Phase 2 (can run alongside 4–6) | None |
+| Stock and FIFO integrity (voids, deletes) | [10-stock-voids-and-fifo-integrity.md](./10-stock-voids-and-fifo-integrity.md) | `fix/stock-voids-fifo` | Phase 1b | None |
+| Returns in sales, cost and profit reports | [11-returns-in-reports.md](./11-returns-in-reports.md) | `fix/returns-in-reports` | Phase 1b, the VAT engine; best after stage 10 (`cost_known`) | None |
+
+Stages 10 and 11 came from the FIFO and returns reviews of 26 October 2026; their decisions were taken the same day.
 
 Phase 5 scope merged on 21 October 2026: roles per business (the roles review) and the platform console are
 one stage on `saas/phase-5-platform-console`. The separate `fix/roles-per-business` branch is retired; its plan
