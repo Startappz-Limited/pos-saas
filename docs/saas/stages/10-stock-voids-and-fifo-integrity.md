@@ -25,8 +25,10 @@ No open question blocks this stage; the points were decided on 26 October 2026 (
     other roles in their business. `sales.edit-all` no longer allows voiding.
   - **Completed sales can't be deleted, only voided.**
   - **A sale with a return can't be voided.**
-  - **Voiding has a time limit: 15 minutes from completion by default.** Each business can set its own limit, or
+  - **Voiding has a time limit: by default, until the end of the day the sale was made** (midnight in the shop's
+    timezone, so always within 24 hours). Each business can instead set a number of minutes (up to 24 hours) or
     no limit at all. **Anyone with `settings.update` can change it**, and **it applies to the owner too.**
+    (Changed on 26 October 2026 from 15 minutes.)
   - **The web sale page gets a Void button**, clearly labelled, with instructions on what voiding does.
   - **A sale is voided automatically when its online order is cancelled before dispatch.**
   - **Below-zero sales settled against stock with no cost keep their estimated cost** instead of dropping to zero.
@@ -106,27 +108,41 @@ shop_variation.stock_quantity
     it.
   - Custom roles a business made itself keep whatever the owner gave them.
 - [ ] **Time limit:**
-  - A business setting `sales.void_window_minutes`, stored in `businesses.settings`:
-    - default 15;
-    - `null` means no limit;
-    - a whole number from 1 to 10,080 (one week).
-  - It's on the business settings page, under "Sales", with the choices "15 minutes (default)", a number of
-    minutes, or "No time limit". **Anyone with `settings.update` can change it** (decided), as with the page's
-    other settings. Each change is audited with the old and new values.
-  - `SalePolicy::void` refuses once `completed_at` (or `created_at` for a sale with none) is older than the limit,
-    with the message "This sale can no longer be voided (limit: :minutes minutes). Use a return instead."
+  - A business setting `sales.void_window`, stored in `businesses.settings`. It takes one of three values:
+    - `end_of_day` (the default, also used when the setting is missing): a sale can be voided until 23:59:59 on
+      the day it was completed;
+    - a whole number of minutes from 1 to 1,440 (24 hours), counted from completion;
+    - `none`: no limit.
+  - **"The day" is the shop's local day:** the sale's completion time is read in the shop's timezone (`shops.timezone`,
+    else `businesses.timezone`, default Africa/Nairobi), never the server's UTC. So a sale at 22:00 in Nairobi can be
+    voided until midnight Nairobi time, not until midnight UTC.
+  - A sale made just before midnight has only minutes left. That's intended: the day's figures close at midnight.
+  - A small `App\Support\Sales\VoidWindow` works out, for a sale, whether it can still be voided and until when.
+    The policy, the sale page and the API all use it, so they always agree.
+  - It's on the business settings page, under "Sales", with the choices "Until the end of the day (default)", "A
+    number of minutes" (with the number) and "No time limit". **Anyone with `settings.update` can change it**
+    (decided), as with the page's other settings. Each change is audited with the old and new values.
+  - `SalePolicy::void` refuses once the window has closed. Messages:
+    - "This sale can only be voided on the day it was made. Use a return instead." (end of day);
+    - "This sale can no longer be voided (limit: :minutes minutes). Use a return instead." (minutes).
   - **The owner is held to the limit too** (decided). Past the window, a return keeps the books and the register
     right.
-  - The check uses the server's clock. For offline sales synced later, the window runs from the sale's own
-    completion time, so an offline sale may already be past it when it arrives. It can then only be returned.
+  - The check uses the server's clock, read in the shop's timezone. For offline sales synced later, the window runs
+    from the sale's own completion time. An offline sale synced the next day is already past the end of its day,
+    so it can only be returned.
 - [ ] **Tests:**
   - a manager with no grant gets 403 on web and API;
   - a role the owner gave `sales.void` succeeds;
   - `sales.edit-all` alone is refused;
-  - at 14 minutes a void succeeds, and at 16 it is refused;
-  - a business set to 60 minutes allows 30;
+  - by default, a sale made at 10:00 can be voided at 23:59 the same day, and is refused at 00:00 the next day;
+  - a sale made at 23:50 is refused at 00:01;
+  - the day is the shop's: for a Nairobi shop, a sale at 22:00 local time (19:00 UTC) is refused at 00:30 local time,
+    even though it is still the same day in UTC;
+  - a shop with its own timezone uses that timezone;
+  - a business set to 60 minutes allows a void at 30 minutes and refuses one at 61;
+  - a number above 1,440 is refused by the settings form;
   - "No time limit" allows a week-old sale;
-  - the owner is refused at 16 minutes;
+  - the owner is refused the next day;
   - a member with `settings.update` changes the limit, and one without it can't;
   - another business's setting doesn't apply;
   - another business's sale is still 404;
@@ -192,11 +208,13 @@ shop_variation.stock_quantity
       It is shown only when `@can('void', $sale)` passes: the permission, the time limit, no return, and not
       already voided.
 - [ ] **When the button isn't available**, the page says why in one line instead:
-  - "Voiding closed :time ago (limit :minutes minutes). Use a return instead.";
+  - "This sale can only be voided on the day it was made. Use a return instead." (end of day), or "Voiding closed
+    :time ago (limit :minutes minutes). Use a return instead." (minutes);
   - "This sale has a return, so it can't be voided."; or
   - nothing, for people without the permission.
-- [ ] **While the window is open**, a muted line under the button says how long is left: "Can be voided for
-      another :minutes minutes."
+- [ ] **While the window is open**, a muted line under the button says until when: "Can be voided until 11:59 pm
+      today." (end of day), or "Can be voided for another :minutes minutes." (minutes). Nothing is shown with no
+      limit.
 - [ ] **Clicking opens a confirmation window** (BS5 modal, the danger style for destructive actions). It contains:
   - **Title:** "Void this sale?"
   - **What happens**, as a short list:
@@ -288,7 +306,7 @@ shop_variation.stock_quantity
 |---|---|
 | `sale_items.cost_known` boolean, default true | Backfilled false where an allocation has no cost |
 | `sales.void` revoked from the manager template and its copies (data migration) | Counts before and after; custom roles untouched |
-| `businesses.settings['sales']['void_window_minutes']` (no column) | Missing means the default, 15 minutes |
+| `businesses.settings['sales']['void_window']` (no column): `end_of_day`, minutes (1–1,440) or `none` | Missing means the default, `end_of_day` |
 
 `release()` writes existing tables.
 
@@ -320,8 +338,9 @@ shop_variation.stock_quantity
 - [ ] Void and delete through the API need `sales.void` / `sales.delete`, as on the web.
 - [ ] By default only the owner can void. A role the owner gives `sales.void` can void. `sales.edit-all` alone
       can't.
-- [ ] A void 16 minutes after completion is refused under the default limit, for the owner too. A business's own
-      limit, or "No time limit", is applied for that business only. Anyone with `settings.update` can change it.
+- [ ] By default a sale can be voided until the end of the day it was made, in the shop's timezone, and not after,
+      for the owner too. A business's own number of minutes (up to 24 hours), or "No time limit", applies to that
+      business only. Anyone with `settings.update` can change it.
 
 **Costs**
 - [ ] A line costed from a batch with no cost is marked `cost_known = false` and flagged on the sale page and the
@@ -346,7 +365,10 @@ shop_variation.stock_quantity
   change, run on a UAT snapshot in `rehearsal_testing` first, applied per business by the owner.
 - **Managers lose voiding in every business on deploy.** Owners must give `sales.void` back to roles that need
   it. Mitigation: the release note says so, and the migration lists, per business, the roles it changed.
-- **A 15-minute window is short for busy tills.** Mitigation: each business can lengthen it or remove it.
+- **Sales made just before midnight have little time to be voided.** Mitigation: the next day they go through a
+  return, and a business can choose a number of minutes instead (up to 24 hours) or no limit.
+- **Timezones:** counting the day in UTC would close Nairobi sales at 03:00 local time. Mitigation: the window is
+  always worked out in the shop's timezone, and tested across midnight.
 - **The Flutter app may show "Delete" on completed sales.** The server refuses, so the app shows an error. Record
   the paired change.
 
