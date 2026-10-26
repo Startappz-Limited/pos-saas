@@ -765,7 +765,8 @@ restored copy of UAT (`rehearsal_testing`); results in the step rows.
 ## Stage 6 (Phase 6): Signup hardening, trials, verification grace, unified invites
 
 Branch: `saas/signup-trials-invites` (from `main` at `e0d8bdf`, the merge of Phase 5). Plan: the stage file
-([08-phase-6-signup-and-user-invites.md](stages/08-phase-6-signup-and-user-invites.md)). **Status: in progress.**
+([08-phase-6-signup-and-user-invites.md](stages/08-phase-6-signup-and-user-invites.md)). **Status: merged** (PR #16,
+`6a4fc60`, 23 October 2026); follow-up fixes merged in PRs #17 to #21.
 
 ### Steps
 
@@ -793,3 +794,32 @@ Branch: `saas/signup-trials-invites` (from `main` at `e0d8bdf`, the merge of Pha
 - Rollout rehearsal on `import_testing` of migrations `2026_10_23_000001` to `000005`, and the UAT run.
 - On this Windows host `CacheKeyScopeTest`, `RawQueryScopeTest` and `TenantScopeBypassTest` fail on path
   separators with or without these changes; they pass in CI (Linux).
+
+## Stage 7 (Phase 7): `/api/v1` for the till, offline sync, till payments
+
+Branch: `saas/phase-7-api-sync-payments` (from `main` at `61245e3`). Plan: the stage file
+([09-phase-7-api-v1-sync-payments.md](stages/09-phase-7-api-v1-sync-payments.md)). **Status: in progress.**
+
+### Scope (decided 26 October 2026)
+
+- **Till first:** `/api/v1` covers what a till needs to trade (pairing, sync pull and push, M-Pesa, receipts).
+  Reports, purchasing, suppliers, expenses and returns stay on the flat API until a later stage, so "the same
+  features as the web" is partly done.
+- **M-Pesa on the contract:** `MpesaGateway` gains STK Push and queries, tested with the fake; the null gateway
+  stays bound until the private package is plugged in.
+- **Scramble installed** for the OpenAPI document.
+
+### Steps
+
+| Step | Commit | Tests added | Suite (SQLite) | Suite (MySQL 8) | Notes |
+|---|---|---|---|---|---|
+| 1. API foundation | _this commit_ | `ApiV1/FoundationTest` (7), `ApiV1/OpenApiDocumentTest` (2), `MobileContractDiffTest` (3) | deferred | deferred | **Responses:** every `/api/v1` JSON response has `success`, `message`, `data`, `meta` and `code` (`ShapeApiV1Response`, first in the `api` group so it also shapes the throttle's and auth's refusals; the flat API untouched). Controllers use `ApiV1::ok()`/`error()`. **Registry:** `ApiErrorCode` (generic codes from the status, plus `business_token_required`, `account_inactive`, `business_required`, `no_active_business`, `platform_operator` and the Phase 4/6 codes); the middleware refusals that had no code now carry one (additive on the flat API). **Rate limits:** the `api` limiter adds a cap per business (`RATE_LIMIT_API_BUSINESS`, 600 a minute) beside the one per user, on both APIs. **OpenAPI:** `dedoc/scramble` 0.13.50 documents `api/v1` only at `/docs/api` (local, or platform operators); the test checks it lists exactly the v1 routes. One generation warning: Scramble evaluates a business-scoped query with no business set while reading `saveIntegration`; harmless. **`mobile:contract-diff`** reports the flat API and `/api/v1` separately and never matches one against the other. **Housekeeping:** the stage file's title said "Phase 6" and had a stray `s`; stage 6 marked merged. **v1 contract fixture re-recorded** (only `meta` and `code` added). That happened because the local, untracked `phpunit.mysql.local.xml` didn't exclude the `api-v1-contract-record` group, so every MySQL run re-recorded the v1 fixture and could hide a break. The local file now excludes it; the tracked `phpunit.mysql.xml` already did |
+
+### Differences from the stage file
+
+- **SMS was already fixed in stage 3** (step 13, `bea86a7`): `SMSservice` sends with the business's own account
+  (`TenantMessagingCredentials`), the missing `Setting` model is gone and cache keys are per business. Step 10 adds
+  only the acceptance test.
+- **Sale creation is inline** in both `SaleController`s; step 4 extracts a `RecordSale` action for sync push, with
+  the flat API's responses unchanged.
+

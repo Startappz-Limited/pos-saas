@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Responses\ApiV1;
 use App\Models\Business;
 use App\Models\User;
 use App\Support\Tenancy\TenantContext;
@@ -18,11 +19,7 @@ class BusinessController extends Controller
 {
     public function index(Request $request, TenantContext $tenant): JsonResponse
     {
-        return response()->json([
-            'success' => true,
-            'message' => null,
-            'data' => self::listFor($request->user(), $tenant->id()),
-        ]);
+        return ApiV1::ok(self::listFor($request->user(), $tenant->id()));
     }
 
     public function switch(Request $request, Business $business, TenantContext $tenant): JsonResponse
@@ -36,7 +33,7 @@ class BusinessController extends Controller
         $session = AuthController::session($user, $business, $current->name, $tenant);
         $current->delete();
 
-        return response()->json(['success' => true, 'message' => __('Switched business.'), 'data' => $session]);
+        return ApiV1::ok($session, __('Switched business.'));
     }
 
     /**

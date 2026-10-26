@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Enums\ApiErrorCode;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\SignInRequest;
+use App\Http\Responses\ApiV1;
 use App\Models\Business;
 use App\Models\User;
 use App\Support\Tenancy\TenantContext;
@@ -39,10 +41,7 @@ class AuthController extends Controller
         $usable = $user->usableBusinesses();
 
         if ($usable->isEmpty()) {
-            return response()->json([
-                'success' => false,
-                'message' => __('You are not a member of any active business.'),
-            ], 403);
+            return ApiV1::error(ApiErrorCode::NoActiveBusiness, __('You are not a member of any active business.'), 403);
         }
 
         if (isset($validated['business'])) {
@@ -60,29 +59,21 @@ class AuthController extends Controller
         }
 
         if ($business === null) {
-            return response()->json([
-                'success' => true,
-                'message' => __('Choose a business, then sign in again with it.'),
-                'data' => [
-                    'business_required' => true,
-                    'token' => null,
-                    'businesses' => BusinessController::listFor($user, null),
-                ],
-            ]);
+            return ApiV1::ok([
+                'business_required' => true,
+                'token' => null,
+                'businesses' => BusinessController::listFor($user, null),
+            ], __('Choose a business, then sign in again with it.'));
         }
 
-        return response()->json([
-            'success' => true,
-            'message' => __('Signed in.'),
-            'data' => self::session($user, $business, $validated['device_name'], $this->tenant),
-        ]);
+        return ApiV1::ok(self::session($user, $business, $validated['device_name'], $this->tenant), __('Signed in.'));
     }
 
     public function signOut(Request $request): JsonResponse
     {
         $request->user()->currentAccessToken()->delete();
 
-        return response()->json(['success' => true, 'message' => __('Signed out.'), 'data' => null]);
+        return ApiV1::ok(null, __('Signed out.'));
     }
 
     /**

@@ -7,9 +7,11 @@ use App\Actions\Business\HandOverBusiness;
 use App\Actions\Business\SendOwnerConfirmationCode;
 use App\Actions\Product\ImportProductsFromCsv;
 use App\Actions\Shop\SaveShopMpesaAccount;
+use App\Enums\ApiErrorCode;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\SaveShopMpesaRequest;
 use App\Http\Requests\UpdateBusinessSettingsRequest;
+use App\Http\Responses\ApiV1;
 use App\Jobs\BuildBusinessExport;
 use App\Models\BusinessExport;
 use App\Models\BusinessIntegration;
@@ -148,7 +150,7 @@ class BusinessAdminController extends Controller
 
         return $result['errors'] === []
             ? $this->ok(['imported' => $result['imported'], 'opening_stock' => $result['opening_stock'], 'ignored_columns' => $result['ignored']], __(':count products imported.', ['count' => $result['imported']]))
-            : response()->json(['success' => false, 'message' => __('Nothing was imported.'), 'errors' => ['file' => $result['errors']]], 422);
+            : ApiV1::error(ApiErrorCode::ValidationFailed, __('Nothing was imported.'), 422, ['file' => $result['errors']]);
     }
 
     public function requestExport(Request $request): JsonResponse
@@ -186,7 +188,7 @@ class BusinessAdminController extends Controller
         $confirmation = $this->codes->pending($request->user(), OwnerConfirmation::PURPOSE_HANDOVER);
 
         if ($confirmation === null || ! $confirmation->attempt($validated['code'])) {
-            return response()->json(['success' => false, 'message' => __('That code is wrong or has expired.'), 'errors' => ['code' => [__('That code is wrong or has expired.')]]], 422);
+            return ApiV1::error(ApiErrorCode::ValidationFailed, __('That code is wrong or has expired.'), 422, ['code' => [__('That code is wrong or has expired.')]]);
         }
 
         $target = $this->handover->candidates($request->user())->firstWhere('id', $confirmation->payload['owner_id'] ?? 0);
@@ -214,7 +216,7 @@ class BusinessAdminController extends Controller
         $confirmation = $this->codes->pending($request->user(), OwnerConfirmation::PURPOSE_CLOSE);
 
         if ($confirmation === null || ! $confirmation->attempt($validated['code'])) {
-            return response()->json(['success' => false, 'message' => __('That code is wrong or has expired.'), 'errors' => ['code' => [__('That code is wrong or has expired.')]]], 422);
+            return ApiV1::error(ApiErrorCode::ValidationFailed, __('That code is wrong or has expired.'), 422, ['code' => [__('That code is wrong or has expired.')]]);
         }
 
         $closure = $this->closer->start($this->tenant->business(), $request->user());
@@ -268,6 +270,6 @@ class BusinessAdminController extends Controller
 
     private function ok(mixed $data, ?string $message = null): JsonResponse
     {
-        return response()->json(['success' => true, 'message' => $message, 'data' => $data]);
+        return ApiV1::ok($data, $message);
     }
 }

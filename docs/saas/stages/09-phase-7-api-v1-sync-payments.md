@@ -1,4 +1,4 @@
-# Phase 6: `/api/v1` for Flutter, Offline Sync, Till Payments
+# Phase 7: `/api/v1` for Flutter, Offline Sync, Till Payments
 
 > **Source:** saas-plan.md section 5 (Phase 6), sections 4.4, 4.5, 4.8, 4.9, section 1 (External
 > integrations), section 8 (Open questions 2 and 6)
@@ -6,7 +6,7 @@
 > and 5)
 
 ---
-s
+
 ## Goal
 
 A complete, documented API that a Flutter POS can trade on, online or offline, in any of the user's
