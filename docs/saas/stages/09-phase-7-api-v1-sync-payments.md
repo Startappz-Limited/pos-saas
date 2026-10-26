@@ -151,12 +151,18 @@ businesses.
       `meta.sync_overdue` on pull and push, `sync_overdue` per till in the register list.)
 
 ### Till payments
-- [ ] **M-Pesa STK Push at the till** through the private package, using the shop's own Till or Paybill.
+- [x] **M-Pesa STK Push at the till** through the private package, using the shop's own Till or Paybill.
       The server confirms the payment by querying the M-Pesa API with the shop's account details and
       marks the right sale paid, matched by shop number and request id. A till that has gone offline shows the payment as pending and receives the result on its next sync.
-- [ ] **Offline M-Pesa entry:** a cashier on a till with no connection enters the M-Pesa code; on sync
+      (Built on the `MpesaGateway` contract with the fake gateway; the null gateway sends nothing until the
+      private package is plugged in. `POST /api/v1/mpesa/stk`, `GET /api/v1/mpesa/requests/{uuid}`, the
+      minute-by-minute `mpesa:check-pending`, and `payment_requests` in the pull. A sale pushed with
+      `awaiting_mpesa` is recorded unpaid until its payment is confirmed.)
+- [x] **Offline M-Pesa entry:** a cashier on a till with no connection enters the M-Pesa code; on sync
       the server queries the M-Pesa API with the shop's account details and matches by code and amount,
-      or flags it for review.
+      or flags it for review. (Push item `mpesa_code`; a code M-Pesa doesn't know is looked up every 15
+      minutes for two days; a different amount, a reused code, or a payment for a paid sale goes on the till
+      sync review.)
 
 ### Offline rules (4.9)
 - [x] Per-register invoice series checked on sync. (A gap is recorded for review and closes as the missing
@@ -179,7 +185,7 @@ businesses.
 
 ## Schema
 
-- [ ] `payment_requests` (STK requests and the API's results per sale).
+- [x] `payment_requests` (STK requests and the API's results per sale).
 - [ ] The Phase 1 sync columns used (`client_uuid`, `updated_at` indexes, `sync_deletions`, register
       last-sync time and last invoice number). Used so far: `client_uuid` on sales, payments, customers and cash
       sessions; `sync_deletions`; the register's last invoice number. Last-sync time since step 7.
@@ -214,7 +220,7 @@ The work list and acceptance criteria above already assume both. **Both adopted*
 - [ ] A user in two businesses syncs both independently.
 - [x] A register that hasn't synced for 24 hours triggers the owner warning and the API flag, without
       blocking sales.
-- [ ] An STK payment marks the right sale paid exactly once, including when the till syncs only
+- [x] An STK payment marks the right sale paid exactly once, including when the till syncs only
       afterwards.
 - [ ] Two tills number sales offline without collisions; a repeated or missing number in a series is
       flagged on sync. (Flagging done; two tills in one shop wait on adding tills, a follow-up.)
@@ -222,8 +228,9 @@ The work list and acceptance criteria above already assume both. **Both adopted*
       device. A sale outside any issued lease is refused even if its recorded time is before the lapse.
 - [x] A device re-paired after a reinstall gets a new register code, and its numbers don't repeat.
 - [x] A customer pushed with an existing phone number is saved and flagged, not merged.
-- [ ] An M-Pesa code entered on an offline till is matched to the shop's payment notification on sync; an
-      unmatched or reused code stays pending and is flagged.
+- [x] An M-Pesa code entered on an offline till is matched to the shop's payment notification on sync; an
+      unmatched or reused code stays pending and is flagged. (Matched by querying M-Pesa with the shop's
+      account, not by a notification: the server believes only what the API says.)
 - [x] The OpenAPI document matches the routes (contract test).
 - [ ] SMS sends through the tenant's provider.
 - [ ] The flat API contract tests still pass. (Passing after each step so far; ticked at the end of the phase.)

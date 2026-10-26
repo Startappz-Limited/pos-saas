@@ -23,6 +23,7 @@ use App\Http\Controllers\Api\V1\AuthController as V1AuthController;
 use App\Http\Controllers\Api\V1\BillingController as V1BillingController;
 use App\Http\Controllers\Api\V1\BusinessAdminController as V1BusinessAdminController;
 use App\Http\Controllers\Api\V1\BusinessController as V1BusinessController;
+use App\Http\Controllers\Api\V1\MpesaController as V1MpesaController;
 use App\Http\Controllers\Api\V1\RegisterController as V1RegisterController;
 use App\Http\Controllers\Api\V1\SyncController as V1SyncController;
 use App\Http\Controllers\Api\V1\TillPinController as V1TillPinController;
@@ -76,6 +77,12 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
             Route::get('/lease', [V1SyncController::class, 'lease'])->name('lease');
             Route::get('/pull', [V1SyncController::class, 'pull'])->name('pull');
             Route::post('/push', [V1SyncController::class, 'push'])->middleware('throttle:writes')->name('push');
+        });
+
+        // M-Pesa at a paired till (Phase 7).
+        Route::middleware(EnsureRegisterToken::class)->prefix('mpesa')->name('mpesa.')->group(function () {
+            Route::post('/stk', [V1MpesaController::class, 'stk'])->middleware('throttle:writes')->name('stk');
+            Route::get('/requests/{paymentRequest:uuid}', [V1MpesaController::class, 'show'])->name('requests.show');
         });
 
         // Billing (Phase 4): reachable while read-only, so a lapsed owner can pay.

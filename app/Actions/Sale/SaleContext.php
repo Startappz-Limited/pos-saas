@@ -21,5 +21,7 @@ final class SaleContext
         public readonly ?CashRegister $cashSession = null,
         public readonly ?string $invoiceNumber = null,
         public readonly ?int $soldBy = null,
+        // Paid by M-Pesa at the till, confirmed later: recorded unpaid until then.
+        public readonly bool $awaitingPayment = false,
     ) {}
 }

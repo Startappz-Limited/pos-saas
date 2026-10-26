@@ -4,6 +4,7 @@ namespace App\Services\Sync;
 
 use App\Models\Category;
 use App\Models\Customer;
+use App\Models\PaymentRequest;
 use App\Models\PricingRule;
 use App\Models\Product;
 use App\Models\ProductVariation;
@@ -25,8 +26,9 @@ use Illuminate\Support\Collection;
  * since its cursor, read-only offline.
  *
  * - Paged entities, each in `(updated_at, id)` order and at most `$limit` rows
- *   a pull: categories, products, variations, pricing rules, customers, and
- *   the stock and shop prices of the till's own shop.
+ *   a pull: categories, products, variations, pricing rules, customers, the
+ *   stock and shop prices of the till's own shop, and its shop's M-Pesa
+ *   payment requests (so an offline till learns what became of an STK Push).
  * - Deletions (deletes and soft deletes) from `sync_deletions`, in the same
  *   way. The till drops these first, then applies the changed rows: a deleted
  *   record is never among them, and a restored one comes back as changed.
@@ -42,7 +44,7 @@ use Illuminate\Support\Collection;
 class SyncPull
 {
     /** The paged entities, in the order the till should apply them. */
-    public const ENTITIES = ['categories', 'products', 'variations', 'pricing_rules', 'customers', 'stock'];
+    public const ENTITIES = ['categories', 'products', 'variations', 'pricing_rules', 'customers', 'stock', 'payment_requests'];
 
     public function __construct(private TenantContext $tenant) {}
 
@@ -201,6 +203,8 @@ class SyncPull
                 'status' => $customer->status,
                 'updated_at' => $customer->updated_at?->toIso8601String(),
             ]],
+            // M-Pesa at this shop's tills: what became of each request (Phase 7).
+            'payment_requests' => [PaymentRequest::query()->where('payment_requests.shop_id', $register->shop_id), fn (PaymentRequest $request): array => $request->present()],
             'stock' => [ShopVariation::query()->where('shop_variation.shop_id', $register->shop_id)->with(['product:id,uuid', 'variation:id,uuid,is_default']), fn (ShopVariation $stock): array => [
                 'product_uuid' => $stock->product?->uuid,
                 // The hidden default variation of a product without variations is null.

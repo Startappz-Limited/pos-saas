@@ -39,6 +39,9 @@ enum ApiErrorCode: string
     case SaleAlreadyPaid = 'sale_already_paid';
     case UnknownItemType = 'unknown_item_type';
 
+    // Till M-Pesa (Phase 7).
+    case MpesaNotSetUp = 'mpesa_not_set_up';
+
     // Billing (Phase 4).
     case SubscriptionInactive = 'subscription_inactive';
     case PlanLimitReached = 'plan_limit_reached';
@@ -90,6 +93,7 @@ enum ApiErrorCode: string
             self::InvoiceNumberTaken => 'Another sale of the business already has this invoice number.',
             self::SaleAlreadyPaid => 'The sale is already fully paid.',
             self::UnknownItemType => 'The server does not know this kind of pushed item.',
+            self::MpesaNotSetUp => 'The shop has no proven M-Pesa Till or Paybill, so it can\'t take M-Pesa at the till.',
             self::SubscriptionInactive => 'The subscription has lapsed or the business is over its shops; it is read-only.',
             self::PlanLimitReached => 'The plan allows no more of this (see `limit` and `allowed`).',
             self::FeatureUnavailable => 'The plan does not include this feature.',

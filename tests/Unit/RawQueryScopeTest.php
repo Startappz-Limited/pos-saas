@@ -44,6 +44,7 @@ const ALLOWED_RAW_QUERIES = [
     'app/Models/Product.php' => [5, 'the product\'s own shop and per-shop rows'],
     'app/Models/Register.php' => [4, 'the default register of a shop the caller names'],
     'app/Services/InvoiceNumberService.php' => [12, 'the invoice series of the sale\'s shop and register, and adopting a number a till gave a sale offline (Phase 7)'],
+    'app/Services/Mpesa/TillPayments.php' => [1, 'an M-Pesa receipt pays once on the whole platform (the column is unique across businesses): reads only whether one is used (Phase 7)'],
     'app/Services/ProductService.php' => [1, 'per-shop stock of scoped products in the viewer\'s shops (StockQuery)'],
     'app/Services/Stock/StockLedger.php' => [26, 'stock, layers and allocations of the shop and variation the caller passes'],
     'app/Services/Stock/StockQuery.php' => [4, 'correlated to a scoped product or variation; the viewer\'s shops'],

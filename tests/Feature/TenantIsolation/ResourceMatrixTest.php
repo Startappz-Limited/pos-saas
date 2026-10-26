@@ -15,6 +15,7 @@ use App\Models\DeliveryCompany;
 use App\Models\EcommerceOrder;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
+use App\Models\PaymentRequest;
 use App\Models\PlatformPayment;
 use App\Models\PricingRule;
 use App\Models\PurchaseOrder;
@@ -367,6 +368,20 @@ it('applies A\'s till\'s push in A only, and reaches none of B\'s records (Phase
         ->and($results[1]['result']['flags'])->toBe([])
         ->and(app(TenantContext::class)->run($this->fixture->b->business, fn () => $bSale->fresh()->payment_status))->toBe($bPaid)
         ->and(DB::table('customers')->where('client_uuid', $customerUuid)->value('business_id'))->toBe($this->fixture->a->business->id);
+});
+
+it('keeps business B\'s till M-Pesa requests from A\'s till (Phase 7)', function () {
+    $aRegister = app(TenantContext::class)->run($this->fixture->a->business, fn () => Register::query()->firstOrFail());
+    $bRequest = app(TenantContext::class)->run($this->fixture->b->business, fn () => PaymentRequest::create([
+        'client_uuid' => (string) Str::uuid(), 'shop_id' => $this->fixture->b->shops[0]->id, 'method' => 'stk', 'status' => 'pending', 'amount' => 10, 'shortcode' => '600000',
+    ]));
+    $token = Till::token($this->fixture->a->owner, $aRegister);
+    $this->travel(2)->seconds();
+
+    Till::freshRequest();
+    $this->withToken($token)->getJson(route('api.v1.mpesa.requests.show', $bRequest))->assertNotFound();
+    Till::freshRequest();
+    expect(json_encode($this->withToken($token)->getJson(route('api.v1.sync.pull'))->json('data.payment_requests')))->not->toContain((string) $bRequest->uuid);
 });
 
 it('refuses every platform console route to business A\'s owner (Phase 5)', function () {

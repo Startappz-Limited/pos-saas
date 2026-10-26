@@ -11,6 +11,7 @@ use App\Models\Customer;
 use App\Models\Sale;
 use App\Models\StockMovement;
 use App\Models\SyncIssue;
+use App\Services\Mpesa\TillPayments;
 use App\Services\Sync\TradingLease;
 use App\Support\Sync\SyncIssues;
 use Illuminate\Database\UniqueConstraintViolationException;
@@ -31,6 +32,7 @@ final class SaleHandler implements PushHandler
         private TradingLease $leases,
         private PushPeople $people,
         private SyncIssues $issues,
+        private TillPayments $payments,
     ) {}
 
     public function handle(PushItem $item): array
@@ -63,6 +65,7 @@ final class SaleHandler implements PushHandler
                 cashSession: $session,
                 invoiceNumber: isset($data['invoice_number']) ? (string) $data['invoice_number'] : null,
                 soldBy: $cashier->id,
+                awaitingPayment: (bool) ($data['awaiting_mpesa'] ?? false),
             ));
         } catch (InvalidArgumentException $e) {
             throw new PushRefused(ApiErrorCode::InvalidInvoiceNumber, $e->getMessage(), ['invoice_number' => [$e->getMessage()]]);
@@ -84,6 +87,12 @@ final class SaleHandler implements PushHandler
 
         $sale = $recorded->sale;
         $flags = [];
+
+        // An M-Pesa payment confirmed before the sale arrived is recorded now.
+        if ((bool) ($data['awaiting_mpesa'] ?? false)) {
+            $this->payments->applyForSale($sale);
+            $sale->refresh();
+        }
         $about = ['sale' => $sale->uuid, 'invoice_number' => $sale->invoice_number, 'recorded_at' => $item->recordedAt->toIso8601String()];
 
         if ($recorded->invoiceAdoption !== null) {
@@ -106,6 +115,7 @@ final class SaleHandler implements PushHandler
             'sale_uuid' => $sale->uuid,
             'invoice_number' => $sale->invoice_number,
             'total_amount' => number_format((float) $sale->total_amount, 2, '.', ''),
+            'payment_status' => $sale->payment_status,
             'flags' => $flags,
         ];
     }

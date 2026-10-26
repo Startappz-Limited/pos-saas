@@ -93,7 +93,9 @@ class RecordSale
                 $paymentStatus = 'unpaid';
                 $paidAmount = 0;
                 $completedAt = null;
-            } elseif ($paymentMethod === 'credit') {
+            } elseif ($paymentMethod === 'credit' || $context->awaitingPayment) {
+                // On credit, or paid by M-Pesa at the till and not yet
+                // confirmed (Phase 7): the goods left; the payment follows.
                 $status = 'completed';
                 $paymentStatus = 'unpaid';
                 $paidAmount = 0;

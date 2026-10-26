@@ -34,6 +34,14 @@ class SyncIssue extends Model
 
     public const IMPLAUSIBLE_TIME = 'implausible_time';
 
+    public const MPESA_UNMATCHED = 'mpesa_unmatched';
+
+    public const MPESA_AMOUNT_MISMATCH = 'mpesa_amount_mismatch';
+
+    public const MPESA_CODE_REUSED = 'mpesa_code_reused';
+
+    public const MPESA_NOT_NEEDED = 'mpesa_not_needed';
+
     protected $fillable = ['uuid', 'business_id', 'shop_id', 'register_id', 'type', 'key', 'details', 'resolved_at', 'resolved_by', 'resolution'];
 
     protected function casts(): array
@@ -84,6 +92,10 @@ class SyncIssue extends Model
             self::POSSIBLE_DUPLICATE_CUSTOMER => __('Possible duplicate customer'),
             self::NEGATIVE_STOCK => __('Sold below zero stock'),
             self::IMPLAUSIBLE_TIME => __('Sale time in the future'),
+            self::MPESA_UNMATCHED => __('M-Pesa code not found'),
+            self::MPESA_AMOUNT_MISMATCH => __('M-Pesa amount differs'),
+            self::MPESA_CODE_REUSED => __('M-Pesa code used twice'),
+            self::MPESA_NOT_NEEDED => __('M-Pesa payment for a paid sale'),
             default => $this->type,
         };
     }
@@ -94,7 +106,8 @@ class SyncIssue extends Model
     public function badgeVariant(): string
     {
         return match ($this->type) {
-            self::INVOICE_REPEAT => 'danger',
+            self::INVOICE_REPEAT, self::MPESA_CODE_REUSED => 'danger',
+            self::MPESA_UNMATCHED, self::MPESA_AMOUNT_MISMATCH, self::MPESA_NOT_NEEDED => 'warning',
             self::INVOICE_GAP, self::NEGATIVE_STOCK => 'warning',
             self::POSSIBLE_DUPLICATE_CUSTOMER => 'info',
             default => 'secondary',

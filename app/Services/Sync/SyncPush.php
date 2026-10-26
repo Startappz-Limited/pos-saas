@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Services\Billing\Entitlements;
 use App\Services\Sync\Push\CashSessionHandler;
 use App\Services\Sync\Push\CustomerHandler;
+use App\Services\Sync\Push\MpesaCodeHandler;
 use App\Services\Sync\Push\PaymentHandler;
 use App\Services\Sync\Push\PushHandler;
 use App\Services\Sync\Push\PushItem;
@@ -48,6 +49,7 @@ class SyncPush
         'sale_payment' => PaymentHandler::class,
         'cash_session' => CashSessionHandler::class,
         'till_sign_in' => TillSignInHandler::class,
+        'mpesa_code' => MpesaCodeHandler::class,
     ];
 
     /**

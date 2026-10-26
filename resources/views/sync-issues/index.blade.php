@@ -78,6 +78,21 @@
                                                 <div><a href="{{ route('sales.show', $sale) }}">{{ $sale->invoice_number }}</a></div>
                                             @endif
                                             @break
+                                        @case(\App\Models\SyncIssue::MPESA_UNMATCHED)
+                                            {{ __('M-Pesa has no payment with code :code (KES :amount) to this shop yet. The server keeps checking for two days; if it never appears, ask the customer for proof of payment.', ['code' => $details['mpesa_receipt'] ?? '?', 'amount' => $details['amount'] ?? '?']) }}
+                                            @break
+                                        @case(\App\Models\SyncIssue::MPESA_AMOUNT_MISMATCH)
+                                            {{ __('Code :code was entered for KES :amount, but M-Pesa shows KES :paid. The sale was not marked paid.', ['code' => $details['mpesa_receipt'] ?? '?', 'amount' => $details['amount'] ?? '?', 'paid' => $details['paid_amount'] ?? '?']) }}
+                                            @break
+                                        @case(\App\Models\SyncIssue::MPESA_CODE_REUSED)
+                                            {{ __('Code :code was already used for another payment, so it didn\'t pay this sale (KES :amount).', ['code' => $details['mpesa_receipt'] ?? '?', 'amount' => $details['amount'] ?? '?']) }}
+                                            @break
+                                        @case(\App\Models\SyncIssue::MPESA_NOT_NEEDED)
+                                            {{ __('M-Pesa payment :code (KES :amount) arrived for a sale that was already paid. Refund the customer or keep it as credit.', ['code' => $details['mpesa_receipt'] ?? '?', 'amount' => $details['amount'] ?? '?']) }}
+                                            @if ($sale = $sales->get($details['sale'] ?? ''))
+                                                <div><a href="{{ route('sales.show', $sale) }}">{{ $sale->invoice_number }}</a></div>
+                                            @endif
+                                            @break
                                     @endswitch
                                 </td>
                                 <td class="text-nowrap small">{{ $issue->created_at->diffForHumans() }}</td>
