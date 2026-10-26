@@ -8,6 +8,7 @@ use App\Http\Requests\Api\V1\PairRegisterRequest;
 use App\Http\Responses\ApiV1;
 use App\Models\Register;
 use App\Models\Shop;
+use App\Services\Sync\TradingLease;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -35,12 +36,13 @@ class RegisterController extends Controller
      * Pairs the calling device to $register and returns a token bound to it,
      * with the last invoice number the server has for its series.
      */
-    public function pair(PairRegisterRequest $request, Register $register, PairRegister $pair, TenantContext $tenant): JsonResponse
+    public function pair(PairRegisterRequest $request, Register $register, PairRegister $pair, TenantContext $tenant, TradingLease $leases): JsonResponse
     {
         $validated = $request->validated();
 
         $result = $pair->execute($register, $request->user(), $validated['device_id'], $validated['device_name'] ?? null, (int) $tenant->id());
         $register = $result['register']->load('shop:id,uuid,name,code');
+        $lease = $leases->present($leases->issue($register, $request->user()), $register);
 
         return ApiV1::ok([
             'token' => $result['token']->plainTextToken,
@@ -50,7 +52,7 @@ class RegisterController extends Controller
             'previous_code' => $result['previous_code'],
         ], $result['repaired']
             ? __('Till paired. It now numbers sales as :code; the device it replaced has been signed out.', ['code' => $register->code])
-            : __('Till paired.'));
+            : __('Till paired.'), ['lease' => $lease]);
     }
 
     /**

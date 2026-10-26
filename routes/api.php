@@ -24,9 +24,11 @@ use App\Http\Controllers\Api\V1\BillingController as V1BillingController;
 use App\Http\Controllers\Api\V1\BusinessAdminController as V1BusinessAdminController;
 use App\Http\Controllers\Api\V1\BusinessController as V1BusinessController;
 use App\Http\Controllers\Api\V1\RegisterController as V1RegisterController;
+use App\Http\Controllers\Api\V1\SyncController as V1SyncController;
 use App\Http\Controllers\PlatformPaymentWebhookController;
 use App\Http\Controllers\WebhookController;
 use App\Http\Middleware\EnsureBusinessToken;
+use App\Http\Middleware\EnsureRegisterToken;
 use Illuminate\Support\Facades\Route;
 
 // Webhook routes (public — verified via HMAC signature, throttled per shop)
@@ -62,6 +64,11 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         // Registers (Phase 7): the tills of the user's shops, and pairing this device to one.
         Route::get('/registers', [V1RegisterController::class, 'index'])->name('registers.index');
         Route::post('/registers/{register:uuid}/pair', [V1RegisterController::class, 'pair'])->middleware('throttle:writes')->name('registers.pair');
+
+        // Sync for a paired till (Phase 7): a register-bound token only.
+        Route::middleware(EnsureRegisterToken::class)->prefix('sync')->name('sync.')->group(function () {
+            Route::get('/lease', [V1SyncController::class, 'lease'])->name('lease');
+        });
 
         // Billing (Phase 4): reachable while read-only, so a lapsed owner can pay.
         Route::get('/billing', [V1BillingController::class, 'show'])->name('billing.show');

@@ -26,11 +26,13 @@ use App\Support\Tenancy\BusinessLink;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\URL;
 use Laravel\Sanctum\PersonalAccessToken;
 use Laravel\Sanctum\Sanctum;
 use Tests\Support\PlatformRoutes;
+use Tests\Support\Till;
 use Tests\Support\TwoBusinesses;
 
 /**
@@ -309,6 +311,22 @@ it('refuses business B\'s registers to business A on /api/v1 (Phase 7)', functio
     $this->withHeaders($headers)->postJson(route('api.v1.registers.pair', $bRegister), ['device_id' => 'intruder'])->assertNotFound();
 
     expect($bRegister->fresh()->device_id)->toBeNull();
+});
+
+it('leases a till of business A for A\'s till only, and B\'s till for B\'s (Phase 7)', function () {
+    [$aRegister, $bRegister] = array_map(
+        fn ($side) => app(TenantContext::class)->run($side->business, fn () => Register::query()->firstOrFail()),
+        [$this->fixture->a, $this->fixture->b],
+    );
+
+    foreach ([[$this->fixture->a, $aRegister], [$this->fixture->b, $bRegister]] as [$side, $register]) {
+        $token = Till::token($side->owner, $register);
+        Till::freshRequest();
+        $this->withToken($token)->getJson(route('api.v1.sync.lease'))->assertOk()->assertJsonPath('meta.lease.register', $register->uuid);
+
+        $leaseBusiness = DB::table('register_leases')->where('register_id', $register->id)->distinct()->pluck('business_id')->all();
+        expect($leaseBusiness)->toBe([$side->business->id]);
+    }
 });
 
 it('refuses every platform console route to business A\'s owner (Phase 5)', function () {

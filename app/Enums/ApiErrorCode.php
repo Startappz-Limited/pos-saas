@@ -24,6 +24,7 @@ enum ApiErrorCode: string
 
     // Account and business.
     case BusinessTokenRequired = 'business_token_required';
+    case RegisterTokenRequired = 'register_token_required';
     case AccountInactive = 'account_inactive';
     case EmailVerificationRequired = 'email_verification_required';
     case BusinessRequired = 'business_required';
@@ -70,6 +71,7 @@ enum ApiErrorCode: string
             self::TooManyRequests => 'Rate limit reached; retry after the Retry-After header.',
             self::ServerError => 'Something went wrong on the server.',
             self::BusinessTokenRequired => 'This endpoint needs a token from /api/v1 sign-in, bound to one business.',
+            self::RegisterTokenRequired => 'This endpoint needs a token bound to a till: pair the device, or sign in on a paired till.',
             self::AccountInactive => 'The user\'s account or membership is switched off.',
             self::EmailVerificationRequired => 'The owner must verify their email address before going on.',
             self::BusinessRequired => 'Choose a business to work in.',

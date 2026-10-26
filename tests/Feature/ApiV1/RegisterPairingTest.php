@@ -5,6 +5,7 @@ use App\Models\RegisterPairing;
 use App\Models\User;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Support\Facades\DB;
+use Tests\Support\Till;
 use Tests\Support\TwoBusinesses;
 
 /**
@@ -32,39 +33,10 @@ beforeEach(function () {
     $this->tenant->forget();
 });
 
-/**
- * Clears what the previous request left behind. The business goes first:
- * forgetting it reads the signed-in user, which would otherwise rebuild the
- * guard around the previous request and its token.
- */
-function freshApiRequest(): void
-{
-    app(TenantContext::class)->forget();
-    app('auth')->forgetGuards();
-}
-
-/**
- * A `/api/v1` token for $user in business A (no register).
- */
-function pairingToken(User $user): string
-{
-    freshApiRequest();
-
-    return test()->postJson('/api/v1/auth/sign-in', ['email' => $user->email, 'password' => 'password', 'device_name' => 'Phone'])
-        ->assertOk()->json('data.token');
-}
-
-function pairTill(string $token, Register $register, string $deviceId = 'device-1')
-{
-    freshApiRequest();
-
-    return test()->withToken($token)->postJson("/api/v1/registers/{$register->uuid}/pair", ['device_id' => $deviceId, 'device_name' => 'Front till']);
-}
-
 it('pairs a till and gives a token bound to the business and the register, with the last invoice number', function () {
     DB::table('registers')->where('id', $this->register1->id)->update(['last_invoice_number' => 41]);
 
-    $response = pairTill(pairingToken($this->a->owner), $this->register1)->assertOk()
+    $response = Till::pair(Till::signIn($this->a->owner), $this->register1)->assertOk()
         ->assertJsonPath('data.register.uuid', $this->register1->uuid)
         ->assertJsonPath('data.register.code', 'R1')
         ->assertJsonPath('data.register.paired', true)
@@ -80,25 +52,25 @@ it('pairs a till and gives a token bound to the business and the register, with 
 });
 
 it('gives the same device a new token without changing anything else', function () {
-    $owner = pairingToken($this->a->owner);
-    pairTill($owner, $this->register1)->assertOk();
+    $owner = Till::signIn($this->a->owner);
+    Till::pair($owner, $this->register1)->assertOk();
 
-    pairTill($owner, $this->register1)->assertOk()->assertJsonPath('data.repaired', false)->assertJsonPath('data.register.code', 'R1');
+    Till::pair($owner, $this->register1)->assertOk()->assertJsonPath('data.repaired', false)->assertJsonPath('data.register.code', 'R1');
 
     expect(DB::table('register_pairings')->where('register_id', $this->register1->id)->count())->toBe(1);
 });
 
 it('gives the register a new code when another device takes it, and signs the old device out', function () {
-    $owner = pairingToken($this->a->owner);
-    $oldDeviceToken = pairTill($owner, $this->register1, 'old-install')->json('data.token');
+    $owner = Till::signIn($this->a->owner);
+    $oldDeviceToken = Till::pair($owner, $this->register1, 'old-install')->json('data.token');
 
-    pairTill($owner, $this->register1, 'new-install')->assertOk()
+    Till::pair($owner, $this->register1, 'new-install')->assertOk()
         ->assertJsonPath('data.repaired', true)
         ->assertJsonPath('data.previous_code', 'R1')
         ->assertJsonPath('data.register.code', 'R2');
 
     // The old installation's token no longer exists.
-    freshApiRequest();
+    Till::freshRequest();
     $this->withToken($oldDeviceToken)->getJson('/api/v1/registers')->assertUnauthorized();
 
     $pairings = DB::table('register_pairings')->where('register_id', $this->register1->id)->orderBy('id')->get();
@@ -110,10 +82,10 @@ it('gives the register a new code when another device takes it, and signs the ol
 });
 
 it('never reuses a code, and keeps a re-paired default till as the shop\'s default', function () {
-    $owner = pairingToken($this->a->owner);
-    pairTill($owner, $this->register1, 'one');
-    pairTill($owner, $this->register1, 'two');
-    pairTill($owner, $this->register1, 'three')->assertJsonPath('data.register.code', 'R3');
+    $owner = Till::signIn($this->a->owner);
+    Till::pair($owner, $this->register1, 'one');
+    Till::pair($owner, $this->register1, 'two');
+    Till::pair($owner, $this->register1, 'three')->assertJsonPath('data.register.code', 'R3');
 
     $default = $this->tenant->run($this->a->business, fn () => Register::defaultFor($this->shop1->id));
 
@@ -122,26 +94,26 @@ it('never reuses a code, and keeps a re-paired default till as the shop\'s defau
 });
 
 it('limits a register token to the register\'s shop, even for the owner', function () {
-    $tillToken = pairTill(pairingToken($this->a->owner), $this->register1)->json('data.token');
+    $tillToken = Till::pair(Till::signIn($this->a->owner), $this->register1)->json('data.token');
 
-    freshApiRequest();
+    Till::freshRequest();
     $uuids = $this->withToken($tillToken)->getJson('/api/v1/registers')->assertOk()->json('data.*.uuid');
 
     expect($uuids)->toBe([$this->register1->uuid]);
 
     // The other shop's till can't be paired with it either.
-    pairTill($tillToken, $this->register2)->assertNotFound();
+    Till::pair($tillToken, $this->register2)->assertNotFound();
 });
 
 it('lets a manager pair a till of their shop only, and refuses a cashier', function () {
-    $manager = pairingToken($this->manager);
-    pairTill($manager, $this->register1)->assertOk();
-    pairTill($manager, $this->register2, 'device-2')->assertNotFound();
+    $manager = Till::signIn($this->manager);
+    Till::pair($manager, $this->register1)->assertOk();
+    Till::pair($manager, $this->register2, 'device-2')->assertNotFound();
 
     $cashier = $this->a->cashier;
     $cashier->forceFill(['password' => bcrypt('password')])->save();
-    $cashierToken = pairingToken($cashier);
-    freshApiRequest();
+    $cashierToken = Till::signIn($cashier);
+    Till::freshRequest();
     $this->withToken($cashierToken)->getJson('/api/v1/registers')->assertForbidden();
 });
 
@@ -149,16 +121,16 @@ it('refuses another business\'s till', function () {
     $other = $this->tenant->run($this->fixture->b->business, fn () => Register::query()->first());
     $this->tenant->forget();
 
-    pairTill(pairingToken($this->a->owner), $other)->assertNotFound();
+    Till::pair(Till::signIn($this->a->owner), $other)->assertNotFound();
     expect($other->fresh()->device_id)->toBeNull();
 });
 
 it('signs a cashier in on a paired till with a token bound to its register', function () {
-    pairTill(pairingToken($this->a->owner), $this->register1, 'till-device');
+    Till::pair(Till::signIn($this->a->owner), $this->register1, 'till-device');
     $cashier = $this->a->cashier;
     $cashier->forceFill(['password' => bcrypt('password')])->save();
     $this->tenant->run($this->a->business, fn () => $cashier->shops()->sync([$this->shop1->id]));
-    freshApiRequest();
+    Till::freshRequest();
 
     $signIn = fn (array $extra) => $this->postJson('/api/v1/auth/sign-in', [
         'email' => $cashier->email, 'password' => 'password', 'device_name' => 'Front till', 'register' => $this->register1->uuid, ...$extra,
@@ -176,9 +148,9 @@ it('signs a cashier in on a paired till with a token bound to its register', fun
 });
 
 it('records each pairing and its end in the audit trail', function () {
-    $owner = pairingToken($this->a->owner);
-    pairTill($owner, $this->register1, 'one');
-    pairTill($owner, $this->register1, 'two');
+    $owner = Till::signIn($this->a->owner);
+    Till::pair($owner, $this->register1, 'one');
+    Till::pair($owner, $this->register1, 'two');
 
     $events = DB::connection('audit')->table('audit_logs')
         ->where('auditable_type', RegisterPairing::class)->where('business_id', $this->a->business->id)
