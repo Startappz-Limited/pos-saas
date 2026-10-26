@@ -23,7 +23,7 @@ class Register extends Model
     use BelongsToShop;
     use HasFactory;
 
-    /** The default register's code: the shop's first till. */
+    /** The default register's first code; it changes if the till is re-paired (Phase 7). */
     public const DEFAULT_CODE = 'R1';
 
     protected $fillable = [
@@ -31,6 +31,7 @@ class Register extends Model
         'shop_id',
         'name',
         'code',
+        'is_default',
         'device_id',
         'paired_at',
         'last_synced_at',
@@ -40,6 +41,7 @@ class Register extends Model
     protected function casts(): array
     {
         return [
+            'is_default' => 'boolean',
             'paired_at' => 'datetime',
             'last_synced_at' => 'datetime',
             'last_invoice_number' => 'integer',
@@ -66,7 +68,7 @@ class Register extends Model
      */
     public static function defaultFor(int $shopId): self
     {
-        $id = DB::table('registers')->where('shop_id', $shopId)->where('code', self::DEFAULT_CODE)->value('id');
+        $id = DB::table('registers')->where('shop_id', $shopId)->where('is_default', true)->value('id');
 
         if ($id === null) {
             DB::table('registers')->insertOrIgnore([
@@ -74,11 +76,12 @@ class Register extends Model
                 'shop_id' => $shopId,
                 'name' => 'Main till',
                 'code' => self::DEFAULT_CODE,
+                'is_default' => true,
                 'last_invoice_number' => 0,
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);
-            $id = DB::table('registers')->where('shop_id', $shopId)->where('code', self::DEFAULT_CODE)->value('id');
+            $id = DB::table('registers')->where('shop_id', $shopId)->where('is_default', true)->orderBy('id')->value('id');
         }
 
         // Hydrated from the row: no scope is lifted.

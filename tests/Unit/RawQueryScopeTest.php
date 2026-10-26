@@ -34,6 +34,7 @@ const ALLOWED_RAW_QUERIES = [
     'app/Rules/RoleName.php' => [2, 'the role name rule: shared template names, and the current business\'s own roles (business_id filtered explicitly)'],
     'app/Actions/ConvertEcommerceOrderToSale.php' => [1, 'the register of a session the action just found or opened'],
     'app/Services/Billing/PlanLimits.php' => [8, 'quota counts for the one business the caller names, across all its shops whatever the viewer may see'],
+    'app/Actions/Register/PairRegister.php' => [3, 'the register is the caller\'s (bound and authorised): revokes its tokens and reads its own shop\'s register codes'],
     'app/Actions/Shop/SaveShopMpesaAccount.php' => [1, 'a shortcode is unique on the platform: reads only whether another shop holds the number'],
     'app/Actions/PurchaseReturn/MarkPurchaseReturnShippedAction.php' => [1, 'the cost layer of a scoped intake'],
     'app/Console/Commands/BackfillShopProductPivot.php' => [2, 'pivot rows for a scoped product and its sync record\'s shop'],
@@ -47,6 +48,8 @@ const ALLOWED_RAW_QUERIES = [
     'app/Support/Tenancy/TenantContext.php' => [2, 'builds the accessible-shops subquery itself'],
 
     // The platform console (Phase 5): cross-business on purpose, each subquery naming its business, every read audited.
+    'app/Http/Controllers/Api/V1/AuthController.php' => [2, 'signing in on a till: the register is read within the business named, and its shop checked against the user\'s own shops (Phase 7)'],
+    'app/Http/Middleware/ResolveTenant.php' => [1, 'the token\'s register, read only if it is in the token\'s business (Phase 7)'],
     'app/Http/Requests/Platform/RecordPlatformPaymentRequest.php' => [1, 'an M-Pesa receipt is recorded once on the whole platform (the column is unique across businesses)'],
     'app/Support/Platform/BusinessDirectory.php' => [9, 'the platform console\'s figures for every business (operators only, audited); each subquery is correlated to its business'],
     // Platform-wide repairs.

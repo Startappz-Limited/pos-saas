@@ -23,6 +23,7 @@ use App\Http\Controllers\Api\V1\AuthController as V1AuthController;
 use App\Http\Controllers\Api\V1\BillingController as V1BillingController;
 use App\Http\Controllers\Api\V1\BusinessAdminController as V1BusinessAdminController;
 use App\Http\Controllers\Api\V1\BusinessController as V1BusinessController;
+use App\Http\Controllers\Api\V1\RegisterController as V1RegisterController;
 use App\Http\Controllers\PlatformPaymentWebhookController;
 use App\Http\Controllers\WebhookController;
 use App\Http\Middleware\EnsureBusinessToken;
@@ -57,6 +58,10 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         Route::post('/auth/sign-out', [V1AuthController::class, 'signOut'])->name('auth.sign-out');
         Route::get('/businesses', [V1BusinessController::class, 'index'])->name('businesses.index');
         Route::post('/businesses/{business:uuid}/switch', [V1BusinessController::class, 'switch'])->name('businesses.switch');
+
+        // Registers (Phase 7): the tills of the user's shops, and pairing this device to one.
+        Route::get('/registers', [V1RegisterController::class, 'index'])->name('registers.index');
+        Route::post('/registers/{register:uuid}/pair', [V1RegisterController::class, 'pair'])->middleware('throttle:writes')->name('registers.pair');
 
         // Billing (Phase 4): reachable while read-only, so a lapsed owner can pay.
         Route::get('/billing', [V1BillingController::class, 'show'])->name('billing.show');

@@ -28,9 +28,15 @@ class TenantContext
 
     private int $bypassDepth = 0;
 
+    /** The register a register-bound token acts for, and its shop (Phase 7). */
+    private ?int $registerId = null;
+
+    private ?int $registerShopId = null;
+
     public function set(Business|int|null $business): void
     {
         $this->business = is_int($business) ? Business::findOrFail($business) : $business;
+        $this->registerId = $this->registerShopId = null;
 
         // Roles and permissions are held per business (Spatie teams). Relations
         // already loaded for another business must not answer for this one.
@@ -44,6 +50,26 @@ class TenantContext
     public function forget(): void
     {
         $this->set(null);
+    }
+
+    /**
+     * Acts for one register of the current business (a register-bound
+     * `/api/v1` token, Phase 7): the signed-in user then reaches that
+     * register's shop only, whatever else they may access. Cleared whenever
+     * the business changes.
+     */
+    public function useRegister(int $registerId, int $shopId): void
+    {
+        $this->registerId = $registerId;
+        $this->registerShopId = $shopId;
+    }
+
+    /**
+     * The register the request acts for, or null.
+     */
+    public function registerId(): ?int
+    {
+        return $this->registerId;
     }
 
     public function business(): ?Business
@@ -75,13 +101,19 @@ class TenantContext
      */
     public function run(Business|int $business, Closure $callback): mixed
     {
-        $previous = $this->business;
+        $previous = [$this->business, $this->registerId, $this->registerShopId];
         $this->set($business);
+
+        // The same business keeps its register; another doesn't (set() clears it).
+        if ($this->business?->id === $previous[0]?->id) {
+            [, $this->registerId, $this->registerShopId] = $previous;
+        }
 
         try {
             return $callback();
         } finally {
-            $this->set($previous);
+            $this->set($previous[0]);
+            [, $this->registerId, $this->registerShopId] = $previous;
         }
     }
 
@@ -96,13 +128,14 @@ class TenantContext
      */
     public function withoutBusiness(Closure $callback): mixed
     {
-        $previous = $this->business;
+        $previous = [$this->business, $this->registerId, $this->registerShopId];
         $this->set(null);
 
         try {
             return $callback();
         } finally {
-            $this->set($previous);
+            $this->set($previous[0]);
+            [, $this->registerId, $this->registerShopId] = $previous;
         }
     }
 
@@ -246,6 +279,11 @@ class TenantContext
     public function accessibleShopsQuery(?User $user): QueryBuilder
     {
         $query = DB::table('shops')->select('shops.id')->where('shops.business_id', $this->id());
+
+        // A register-bound token reaches its register's shop only, owner or not.
+        if ($user !== null && $this->registerShopId !== null && $user->is($this->viewer())) {
+            $query->where('shops.id', $this->registerShopId);
+        }
 
         if ($user === null || $user->isBusinessOwner()) {
             return $query;

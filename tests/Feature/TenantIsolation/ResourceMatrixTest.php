@@ -18,6 +18,7 @@ use App\Models\ExpenseCategory;
 use App\Models\PlatformPayment;
 use App\Models\PricingRule;
 use App\Models\PurchaseOrder;
+use App\Models\Register;
 use App\Models\Role;
 use App\Models\SocialAccount;
 use App\Services\Billing\AiCredits;
@@ -37,7 +38,7 @@ use Tests\Support\TwoBusinesses;
  * on the web and the flat API, refuses business B's record to business A's
  * owner (who passes every policy, so only the tenant boundary stands in the
  * way): show, update and delete are 404, and the record is unchanged.
- * `/api/v1` and sync rows are added when those endpoints are built (Phase 6).
+ * `/api/v1` and sync rows are added as those endpoints are built (Phase 7: registers, sync, M-Pesa).
  *
  * Every new model, route or endpoint adds its row here.
  */
@@ -287,6 +288,27 @@ it('refuses business B\'s billing to business A on /api/v1 (Phase 4)', function 
     $this->withHeaders(['Authorization' => "Bearer {$cashierToken}"])->getJson(route('api.v1.billing.show'))->assertForbidden();
 
     expect($payment->fresh()->status)->toBe('pending');
+});
+
+it('refuses business B\'s registers to business A on /api/v1 (Phase 7)', function () {
+    $bRegister = app(TenantContext::class)->run($this->fixture->b->business, fn () => Register::query()->firstOrFail());
+    app(TenantContext::class)->forget();
+
+    $token = $this->postJson(route('api.v1.auth.sign-in'), ['email' => $this->fixture->a->owner->email, 'password' => 'password', 'device_name' => 'Till'])
+        ->json('data.token');
+    app(TenantContext::class)->forget();
+    app('auth')->forgetGuards();
+    $headers = ['Authorization' => "Bearer {$token}"];
+
+    // A's list holds A's tills only.
+    $listed = $this->withHeaders($headers)->getJson(route('api.v1.registers.index'))->assertOk()->json('data.*.uuid');
+    expect($listed)->not->toContain($bRegister->uuid)->not->toBeEmpty();
+
+    app(TenantContext::class)->forget();
+    app('auth')->forgetGuards();
+    $this->withHeaders($headers)->postJson(route('api.v1.registers.pair', $bRegister), ['device_id' => 'intruder'])->assertNotFound();
+
+    expect($bRegister->fresh()->device_id)->toBeNull();
 });
 
 it('refuses every platform console route to business A\'s owner (Phase 5)', function () {

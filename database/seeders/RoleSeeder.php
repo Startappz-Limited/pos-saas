@@ -150,6 +150,10 @@ class RoleSeeder extends Seeder
             'roles.view',
             'permissions.view',
 
+            // Registers: list them and pair a till (Phase 7)
+            'registers.view',
+            'registers.pair',
+
             // Shops (full access)
             'shops.view',
             'shops.create',
