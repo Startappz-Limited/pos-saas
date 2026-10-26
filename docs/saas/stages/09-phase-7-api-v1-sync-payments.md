@@ -176,12 +176,13 @@ businesses.
       zero stock and future-dated sales.)
 
 ### Receipts, SMS, fiscal
-- [ ] Structured receipt JSON for ESC/POS printing.
+- [x] Structured receipt JSON for ESC/POS printing. (`GET /api/v1/sales/{uuid}/receipt`: header, sale, lines with
+      KRA tax codes, totals, tax bands, payments, footer, fiscal block; for whoever may see the sale.)
 - [x] Product images as full URLs in the pull.
-- [ ] **SMS fix, keeping the current SMS service:** replace the missing `App\Models\Setting` with the
+- [x] **SMS fix, keeping the current SMS service:** replace the missing `App\Models\Setting` with the
       tenant's SMS settings (from `business_integrations`), read configuration through `config()` instead
       of `env()`, and key any cache by business.
-- [ ] The `FiscalProvider` seam (a null provider until eTIMS).
+- [x] The `FiscalProvider` seam (a null provider until eTIMS).
 
 ## Schema
 
@@ -232,7 +233,8 @@ The work list and acceptance criteria above already assume both. **Both adopted*
       unmatched or reused code stays pending and is flagged. (Matched by querying M-Pesa with the shop's
       account, not by a notification: the server believes only what the API says.)
 - [x] The OpenAPI document matches the routes (contract test).
-- [ ] SMS sends through the tenant's provider.
+- [x] SMS sends through the tenant's provider. (Done in stage 3: `Tenancy/MessagingCredentialsTest`, "sends SMS
+      through the business's own account, and another business through its own".)
 - [ ] The flat API contract tests still pass. (Passing after each step so far; ticked at the end of the phase.)
 - [x] A till PIN sign-in, failure, lockout and unlock are each in the audit trail; a lockout that needs a manager
       reaches the business's other tills.

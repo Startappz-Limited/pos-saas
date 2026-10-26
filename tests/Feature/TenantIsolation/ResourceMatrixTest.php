@@ -384,6 +384,13 @@ it('keeps business B\'s till M-Pesa requests from A\'s till (Phase 7)', function
     expect(json_encode($this->withToken($token)->getJson(route('api.v1.sync.pull'))->json('data.payment_requests')))->not->toContain((string) $bRequest->uuid);
 });
 
+it('refuses business B\'s sale receipt to business A on /api/v1 (Phase 7)', function () {
+    $token = Till::signIn($this->fixture->a->owner);
+
+    Till::freshRequest();
+    $this->withToken($token)->getJson(route('api.v1.sales.receipt', $this->fixture->b->sale))->assertNotFound();
+});
+
 it('refuses every platform console route to business A\'s owner (Phase 5)', function () {
     // B's records as parameters; the console is for platform operators only.
     foreach (PlatformRoutes::all($this->fixture) as [$method, $url, $name]) {

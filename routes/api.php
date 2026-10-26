@@ -24,6 +24,7 @@ use App\Http\Controllers\Api\V1\BillingController as V1BillingController;
 use App\Http\Controllers\Api\V1\BusinessAdminController as V1BusinessAdminController;
 use App\Http\Controllers\Api\V1\BusinessController as V1BusinessController;
 use App\Http\Controllers\Api\V1\MpesaController as V1MpesaController;
+use App\Http\Controllers\Api\V1\ReceiptController as V1ReceiptController;
 use App\Http\Controllers\Api\V1\RegisterController as V1RegisterController;
 use App\Http\Controllers\Api\V1\SyncController as V1SyncController;
 use App\Http\Controllers\Api\V1\TillPinController as V1TillPinController;
@@ -78,6 +79,9 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
             Route::get('/pull', [V1SyncController::class, 'pull'])->name('pull');
             Route::post('/push', [V1SyncController::class, 'push'])->middleware('throttle:writes')->name('push');
         });
+
+        // A sale's receipt for an ESC/POS printer (Phase 7).
+        Route::get('/sales/{sale:uuid}/receipt', [V1ReceiptController::class, 'show'])->name('sales.receipt');
 
         // M-Pesa at a paired till (Phase 7).
         Route::middleware(EnsureRegisterToken::class)->prefix('mpesa')->name('mpesa.')->group(function () {

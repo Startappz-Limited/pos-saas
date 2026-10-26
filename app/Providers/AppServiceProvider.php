@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Contracts\FiscalProvider;
 use App\Contracts\MpesaGateway;
 use App\Contracts\PaymentCollector;
 use App\Enums\Limit as PlanLimit;
@@ -33,6 +34,7 @@ use App\Policies\SocialAccountPolicy;
 use App\Policies\StockAdjustmentPolicy;
 use App\Services\Billing\NullPaymentCollector;
 use App\Services\Billing\PlanLimits;
+use App\Services\Fiscal\NullFiscalProvider;
 use App\Services\Mpesa\NullMpesaGateway;
 use App\Support\Database\ColumnDefaults;
 use App\Support\Onboarding\OnboardingChecklist;
@@ -81,6 +83,8 @@ class AppServiceProvider extends ServiceProvider
 
         // Until the private M-Pesa package is connected, nothing is accepted.
         $this->app->bind(MpesaGateway::class, NullMpesaGateway::class);
+        // Fiscal signing (KRA eTIMS) is deferred: receipts carry no fiscal block until it is plugged in.
+        $this->app->bind(FiscalProvider::class, NullFiscalProvider::class);
 
         // Platform collection goes live with the private M-Pesa package (about
         // 12 November 2026); until then nothing is collected automatically.
