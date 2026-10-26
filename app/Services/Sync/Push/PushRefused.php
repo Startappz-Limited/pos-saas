@@ -14,8 +14,9 @@ class PushRefused extends RuntimeException
 {
     /**
      * @param  array<string, list<string>>|null  $errors
+     * @param  array{type: string, key: string, details: array<string, mixed>}|null  $issue  recorded for review even though the item isn't kept
      */
-    public function __construct(public readonly ApiErrorCode $errorCode, string $message, public readonly ?array $errors = null)
+    public function __construct(public readonly ApiErrorCode $errorCode, string $message, public readonly ?array $errors = null, public readonly ?array $issue = null)
     {
         parent::__construct($message);
     }

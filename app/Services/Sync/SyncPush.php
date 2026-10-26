@@ -3,9 +3,11 @@
 namespace App\Services\Sync;
 
 use App\Enums\ApiErrorCode;
+use App\Exceptions\SubscriptionInactive;
 use App\Models\Register;
 use App\Models\SyncPushReceipt;
 use App\Models\User;
+use App\Services\Billing\Entitlements;
 use App\Services\Sync\Push\CashSessionHandler;
 use App\Services\Sync\Push\CustomerHandler;
 use App\Services\Sync\Push\PaymentHandler;
@@ -14,6 +16,7 @@ use App\Services\Sync\Push\PushItem;
 use App\Services\Sync\Push\PushRefused;
 use App\Services\Sync\Push\SaleHandler;
 use App\Services\Sync\Push\TillSignInHandler;
+use App\Support\Sync\SyncIssues;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -76,6 +79,10 @@ class SyncPush
 
         $item = new PushItem($raw['client_uuid'], $raw['type'], Carbon::parse($raw['recorded_at']), $raw['data'] ?? [], $register, $user);
 
+        if (($refusal = $this->readOnlyRefusal($item)) !== null) {
+            return [...$base, ...$refusal];
+        }
+
         try {
             $result = DB::transaction(function () use ($handler, $item, $register): array {
                 $result = app($handler)->handle($item);
@@ -93,6 +100,11 @@ class SyncPush
 
             return [...$base, 'status' => 'applied', 'result' => $result];
         } catch (PushRefused $e) {
+            // Outside the rolled-back transaction, so the issue is kept for review.
+            if ($e->issue !== null) {
+                app(SyncIssues::class)->record($e->issue['type'], $e->issue['key'], $e->issue['details'], $register);
+            }
+
             return [...$base, 'status' => 'refused', 'code' => $e->errorCode->value, 'message' => $e->getMessage(), 'errors' => $e->errors];
         } catch (ValidationException $e) {
             return [...$base, 'status' => 'refused', 'code' => ApiErrorCode::ValidationFailed->value, 'message' => $e->getMessage(), 'errors' => $e->errors()];
@@ -107,6 +119,40 @@ class SyncPush
         } catch (Throwable $e) {
             return $this->failed($base, $e);
         }
+    }
+
+    /**
+     * While the business is read-only (decision 4.9): what the till recorded
+     * before the subscription lapsed is still accepted; anything recorded
+     * after, or anything at all while it has more shops than it pays for, is
+     * refused and stays on the till until the business is paid up. PIN
+     * sign-ins are always accepted, so they are always audited.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function readOnlyRefusal(PushItem $item): ?array
+    {
+        if ($item->type === 'till_sign_in') {
+            return null;
+        }
+
+        $entitlements = app(Entitlements::class);
+        $reason = $entitlements->readOnlyReason();
+
+        if ($reason === null) {
+            return null;
+        }
+
+        $lapsedAt = $entitlements->lapsedAt();
+        if ($reason === SubscriptionInactive::LAPSED && $lapsedAt !== null && $item->recordedAt->lessThan($lapsedAt)) {
+            return null;
+        }
+
+        return [
+            'status' => 'refused',
+            'code' => ApiErrorCode::SubscriptionInactive->value,
+            'message' => __('This business is read-only until its subscription is paid. Keep this on the till and sync again once it is.'),
+        ];
     }
 
     /**

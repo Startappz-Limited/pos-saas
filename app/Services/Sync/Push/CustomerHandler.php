@@ -3,6 +3,8 @@
 namespace App\Services\Sync\Push;
 
 use App\Models\Customer;
+use App\Models\SyncIssue;
+use App\Support\Sync\SyncIssues;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -15,6 +17,8 @@ use Illuminate\Validation\Rule;
  */
 final class CustomerHandler implements PushHandler
 {
+    public function __construct(private SyncIssues $issues) {}
+
     public function handle(PushItem $item): array
     {
         $data = Validator::make($item->data, [
@@ -42,6 +46,14 @@ final class CustomerHandler implements PushHandler
             'status' => 'active',
             'created_by' => $item->user->id,
         ]);
+
+        if ($existing !== null) {
+            $this->issues->record(SyncIssue::POSSIBLE_DUPLICATE_CUSTOMER, 'customer:'.$customer->uuid, [
+                'customer' => (string) $customer->uuid,
+                'duplicate_of' => (string) $existing->uuid,
+                'phone' => $customer->phone,
+            ], $item->register);
+        }
 
         return [
             'customer_uuid' => $customer->uuid,

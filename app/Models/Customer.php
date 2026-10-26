@@ -25,6 +25,7 @@ class Customer extends Model
         'business_id',
         'uuid',
         'client_uuid',
+        'merged_into_id',
         'shop_id',
         'code',
         'name',

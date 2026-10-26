@@ -49,6 +49,10 @@ class PermissionSeeder extends Seeder
             'registers.view',
             'registers.pair',
 
+            // Till sync review: invoice gaps, duplicate customers (Phase 7)
+            'sync-issues.view',
+            'sync-issues.resolve',
+
             // Categories Management
             'categories.view',
             'categories.create',

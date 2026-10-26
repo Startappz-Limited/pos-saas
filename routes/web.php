@@ -53,6 +53,7 @@ use App\Http\Controllers\StockAdjustmentController;
 use App\Http\Controllers\StockIntakeController;
 use App\Http\Controllers\StockMovementController;
 use App\Http\Controllers\SupplierController;
+use App\Http\Controllers\SyncIssueController;
 use App\Http\Controllers\TenantFileController;
 use App\Http\Controllers\TillPinController;
 use App\Http\Controllers\UserController;
@@ -131,6 +132,11 @@ Route::middleware(['auth', 'business'])->group(function () {
     Route::post('users/{user}/suspend', [UserController::class, 'suspend'])->name('users.suspend');
     Route::delete('users/{user}/till-pin', [TillPinController::class, 'reset'])->name('users.till-pin.reset');
     Route::post('users/{user}/till-pin/unlock', [TillPinController::class, 'unlock'])->name('users.till-pin.unlock');
+
+    // Till sync review (Phase 7): what the tills' pushes turned up.
+    Route::get('sync-issues', [SyncIssueController::class, 'index'])->name('sync-issues.index');
+    Route::post('sync-issues/{syncIssue:uuid}/resolve', [SyncIssueController::class, 'resolve'])->name('sync-issues.resolve');
+    Route::post('sync-issues/{syncIssue:uuid}/merge', [SyncIssueController::class, 'merge'])->name('sync-issues.merge');
 
     // The business's data: exports and closure (stage 3; owners only).
     Route::get('business/integrations', [BusinessIntegrationController::class, 'edit'])->name('business.integrations.edit');

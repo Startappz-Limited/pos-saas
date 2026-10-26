@@ -13,5 +13,7 @@ final class RecordedSale
     public function __construct(
         public readonly Sale $sale,
         public readonly bool $overCreditLimit,
+        /** @var array{number: int, expected: int, prefix: string, period: string}|null the till's own invoice number, as adopted */
+        public readonly ?array $invoiceAdoption = null,
     ) {}
 }

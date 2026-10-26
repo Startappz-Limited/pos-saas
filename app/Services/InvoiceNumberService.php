@@ -67,14 +67,19 @@ class InvoiceNumberService
      * Takes a number a till gave a sale while offline (Phase 7): it must be in
      * that register's own series for the year it was recorded,
      * `INV-{shop}-{register}-{year}-{n}`. The series then counts on past it,
-     * so numbers issued online never repeat one. Returns n.
+     * so numbers issued online never repeat one. Returns n, the number the
+     * series expected next (anything between is a gap), and the number's prefix
+     * and period, so the caller can flag gaps (4.9).
      *
      * Call inside the transaction that creates the sale. A number already
      * used in the business is refused by the sales table's unique key.
      *
      * @throws \InvalidArgumentException when it isn't this register's series
      */
-    public function adopt(int $shopId, int $registerId, string $invoiceNumber, CarbonInterface $recordedAt): int
+    /**
+     * @return array{number: int, expected: int, prefix: string, period: string}
+     */
+    public function adopt(int $shopId, int $registerId, string $invoiceNumber, CarbonInterface $recordedAt): array
     {
         $period = $this->period($recordedAt);
         $number = (int) (preg_match('/(\d+)$/', $invoiceNumber, $match) ? $match[1] : 0);
@@ -101,12 +106,18 @@ class InvoiceNumberService
         }
 
         $row = (clone $sequence)->lockForUpdate()->first();
-        if ($number >= (int) $row->next_number) {
+        $expected = (int) $row->next_number;
+        if ($number >= $expected) {
             DB::table('invoice_sequences')->where('id', $row->id)->update(['next_number' => $number + 1, 'updated_at' => now()]);
             DB::table('registers')->where('id', $registerId)->where('last_invoice_number', '<', $number)->update(['last_invoice_number' => $number]);
         }
 
-        return $number;
+        return [
+            'number' => $number,
+            'expected' => $expected,
+            'prefix' => substr($invoiceNumber, 0, -strlen((string) $match[1])),
+            'period' => $period,
+        ];
     }
 
     /**

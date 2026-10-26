@@ -8,8 +8,11 @@ use App\Enums\ApiErrorCode;
 use App\Http\Requests\StoreSaleRequest;
 use App\Models\CashRegister;
 use App\Models\Customer;
+use App\Models\Sale;
 use App\Models\StockMovement;
+use App\Models\SyncIssue;
 use App\Services\Sync\TradingLease;
+use App\Support\Sync\SyncIssues;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
 use InvalidArgumentException;
@@ -27,6 +30,7 @@ final class SaleHandler implements PushHandler
         private RecordSale $recordSale,
         private TradingLease $leases,
         private PushPeople $people,
+        private SyncIssues $issues,
     ) {}
 
     public function handle(PushItem $item): array
@@ -38,7 +42,9 @@ final class SaleHandler implements PushHandler
         $data = $item->data;
         // A customer the till created offline is named by its client uuid.
         if (! empty($data['customer_client_uuid'])) {
-            $data['customer_id'] = Customer::query()->where('client_uuid', $data['customer_client_uuid'])->value('id')
+            // A customer merged into another since (decision 4.9) leads to the one kept.
+            $named = Customer::query()->withTrashed()->where('client_uuid', $data['customer_client_uuid'])->first(['id', 'merged_into_id']);
+            $data['customer_id'] = ($named?->merged_into_id ?? $named?->id)
                 ?? throw new PushRefused(ApiErrorCode::ValidationFailed, __('The sale\'s customer has not been synced.'), ['customer_client_uuid' => [__('Push the customer before the sale.')]]);
         }
 
@@ -61,17 +67,36 @@ final class SaleHandler implements PushHandler
         } catch (InvalidArgumentException $e) {
             throw new PushRefused(ApiErrorCode::InvalidInvoiceNumber, $e->getMessage(), ['invoice_number' => [$e->getMessage()]]);
         } catch (UniqueConstraintViolationException) {
-            throw new PushRefused(ApiErrorCode::InvoiceNumberTaken, __('Another sale already has this invoice number.'), ['invoice_number' => [__('Another sale already has this invoice number.')]]);
+            $number = (string) ($data['invoice_number'] ?? '');
+
+            throw new PushRefused(
+                ApiErrorCode::InvoiceNumberTaken,
+                __('Another sale already has this invoice number.'),
+                ['invoice_number' => [__('Another sale already has this invoice number.')]],
+                ['type' => SyncIssue::INVOICE_REPEAT, 'key' => $number, 'details' => [
+                    'invoice_number' => $number,
+                    'client_uuid' => $item->clientUuid,
+                    'recorded_at' => $item->recordedAt->toIso8601String(),
+                    'existing_sale' => Sale::query()->where('invoice_number', $number)->value('uuid'),
+                ]],
+            );
         }
 
         $sale = $recorded->sale;
         $flags = [];
+        $about = ['sale' => $sale->uuid, 'invoice_number' => $sale->invoice_number, 'recorded_at' => $item->recordedAt->toIso8601String()];
+
+        if ($recorded->invoiceAdoption !== null) {
+            $this->issues->invoiceAdopted($item->register, $recorded->invoiceAdoption);
+        }
         if ($item->recordedAt->greaterThan(now()->addMinutes(5))) {
             $flags[] = 'implausible_time';
+            $this->issues->record(SyncIssue::IMPLAUSIBLE_TIME, 'sale:'.$sale->uuid, [...$about, 'received_at' => now()->toIso8601String()], $item->register);
         }
         // Sold below zero: the ledger let it through and costed it provisionally.
         if (StockMovement::query()->where('reference_uuid', $sale->uuid)->where('quantity_after', '<', 0)->exists()) {
             $flags[] = 'negative_stock';
+            $this->issues->record(SyncIssue::NEGATIVE_STOCK, 'sale:'.$sale->uuid, $about, $item->register);
         }
         if ($recorded->overCreditLimit) {
             $flags[] = 'over_credit_limit';

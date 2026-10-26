@@ -159,10 +159,15 @@ businesses.
       or flags it for review.
 
 ### Offline rules (4.9)
-- [ ] Per-register invoice series checked on sync.
-- [ ] Sales recorded before a lapse and inside an issued lease accepted after it.
-- [ ] Possible duplicate customers flagged, with a review screen to merge or keep them. (Flagged in the push
-      result since step 6; the review screen is step 8.)
+- [x] Per-register invoice series checked on sync. (A gap is recorded for review and closes as the missing
+      numbers arrive; a repeat is refused and recorded.)
+- [x] Sales recorded before a lapse and inside an issued lease accepted after it. (Push stays open while
+      read-only; each item recorded after the lapse, or any item while over the shops paid for, is refused
+      `subscription_inactive` and kept on the till; PIN sign-ins are always accepted.)
+- [x] Possible duplicate customers flagged, with a review screen to merge or keep them. ("Till sync review":
+      merging moves the duplicate's sales and records to the kept customer and drops it from every till; a
+      duplicate with a credit account can't be merged. The same screen lists invoice gaps and repeats, sales below
+      zero stock and future-dated sales.)
 
 ### Receipts, SMS, fiscal
 - [ ] Structured receipt JSON for ESC/POS printing.
@@ -212,8 +217,8 @@ The work list and acceptance criteria above already assume both. **Both adopted*
 - [ ] An STK payment marks the right sale paid exactly once, including when the till syncs only
       afterwards.
 - [ ] Two tills number sales offline without collisions; a repeated or missing number in a series is
-      flagged on sync.
-- [ ] A sale recorded before the lapse is accepted after it; one recorded after is refused and kept on the
+      flagged on sync. (Flagging done; two tills in one shop wait on adding tills, a follow-up.)
+- [x] A sale recorded before the lapse is accepted after it; one recorded after is refused and kept on the
       device. A sale outside any issued lease is refused even if its recorded time is before the lapse.
 - [x] A device re-paired after a reinstall gets a new register code, and its numbers don't repeat.
 - [x] A customer pushed with an existing phone number is saved and flagged, not merged.

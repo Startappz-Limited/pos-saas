@@ -41,7 +41,9 @@ class RecordSale
     {
         $context ??= new SaleContext;
 
-        [$sale, $register, $overLimit] = DB::transaction(function () use ($validated, $context): array {
+        $adoption = null;
+
+        [$sale, $register, $overLimit] = DB::transaction(function () use ($validated, $context, &$adoption): array {
             // Pre-fetch products and variations
             $productIds = collect($validated['items'])->pluck('product_id')->unique();
             $variationIds = collect($validated['items'])->pluck('variation_id')->filter()->unique();
@@ -121,7 +123,7 @@ class RecordSale
                     ?? ($validated['customer_id'] ?? null ? Customer::find($validated['customer_id'])?->tax_pin : null),
                 'delivery_company_id' => $validated['delivery_company_id'] ?? null,
                 'invoice_number' => $context->invoiceNumber !== null
-                    ? $this->adoptInvoiceNumber($shopId, (int) $activeRegister->register_id, $context->invoiceNumber, $at)
+                    ? $this->adoptInvoiceNumber($shopId, (int) $activeRegister->register_id, $context->invoiceNumber, $at, $adoption)
                     : app(InvoiceNumberService::class)->next($shop ?? $shopId, $activeRegister->register_id),
                 'sale_type' => 'regular',
                 'subtotal' => $totals->subtotal,
@@ -203,15 +205,15 @@ class RecordSale
             app(SendSaleNotifications::class)->execute($sale);
         }
 
-        return new RecordedSale($sale, $overLimit);
+        return new RecordedSale($sale, $overLimit, $adoption);
     }
 
     /**
      * The invoice number the till gave the sale, if it is in that till's series.
      */
-    private function adoptInvoiceNumber(int $shopId, int $registerId, string $invoiceNumber, CarbonInterface $at): string
+    private function adoptInvoiceNumber(int $shopId, int $registerId, string $invoiceNumber, CarbonInterface $at, ?array &$adoption): string
     {
-        app(InvoiceNumberService::class)->adopt($shopId, $registerId, $invoiceNumber, $at);
+        $adoption = app(InvoiceNumberService::class)->adopt($shopId, $registerId, $invoiceNumber, $at);
 
         return $invoiceNumber;
     }

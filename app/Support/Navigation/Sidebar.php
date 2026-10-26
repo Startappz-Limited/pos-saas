@@ -219,6 +219,7 @@ final class Sidebar
                     self::link(__('Abandoned carts'), 'abandoned-carts.index', self::canList(AbandonedCart::class), ['abandoned-carts.*']),
                 ]),
                 self::link(__('Customers'), 'customers.index', self::canList(Customer::class), ['customers.*'], 'solar:users-group-two-rounded-bold-duotone'),
+                self::link(__('Till sync review'), 'sync-issues.index', self::holds('sync-issues.view'), ['sync-issues.*'], 'solar:cloud-check-bold-duotone'),
             ]],
 
             ['title' => __('Finance'), 'items' => [

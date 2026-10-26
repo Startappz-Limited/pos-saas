@@ -21,6 +21,7 @@ use App\Models\PurchaseOrder;
 use App\Models\Register;
 use App\Models\Role;
 use App\Models\SocialAccount;
+use App\Models\SyncIssue;
 use App\Services\Billing\AiCredits;
 use App\Support\Tenancy\BusinessLink;
 use App\Support\Tenancy\TenantContext;
@@ -82,6 +83,7 @@ function recordOfB(TwoBusinesses $fixture, string $resource): Model
         'shops' => $b->shops[1],
         'social-accounts' => SocialAccount::factory()->create($shop),
         'suppliers' => $b->supplier,
+        'sync-issues' => SyncIssue::create(['type' => SyncIssue::POSSIBLE_DUPLICATE_CUSTOMER, 'key' => 'customer:b', 'details' => ['customer' => (string) $b->customer->uuid, 'duplicate_of' => (string) $b->customer->uuid]]),
         'users' => $b->cashier,
     });
 }
@@ -110,6 +112,7 @@ const WEB_RESOURCES = [
     'suppliers' => ['show', 'update', 'destroy'],
     'users' => ['show', 'update', 'destroy', 'till-pin.reset', 'till-pin.unlock'],
     'invites' => ['resend', 'destroy', 'role'],
+    'sync-issues' => ['resolve', 'merge'],
 ];
 
 /** Resource => the actions its flat API routes offer on one record. */
