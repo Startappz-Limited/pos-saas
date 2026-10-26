@@ -28,6 +28,13 @@ return [
     'pin_lockouts_before_manager' => (int) env('SYNC_PIN_LOCKOUTS_BEFORE_MANAGER', 3),
     'pin_unlock_permission' => 'users.update',
 
+    /*
+    | A paired till that hasn't synced for this many hours is overdue (decision
+    | 4.5): its business's owners are told once (an email and a banner), and the
+    | sync API says so in `meta.sync_overdue`. Nothing is blocked.
+    */
+    'overdue_hours' => (int) env('SYNC_OVERDUE_HOURS', 24),
+
     // Items a till may push at once.
     'push_max_items' => (int) env('SYNC_PUSH_MAX_ITEMS', 100),
 ];

@@ -71,6 +71,7 @@ class RegisterController extends Controller
             'paired' => $register->device_id !== null,
             'paired_at' => $register->paired_at?->toIso8601String(),
             'last_synced_at' => $register->last_synced_at?->toIso8601String(),
+            'sync_overdue' => $register->isSyncOverdue(),
             'shop' => $shop ? ['uuid' => $shop->uuid, 'name' => $shop->name, 'code' => $shop->code] : null,
         ];
     }

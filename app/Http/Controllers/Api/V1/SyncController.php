@@ -35,11 +35,13 @@ class SyncController extends Controller
         ]);
 
         $register = Register::query()->findOrFail($this->tenant->registerId());
+        $overdue = $this->noteSync($register);
         $result = $sync->pull($register, SyncCursor::decode($validated['since'] ?? null), (int) ($validated['limit'] ?? 500));
 
         return ApiV1::ok($result['data'], null, [
             'cursor' => $result['cursor']->encode(),
             'has_more' => $result['has_more'],
+            'sync_overdue' => $overdue,
             'server_time' => now()->toIso8601String(),
             'lease' => $this->freshLease($request),
         ]);
@@ -63,10 +65,12 @@ class SyncController extends Controller
         ]);
 
         $register = Register::query()->findOrFail($this->tenant->registerId());
+        $overdue = $this->noteSync($register);
         $results = $sync->push($register, $request->user(), $validated['items']);
 
         return ApiV1::ok(['results' => $results], null, [
             'applied' => count(array_filter($results, fn (array $result): bool => $result['status'] === 'applied')),
+            'sync_overdue' => $overdue,
             'server_time' => now()->toIso8601String(),
             'lease' => $this->freshLease($request),
         ]);
@@ -79,6 +83,18 @@ class SyncController extends Controller
     public function lease(Request $request): JsonResponse
     {
         return ApiV1::ok(null, null, ['lease' => $this->freshLease($request)]);
+    }
+
+    /**
+     * Notes that the till synced now, and returns whether it had been
+     * overdue (decision 4.5): the till can say so to whoever is at it.
+     */
+    private function noteSync(Register $register): bool
+    {
+        $overdue = $register->isSyncOverdue();
+        $register->markSynced();
+
+        return $overdue;
     }
 
     /**

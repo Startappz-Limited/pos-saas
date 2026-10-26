@@ -146,7 +146,9 @@ businesses.
 - [x] `GET /api/v1/sync/pull?since=` and `POST /api/v1/sync/push` (batched, idempotent by `client_uuid`,
       applied in order, results per item). Push items: `customer`, `sale`, `sale_payment`, `cash_session`,
       `till_sign_in`.
-- [ ] Last-sync tracking; the **24-hour owner warning** and the `sync_overdue` flag.
+- [x] Last-sync tracking; the **24-hour owner warning** and the `sync_overdue` flag. (Every pull or push notes the
+      sync; owners get one email per silence from the hourly `sync:warn-overdue`, and a banner while it lasts;
+      `meta.sync_overdue` on pull and push, `sync_overdue` per till in the register list.)
 
 ### Till payments
 - [ ] **M-Pesa STK Push at the till** through the private package, using the shop's own Till or Paybill.
@@ -175,7 +177,7 @@ businesses.
 - [ ] `payment_requests` (STK requests and the API's results per sale).
 - [ ] The Phase 1 sync columns used (`client_uuid`, `updated_at` indexes, `sync_deletions`, register
       last-sync time and last invoice number). Used so far: `client_uuid` on sales, payments, customers and cash
-      sessions; `sync_deletions`; the register's last invoice number. Last-sync time is step 7.
+      sessions; `sync_deletions`; the register's last invoice number. Last-sync time since step 7.
 - [x] Added: `register_pairings`, `register_leases`, `till_pins`, `sync_push_receipts`,
       `personal_access_tokens.register_id`, `registers.is_default`.
 
@@ -205,7 +207,7 @@ The work list and acceptance criteria above already assume both. **Both adopted*
 - [x] Pushing the same batch twice creates the records once.
 - [x] A pull for business A returns only A's changes since the cursor, including deletions.
 - [ ] A user in two businesses syncs both independently.
-- [ ] A register that hasn't synced for 24 hours triggers the owner warning and the API flag, without
+- [x] A register that hasn't synced for 24 hours triggers the owner warning and the API flag, without
       blocking sales.
 - [ ] An STK payment marks the right sale paid exactly once, including when the till syncs only
       afterwards.

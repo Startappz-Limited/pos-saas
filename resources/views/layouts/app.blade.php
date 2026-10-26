@@ -41,6 +41,7 @@
                 {{-- Account notices: in the content area, so the fixed sidebar never covers them. --}}
                 @include('partials.impersonation-banner')
                 @include('partials.verification-banner')
+                @include('partials.till-sync-banner')
 
                 <!-- Breadcrumb -->
                 <div class="row">

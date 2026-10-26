@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToShop;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -35,6 +36,7 @@ class Register extends Model
         'device_id',
         'paired_at',
         'last_synced_at',
+        'sync_overdue_warned_at',
         'last_invoice_number',
     ];
 
@@ -44,6 +46,7 @@ class Register extends Model
             'is_default' => 'boolean',
             'paired_at' => 'datetime',
             'last_synced_at' => 'datetime',
+            'sync_overdue_warned_at' => 'datetime',
             'last_invoice_number' => 'integer',
         ];
     }
@@ -86,6 +89,35 @@ class Register extends Model
 
         // Hydrated from the row: no scope is lifted.
         return (new self)->newFromBuilder((array) DB::table('registers')->where('id', $id)->first());
+    }
+
+    /**
+     * Paired tills that haven't synced for `sync.overdue_hours` (Phase 7): a
+     * till never synced counts from its pairing.
+     */
+    public function scopeSyncOverdue(Builder $query): Builder
+    {
+        $before = now()->subHours((int) config('sync.overdue_hours'));
+
+        return $query->whereNotNull('registers.device_id')
+            ->whereRaw('COALESCE(registers.last_synced_at, registers.paired_at) < ?', [$before]);
+    }
+
+    public function isSyncOverdue(): bool
+    {
+        $since = $this->last_synced_at ?? $this->paired_at;
+
+        return $this->device_id !== null && $since !== null
+            && $since->lessThan(now()->subHours((int) config('sync.overdue_hours')));
+    }
+
+    /**
+     * Notes a sync now: the till is no longer overdue, and the next silence
+     * warns its owners again.
+     */
+    public function markSynced(): void
+    {
+        $this->forceFill(['last_synced_at' => now(), 'sync_overdue_warned_at' => null])->saveQuietly();
     }
 
     public function sessions(): HasMany
