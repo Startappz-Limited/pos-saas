@@ -7,6 +7,7 @@ use App\Enums\TaxClass;
 use App\Models\Concerns\Auditable;
 use App\Models\Concerns\BelongsToBusiness;
 use App\Models\Concerns\HasShopStock;
+use App\Models\Concerns\RecordsSyncDeletion;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -24,6 +25,7 @@ class Product extends Model
     use BelongsToBusiness;
     use HasFactory, HasUuids, SoftDeletes;
     use HasShopStock;
+    use RecordsSyncDeletion;
 
     protected $fillable = [
         'business_id',
@@ -429,5 +431,11 @@ class Product extends Model
             ->unique()
             ->values()
             ->toArray();
+    }
+
+    /** Its name in the till's sync pull (Phase 7). */
+    public function syncEntity(): string
+    {
+        return 'products';
     }
 }

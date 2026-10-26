@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToBusiness;
+use App\Models\Concerns\RecordsSyncDeletion;
 use App\Support\PhoneNumber;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -18,6 +19,7 @@ class Customer extends Model
 {
     use BelongsToBusiness;
     use HasFactory, Notifiable, SoftDeletes;
+    use RecordsSyncDeletion;
 
     protected $fillable = [
         'business_id',
@@ -134,5 +136,11 @@ class Customer extends Model
     public function routeNotificationForWhatsapp(): ?string
     {
         return $this->phone;
+    }
+
+    /** Its name in the till's sync pull (Phase 7). */
+    public function syncEntity(): string
+    {
+        return 'customers';
     }
 }

@@ -329,6 +329,22 @@ it('leases a till of business A for A\'s till only, and B\'s till for B\'s (Phas
     }
 });
 
+it('pulls business A\'s records and deletions to A\'s till, and none of B\'s (Phase 7)', function () {
+    $aRegister = app(TenantContext::class)->run($this->fixture->a->business, fn () => Register::query()->firstOrFail());
+    // A deletion in B: it must never reach A's till.
+    app(TenantContext::class)->run($this->fixture->b->business, fn () => $this->fixture->b->customer->delete());
+    $token = Till::token($this->fixture->a->owner, $aRegister);
+    $this->travel(2)->seconds();
+
+    Till::freshRequest();
+    $body = json_encode($this->withToken($token)->getJson(route('api.v1.sync.pull'))->assertOk()->json('data'));
+
+    foreach ([$this->fixture->b->business->uuid, $this->fixture->b->product->uuid, $this->fixture->b->customer->uuid, $this->fixture->b->owner->uuid] as $uuid) {
+        expect($body)->not->toContain((string) $uuid);
+    }
+    expect($body)->toContain((string) $this->fixture->a->product->uuid);
+});
+
 it('refuses every platform console route to business A\'s owner (Phase 5)', function () {
     // B's records as parameters; the console is for platform operators only.
     foreach (PlatformRoutes::all($this->fixture) as [$method, $url, $name]) {

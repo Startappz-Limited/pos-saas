@@ -68,6 +68,7 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         // Sync for a paired till (Phase 7): a register-bound token only.
         Route::middleware(EnsureRegisterToken::class)->prefix('sync')->name('sync.')->group(function () {
             Route::get('/lease', [V1SyncController::class, 'lease'])->name('lease');
+            Route::get('/pull', [V1SyncController::class, 'pull'])->name('pull');
         });
 
         // Billing (Phase 4): reachable while read-only, so a lapsed owner can pay.

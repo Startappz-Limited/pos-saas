@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\PricingType;
 use App\Models\Concerns\BelongsToBusiness;
+use App\Models\Concerns\RecordsSyncDeletion;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -15,6 +16,7 @@ class PricingRule extends Model
 {
     use BelongsToBusiness;
     use HasFactory, HasUuids, SoftDeletes;
+    use RecordsSyncDeletion;
 
     protected $fillable = [
         'business_id',
@@ -232,5 +234,11 @@ class PricingRule extends Model
         $effectivePrice = $this->effective_price;
 
         return $originalPrice - $effectivePrice;
+    }
+
+    /** Its name in the till's sync pull (Phase 7). */
+    public function syncEntity(): string
+    {
+        return 'pricing_rules';
     }
 }
