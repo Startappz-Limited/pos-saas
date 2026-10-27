@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Enums\ApiErrorCode;
 use Closure;
 use Illuminate\Http\Request;
 use Laravel\Sanctum\PersonalAccessToken;
@@ -21,6 +22,7 @@ class EnsureBusinessToken
         if (! $token instanceof PersonalAccessToken || ! is_numeric($token->getAttribute('business_id'))) {
             return response()->json([
                 'success' => false,
+                'code' => ApiErrorCode::BusinessTokenRequired->value,
                 'message' => __('This endpoint needs a token from /api/v1 sign-in.'),
             ], 403);
         }

@@ -45,6 +45,38 @@ class MobileContractDiff extends Command
         $declared = $this->parseFlutterEndpoints((string) file_get_contents($registry));
         $registered = $this->registeredApiPaths();
 
+        $this->newLine();
+        $this->components->twoColumnDetail('<fg=gray>Flutter registry</>', $registry);
+
+        // The flat API and `/api/v1` (Phase 7) are compared separately: an app
+        // moving to v1 calls `/v1/...`, and a flat path must never be satisfied
+        // by a v1 route or the other way round.
+        $isV1 = fn (string $path): bool => str_starts_with($path, 'v1/');
+        $missing = $this->report(
+            'Flat API (/api)',
+            array_values(array_filter($declared, fn (string $path): bool => ! $isV1($path))),
+            array_values(array_filter($registered, fn (string $path): bool => ! $isV1($path))),
+        );
+        $missing += $this->report(
+            'Versioned API (/api/v1)',
+            array_values(array_filter($declared, $isV1)),
+            array_values(array_filter($registered, $isV1)),
+        );
+
+        return $missing > 0 && $this->option('fail-on-drift')
+            ? self::FAILURE
+            : self::SUCCESS;
+    }
+
+    /**
+     * Prints one API's comparison and returns how many endpoints the app calls
+     * that don't exist.
+     *
+     * @param  array<int, string>  $declared
+     * @param  array<int, string>  $registered
+     */
+    private function report(string $title, array $declared, array $registered): int
+    {
         // Paths the app calls that this API does not serve — these 404 in production.
         $missing = array_values(array_diff($declared, $registered));
 
@@ -53,7 +85,7 @@ class MobileContractDiff extends Command
         $unused = array_values(array_diff($registered, $declared));
 
         $this->newLine();
-        $this->components->twoColumnDetail('<fg=gray>Flutter registry</>', $registry);
+        $this->line("<options=bold>{$title}</>");
         $this->components->twoColumnDetail('<fg=gray>Endpoints declared by app</>', (string) count($declared));
         $this->components->twoColumnDetail('<fg=gray>API paths registered</>', (string) count($registered));
         $this->newLine();
@@ -64,8 +96,10 @@ class MobileContractDiff extends Command
                 $this->line("  <fg=red>✗</> {$path}".$this->suggest($path, $registered));
             }
             $this->newLine();
-        } else {
+        } elseif ($declared !== []) {
             $this->components->info('Every endpoint the app calls is registered.');
+        } else {
+            $this->components->info('The app calls none of these endpoints yet.');
         }
 
         if ($unused !== []) {
@@ -76,9 +110,7 @@ class MobileContractDiff extends Command
             $this->newLine();
         }
 
-        return $missing !== [] && $this->option('fail-on-drift')
-            ? self::FAILURE
-            : self::SUCCESS;
+        return count($missing);
     }
 
     private function count(array $items): int

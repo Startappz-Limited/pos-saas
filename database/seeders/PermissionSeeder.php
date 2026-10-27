@@ -45,6 +45,14 @@ class PermissionSeeder extends Seeder
             'shops.deactivate',
             'shops.full-access',
 
+            // Registers (tills): list them and pair a device to one (Phase 7)
+            'registers.view',
+            'registers.pair',
+
+            // Till sync review: invoice gaps, duplicate customers (Phase 7)
+            'sync-issues.view',
+            'sync-issues.resolve',
+
             // Categories Management
             'categories.view',
             'categories.create',

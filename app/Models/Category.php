@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\CategoryStatus;
 use App\Models\Concerns\BelongsToBusiness;
+use App\Models\Concerns\RecordsSyncDeletion;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -16,6 +17,7 @@ class Category extends Model
 {
     use BelongsToBusiness;
     use HasFactory, HasUuids, SoftDeletes;
+    use RecordsSyncDeletion;
 
     protected $fillable = [
         'business_id',
@@ -148,5 +150,11 @@ class Category extends Model
         }
 
         return implode(' > ', $path);
+    }
+
+    /** Its name in the till's sync pull (Phase 7). */
+    public function syncEntity(): string
+    {
+        return 'categories';
     }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Enums\ApiErrorCode;
 use App\Models\User;
 use Closure;
 use Illuminate\Http\Request;
@@ -28,7 +29,7 @@ class EnsureAccountActive
         $message = __('Your account is not active. Please contact an administrator.');
 
         if ($request->expectsJson() || $request->is('api/*')) {
-            return response()->json(['success' => false, 'message' => $message], 403);
+            return response()->json(['success' => false, 'code' => ApiErrorCode::AccountInactive->value, 'message' => $message], 403);
         }
 
         Auth::guard('web')->logout();

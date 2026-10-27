@@ -37,6 +37,32 @@
                             </x-ui-button>
                         @endcan
                     </div>
+
+                    {{-- Till PIN (Phase 7): resetting makes them set a new one before signing in on an offline till. --}}
+                    @can('update', $user)
+                        @if ($tillPinLocked ?? false)
+                            <x-ui-alert variant="warning" class="mt-3 mb-0 text-start">
+                                {{ __('Locked out of the tills after too many wrong PINs.') }}
+                            </x-ui-alert>
+                            <form method="POST" action="{{ route('users.till-pin.unlock', $user) }}" class="mt-2">
+                                @csrf
+                                @honeypot
+                                <x-ui-button variant="warning" size="sm" type="submit" icon="solar:lock-unlocked-broken">
+                                    {{ __('Unlock till sign-in') }}
+                                </x-ui-button>
+                            </form>
+                        @endif
+                        <form method="POST" action="{{ route('users.till-pin.reset', $user) }}" class="mt-3"
+                            onsubmit="return confirm(@js(__('Reset :name\'s till PIN? They will need to set a new one before signing in on a till that is offline.', ['name' => $user->name])))">
+                            @csrf
+                            @method('DELETE')
+                            @honeypot
+                            <x-ui-button variant="outline-secondary" size="sm" type="submit" icon="solar:key-minimalistic-broken">
+                                {{ __('Reset till PIN') }}
+                            </x-ui-button>
+                            <div class="form-text">{{ __('Use when they forget it or it may be known to others.') }}</div>
+                        </form>
+                    @endcan
                 </div>
 
                 <div class="mt-4 pt-3 border-top">

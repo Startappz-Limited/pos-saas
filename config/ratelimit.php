@@ -20,6 +20,8 @@ return [
 
     // General authenticated API traffic, keyed by user (falling back to IP).
     'api' => (int) env('RATE_LIMIT_API', 120),
+    // All of one business's API traffic together, both APIs (Phase 7).
+    'api_business' => (int) env('RATE_LIMIT_API_BUSINESS', 600),
 
     // Login / registration. Keyed by IP *and* submitted email so one attacker
     // cannot lock out a legitimate user by hammering their address.

@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Enums\ApiErrorCode;
 use App\Models\Business;
 use App\Models\User;
 use App\Support\Platform\Impersonation;
@@ -32,32 +33,32 @@ class EnsureActiveBusiness
         // A platform operator works in the console, outside every business (Phase 5).
         if ($user->isPlatformOperator() && ! Impersonation::active()) {
             return $request->expectsJson()
-                ? response()->json(['success' => false, 'message' => __('Platform operators work in the platform console.')], 403)
+                ? response()->json(['success' => false, 'code' => ApiErrorCode::PlatformOperator->value, 'message' => __('Platform operators work in the platform console.')], 403)
                 : redirect()->route('platform.dashboard');
         }
 
         if (! $user->hasVerifiedEmail() && $this->awaitsVerification($user)) {
             return $request->expectsJson()
-                ? response()->json(['success' => false, 'message' => __('Verify your email address to start using your business.')], 403)
+                ? response()->json(['success' => false, 'code' => ApiErrorCode::EmailVerificationRequired->value, 'message' => __('Verify your email address to start using your business.')], 403)
                 : redirect()->route('verification.notice');
         }
 
         // Several to choose from, or a closing business they may reopen.
         if ($user->usableBusinesses()->isNotEmpty() || $this->ownsClosingBusiness($user)) {
             return $request->expectsJson()
-                ? response()->json(['success' => false, 'message' => __('Choose a business to work in.')], 409)
+                ? response()->json(['success' => false, 'code' => ApiErrorCode::BusinessRequired->value, 'message' => __('Choose a business to work in.')], 409)
                 : redirect()->guest(route('businesses.index'));
         }
 
         // Phase 5: say so when the business was suspended by the platform.
         if ($this->belongsToSuspendedBusiness($user)) {
             return $request->expectsJson()
-                ? response()->json(['success' => false, 'code' => 'business_suspended', 'message' => __('This business is suspended. Nobody can work in it until it is reactivated.')], 403)
+                ? response()->json(['success' => false, 'code' => ApiErrorCode::BusinessSuspended->value, 'message' => __('This business is suspended. Nobody can work in it until it is reactivated.')], 403)
                 : response()->view('businesses.none', ['suspended' => true], 403);
         }
 
         return $request->expectsJson()
-            ? response()->json(['success' => false, 'message' => __('You are not a member of any active business.')], 403)
+            ? response()->json(['success' => false, 'code' => ApiErrorCode::NoActiveBusiness->value, 'message' => __('You are not a member of any active business.')], 403)
             : response()->view('businesses.none', status: 403);
     }
 

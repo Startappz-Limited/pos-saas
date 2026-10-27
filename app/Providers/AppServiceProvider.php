@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Contracts\FiscalProvider;
 use App\Contracts\MpesaGateway;
 use App\Contracts\PaymentCollector;
 use App\Enums\Limit as PlanLimit;
@@ -33,6 +34,7 @@ use App\Policies\SocialAccountPolicy;
 use App\Policies\StockAdjustmentPolicy;
 use App\Services\Billing\NullPaymentCollector;
 use App\Services\Billing\PlanLimits;
+use App\Services\Fiscal\NullFiscalProvider;
 use App\Services\Mpesa\NullMpesaGateway;
 use App\Support\Database\ColumnDefaults;
 use App\Support\Onboarding\OnboardingChecklist;
@@ -59,6 +61,7 @@ use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rules\Password;
+use Laravel\Sanctum\PersonalAccessToken;
 use Spatie\Permission\Events\PermissionAttached;
 use Spatie\Permission\Events\PermissionDetached;
 use Spatie\Permission\Events\RoleAttached;
@@ -80,6 +83,8 @@ class AppServiceProvider extends ServiceProvider
 
         // Until the private M-Pesa package is connected, nothing is accepted.
         $this->app->bind(MpesaGateway::class, NullMpesaGateway::class);
+        // Fiscal signing (KRA eTIMS) is deferred: receipts carry no fiscal block until it is plugged in.
+        $this->app->bind(FiscalProvider::class, NullFiscalProvider::class);
 
         // Platform collection goes live with the private M-Pesa package (about
         // 12 November 2026); until then nothing is collected automatically.
@@ -133,6 +138,10 @@ class AppServiceProvider extends ServiceProvider
         Gate::before(function ($user, $ability) {
             return $user instanceof User && $user->isPlatformOperator() && ! Impersonation::active() ? true : null;
         });
+
+        // The `/api/v1` OpenAPI document (Scramble, Phase 7): open in local,
+        // otherwise only to platform operators, who pass through Gate::before.
+        Gate::define('viewApiDocs', fn (?User $user): bool => false);
 
         // Register Policies
         Gate::policy(Role::class, RolePolicy::class);
@@ -272,9 +281,22 @@ class AppServiceProvider extends ServiceProvider
 
     private function registerRateLimiters(): void
     {
-        // General authenticated traffic: per user where we know them, else per IP.
-        RateLimiter::for('api', fn (Request $request) => Limit::perMinute(config('ratelimit.api'))
-            ->by($request->user()?->id ?: $request->ip()));
+        // General authenticated traffic: per user where we know them, else per IP,
+        // and a cap for the whole business, so one business's tills and
+        // scripts can't crowd out the others (Phase 7). The business is the
+        // token's (`/api/v1`) or the user's default (flat API).
+        RateLimiter::for('api', function (Request $request) {
+            $user = $request->user();
+            $limits = [Limit::perMinute(config('ratelimit.api'))->by('user:'.($user?->id ?: $request->ip()))];
+
+            $token = $user?->currentAccessToken();
+            $businessId = ($token instanceof PersonalAccessToken ? $token->getAttribute('business_id') : null) ?: $user?->default_business_id;
+            if ($businessId) {
+                $limits[] = Limit::perMinute(config('ratelimit.api_business'))->by('business:'.$businessId);
+            }
+
+            return $limits;
+        });
 
         // Auth endpoints: keyed by IP *and* the submitted email, so hammering one
         // account cannot lock out an unrelated user on a shared IP.

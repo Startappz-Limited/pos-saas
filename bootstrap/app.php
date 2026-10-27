@@ -9,6 +9,7 @@ use App\Http\Middleware\HandleImpersonation;
 use App\Http\Middleware\RequireFeature;
 use App\Http\Middleware\ResolveTenant;
 use App\Http\Middleware\SecurityHeaders;
+use App\Http\Middleware\ShapeApiV1Response;
 use App\Http\Middleware\VerifyFormBusiness;
 use App\Support\Logging\RequestContext;
 use Illuminate\Contracts\Auth\Middleware\AuthenticatesRequests;
@@ -37,6 +38,11 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->api(append: [
             'throttle:api',
         ]);
+
+        // `/api/v1` responses all carry {success, message, data, meta, code}
+        // (Phase 7, decision 4.8). First in the group so it also shapes the
+        // throttle's and the auth middleware's refusals; the flat API is left alone.
+        $middleware->api(prepend: [ShapeApiV1Response::class]);
 
         // The business a signed-in request acts for (stage 1a, decision 4.3).
         // It needs the authenticated user, so it's ordered after

@@ -6,6 +6,7 @@ use App\Enums\ProductStatus;
 use App\Enums\TaxClass;
 use App\Models\Concerns\BelongsToBusiness;
 use App\Models\Concerns\HasShopStock;
+use App\Models\Concerns\RecordsSyncDeletion;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -21,6 +22,7 @@ class ProductVariation extends Model
 
     use BelongsToBusiness;
     use HasFactory, HasUuids;
+    use RecordsSyncDeletion;
 
     protected $fillable = [
         'business_id',
@@ -175,5 +177,11 @@ class ProductVariation extends Model
             ['shop_id' => $shopId, 'variation_id' => $this->id],
             ['product_id' => $this->product_id, 'stock_quantity' => 0],
         )->update(['reorder_level' => $level]);
+    }
+
+    /** Its name in the till's sync pull (Phase 7). */
+    public function syncEntity(): string
+    {
+        return 'variations';
     }
 }

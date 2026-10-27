@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Actions\User\ChangeUserEmail;
 use App\Actions\User\DeactivateOwnAccount;
+use App\Actions\User\ManageTillPin;
 use App\Http\Requests\ProfileUpdateRequest;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -20,6 +21,7 @@ class ProfileController extends Controller
     {
         return view('profile.edit', [
             'user' => $request->user(),
+            'hasTillPin' => app(ManageTillPin::class)->has($request->user()),
         ]);
     }
 

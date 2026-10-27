@@ -23,6 +23,11 @@ class SignInRequest extends FormRequest
             // The business to sign in to (its uuid); needed only when the user
             // has several and no usable default.
             'business' => ['sometimes', 'string', 'uuid'],
+            // Signing in on a paired till (Phase 7): its register's uuid and
+            // this installation's device id; the token then acts for that
+            // register's shop only.
+            'register' => ['sometimes', 'string', 'uuid'],
+            'device_id' => ['required_with:register', 'string', 'max:191'],
         ];
     }
 }

@@ -5,9 +5,11 @@ namespace App\Http\Controllers\Api\V1;
 use App\Actions\Billing\ConfirmPlatformPayment;
 use App\Actions\Billing\RequestPlatformPayment;
 use App\Contracts\PaymentCollector;
+use App\Enums\ApiErrorCode;
 use App\Enums\Limit;
 use App\Exceptions\PaymentRejected;
 use App\Http\Controllers\Controller;
+use App\Http\Responses\ApiV1;
 use App\Models\PlatformPayment;
 use App\Services\Billing\AiCredits;
 use App\Services\Billing\Entitlements;
@@ -95,7 +97,7 @@ class BillingController extends Controller
         try {
             $payment = $start();
         } catch (PaymentRejected $e) {
-            return response()->json(['success' => false, 'message' => $e->getMessage(), 'errors' => ['payment' => [$e->getMessage()]]], 422);
+            return ApiV1::error(ApiErrorCode::ValidationFailed, $e->getMessage(), 422, ['payment' => [$e->getMessage()]]);
         }
 
         return $this->ok(['payment' => $payment->uuid, 'status' => $payment->status], __('Check your phone and enter your M-Pesa PIN.'));
@@ -108,6 +110,6 @@ class BillingController extends Controller
 
     private function ok(mixed $data, ?string $message = null): JsonResponse
     {
-        return response()->json(['success' => true, 'message' => $message, 'data' => $data]);
+        return ApiV1::ok($data, $message);
     }
 }

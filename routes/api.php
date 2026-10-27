@@ -23,9 +23,15 @@ use App\Http\Controllers\Api\V1\AuthController as V1AuthController;
 use App\Http\Controllers\Api\V1\BillingController as V1BillingController;
 use App\Http\Controllers\Api\V1\BusinessAdminController as V1BusinessAdminController;
 use App\Http\Controllers\Api\V1\BusinessController as V1BusinessController;
+use App\Http\Controllers\Api\V1\MpesaController as V1MpesaController;
+use App\Http\Controllers\Api\V1\ReceiptController as V1ReceiptController;
+use App\Http\Controllers\Api\V1\RegisterController as V1RegisterController;
+use App\Http\Controllers\Api\V1\SyncController as V1SyncController;
+use App\Http\Controllers\Api\V1\TillPinController as V1TillPinController;
 use App\Http\Controllers\PlatformPaymentWebhookController;
 use App\Http\Controllers\WebhookController;
 use App\Http\Middleware\EnsureBusinessToken;
+use App\Http\Middleware\EnsureRegisterToken;
 use Illuminate\Support\Facades\Route;
 
 // Webhook routes (public — verified via HMAC signature, throttled per shop)
@@ -57,6 +63,31 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         Route::post('/auth/sign-out', [V1AuthController::class, 'signOut'])->name('auth.sign-out');
         Route::get('/businesses', [V1BusinessController::class, 'index'])->name('businesses.index');
         Route::post('/businesses/{business:uuid}/switch', [V1BusinessController::class, 'switch'])->name('businesses.switch');
+
+        // Till PINs (Phase 7): your own, and resetting a colleague's.
+        Route::put('/me/till-pin', [V1TillPinController::class, 'update'])->middleware('throttle:writes')->name('me.till-pin');
+        Route::delete('/staff/{user:uuid}/till-pin', [V1TillPinController::class, 'reset'])->middleware('throttle:writes')->name('staff.till-pin.reset');
+        Route::post('/staff/{user:uuid}/till-pin/unlock', [V1TillPinController::class, 'unlock'])->middleware('throttle:writes')->name('staff.till-pin.unlock');
+
+        // Registers (Phase 7): the tills of the user's shops, and pairing this device to one.
+        Route::get('/registers', [V1RegisterController::class, 'index'])->name('registers.index');
+        Route::post('/registers/{register:uuid}/pair', [V1RegisterController::class, 'pair'])->middleware('throttle:writes')->name('registers.pair');
+
+        // Sync for a paired till (Phase 7): a register-bound token only.
+        Route::middleware(EnsureRegisterToken::class)->prefix('sync')->name('sync.')->group(function () {
+            Route::get('/lease', [V1SyncController::class, 'lease'])->name('lease');
+            Route::get('/pull', [V1SyncController::class, 'pull'])->name('pull');
+            Route::post('/push', [V1SyncController::class, 'push'])->middleware('throttle:writes')->name('push');
+        });
+
+        // A sale's receipt for an ESC/POS printer (Phase 7).
+        Route::get('/sales/{sale:uuid}/receipt', [V1ReceiptController::class, 'show'])->name('sales.receipt');
+
+        // M-Pesa at a paired till (Phase 7).
+        Route::middleware(EnsureRegisterToken::class)->prefix('mpesa')->name('mpesa.')->group(function () {
+            Route::post('/stk', [V1MpesaController::class, 'stk'])->middleware('throttle:writes')->name('stk');
+            Route::get('/requests/{paymentRequest:uuid}', [V1MpesaController::class, 'show'])->name('requests.show');
+        });
 
         // Billing (Phase 4): reachable while read-only, so a lapsed owner can pay.
         Route::get('/billing', [V1BillingController::class, 'show'])->name('billing.show');

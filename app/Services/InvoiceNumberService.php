@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Register;
 use App\Models\Shop;
+use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -63,6 +64,63 @@ class InvoiceNumberService
     }
 
     /**
+     * Takes a number a till gave a sale while offline (Phase 7): it must be in
+     * that register's own series for the year it was recorded,
+     * `INV-{shop}-{register}-{year}-{n}`. The series then counts on past it,
+     * so numbers issued online never repeat one. Returns n, the number the
+     * series expected next (anything between is a gap), and the number's prefix
+     * and period, so the caller can flag gaps (4.9).
+     *
+     * Call inside the transaction that creates the sale. A number already
+     * used in the business is refused by the sales table's unique key.
+     *
+     * @throws \InvalidArgumentException when it isn't this register's series
+     */
+    /**
+     * @return array{number: int, expected: int, prefix: string, period: string}
+     */
+    public function adopt(int $shopId, int $registerId, string $invoiceNumber, CarbonInterface $recordedAt): array
+    {
+        $period = $this->period($recordedAt);
+        $number = (int) (preg_match('/(\d+)$/', $invoiceNumber, $match) ? $match[1] : 0);
+        $expected = $this->format(
+            DB::table('shops')->where('id', $shopId)->value('code'),
+            DB::table('registers')->where('id', $registerId)->value('code'),
+            $period,
+            $number,
+        );
+
+        if ($number < 1 || $expected !== $invoiceNumber) {
+            throw new \InvalidArgumentException("{$invoiceNumber} is not in this till's series (expected the form {$expected}).");
+        }
+
+        $series = self::series($registerId, $period);
+        $sequence = DB::table('invoice_sequences')->where('shop_id', $shopId)->where('series', $series);
+
+        if (! (clone $sequence)->exists()) {
+            DB::table('invoice_sequences')->upsert(
+                [['shop_id' => $shopId, 'series' => $series, 'next_number' => 1, 'created_at' => now(), 'updated_at' => now()]],
+                ['shop_id', 'series'],
+                ['updated_at'],
+            );
+        }
+
+        $row = (clone $sequence)->lockForUpdate()->first();
+        $expected = (int) $row->next_number;
+        if ($number >= $expected) {
+            DB::table('invoice_sequences')->where('id', $row->id)->update(['next_number' => $number + 1, 'updated_at' => now()]);
+            DB::table('registers')->where('id', $registerId)->where('last_invoice_number', '<', $number)->update(['last_invoice_number' => $number]);
+        }
+
+        return [
+            'number' => $number,
+            'expected' => $expected,
+            'prefix' => substr($invoiceNumber, 0, -strlen((string) $match[1])),
+            'period' => $period,
+        ];
+    }
+
+    /**
      * The sequence key of a register in a period. Keyed on the register's id,
      * not its code, so renaming a till does not restart its series.
      */
@@ -119,10 +177,10 @@ class InvoiceNumberService
     /**
      * The period: the calendar year for a yearly reset, "*" otherwise.
      */
-    private function period(): string
+    private function period(?CarbonInterface $at = null): string
     {
         return config('invoicing.reset', 'yearly') === 'yearly'
-            ? now()->format('Y')
+            ? ($at ?? now())->format('Y')
             : '*';
     }
 

@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Support\Tenancy\TenantContext;
 use Closure;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Laravel\Sanctum\PersonalAccessToken;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -36,9 +37,35 @@ class ResolveTenant
 
         if ($user instanceof User) {
             $this->tenant->set($this->businessFor($request, $user));
+            $this->bindRegister($user);
         }
 
         return $next($request);
+    }
+
+    /**
+     * A token bound to a register (Phase 7) acts for that register's shop
+     * only. A register that is gone, or no longer in the token's business,
+     * leaves the request with no business at all.
+     */
+    private function bindRegister(User $user): void
+    {
+        $token = $user->currentAccessToken();
+        $registerId = $token instanceof PersonalAccessToken ? $token->getAttribute('register_id') : null;
+
+        if (! is_numeric($registerId) || ! $this->tenant->has()) {
+            return;
+        }
+
+        $shopId = DB::table('registers')
+            ->join('shops', 'shops.id', '=', 'registers.shop_id')
+            ->where('registers.id', (int) $registerId)
+            ->where('shops.business_id', $this->tenant->id())
+            ->value('registers.shop_id');
+
+        $shopId === null
+            ? $this->tenant->forget()
+            : $this->tenant->useRegister((int) $registerId, (int) $shopId);
     }
 
     private function businessFor(Request $request, User $user): ?int

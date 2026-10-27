@@ -15,21 +15,27 @@ use App\Models\DeliveryCompany;
 use App\Models\EcommerceOrder;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
+use App\Models\PaymentRequest;
 use App\Models\PlatformPayment;
 use App\Models\PricingRule;
 use App\Models\PurchaseOrder;
+use App\Models\Register;
 use App\Models\Role;
 use App\Models\SocialAccount;
+use App\Models\SyncIssue;
 use App\Services\Billing\AiCredits;
 use App\Support\Tenancy\BusinessLink;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\URL;
+use Illuminate\Support\Str;
 use Laravel\Sanctum\PersonalAccessToken;
 use Laravel\Sanctum\Sanctum;
 use Tests\Support\PlatformRoutes;
+use Tests\Support\Till;
 use Tests\Support\TwoBusinesses;
 
 /**
@@ -37,7 +43,7 @@ use Tests\Support\TwoBusinesses;
  * on the web and the flat API, refuses business B's record to business A's
  * owner (who passes every policy, so only the tenant boundary stands in the
  * way): show, update and delete are 404, and the record is unchanged.
- * `/api/v1` and sync rows are added when those endpoints are built (Phase 6).
+ * `/api/v1` and sync rows are added as those endpoints are built (Phase 7: registers, sync, M-Pesa).
  *
  * Every new model, route or endpoint adds its row here.
  */
@@ -78,6 +84,7 @@ function recordOfB(TwoBusinesses $fixture, string $resource): Model
         'shops' => $b->shops[1],
         'social-accounts' => SocialAccount::factory()->create($shop),
         'suppliers' => $b->supplier,
+        'sync-issues' => SyncIssue::create(['type' => SyncIssue::POSSIBLE_DUPLICATE_CUSTOMER, 'key' => 'customer:b', 'details' => ['customer' => (string) $b->customer->uuid, 'duplicate_of' => (string) $b->customer->uuid]]),
         'users' => $b->cashier,
     });
 }
@@ -104,8 +111,9 @@ const WEB_RESOURCES = [
     // show: SocialAccountController::show doesn't exist (already on main).
     'social-accounts' => ['update', 'destroy'],
     'suppliers' => ['show', 'update', 'destroy'],
-    'users' => ['show', 'update', 'destroy'],
+    'users' => ['show', 'update', 'destroy', 'till-pin.reset', 'till-pin.unlock'],
     'invites' => ['resend', 'destroy', 'role'],
+    'sync-issues' => ['resolve', 'merge'],
 ];
 
 /** Resource => the actions its flat API routes offer on one record. */
@@ -287,6 +295,100 @@ it('refuses business B\'s billing to business A on /api/v1 (Phase 4)', function 
     $this->withHeaders(['Authorization' => "Bearer {$cashierToken}"])->getJson(route('api.v1.billing.show'))->assertForbidden();
 
     expect($payment->fresh()->status)->toBe('pending');
+});
+
+it('refuses business B\'s registers to business A on /api/v1 (Phase 7)', function () {
+    $bRegister = app(TenantContext::class)->run($this->fixture->b->business, fn () => Register::query()->firstOrFail());
+    app(TenantContext::class)->forget();
+
+    $token = $this->postJson(route('api.v1.auth.sign-in'), ['email' => $this->fixture->a->owner->email, 'password' => 'password', 'device_name' => 'Till'])
+        ->json('data.token');
+    app(TenantContext::class)->forget();
+    app('auth')->forgetGuards();
+    $headers = ['Authorization' => "Bearer {$token}"];
+
+    // A's list holds A's tills only.
+    $listed = $this->withHeaders($headers)->getJson(route('api.v1.registers.index'))->assertOk()->json('data.*.uuid');
+    expect($listed)->not->toContain($bRegister->uuid)->not->toBeEmpty();
+
+    app(TenantContext::class)->forget();
+    app('auth')->forgetGuards();
+    $this->withHeaders($headers)->postJson(route('api.v1.registers.pair', $bRegister), ['device_id' => 'intruder'])->assertNotFound();
+
+    expect($bRegister->fresh()->device_id)->toBeNull();
+});
+
+it('leases a till of business A for A\'s till only, and B\'s till for B\'s (Phase 7)', function () {
+    [$aRegister, $bRegister] = array_map(
+        fn ($side) => app(TenantContext::class)->run($side->business, fn () => Register::query()->firstOrFail()),
+        [$this->fixture->a, $this->fixture->b],
+    );
+
+    foreach ([[$this->fixture->a, $aRegister], [$this->fixture->b, $bRegister]] as [$side, $register]) {
+        $token = Till::token($side->owner, $register);
+        Till::freshRequest();
+        $this->withToken($token)->getJson(route('api.v1.sync.lease'))->assertOk()->assertJsonPath('meta.lease.register', $register->uuid);
+
+        $leaseBusiness = DB::table('register_leases')->where('register_id', $register->id)->distinct()->pluck('business_id')->all();
+        expect($leaseBusiness)->toBe([$side->business->id]);
+    }
+});
+
+it('pulls business A\'s records and deletions to A\'s till, and none of B\'s (Phase 7)', function () {
+    $aRegister = app(TenantContext::class)->run($this->fixture->a->business, fn () => Register::query()->firstOrFail());
+    // A deletion in B: it must never reach A's till.
+    app(TenantContext::class)->run($this->fixture->b->business, fn () => $this->fixture->b->customer->delete());
+    $token = Till::token($this->fixture->a->owner, $aRegister);
+    $this->travel(2)->seconds();
+
+    Till::freshRequest();
+    $body = json_encode($this->withToken($token)->getJson(route('api.v1.sync.pull'))->assertOk()->json('data'));
+
+    foreach ([$this->fixture->b->business->uuid, $this->fixture->b->product->uuid, $this->fixture->b->customer->uuid, $this->fixture->b->owner->uuid] as $uuid) {
+        expect($body)->not->toContain((string) $uuid);
+    }
+    expect($body)->toContain((string) $this->fixture->a->product->uuid);
+});
+
+it('applies A\'s till\'s push in A only, and reaches none of B\'s records (Phase 7)', function () {
+    $aRegister = app(TenantContext::class)->run($this->fixture->a->business, fn () => Register::query()->firstOrFail());
+    $bSale = $this->fixture->b->sale;
+    $bPaid = $bSale->payment_status;
+    $token = Till::token($this->fixture->a->owner, $aRegister);
+
+    Till::freshRequest();
+    $results = $this->withToken($token)->postJson(route('api.v1.sync.push'), ['items' => [
+        ['client_uuid' => (string) Str::uuid(), 'type' => 'sale_payment', 'recorded_at' => now()->toIso8601String(), 'data' => ['sale' => (string) $bSale->uuid, 'amount' => 1, 'payment_method' => 'cash']],
+        ['client_uuid' => $customerUuid = (string) Str::uuid(), 'type' => 'customer', 'recorded_at' => now()->toIso8601String(), 'data' => ['name' => 'Pushed in A', 'phone' => $this->fixture->b->customer->phone]],
+    ]])->assertOk()->json('data.results');
+
+    expect($results[0]['code'])->toBe('not_found')
+        ->and($results[1]['status'])->toBe('applied')
+        // B's customer with the same phone is not A's duplicate.
+        ->and($results[1]['result']['flags'])->toBe([])
+        ->and(app(TenantContext::class)->run($this->fixture->b->business, fn () => $bSale->fresh()->payment_status))->toBe($bPaid)
+        ->and(DB::table('customers')->where('client_uuid', $customerUuid)->value('business_id'))->toBe($this->fixture->a->business->id);
+});
+
+it('keeps business B\'s till M-Pesa requests from A\'s till (Phase 7)', function () {
+    $aRegister = app(TenantContext::class)->run($this->fixture->a->business, fn () => Register::query()->firstOrFail());
+    $bRequest = app(TenantContext::class)->run($this->fixture->b->business, fn () => PaymentRequest::create([
+        'client_uuid' => (string) Str::uuid(), 'shop_id' => $this->fixture->b->shops[0]->id, 'method' => 'stk', 'status' => 'pending', 'amount' => 10, 'shortcode' => '600000',
+    ]));
+    $token = Till::token($this->fixture->a->owner, $aRegister);
+    $this->travel(2)->seconds();
+
+    Till::freshRequest();
+    $this->withToken($token)->getJson(route('api.v1.mpesa.requests.show', $bRequest))->assertNotFound();
+    Till::freshRequest();
+    expect(json_encode($this->withToken($token)->getJson(route('api.v1.sync.pull'))->json('data.payment_requests')))->not->toContain((string) $bRequest->uuid);
+});
+
+it('refuses business B\'s sale receipt to business A on /api/v1 (Phase 7)', function () {
+    $token = Till::signIn($this->fixture->a->owner);
+
+    Till::freshRequest();
+    $this->withToken($token)->getJson(route('api.v1.sales.receipt', $this->fixture->b->sale))->assertNotFound();
 });
 
 it('refuses every platform console route to business A\'s owner (Phase 5)', function () {

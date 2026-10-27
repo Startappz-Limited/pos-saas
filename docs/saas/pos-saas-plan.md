@@ -245,6 +245,7 @@ answered before Phase 1** (Open question 1):
 - [ ] Sync support: `client_uuid`, `updated_at` indexes and a deletions log for every synced table;
       last-sync time per register.
       **Partly done (stage 1a):** `client_uuid` keys and `sync_deletions`; `updated_at` indexes and the writes come with sync (Phase 6).
+      **Mostly done (Phase 7):** `client_uuid` written by the push, `sync_deletions` filled on delete and soft delete, last-sync time per register. Still open: `updated_at` indexes on the pulled tables (the pull reads `COALESCE(updated_at, …)`, which no index serves; index `(business_id, updated_at)` and read the column directly).
 
 **Queries**
 - [x] Global scopes on every model with `shop_id` (about 42) and every business-wide model (7 lists,
@@ -316,16 +317,19 @@ answered before Phase 1** (Open question 1):
       package. The number alone isn't enough: Daraja needs that shortcode's own credentials and go-live,
       unless the package is an aggregator (Open question 2). Shortcodes unique across the platform.
       **Partly done (stage 3):** each shop's number, unique platform-wide and accepted only after a test query with its own encrypted account details (`SaveShopMpesaAccount`). STK Push and payment webhooks for shop sales come with Phase 6.
+      **Built on the contract (Phase 7):** STK Push through the shop's own number, payments confirmed only by querying the API (no webhooks are believed), applied to their sale once, and offline codes matched by code and amount (`TillPayments`). `NullMpesaGateway` stays bound until the private package is plugged in, so nothing reaches M-Pesa yet.
 - [x] Subscriptions per shop, plan limits on every create path, and read-only mode for a lapsed or
       over-quota business on the web and both APIs.
-      **Done (Phase 4):** `Entitlements`, `PlanLimits`, `EnforceSubscription`, `billing:sweep`. Still open: the sync push joins read-only mode with sync (Phase 6); collecting through the private M-Pesa package waits for go-live (`BILLING_MPESA_ENABLED`, `NullPaymentCollector` until then).
+      **Done (Phase 4):** `Entitlements`, `PlanLimits`, `EnforceSubscription`, `billing:sweep`. The sync push follows read-only mode item by item (Phase 7: what was recorded before the lapse is accepted); collecting through the private M-Pesa package waits for go-live (`BILLING_MPESA_ENABLED`, `NullPaymentCollector` until then).
 - [x] AI usage metered against a prepaid balance per business.
 - [ ] The current flat `/api` keeps working unchanged on the new schema; a new `/api/v1` covers every
       feature the Flutter app needs.
-- [ ] Tests independent of `.env`, plus a two-business fixture. **Half done (Phase 0):** tests no longer
+      **Till features done (Phase 7):** sign-in, businesses, pairing, sync pull and push, M-Pesa, receipts, till PINs; the flat API contract unchanged throughout. Back-office features (reports, purchasing, suppliers, expenses, returns) move to `/api/v1` in a later stage.
+- [x] Tests independent of `.env`, plus a two-business fixture. **Half done (Phase 0):** tests no longer
       depend on `.env` (WhatsApp, `APP_URL`; SMS still reads `env()` directly, fixed in Phase 6); the
       two-business fixture comes with Phase 2.
       **Two-business fixture done (stage 1a):** `tests/Support/TwoBusinesses.php`.
+      **SMS done (stage 3):** it reads `config()` and the business's own account, never `env()`.
 - [x] A CI job on the target database (MySQL or MariaDB) for raw SQL, locks and the isolation suite.
       **Done (stage 2):** the MySQL 8 suite job (stage 0), and the `isolation` job on SQLite and MySQL 8.
 - [x] Legacy flat-API clients with no register or shop context get a defined default (4.8).
