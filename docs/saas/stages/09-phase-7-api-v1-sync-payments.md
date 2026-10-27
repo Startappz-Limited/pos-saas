@@ -236,7 +236,7 @@ The work list and acceptance criteria above already assume both. **Both adopted*
 - [x] The OpenAPI document matches the routes (contract test).
 - [x] SMS sends through the tenant's provider. (Done in stage 3: `Tenancy/MessagingCredentialsTest`, "sends SMS
       through the business's own account, and another business through its own".)
-- [ ] The flat API contract tests still pass. (Passing after each step so far; ticked at the end of the phase.)
+- [x] The flat API contract tests still pass. (Full MySQL suite, 27 October 2026: 2,006 passed, fixtures unchanged.)
 - [x] A till PIN sign-in, failure, lockout and unlock are each in the audit trail; a lockout that needs a manager
       reaches the business's other tills.
 
@@ -252,8 +252,11 @@ The work list and acceptance criteria above already assume both. **Both adopted*
 
 ## Definition of done
 
-- [ ] Acceptance criteria met, with tests.
-- [ ] The `/api/v1`, token, sync and M-Pesa rows of the isolation resource matrix filled in; isolation
+- [ ] Acceptance criteria met, with tests. (All but "two tills number sales offline without collisions", which waits on
+      adding tills to a shop.)
+- [x] The `/api/v1`, token, sync and M-Pesa rows of the isolation resource matrix filled in; isolation
       suite green.
-- [ ] Pint, the full suite (SQLite and MySQL 8) and both API contract test sets pass.
-- [ ] Hotspot checklist items for the API, sync and M-Pesa ticked in saas-plan.md section 2.
+- [x] Pint, the full suite (SQLite and MySQL 8) and both API contract test sets pass. (27 October 2026: SQLite 1,996
+      passed, MySQL 2,006 passed, 0 failed.)
+- [x] Hotspot checklist items for the API, sync and M-Pesa ticked in saas-plan.md section 2. (Notes added; the sync
+      item stays open for the `updated_at` indexes, M-Pesa for the private package.)

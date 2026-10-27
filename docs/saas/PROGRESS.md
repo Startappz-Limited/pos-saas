@@ -798,7 +798,7 @@ Branch: `saas/signup-trials-invites` (from `main` at `e0d8bdf`, the merge of Pha
 ## Stage 7 (Phase 7): `/api/v1` for the till, offline sync, till payments
 
 Branch: `saas/phase-7-api-sync-payments` (from `main` at `61245e3`). Plan: the stage file
-([09-phase-7-api-v1-sync-payments.md](stages/09-phase-7-api-v1-sync-payments.md)). **Status: in progress; all build steps done, final gates pending (see "Open" below).**
+([09-phase-7-api-v1-sync-payments.md](stages/09-phase-7-api-v1-sync-payments.md)). **Status: in review** (27 October 2026): every check passes; two items wait on follow-ups (see "Open" below).
 
 ### Scope (decided 26 October 2026)
 
@@ -826,15 +826,33 @@ Branch: `saas/phase-7-api-sync-payments` (from `main` at `61245e3`). Plan: the s
 | 10. Receipts, fiscal seam, SMS | `d4bba03` | `ApiV1/ReceiptTest` (3); `ResourceMatrixTest` +1 (B's receipt) | deferred | deferred | `GET /api/v1/sales/{uuid}/receipt` (`SalePolicy::view`; another shop's or business's sale is a 404, and a till reaches its own shop's sales only): `header` (business, shop, address, phone, tax PIN, VAT registered, receipt header), `sale` (invoice number, time in the shop's timezone, till code, cashier, customer), `lines` (with `TaxClass::kraCode()`), `totals`, `tax` bands, `payments`, `footer`, `fiscal`; money as two-decimal strings (`SaleReceipt`). **Fiscal seam:** `FiscalProvider` with `NullFiscalProvider` bound, so `fiscal` is null until eTIMS; a provider's `FiscalSignature` (control code, device serial, invoice number, QR URL) fills it. **SMS:** already sending through the business's own account since stage 3 (`Tenancy/MessagingCredentialsTest`); ticked with that evidence. **UAT 403 on `/api/v1/registers` (26 October):** UAT had the Phase 7 migrations but not the new permissions (`registers.*`, `sync-issues.*`); the fix is `db:seed --class=PermissionSeeder` then `--class=RoleSeeder`, for the user to run (the safety hook refuses seeders on UAT); snapshot taken first: `storage/app/snapshots/pos_saas_demo_testing-20261026-162608.sql.gz`. 383 targeted tests on SQLite; the v1 tests (88) on MySQL |
 | 11. Two-business acceptance test | `ab650d6` | `ApiV1/TwoBusinessSyncTest` (1) | `ApiV1`, `Sale`, `TenantIsolation`, `Tenancy`: 442 passed, 4 todos; full suite deferred | deferred | One person in two businesses signs in on a till in each (own token, register and device); each pushes a customer and pulls: only its own business's customer and settings come back, and the other's never appears. Ticks the "user in two businesses" acceptance criterion. `pos-saas-plan.md` section 2 updated: sync columns "mostly done" (`client_uuid`, `sync_deletions` and last-sync time are in use), STK Push and offline-code matching "built on the contract", sync push following read-only mode, and the test-independence item ticked. **Still open from the review:** the pull reads `COALESCE(updated_at, …)`, which no index serves; add `(business_id, updated_at)` indexes on the pulled tables and read the column directly |
 
-### Open before the stage can close
+### End of stage 7 (27 October 2026)
 
-- **Not ticked in the stage file:** adding tills to a shop (follow-up; needed for the two-tills-in-one-shop criterion);
-  the Phase 1 sync columns item (the `updated_at` indexes); the flat API contract criterion (ticked at the end);
-  the Definition of done.
-- **Run in this review (SQLite, Windows host, 26 October 2026):** `ApiV1`, `Sale`, `TenantIsolation` and `Tenancy`
-  together: 442 passed, 4 todos (1,920 assertions, about 58 minutes); `ApiV1` alone: 89 passed (609 assertions).
-- **Not run:** the full suite on SQLite and on MySQL 8, and Pint. Run the "Before pushing" checks before merging.
-- Local `vendor/` lacked `dedoc/scramble`, so every `artisan` command failed until `composer install` was run.
+- **Pint** (`--test --diff=origin/main`): pass.
+- **Full suite, SQLite:** 1,996 passed, 0 failed, 60 skipped, 4 todos (6,877 assertions, 18½ minutes).
+- **Full suite, MySQL 8:** 2,006 passed, 0 failed, 50 skipped, 4 todos (6,956 assertions, 35 minutes), with both
+  API contract test sets; the contract fixtures unchanged.
+- **Rollout rehearsed on `import_testing`** (a copy at the end of Phase 5, so Phase 6 is included): 13 migrations
+  applied, none pending; all 13 registers marked as their shop's default; after `PermissionSeeder` and `RoleSeeder`,
+  the owner role, the manager template and its business copy hold `registers.view`, `registers.pair`,
+  `sync-issues.view` and `sync-issues.resolve`, cashiers none. The only count that changed: role permissions
+  696 → 685, from Phase 6's `retire_audit_logs_permissions`.
+- **Acceptance criterion added and met:** a person in two businesses syncs each on its own till
+  (`ApiV1/TwoBusinessSyncTest`).
+- **UAT:** the Phase 7 migrations have run; the two seeders haven't (the 403 on `/api/v1/registers`). Run
+  `PermissionSeeder` then `RoleSeeder` (snapshot taken: `storage/app/snapshots/pos_saas_demo_testing-20261026-162608.sql.gz`).
+
+### Open (follow-ups; not blocking review)
+
+- **Adding tills to a shop.** Each shop has only its default till, so "two tills number sales offline without
+  collisions" can't be shown for one shop yet. Tills in different shops can't collide (the shop code is in the number),
+  and gaps and repeats are flagged.
+- **`updated_at` indexes** on the pulled tables (the pull reads `COALESCE(updated_at, …)`).
+- **The private M-Pesa package and KRA eTIMS** plug into `MpesaGateway` and `FiscalProvider`.
+- **`BusinessErasureTest`** failed once in a long targeted run and passed alone and in both full suites:
+  order-dependent; to investigate.
+- **Flutter** (paired changes): the staff list with PIN hashes in encrypted device storage, the PIN lockout, pushing
+  every sign-in event, and the `/api/v1` error codes.
 
 ### Differences from the stage file
 
