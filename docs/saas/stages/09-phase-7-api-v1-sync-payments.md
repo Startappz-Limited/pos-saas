@@ -218,7 +218,8 @@ The work list and acceptance criteria above already assume both. **Both adopted*
 - [x] A paired register's token works only for its business and shop.
 - [x] Pushing the same batch twice creates the records once.
 - [x] A pull for business A returns only A's changes since the cursor, including deletions.
-- [ ] A user in two businesses syncs both independently.
+- [x] A user in two businesses syncs both independently. (`ApiV1/TwoBusinessSyncTest`: the same person signs in on a
+      till in each business; each pushes and pulls only its own business's records.)
 - [x] A register that hasn't synced for 24 hours triggers the owner warning and the API flag, without
       blocking sales.
 - [x] An STK payment marks the right sale paid exactly once, including when the till syncs only
