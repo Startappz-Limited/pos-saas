@@ -2,7 +2,21 @@
 
 > **Source:** returns review of 26 October 2026 (quality returns not reflected in sales or costing).
 > **Branch:** `fix/returns-in-reports` · **Depends on:** Phase 1b (FIFO cost batches), the VAT engine
-> ([docs/vat.md](../../vat.md)) · **Related:** [10-stock-voids-and-fifo-integrity.md](./10-stock-voids-and-fifo-integrity.md)
+> ([docs/vat.md](../../vat.md)), [10-stock-correctness-and-voids.md](./10-stock-correctness-and-voids.md)
+> (`cost_known`, `cash_payouts`, `refund_due`), [11-units-quantities-and-batches.md](./11-units-quantities-and-batches.md)
+> (return lines in units, decimal quantities), [12-receiving-and-moving-stock.md](./12-receiving-and-moving-stock.md)
+> (purchase returns that don't take stock, step 3a) · **Related:** [13-stocktakes.md](./13-stocktakes.md)
+
+**Revisions (27 October 2026):** renumbered from 11 to 13 when the stock stage was split into stages 10, 11 and 12,
+then to 14 when stocktakes became stage 13 (fourth round).
+
+**Fourth round (27 October 2026):** goods a customer returns that go back to the supplier raise a draft purchase
+return (new step 3a), because "returned to supplier" is a purchase return (decided 27 October 2026, stage 10); this
+was a follow-up, now treated as needed. Depends on stage 12 for it. Traceability:
+[TRACEABILITY-stock.md](./TRACEABILITY-stock.md).
+
+Return lines carry a unit, a quantity in it and a base quantity from stage 11, so quantities are capped and costed in
+base units (steps 1 and 2).
 
 ---
 
@@ -91,6 +105,10 @@ completed.
 - [ ] `StoreReturnRequest` / `UpdateReturnRequest` refuse a quantity above what is still returnable: sold, minus
       units on other returns that aren't rejected. The error goes under the line: "Only :n left to return on this
       line."
+- [ ] **Units (stage 11):** a returned line is entered in the unit it was sold in or the base unit, and the cap
+      compares base quantities (`base_quantity`), so 5 bottles can come back from a crate sold. The paid price per
+      unit above is per base unit for this purpose: the line's paid value ÷ its `base_quantity`, times the base units
+      returned.
 - [ ] Tests:
   - a discounted line refunds the discounted price;
   - a sale-level discount is shared across lines;
@@ -112,7 +130,8 @@ completed.
   - **`refund_net` and `refund_tax`:** split from the refunded gross at the original line's `tax_rate` and its
     sale's `tax_inclusive`, the same formula `VatReportService` uses (moved into `TaxService`, so it lives in one
     place).
-  - **`cost_amount`:** `sale_items.unit_cost × quantity`.
+  - **`cost_amount`:** the sale line's cost per base unit (`total_cost ÷ base_quantity`) × the base units returned,
+    rounded once to cents.
   - **`disposition`:** `restocked` when `is_restockable`; `to_supplier` when `return_to_supplier`; `written_off`
     otherwise.
   - **`completed_at`:** set to now.
@@ -132,6 +151,17 @@ completed.
       the rule "only the ledger writes stock movements" holds.
 - [ ] Tests: a defective return writes one movement at cost and leaves stock unchanged; a restocked return writes
       none of this kind.
+
+### 3a. Goods for the supplier become a purchase return
+- [ ] When a `to_supplier` line completes, a draft purchase return to the product's supplier (chosen on the return
+      when the product has none) is raised with the line's base quantity and cost, marked `from_customer_return`: like
+      stage 12's `rejected_at_receipt`, **shipping it doesn't take stock**, because the goods never went back into
+      stock. It records the credit owed.
+- [ ] When the supplier's credit is recorded on that purchase return, the write-off is reversed for the credited
+      amount (a `RETURN_WRITE_OFF` reversal movement at cost, through `StockLedger::recordWriteOff()`), so the loss
+      shown is only what the supplier didn't credit; `SalesFigures` reads it in the period the credit is recorded.
+- [ ] Tests: a `to_supplier` line raises one draft purchase return that leaves stock unchanged when shipped; a full
+      credit reverses the write-off, a partial one part of it; a second completion raises nothing more.
 
 ### 4. One place for net figures: `SalesFigures`
 - [ ] New `App\Services\Reports\SalesFigures`. Given a period, an optional shop (the line's shop, as the dashboard
@@ -182,15 +212,18 @@ completed.
 - [ ] Tests: each report shows the example's figures. The flat API contract test passes with the added fields.
 
 ### 6. Refunds reach the register and the credit account
-- [ ] **Cash refunds:** when processed, a cash refund is recorded against the shop's open register session
-      (`cash_registers.total_cash_refunds`, new) and taken off `calculateExpectedBalance()`. With no open
-      session, it's refused: "Open the register to pay a cash refund."
+- [ ] **Cash refunds:** when processed, a cash refund is a `cash_payout` (stage 10, step 4) in the shop's open
+      register session, naming the refund, and is taken off `calculateExpectedBalance()` with the session's other
+      payouts. With no open session, it's refused: "Open the register to pay a cash refund." (decided).
+- [ ] **Refunds owed from stage 10:** a `refund_due` issue (from a void or a late M-Pesa payment) is settled by
+      processing a refund for it; the refund names the issue, and the issue is resolved with it.
 - [ ] **Credit sales and store credit:** when processed, a refund with method `store_credit`, or `original_payment`
       on a credit sale, posts an offsetting credit transaction (`RecordCreditTransaction`, as
       `SettleCreditSalePayment::reverse` does for voids). This lowers what the customer owes, or holds the amount
       as credit.
 - [ ] Card, bank transfer and `original_payment` on non-cash, non-credit sales change neither.
-- [ ] Tests: a cash refund lowers the expected cash; refused without a session; a credit-sale refund lowers the
+- [ ] Tests: a cash refund is a payout and lowers the expected cash; refused without a session; a refund for a
+      `refund_due` issue resolves it; a credit-sale refund lowers the
       balance; a card refund changes neither.
 
 ### 7. Fill in returns completed before this stage
@@ -213,8 +246,9 @@ completed.
 |---|---|
 | `return_items.refund_net`, `refund_tax`, `cost_amount`, `disposition` | Filled by `returns:backfill-figures` for completed returns |
 | `returns.completed_at` | Backfilled from `updated_at` for completed returns |
-| `cash_registers.total_cash_refunds` decimal(15,2), default 0 | 0 for existing sessions (no refunds were recorded against them) |
+| None for cash refunds: they are `cash_payouts` (stage 10) | None |
 | Index `returns (shop_id, status, completed_at)` | None needed |
+| `purchase_returns.from_customer_return` boolean, default false; `return_item_id` (nullable) | Existing purchase returns take stock as before |
 
 ## Acceptance criteria
 
@@ -276,11 +310,9 @@ pass, and their results are in the PR body.
 
 ## Points to confirm
 
-All decided on 26 October 2026 (see "Decisions that apply"). Nothing remains open for this stage.
+All decided on 26 and 27 October 2026 (see "Decisions that apply"). Nothing remains open for this stage.
 
 ## Follow-ups (not this stage)
 
 - Returns API (`/api/v1`) for the Flutter app.
-- Link `return_to_supplier` lines to purchase returns and supplier credits, reversing the write-off when the
-  supplier credits it.
 - Let inspection change a line's disposition (e.g. a "quality issue" item found resaleable).
