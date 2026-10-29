@@ -1,7 +1,7 @@
 # App Release Checklist
 
 Created 27 October 2026 (sixth round); stage 10a's section added and stage 10's discard item updated in the eighth round (28 October 2026), and again in the
-ninth and tenth (28 October 2026). The Flutter app's next release isn't scheduled, and the app isn't on this
+ninth and tenth (28 October 2026) and in stage 10a's third revision (29 October 2026). The Flutter app's next release isn't scheduled, and the app isn't on this
 machine (`MOBILE_APP_PATH` points nowhere). The server stays backward compatible with the app in shops through every
 stage (additions only, old fields kept, Phase 7's codes for apps without a new enough `X-App-Version`), and each
 stage's rollout checks **the server** against the app's recorded requests. Everything below checks **the app**, and is
@@ -38,6 +38,10 @@ Stage file: [10a-access-and-tenancy.md](./10a-access-and-tenancy.md).
 - [ ] Shows the shops list to every member for the shops they can reach, and handles a 403 on shop or user editing.
 - [ ] Re-reads the person's permissions after a refusal and on resume, since an unbound flat API token follows the
       user's default business (planned, stage 10a first revision).
+- [ ] Handles 403 `no_active_business` on every flat API and `/api/v1` call: it shows that the person isn't a member of
+      any active business, instead of an empty or zero screen (checked 29
+      October 2026: the flat API's `EnsureActiveBusiness` returns it on every authenticated route, and `/api/v1`
+      sign-in returns it when the person has no usable business; planned, stage 10a third revision).
 
 ## Stage 11
 Stage file: [11-units-quantities-and-batches.md](./11-units-quantities-and-batches.md).
@@ -109,7 +113,7 @@ Stage file: [23-stocktakes-in-the-app.md](./23-stocktakes-in-the-app.md).
 | Stage | Checks |
 |---|---|
 | 10 | 14 |
-| 10a | 2 |
+| 10a | 3 |
 | 11 | 10 |
 | 11b | 5 |
 | 11c | 2 |
@@ -121,4 +125,4 @@ Stage file: [23-stocktakes-in-the-app.md](./23-stocktakes-in-the-app.md).
 | 21 | 1 |
 | 22 | 1 |
 | 23 | 1 (placeholder) |
-| **Total** | **44** |
+| **Total** | **45** |

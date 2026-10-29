@@ -72,6 +72,20 @@ of its steps grants or revokes a permission (step 3 changes `ShopPolicy`, not ro
 - Acceptance criteria for `members:clean-removed` and the "No shop yet" link; a risk for the cleanup's invite
   revocation; Revisions put in date order; the header names the merged stages.
 
+**Third revision (29 October 2026):** (code facts checked 29 October 2026)
+- The open proposal decided (option A): a return to the Free Trial is refused while the business has more than one
+  shop ("Delete shops until one remains before returning to the Free Trial."); deactivated shops count toward
+  `Limit::Shops` (`PlanLimits::count()` excludes only soft-deleted ones), so the message says "delete"; Phase 4's
+  read-only rule is unchanged; the proposal removed from "Points to confirm"; tests added.
+- `business_user.removed_at` (nullable), set by `RemoveFromBusiness`; `members:clean-removed` uses it, applies the
+  no-role rule once to rows from before this stage (listed separately in the dry run; `--apply` sets their
+  `removed_at`); "invites created before the removal" uses `removed_at`; Schema, tests, Risks and Rollout updated.
+- "Active business" defined: `businesses.status = 'active'`; a lapsed (read-only) business is still usable; only a
+  suspended, closing or pending-verification one isn't; a test added.
+- App checklist: the app handles 403 `no_active_business` on every flat API and `/api/v1` call.
+- Business 7 is given the Free Trial at rollout, which starts a 14-day trial; it has no owner, member or shop.
+- `businesses:set-default-shop --all` covers every business, not only active ones.
+
 ---
 
 ## Goal
@@ -83,8 +97,8 @@ shop, and on any other tier the shops the owner chose on the invite.
 ## Before you start
 
 Nothing must be merged first: this stage grants and revokes no permission (checked 28 October 2026), so it doesn't
-need stage 10's step 0. One proposal is open (a writable default shop while over quota; see "Points to confirm");
-everything else is decided, and the revisions' decisions are in "Decisions that apply".
+need stage 10's step 0. Everything is decided (the last open proposal was settled in the third revision), and the
+revisions' decisions are in "Decisions that apply".
 
 ## Decisions that apply
 
@@ -109,14 +123,20 @@ everything else is decided, and the revisions' decisions are in "Decisions that 
     ([stage 4](./06-phase-4-billing-entitlements.md), "Decisions that apply"). A business on a tier's trial can switch
     back to the Free Trial (checked 28 October 2026: `BillingController::plan` and `ChangeTrialPlan`); when it does,
     **every member keeps their shops and is given the default shop too** (decided 28 October 2026; "every member",
-    second revision, 29 October 2026), so "on the Free Trial every member has the default shop" always holds. While
-    the business has more shops than the Free Trial's one, **every shop is read-only**, not only the extra ones
-    ([stage 6](./08-phase-6-signup-and-user-invites.md), §2.6 "Changing plan during a trial"; checked 29 October 2026:
-    `Entitlements::readOnlyReason()` returns `over_quota` for the whole business, and no shop is kept writable), until
-    shops are deleted down to one. The default shop is therefore not writable on its own; see "Points to confirm".
-  - **The switch back needs an active shop** (second revision, 29 October 2026): moving to the Free Trial is refused
-    while the business has no active shop ("Activate a shop before moving to the Free Trial."). When the default shop
-    is gone or inactive, the oldest active shop becomes the default as part of the switch, audited.
+    second revision, 29 October 2026), so "on the Free Trial every member has the default shop" always holds.
+  - **The switch back needs exactly one shop, and it active** (decided 29 October 2026, third revision; replaces the
+    open proposal of a writable default shop). Moving to the Free Trial is refused:
+    - while the business has more than one shop: "Delete shops until one remains before returning to the Free
+      Trial." Deactivated shops count toward the shop limit (checked 29 October 2026: `PlanLimits::count(Limit::Shops)`
+      counts every shop not soft-deleted, whatever its status), so deactivating doesn't help and the message says
+      "delete";
+    - while its one shop is inactive, or it has none: "Activate a shop before moving to the Free Trial." (second
+      revision).
+
+    So a business never lands on the Free Trial over quota, and Phase 4's read-only rule is unchanged: a business with
+    more shops than it pays for has every shop read-only ([stage 6](./08-phase-6-signup-and-user-invites.md), §2.6
+    "Changing plan during a trial"; checked 29 October 2026: `Entitlements::readOnlyReason()` returns `over_quota` for
+    the whole business). The switch makes the remaining shop the default when it isn't already (audited).
   - **The default shop matters only on the Free Trial** (decided 28 October 2026): on other tiers it is kept but
     used for nothing, and may be deleted or deactivated.
 - **Members and owners (first revision, 28 October 2026):** removal, owner protection ("only owners delete") and
@@ -126,6 +146,12 @@ everything else is decided, and the revisions' decisions are in "Decisions that 
 - **A usable business** (second revision, 29 October 2026) is one where the person has an active membership and the
   business itself is active (checked 29 October 2026: `User::usableBusinesses()`, which `User::businessToOpen()` and
   `EnsureActiveBusiness` use). This stage uses the word only in that sense.
+  - **"Active business"** (third revision, checked 29 October 2026) means `businesses.status = 'active'`
+    (`Business::STATUS_ACTIVE`). A lapse doesn't change that status: it is read on the subscription
+    (`Entitlements::isLapsed()`, `readOnlyReason()` = `lapsed`), so **a lapsed, read-only business is still usable**;
+    its members sign in and see it read-only. A business stops being usable only when its status changes:
+    `suspended` (the platform console, `SuspendBusiness`), `closing` (an owner's closure, or the sweep when a lapse's
+    grace period ends, `SweepSubscriptions`) or `pending_verification` (before the owner verifies their email).
 - **Audits with no signed-in user** (second revision, 29 October 2026): a change made by a command, a queued job or
   billing code records no person; its audit row's user columns are empty and every audit view shows the actor as
   "System" (checked 29 October 2026: `Auditable::dispatchAuditEvent()` takes `Auth::user()`, and the audit-log views
@@ -189,13 +215,17 @@ Checked against `main` after Phase 7 (`832f684`) and on UAT, 28 October 2026 (re
     - **Businesses with no subscription** (checked 29 October 2026): sign-up always creates one (`RegisterBusiness`
       calls `StartTrial` before creating the first shop); the platform console's `ChangeBusinessPlan` creates one;
       `LegacyImport` creates none. UAT: 1 of 11 businesses has none (business 7, `pending_verification`, created 23
-      October 2026).
+      October 2026; third revision, checked 29 October 2026: it has no primary owner, no member and no shop, so nobody
+      can verify it and `StartTrialOnEmailVerified` will never run for it). `ChangeBusinessPlan` on a business with no
+      subscription creates a `trialing` one on the chosen plan, `shop_count` 1, ending `trial_days` after the change
+      (14 for the Free Trial).
     - **`LegacyImport`** is the one-off import of pre-SaaS data into a freshly migrated database (CLAUDE.md,
       `saas:import-legacy`; checked 29 October 2026), run before go-live and not after.
     - **Deactivated and removed members look alike** (checked 29 October 2026): deactivating sets the membership to
       `inactive` (`UserService::changeStatus`, `UserStatus::INACTIVE`), as removing does; only a removed member has no
       role left in the business (`RemoveFromBusiness` calls `syncRoles([])`). `business_user` has no removal date; its
-      `updated_at` is set when the status changes.
+      `updated_at` is set when the status changes, and by any later change to the row, so it isn't a reliable removal
+      date. This stage adds `business_user.removed_at` (step 1).
     - **Commands take one business** (checked 29 October 2026): `RunsForBusiness` has `--business` only, no `--all`;
       `TenantContext::eachBusiness()` runs a body for every active business.
     - **Removing a member** (checked 28 October 2026): `UserController::destroy` and `Api\UserController::destroy`
@@ -228,6 +258,8 @@ Checked against `main` after Phase 7 (`832f684`) and on UAT, 28 October 2026 (re
 - [ ] The users list is the only caller (checked 28 October 2026); a search confirms none is added before this ships.
 - [ ] **Delete removes the member from this business only** (decided; [stage 3](./05-phase-3-accounts-roles-settings.md)
       decided removal). `RemoveFromBusiness`, used by the web and the flat API, also:
+  - sets `business_user.removed_at` to now (third revision; nullable, new); `User::joinBusiness()` clears it when
+    an accepted re-invite makes the membership active again;
   - revokes pending invites to the person's email for this business (`business_invites.revoked_at`);
   - deletes their till PIN for this business (`till_pins`);
   - when their `default_business_id` is this business, moves it to their earliest-joined other usable business, or
@@ -241,25 +273,32 @@ Checked against `main` after Phase 7 (`832f684`) and on UAT, 28 October 2026 (re
   `no_active_business` (APIs), as today.
 
   It already makes the membership inactive, removes their roles and shop assignments here and deletes their
-  `/api/v1` tokens bound here. Tables touched: `business_user`, `model_has_roles`, `shop_user`,
+  `/api/v1` tokens bound here. A deactivated member's membership is `inactive` with `removed_at` null. Tables touched:
+  `business_user`, `model_has_roles`, `shop_user`,
   `personal_access_tokens`, `business_invites`, `till_pins`, `users`, and the audit database. The User row and the
   person's memberships, roles and shops in other businesses stay. A person left with no business keeps the account
   and can accept new invites (an invite to an existing email adds a membership, stage 3).
 - [ ] **Members removed before this stage:** `php artisan members:clean-removed --business=<id>|--all` (dry run;
-      `--apply`) brings every removed membership to the state a new removal leaves. A membership counts as removed
-      when it is `inactive` and the person holds no role in the business; a deactivated member keeps their role and
-      is left alone. For each, it:
+      `--apply`) brings every removed membership to the state a new removal leaves. A membership is removed when its
+      `removed_at` is set (third revision). Rows from before this stage have none, so for them only, and once, it
+      uses the second revision's rule: `inactive` and the person holds no role in the business (a deactivated member
+      keeps their role and is left alone). The dry run lists those rows **separately**, as "removed before this stage
+      (no role)", for review; `--apply` sets their `removed_at` to the membership's `updated_at`, the best date there
+      is, and from then on they are handled like any other. For each removed membership, it:
   - deletes the till PIN for the business;
-  - revokes pending invites to the person for the business **created before the membership became inactive** (its
-    `updated_at`), so a re-invite sent since survives;
+  - revokes pending invites to the person for the business **created before the removal** (`removed_at`), so a
+    re-invite sent since survives;
   - moves a `default_business_id` that points at the business to their earliest-joined usable business, or null;
   - deletes their unbound flat API tokens when no usable business is left;
   - audits each change, with the actor "System".
 
-  A second `--apply` changes nothing.
+  A second `--apply` changes nothing, and the no-role rule then finds no row without `removed_at`.
 - [ ] **`--all`** (second revision): `businesses:set-default-shop`, `users:grant-default-shop`,
       `users:list-without-shop` and `members:clean-removed` take `--all` instead of `--business`, running for every
-      active business in turn (`TenantContext::eachBusiness()`), with one report per business.
+      active business in turn (`TenantContext::eachBusiness()`), with one report per business. `businesses:set-default-shop
+      --all` is the exception (third revision): it runs for **every** business, whatever its status (active, lapsed,
+      pending verification, suspended, closing), so a business reopened or verified later already has its default
+      shop; it runs each inside `TenantContext::run()`.
 - [ ] **Who may edit whom** (decided): `UserPolicy::update` also refuses a non-owner editing someone whose role holds a
       permission the editor doesn't hold; `UpdateUserRequest` and `UserService::update` refuse a change to one's own
       role (web and flat API), "You can't change your own role."; the owner rules stay as they are.
@@ -278,6 +317,13 @@ Checked against `main` after Phase 7 (`832f684`) and on UAT, 28 October 2026 (re
   - `members:clean-removed` on a removed member deletes the till PIN, revokes an invite sent before the removal,
     keeps a re-invite sent after it, moves the default business and deletes unbound tokens when nothing usable is
     left, audits each change as "System", leaves a deactivated member untouched, and changes nothing on a second run;
+  - a removal sets `removed_at`; deactivating a member doesn't; a re-invite accepted after a removal clears it;
+  - `members:clean-removed` uses `removed_at` for rows that have it, and a re-invite sent after `removed_at`
+    survives even when the row's `updated_at` changed since; a row from before this stage (inactive, no role, no
+    `removed_at`) is listed separately in the dry run, and `--apply` sets its `removed_at` and cleans it; a
+    deactivated member with a role gets no `removed_at`;
+  - a lapsed (read-only) business is still usable: its member signs in to it, read-only; a suspended or closing one
+    isn't, and the member sees "No active business" when it was their only one;
   - an automatic default-business move (a removal, the cleanup) is audited with its reason;
   - a cashier with no user permissions sees no buttons, and the list itself is refused if they lack `users.view`;
   - each button's link opens (`linkButtonHref`), and Edit saves a member's details.
@@ -321,10 +367,12 @@ Checked against `main` after Phase 7 (`832f684`) and on UAT, 28 October 2026 (re
 - [ ] **The default shop:** `businesses.default_shop_id` (nullable foreign key), set to the first shop at sign-up
       (`RegisterBusiness`). The owner can change it on the business settings page (`settings.update`, audited). **While
       the business is on the Free Trial**, the default shop can't be deleted or deactivated until another is chosen;
-      on other tiers it is used for nothing and may be (decided). When a business returns to the Free Trial and its
-      default shop is gone or inactive, its oldest active shop becomes the default (audited; "System" when the switch
-      is made by billing code with no one signed in). The switch is refused while the business has no active shop. Existing businesses:
-      `php artisan businesses:set-default-shop --business=<id>` (dry run; `--apply`) sets the oldest active shop.
+      on other tiers it is used for nothing and may be (decided). A return to the Free Trial needs exactly one shop, and
+      it active (third revision; see "Decisions"); that shop becomes the default when it isn't already (audited;
+      "System" when the switch is made by billing code with no one signed in). `ChangeTrialPlan` and
+      `BillingController::plan` refuse otherwise, before changing anything. Existing businesses:
+      `php artisan businesses:set-default-shop --business=<id>|--all` (dry run; `--apply`) sets the oldest active shop
+      (`--all`: every business, whatever its status).
 - [ ] **The owner grants shop access on the invite** (decided). The invite form lists the business's shops; the person
       accepting chooses nothing, and receives the invite's shops (as today).
 - [ ] **On the Free Trial, every member has the default shop** (decided; `Business::onFreeTrial()`, see "Decisions"):
@@ -337,7 +385,7 @@ Checked against `main` after Phase 7 (`832f684`) and on UAT, 28 October 2026 (re
     the founding owner; the one-off `LegacyImport` also creates memberships). A hand-over passes the business to an
     existing co-owner and a role change adds nobody, so neither is a way to join;
   - returning to the Free Trial from a tier's trial keeps every member's shops and gives the default shop to every
-    member (decided; second revision);
+    member (decided; second revision); with exactly one shop allowed back (third revision), that is the one shop;
   - `LegacyImport` assigns no shops and checks no limit; it runs only before go-live, and
     `businesses:set-default-shop` and `users:grant-default-shop` cover what it imported (second revision);
   - once the business moves to another tier, assignments made on the Free Trial stay until the owner changes them on
@@ -347,7 +395,11 @@ Checked against `main` after Phase 7 (`832f684`) and on UAT, 28 October 2026 (re
       the shops this person will work in."). When the business has one shop, it is pre-ticked on the invite form.
 - [ ] **Businesses with no subscription** (second revision): `php artisan businesses:list-unsubscribed` (read-only)
       lists them; a platform operator gives each a plan with the console's "Change plan" (`ChangeBusinessPlan`) before
-      this stage's commands run, so every business is metered and its Free Trial is known. After that, only
+      this stage's commands run, so every business is metered and its Free Trial is known. **The plan is the Free
+      Trial** (`free-trial`, what sign-up gives by default; third revision). That **starts a trial**: a `trialing`
+      subscription, one shop, ending 14 days after the change (checked 29 October 2026, `ChangeBusinessPlan`). On UAT
+      that is business 7, which has no owner, member or shop, so the trial runs out unused; nobody can verify it, so
+      it stays `pending_verification`, unusable, and the sweep (active businesses only) never closes it. After that, only
       `LegacyImport` could make one, and it isn't run after go-live.
 - [ ] **Existing members without a shop:**
   - `php artisan users:list-without-shop --business=<id>` (read-only) lists every non-owner member with no shop;
@@ -371,14 +423,18 @@ Checked against `main` after Phase 7 (`832f684`) and on UAT, 28 October 2026 (re
   - after moving from the Free Trial to a tier, the owner removes the default shop from a member, and the member no
     longer sees it;
   - on the Free Trial the default shop can't be deleted or deactivated until another is chosen; on a tier it can;
-    changing it is audited; a business returning to the Free Trial with its default deleted gets its oldest active
-    shop as default, and every member keeps their shops and has the default shop;
+    changing it is audited; a business returning to the Free Trial with its default deleted and one active shop left
+    gets that shop as default, and every member keeps their shops and has the default shop;
   - moving to the Free Trial with no active shop is refused, and nothing changes;
+  - moving to the Free Trial with two shops is refused with "Delete shops until one remains…", and nothing changes;
+    deactivating one of them doesn't lift the refusal (a deactivated shop counts); deleting it does, and the switch
+    then succeeds with the remaining shop as the default and the business not read-only;
   - a default shop set by billing code with no one signed in is audited as "System";
   - the "No shop yet" link shows to a member who may update that person and opens their edit form; it isn't shown
     to someone who may not;
   - `businesses:list-unsubscribed` lists a business with no subscription and changes nothing;
-  - each command's `--all` runs for every active business;
+  - each command's `--all` runs for every active business; `businesses:set-default-shop --all` also covers a
+    suspended, a closing and a pending-verification business;
   - `Business::onFreeTrial()` is true on the `free-trial` plan and false on a tier's trial;
   - `users:grant-default-shop` gives Free Trial businesses' members their default shop, changes nothing on a second
     `--apply`, and only lists members of businesses on other tiers.
@@ -394,7 +450,7 @@ The flat API's shop list is unchanged (it already lists the person's reachable s
 | Change | Data carried across |
 |---|---|
 | `businesses.default_shop_id` (nullable foreign key) | `businesses:set-default-shop` sets the oldest active shop for existing businesses; the guard on deleting it applies on the Free Trial only |
-| None for removing members: `RemoveFromBusiness` writes existing tables | `members:clean-removed` clears what earlier removals left (till PINs, invites from before the removal, default business, unbound tokens), each change audited |
+| `business_user.removed_at` (nullable timestamp; third revision), set by `RemoveFromBusiness` | Rows from before this stage stay null until `members:clean-removed --apply` sets it, from `updated_at`, on memberships that are `inactive` with no role (listed separately in the dry run first); it then clears what those removals left (till PINs, invites from before `removed_at`, default business, unbound tokens), each change audited |
 
 No other column: roles' business is already Spatie's team (`model_has_roles.business_id`).
 
@@ -409,8 +465,8 @@ No other column: roles' business is already Spatie's team (`model_has_roles.busi
 - [ ] Changing the default shop is audited; on the Free Trial it can't be deleted or deactivated until another is
       chosen.
 - [ ] The Free Trial is known by `Business::onFreeTrial()` (the plan's `is_trial_plan`); a lapse is read-only; a
-      return to the Free Trial keeps members' shops and gives the default shop to every member; it is refused while no
-      shop is active.
+      return to the Free Trial keeps members' shops and gives the default shop to every member; it is refused unless
+      the business has exactly one shop, and it active, so it never lands over quota.
 - [ ] Every business has a subscription before this stage's commands run.
 - [ ] "No shop yet" shows beside a member without a shop, with a link to their edit form, only to someone who may
       update that member.
@@ -422,10 +478,12 @@ No other column: roles' business is already Spatie's team (`model_has_roles.busi
       answers with its roles in another; the isolation tests in step 2 pass.
 - [ ] Every change of a default business is audited: the switcher, a removal and the cleanup ("System" when no one is
       signed in).
-- [ ] `members:clean-removed` leaves each removed member as a new removal would (till PIN, earlier invites, default
-      business, unbound tokens), keeps re-invites sent since, ignores deactivated members, audits each change, and
-      changes nothing on a second run.
-- [ ] A person with no usable business who signs in sees "No active business".
+- [ ] A removal sets `business_user.removed_at`; deactivating doesn't.
+- [ ] `members:clean-removed` leaves each removed member as a new removal would (till PIN, invites from before
+      `removed_at`, default business, unbound tokens), keeps re-invites sent since, ignores deactivated members,
+      lists rows from before this stage separately and sets their `removed_at`, audits each change, and changes
+      nothing on a second run.
+- [ ] A person with no usable business who signs in sees "No active business"; a lapsed business stays usable.
 - [ ] Deleting a member removes only their membership of that business: their roles, shops, tokens, till PIN and
       pending invites there; their other businesses and their login stay; the removal is audited.
 - [ ] A non-owner can't edit or change the role of a stronger member, nor give a stronger role; nobody changes their
@@ -445,13 +503,18 @@ No other column: roles' business is already Spatie's team (`model_has_roles.busi
   on resume (an app check, [app-release-checklist.md](./app-release-checklist.md#stage-10a)); `/api/v1` tokens are
   bound to one business and unaffected.
 - **`members:clean-removed` revokes invites** a removed person still holds for the business. Mitigation: only
-  invites created before the membership became inactive; a re-invite sent since survives; the dry run lists each
-  one; deactivated members, who keep their role, are left alone.
+  invites created before `removed_at`; a re-invite sent since survives; the dry run lists each one; deactivated
+  members, who keep their role, are left alone.
+- **Rows from before this stage get `removed_at` by the no-role rule**, which could catch a deactivated member whose
+  role was taken away by hand, and dates the removal from `updated_at`, which may be later than it was. Mitigation:
+  the rule runs once; the dry run lists those rows separately for review before `--apply`; a later date only keeps
+  fewer invites revoked, never more.
 - **Businesses with no subscription aren't metered** (no shop limit, no Free Trial). Accepted only until the rollout
-  gives each a plan (1 on UAT); afterwards only `LegacyImport` could make one, and it runs only before go-live.
-- **Over quota on a return to the Free Trial, every shop is read-only**, the default shop included, until extra shops
-  are deleted (stage 6's rule). The plan picker warns before confirming (stage 6); keeping the default shop writable
-  is an open proposal.
+  gives each the Free Trial (1 on UAT, business 7, which nobody can open); afterwards only `LegacyImport` could make
+  one, and it runs only before go-live.
+- **A business on a tier's trial with several shops can't return to the Free Trial** until it deletes all but one
+  (deactivating isn't enough, since deactivated shops count). Mitigation: the refusal says so, and nothing changes;
+  the business can instead stay on its tier and pay. Phase 4's read-only rule is unchanged.
 - **Reloading roles when the business differs** adds a query where a stale model was reused. Mitigation: only when the
   team id differs from the one the relations were loaded with; the common path (one business per request) is
   unchanged.
@@ -459,13 +522,15 @@ No other column: roles' business is already Spatie's team (`model_has_roles.busi
 ## Rollout (UAT)
 
 1. Take a snapshot; restore it into `rehearsal_testing`; run the migrations (additive).
-2. `businesses:list-unsubscribed` (read-only: business 7 expected); a platform operator gives each listed business a
-   plan in the console.
-3. `businesses:set-default-shop --all` (dry run, then `--apply`); `users:list-without-shop --all` (read-only: 5
+2. `businesses:list-unsubscribed` (read-only: business 7 expected); a platform operator gives each listed business the
+   **Free Trial** in the console ("Change plan"), which starts a 14-day trial; check that the command then lists none.
+3. `businesses:set-default-shop --all` (every business, whatever its status; dry run, then `--apply`); `users:list-without-shop --all` (read-only: 5
    expected); `users:grant-default-shop --all` (dry run: business 12's manager gets the default shop, businesses 1 and
    2's four accountants listed; then `--apply`).
-4. `members:clean-removed --all` (dry run, then `--apply`): for members removed before this stage, deletes
-   their till PIN, revokes pending invites to them and moves a default business that points at a business they left.
+4. `members:clean-removed --all` (dry run, then `--apply`): the dry run lists memberships from before this stage
+   (inactive, no role, no `removed_at`) separately; review them, then `--apply` sets their `removed_at` and, for every
+   removed member, deletes their till PIN, revokes pending invites from before the removal, moves a default business
+   that points at a business they left and deletes unbound tokens when nothing usable is left.
 5. Check, as an owner of one rehearsal business: the users list's buttons; as a member of two businesses: rights in
    each; as a cashier: the shops page lists only their shops.
 6. Check the server against the app's recorded requests (the flat API's shop and user calls).
@@ -478,16 +543,13 @@ Every acceptance criterion is ticked with evidence. The stage file and PROGRESS.
 
 ## Points to confirm
 
-One proposal is open (below); everything else is decided. The decisions of 28 October 2026 stand, including the first revision's: the code's owner rule
-kept, no editing a stronger member, nobody changes their own role; members keep their shops on a return to the Free
-Trial; the default shop matters only on the Free Trial. The second revision's (29 October 2026): on a return to the
-Free Trial every member gets the default shop; the switch needs an active shop; "usable" is defined; audits with no
-user are "System"; businesses with no subscription are given a plan at rollout.
-
-**Open (proposal, second revision):** stage 6's rule makes every shop read-only while a business on the Free Trial has
-more than one shop (§2.6; `Entitlements::readOnlyReason()`). Proposed: keep the default shop writable in that state, so
-the business can keep selling while it deletes the extra shops. That changes Phase 4's read-only middleware, so it
-needs a decision and its own stage item; until then the rule stands as stage 6 states it.
+Nothing is open. The decisions of 28 October 2026 stand, including the first revision's: the code's owner rule kept,
+no editing a stronger member, nobody changes their own role; members keep their shops on a return to the Free Trial;
+the default shop matters only on the Free Trial. The second revision's (29 October 2026): on a return to the Free
+Trial every member gets the default shop; "usable" is defined; audits with no user are "System"; businesses with no
+subscription are given a plan at rollout. The third revision's (29 October 2026): a return to the Free Trial needs
+exactly one shop, and it active (Phase 4's read-only rule unchanged); removals are dated by `removed_at`; a lapsed
+business is usable; the plan given at rollout is the Free Trial.
 
 ## Follow-ups (not this stage)
 
