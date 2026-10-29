@@ -1,7 +1,7 @@
 # App Release Checklist
 
 Created 27 October 2026 (sixth round); stage 10a's section added and stage 10's discard item updated in the eighth round (28 October 2026), and again in the
-ninth and tenth (28 October 2026) and in stage 10a's third revision (29 October 2026). The Flutter app's next release isn't scheduled, and the app isn't on this
+ninth and tenth (28 October 2026) and in stage 10a's third and fourth revisions (29 October 2026). The Flutter app's next release isn't scheduled, and the app isn't on this
 machine (`MOBILE_APP_PATH` points nowhere). The server stays backward compatible with the app in shops through every
 stage (additions only, old fields kept, Phase 7's codes for apps without a new enough `X-App-Version`), and each
 stage's rollout checks **the server** against the app's recorded requests. Everything below checks **the app**, and is
@@ -41,7 +41,11 @@ Stage file: [10a-access-and-tenancy.md](./10a-access-and-tenancy.md).
 - [ ] Handles 403 `no_active_business` on every flat API and `/api/v1` call: it shows that the person isn't a member of
       any active business, instead of an empty or zero screen (checked 29
       October 2026: the flat API's `EnsureActiveBusiness` returns it on every authenticated route, and `/api/v1`
-      sign-in returns it when the person has no usable business; planned, stage 10a third revision).
+      sign-in returns it when the person has no usable business; planned, stage 10a third revision). From stage 10a's
+      fourth revision `/api/v1` also returns it on every call but sign-out once the token's business is suspended or
+      closing, sync included, where some calls answered 200 or a generic 403 before; the app then signs out of
+      `/api/v1` (sign-out still works). The flat API answers `business_suspended` for a suspended business; the app
+      handles both.
 
 ## Stage 11
 Stage file: [11-units-quantities-and-batches.md](./11-units-quantities-and-batches.md).
