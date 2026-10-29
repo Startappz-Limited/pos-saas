@@ -8,6 +8,9 @@ beforeEach(function () {
     $this->shop = Shop::factory()->create();
     $this->user = User::factory()->create();
     $this->user->shops()->attach($this->shop);
+    // Opening and closing a register through the flat API needs `sales.create`.
+    seedPermissions();
+    $this->user->givePermissionTo('sales.create');
     $this->actingAs($this->user);
 });
 

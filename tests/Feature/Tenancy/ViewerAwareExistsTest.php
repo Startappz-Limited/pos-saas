@@ -116,6 +116,9 @@ describe('requests', function () {
 
     it('refuses a sale for a member who names another business\'s customer', function () {
         $both = $this->fixture->both;
+        // The fixture's cashier role holds no permission; selling needs `sales.create`.
+        seedPermissions();
+        app(TenantContext::class)->run($this->fixture->a->business, fn () => $both->givePermissionTo('sales.create'));
         Sanctum::actingAs($both, ['*']);
 
         // Acting for A (the default business), B's customer doesn't exist.

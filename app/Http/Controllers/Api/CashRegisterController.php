@@ -47,6 +47,8 @@ class CashRegisterController extends Controller
 
     public function open(Request $request): JsonResponse
     {
+        abort_unless($request->user()->can('sales.create'), 403);
+
         $validated = $request->validate([
             'opening_balance' => ['required', 'numeric', 'min:0'],
             'expense_opening_balance' => ['nullable', 'numeric', 'min:0'],
@@ -94,6 +96,8 @@ class CashRegisterController extends Controller
 
     public function close(Request $request, CashRegister $cashRegister): JsonResponse
     {
+        abort_unless($request->user()->can('sales.create'), 403);
+
         if ($cashRegister->isClosed()) {
             return response()->json([
                 'success' => false,

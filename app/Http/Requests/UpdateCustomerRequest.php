@@ -13,9 +13,15 @@ class UpdateCustomerRequest extends FormRequest
     /**
      * Determine if the user is authorized to make this request.
      */
+    /**
+     * The same policy check as the controller's, made here so a caller who
+     * may not do this is refused with 403 before their input is validated.
+     */
     public function authorize(): bool
     {
-        return true;
+        $customer = $this->route('customer');
+
+        return $customer instanceof Customer && ($this->user()?->can('update', $customer) ?? false);
     }
 
     /**

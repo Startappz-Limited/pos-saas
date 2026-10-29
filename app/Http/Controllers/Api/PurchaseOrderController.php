@@ -75,6 +75,8 @@ class PurchaseOrderController extends Controller
 
     public function destroy(PurchaseOrder $purchaseOrder): JsonResponse
     {
+        $this->authorize('delete', $purchaseOrder);
+
         $this->purchaseOrderService->deletePurchaseOrder($purchaseOrder);
 
         return response()->json([
@@ -85,6 +87,8 @@ class PurchaseOrderController extends Controller
 
     public function approve(Request $request, PurchaseOrder $purchaseOrder): JsonResponse
     {
+        $this->authorize('approve', $purchaseOrder);
+
         try {
             $this->purchaseOrderService->approvePurchaseOrder(
                 $purchaseOrder,
@@ -103,6 +107,8 @@ class PurchaseOrderController extends Controller
 
     public function markOrdered(Request $request, PurchaseOrder $purchaseOrder): JsonResponse
     {
+        $this->authorize('markAsOrdered', $purchaseOrder);
+
         try {
             $this->purchaseOrderService->markAsOrdered(
                 $purchaseOrder,
@@ -121,6 +127,8 @@ class PurchaseOrderController extends Controller
 
     public function cancel(Request $request, PurchaseOrder $purchaseOrder): JsonResponse
     {
+        $this->authorize('cancel', $purchaseOrder);
+
         try {
             $this->purchaseOrderService->cancelPurchaseOrder(
                 $purchaseOrder,

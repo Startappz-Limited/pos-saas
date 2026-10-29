@@ -50,6 +50,8 @@ class CustomerController extends Controller
 
     public function store(StoreCustomerRequest $request): JsonResponse
     {
+        $this->authorize('create', Customer::class);
+
         $validated = $request->validated();
 
         $validated['code'] = $this->generateCustomerCode();
@@ -81,6 +83,8 @@ class CustomerController extends Controller
 
     public function update(UpdateCustomerRequest $request, Customer $customer): JsonResponse
     {
+        $this->authorize('update', $customer);
+
         $validated = $request->validated();
         $validated['updated_by'] = auth()->id();
 
@@ -99,6 +103,8 @@ class CustomerController extends Controller
 
     public function destroy(Customer $customer): JsonResponse
     {
+        $this->authorize('delete', $customer);
+
         $customer->delete();
 
         return response()->json([
@@ -109,6 +115,8 @@ class CustomerController extends Controller
 
     public function activate(Customer $customer): JsonResponse
     {
+        $this->authorize('activate', $customer);
+
         $customer->update([
             'status' => 'active',
             'updated_by' => auth()->id(),
@@ -123,6 +131,8 @@ class CustomerController extends Controller
 
     public function deactivate(Customer $customer): JsonResponse
     {
+        $this->authorize('deactivate', $customer);
+
         $customer->update([
             'status' => 'inactive',
             'updated_by' => auth()->id(),

@@ -21,6 +21,8 @@ class DeliveryCompanyController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        abort_unless($request->user()->can('sales.create'), 403);
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'contact_person' => ['nullable', 'string', 'max:255'],
@@ -51,6 +53,8 @@ class DeliveryCompanyController extends Controller
 
     public function update(Request $request, DeliveryCompany $deliveryCompany): JsonResponse
     {
+        abort_unless($request->user()->can('settings.update'), 403);
+
         $validated = $request->validate([
             'name' => ['sometimes', 'required', 'string', 'max:255'],
             'contact_person' => ['nullable', 'string', 'max:255'],
@@ -70,6 +74,8 @@ class DeliveryCompanyController extends Controller
 
     public function destroy(DeliveryCompany $deliveryCompany): JsonResponse
     {
+        abort_unless(auth()->user()->can('settings.update'), 403);
+
         $deliveryCompany->delete();
 
         return response()->json([
@@ -80,6 +86,8 @@ class DeliveryCompanyController extends Controller
 
     public function toggleActive(DeliveryCompany $deliveryCompany): JsonResponse
     {
+        abort_unless(auth()->user()->can('settings.update'), 403);
+
         $deliveryCompany->update([
             'is_active' => ! $deliveryCompany->is_active,
         ]);

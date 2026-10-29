@@ -61,6 +61,8 @@ class ExpenseCategoryController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        $this->authorize('create', ExpenseCategory::class);
+
         $validated = $request->validate([
             'parent_id' => ['nullable', 'exists:expense_categories,id'],
             'name' => ['required', 'string', 'max:255'],
@@ -98,6 +100,8 @@ class ExpenseCategoryController extends Controller
 
     public function update(Request $request, ExpenseCategory $expenseCategory): JsonResponse
     {
+        $this->authorize('update', $expenseCategory);
+
         $validated = $request->validate([
             'name' => ['sometimes', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:1000'],
@@ -127,6 +131,8 @@ class ExpenseCategoryController extends Controller
 
     public function destroy(ExpenseCategory $expenseCategory): JsonResponse
     {
+        $this->authorize('delete', $expenseCategory);
+
         // Check if category has expenses
         if ($expenseCategory->expenses()->exists()) {
             return response()->json([

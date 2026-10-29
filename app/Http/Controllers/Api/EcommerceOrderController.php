@@ -99,6 +99,8 @@ class EcommerceOrderController extends Controller
 
     public function refresh(Request $request): JsonResponse
     {
+        $this->authorize('refresh', EcommerceOrder::class);
+
         $request->validate([
             'shop_id' => ['required', 'exists:shops,id'],
         ]);
@@ -127,6 +129,8 @@ class EcommerceOrderController extends Controller
 
     public function updateStatus(UpdateOrderStatusRequest $request, EcommerceOrder $order): JsonResponse
     {
+        $this->authorize('updateStatus', $order);
+
         abort_unless($request->user()->canAccessShop($order->shop_id), 403);
 
         if (! $order->status->canChangeStatus()) {
@@ -157,6 +161,8 @@ class EcommerceOrderController extends Controller
 
     public function convert(ConvertOrderToSaleRequest $request, EcommerceOrder $order, ConvertEcommerceOrderToSale $action): JsonResponse
     {
+        $this->authorize('convert', $order);
+
         abort_unless($request->user()->canAccessShop($order->shop_id), 403);
 
         if (! $order->can_be_converted) {
@@ -183,6 +189,8 @@ class EcommerceOrderController extends Controller
 
     public function storeNote(Request $request, EcommerceOrder $order): JsonResponse
     {
+        $this->authorize('view', $order);
+
         abort_unless($request->user()->canAccessShop($order->shop_id), 403);
 
         $request->validate([
@@ -211,6 +219,8 @@ class EcommerceOrderController extends Controller
 
     public function storeReminder(Request $request, EcommerceOrder $order): JsonResponse
     {
+        $this->authorize('view', $order);
+
         abort_unless($request->user()->canAccessShop($order->shop_id), 403);
 
         $request->validate([
@@ -245,6 +255,8 @@ class EcommerceOrderController extends Controller
 
     public function resolveReminder(EcommerceOrder $order, Alert $alert): JsonResponse
     {
+        $this->authorize('view', $order);
+
         abort_unless(auth()->user()->canAccessShop($order->shop_id), 403);
 
         if ($alert->alertable_id !== $order->id || $alert->alertable_type !== EcommerceOrder::class) {

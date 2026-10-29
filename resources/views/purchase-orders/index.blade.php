@@ -175,7 +175,7 @@
                                             </td>
                                             <td>
                                                 @if ($order->shop)
-                                                    {{ $order->shop->name }}
+                                                    {{ $order->shop->displayName() }}
                                                 @else
                                                     <span class="text-muted">—</span>
                                                 @endif

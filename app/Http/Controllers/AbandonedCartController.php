@@ -64,7 +64,7 @@ class AbandonedCartController extends Controller
         $this->authorize('view', $abandonedCart);
 
         $abandonedCart->load([
-            'shop', 'customer', 'assignee', 'sale', 'ecommerceOrder', 'convertedBy',
+            'shop' => fn ($query) => $query->withTrashed(), 'customer', 'assignee', 'sale', 'ecommerceOrder', 'convertedBy',
             'items.product', 'items.variation', 'timeline.creator', 'reminders.creator',
         ]);
 

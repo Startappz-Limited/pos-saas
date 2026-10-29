@@ -71,6 +71,8 @@ class SaleController extends Controller
 
     public function store(StoreSaleRequest $request): JsonResponse
     {
+        $this->authorize('create', Sale::class);
+
         $validated = $request->validated();
         // Refuses a user with no shop, or one they can't act in, before anything is made.
         $this->resolveShopId($request);
@@ -108,6 +110,8 @@ class SaleController extends Controller
 
     public function update(Request $request, Sale $sale): JsonResponse
     {
+        $this->authorize('update', $sale);
+
         abort_unless($request->user()->canAccessShop($sale->shop_id), 403);
 
         $validated = $request->validate([
@@ -126,6 +130,8 @@ class SaleController extends Controller
 
     public function destroy(Sale $sale): JsonResponse
     {
+        $this->authorize('delete', $sale);
+
         abort_unless(auth()->user()->canAccessShop($sale->shop_id), 403);
 
         $sale->delete();
@@ -138,6 +144,8 @@ class SaleController extends Controller
 
     public function complete(Sale $sale): JsonResponse
     {
+        $this->authorize('update', $sale);
+
         abort_unless(auth()->user()->canAccessShop($sale->shop_id), 403);
 
         $sale->update([
@@ -174,6 +182,8 @@ class SaleController extends Controller
 
     public function void(Request $request, Sale $sale): JsonResponse
     {
+        $this->authorize('void', $sale);
+
         abort_unless($request->user()->canAccessShop($sale->shop_id), 403);
 
         $validated = $request->validate([
@@ -206,6 +216,8 @@ class SaleController extends Controller
 
     public function collectPayment(Request $request, Sale $sale): JsonResponse
     {
+        $this->authorize('collectPayment', $sale);
+
         abort_unless($request->user()->canAccessShop($sale->shop_id), 403);
 
         if ($sale->payment_status === 'paid') {

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Actions\Shop\DeleteShopAction;
 use App\Http\Controllers\Controller;
 use App\Models\Shop;
 use App\Rules\UniqueForTenant;
@@ -28,6 +29,8 @@ class ShopController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        $this->authorize('create', Shop::class);
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'code' => ['nullable', 'string', 'max:50', new UniqueForTenant(Shop::class, 'code')],
@@ -61,6 +64,8 @@ class ShopController extends Controller
 
     public function update(Request $request, Shop $shop): JsonResponse
     {
+        $this->authorize('update', $shop);
+
         $validated = $request->validate([
             'name' => ['sometimes', 'required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
@@ -81,9 +86,15 @@ class ShopController extends Controller
         ]);
     }
 
-    public function destroy(Shop $shop): JsonResponse
+    /**
+     * As on the web: staff are detached and the M-Pesa till registration is
+     * cleared, so another shop can register that till.
+     */
+    public function destroy(Shop $shop, DeleteShopAction $delete): JsonResponse
     {
-        $shop->delete();
+        $this->authorize('delete', $shop);
+
+        $delete->execute($shop);
 
         return response()->json([
             'success' => true,
