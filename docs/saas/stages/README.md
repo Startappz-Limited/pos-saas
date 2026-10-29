@@ -21,6 +21,7 @@ The plan stays the source of truth. When a stage file and the plan disagree, the
 | Phase 6: Signup, trials and invites | [08-phase-6-signup-and-user-invites.md](./08-phase-6-signup-and-user-invites.md) | `saas/signup-trials-invites` | Phase 4, Phase 5 Part A | None |
 | Phase 7: `/api/v1`, sync, till payments | [09-phase-7-api-v1-sync-payments.md](./09-phase-7-api-v1-sync-payments.md) | `saas/phase-7-api-sync-payments` | Phase 2 (can run alongside 4–6) | None |
 | 10. Stock correctness and voids | [10-stock-correctness-and-voids.md](./10-stock-correctness-and-voids.md) | `fix/stock-voids-fifo` | Phase 7 (merged) | None |
+| 10a. Access and tenancy (users list, owner scope, shop access) | [10a-access-and-tenancy.md](./10a-access-and-tenancy.md) | `fix/access-tenancy` | None | None; can ship at any time |
 | 11. Units, quantities and batches | [11-units-quantities-and-batches.md](./11-units-quantities-and-batches.md) | `feat/stock-units-batches` | 10 | None |
 | 11b. Prices and discounts | [11b-prices-and-discounts.md](./11b-prices-and-discounts.md) | `feat/prices-and-discounts` | 11 (either order with 11c) | None |
 | 11c. Low stock, alerts and snapshots | [11c-low-stock-alerts-and-snapshots.md](./11c-low-stock-alerts-and-snapshots.md) | `feat/low-stock-and-snapshots` | 11 (either order with 11b) | None |
@@ -37,7 +38,7 @@ The plan stays the source of truth. When a stage file and the plan disagree, the
 | 22. KRA eTIMS | [22-etims.md](./22-etims.md) | `feat/etims` | 10, 14, 11, 17 | Points 1 to 3 (integration type, certification, who must use it) |
 | 23. Stocktakes in the app (outline) | [23-stocktakes-in-the-app.md](./23-stocktakes-in-the-app.md) | `feat/stocktakes-app` | 13, a scheduled app release | Two points to confirm |
 
-**Proposed order (27 October 2026, sixth round).** The stock stages come first: 10, 11, then 11b and 11c (either
+**Proposed order (27 October 2026, sixth round).** The stock stages come first: 10 (with 10a, which depends on no stage and can ship at any time), 11, then 11b and 11c (either
 order), 12, 13, 14. Then 16 (sign-in security; small, and can run alongside the stock stages), 17 (platform; its tills
 step needs stage 10's invoice series), 18 (the alert engine, on 11c's alerts), 19 (expenses, on 18), 20 (reports, on 14),
 22 (eTIMS, when its points are answered). 21 (plans and the trial banner) can run at any time. 15 is unscheduled until

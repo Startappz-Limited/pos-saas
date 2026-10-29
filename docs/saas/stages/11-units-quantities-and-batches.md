@@ -471,6 +471,8 @@ Every part of this stage keeps to the tenancy rules: business-owned records use 
       `base_quantity`, as other lines; the ledger moves `base_quantity`. "2 cartons + 5 pieces" is entered as two
       quantities (two lines of the same variation). Existing lines get the base unit and `base_quantity = quantity`
       (by `catalogue:copy-to-units`). The factor lock covers them.
+  - Stage 10's approval threshold then values an adjustment by Σ |`base_quantity`| × unit cost (planned note from
+    stage 10's ninth round, 28 October 2026; [stage 10](./10-stock-correctness-and-voids.md), step 1g).
 - [ ] **Receipts and invoices** show the unit with the quantity ("2 Strip", "2.500 kg", "1 Crate"): the web receipt,
       the invoice PDF and the `/api/v1` receipt JSON.
 - [ ] **Reports** sum `base_quantity` for quantities and show them in base units; money is unchanged.
@@ -725,7 +727,8 @@ Every part of this stage keeps to the tenancy rules: business-owned records use 
     server never had (or another business's, or another variation's) will never resolve. The item is `refused` with
     `unknown_unit`, disposition `hold` (stage 10's classes), and the server records an `unknown_unit` issue with the
     raw line (the till, the sale's `client_uuid`, the unit uuid, the quantity, the person). The till keeps the sale in
-    its outbox, marked, until a manager discards it with stage 10's `outbox_item_discarded` (`item_type = sale`),
+    its outbox, marked, until someone holding `sales.void` (the owner by default; stage 10, tenth round) discards it
+    with stage 10's `outbox_item_discarded` (`item_type = sale`),
     which is reviewed and audited. `unknown_unit` is one more reason that leads there; this stage adds no discard
     item of its own.
 - [ ] **Flat API:** `POST /api/sales` items accept `unit_id` (optional; base unit when missing) and decimal

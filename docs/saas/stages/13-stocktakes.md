@@ -17,6 +17,9 @@
 **Created 27 October 2026 (fourth round)** as an outline: stocktakes were a follow-up of the combined stock stage, then
 "Points to confirm" 1 of stage 12, decided as a stage of their own after stage 12.
 
+**Note from stage 10's ninth round (28 October 2026):** approval compares the variance value **at or above** the
+threshold, as stage 10 does (decided 28 October 2026); "above" in Decisions and step 4 now reads "at or above".
+
 **Sixth round (27 October 2026):** written out in full. Decided: **a count never stops sales** (each line is compared
 with the stock at the moment it was counted, adjusted for movements since; shops wanting a quiet count count after
 closing); **counting is on the web, usable on a tablet**, in this stage; counting in the Flutter app is
@@ -49,7 +52,7 @@ Stages 10, 11, 11c and 12 must be merged. Nothing remains open (see "Points to c
   with `/api/v1` endpoints and offline counts, is [stage 23](./23-stocktakes-in-the-app.md).
 - **Adjustments record changes; stocktakes record counts** (decided 27 October 2026, stage 10).
 - **Approval:** a second person holding `stocktakes.approve`, never the person who started or counted, when the
-  stocktake's variance value is above `stock.adjustment_approval_threshold` (stage 10) or any line is a loss of a
+  stocktake's variance value is at or above `stock.adjustment_approval_threshold` (stage 10) or any line is a loss of a
   class that always needs a second person (none by default); otherwise the manager who submits applies it.
 - **Every stock change goes through `StockLedger`**; differences are applied as one stock adjustment.
 - **Configuration over code:** cycle-count scopes and the threshold are data the owner sets.
@@ -119,7 +122,7 @@ gets its `ResourceMatrixTest` row; a manager reaches only their shops.
 - [ ] After counting, someone holding `stocktakes.manage` sees each item's counted, expected and variance quantities
       and value at cost (the cost the ledger would use; unknown-cost stock shown apart), may send items back to be
       counted again (`recount`), and submits.
-- [ ] **Approval** (decided): when the stocktake's variance value (Σ |variance| × cost) is above
+- [ ] **Approval** (decided): when the stocktake's variance value (Σ |variance| × cost) is at or above
       `stock.adjustment_approval_threshold`, it waits for someone holding `stocktakes.approve` who is **neither the
       person who started it nor anyone who counted it**; otherwise the submitter's submission applies it. The policy
       refuses the excluded people, the owner included.

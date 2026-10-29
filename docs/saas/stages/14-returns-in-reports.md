@@ -216,7 +216,9 @@ completed.
       register session, naming the refund, and is taken off `calculateExpectedBalance()` with the session's other
       payouts. With no open session, it's refused: "Open the register to pay a cash refund." (decided).
 - [ ] **Refunds owed from stage 10:** a `refund_due` issue (from a void or a late M-Pesa payment) is settled by
-      processing a refund for it; the refund names the issue, and the issue is resolved with it.
+      processing a refund for it; the refund names the issue, and the issue is resolved with it. An issue already
+      marked refunded on the review (stage 10, step 5c, until this stage) is resolved and isn't offered (planned note
+      from stage 10's ninth round, 28 October 2026).
 - [ ] **Credit sales and store credit:** when processed, a refund with method `store_credit`, or `original_payment`
       on a credit sale, posts an offsetting credit transaction (`RecordCreditTransaction`, as
       `SettleCreditSalePayment::reverse` does for voids). This lowers what the customer owes, or holds the amount

@@ -1,6 +1,7 @@
 # App Release Checklist
 
-Created 27 October 2026 (sixth round). The Flutter app's next release isn't scheduled, and the app isn't on this
+Created 27 October 2026 (sixth round); stage 10a's section added and stage 10's discard item updated in the eighth round (28 October 2026), and again in the
+ninth and tenth (28 October 2026). The Flutter app's next release isn't scheduled, and the app isn't on this
 machine (`MOBILE_APP_PATH` points nowhere). The server stays backward compatible with the app in shops through every
 stage (additions only, old fields kept, Phase 7's codes for apps without a new enough `X-App-Version`), and each
 stage's rollout checks **the server** against the app's recorded requests. Everything below checks **the app**, and is
@@ -15,12 +16,13 @@ Stage file: [10-stock-correctness-and-voids.md](./10-stock-correctness-and-voids
 - [ ] Sends `X-App-Version` on every push, pull and pairing request.
 - [ ] Follows `disposition` on push results: `retry` resends, `drop` removes and shows why, `hold` keeps the item marked.
 - [ ] Handles status `pending` and the codes `customer_not_synced`, `sale_not_synced`, `cash_session_not_synced`.
-- [ ] Handles the void flow: shows Void when `voidable_until` is in the future and the person holds `sales.void`; calls
+- [ ] Handles the void flow: shows Void when `voidable` is true and the person holds `sales.void`; calls
       `POST /api/v1/sales/{uuid}/void` online; queues `sale_void` offline; reads `sale_voids` from the pull.
 - [ ] Handles the void refusals: `void_window_closed`, `sale_has_returns`, `sale_already_voided`, 403.
 - [ ] Clears items listed in the pull's `resolved_items`, and items answered `applied` or `discarded`.
-- [ ] Lets a manager discard a held or stuck item with a reason (`outbox_item_discarded`), with the items queued behind
-      it.
+- [ ] Lets a manager holding `sync-issues.discard` (from the staff list) discard a held or stuck item with a reason
+      (`outbox_item_discarded`), with the items queued behind it; offers discarding a held sale or a payment only to
+      someone holding `sales.void`; never offers "accept" at the till.
 - [ ] Sends `outbox_count`; never deletes a local store with unsynced items; asks before signing out or switching
       business with unsynced items; handles 422 `till_has_unsynced_items` at pairing with a confirmation.
 - [ ] Shows `cost_price: null` without breaking product screens; hides cost fields by permission.
@@ -30,6 +32,12 @@ Stage file: [10-stock-correctness-and-voids.md](./10-stock-correctness-and-voids
 - [ ] Treats `invoice_number` as an opaque string (server-numbered sales now use the web series `INV-{shop}-W-…`).
 - [ ] Numbers offline sales only in its own register's series, from `last_invoice_number` at pairing.
 - [ ] Shows the till sync review's outcome for a held sale (accepted with its own number, or discarded).
+
+## Stage 10a
+Stage file: [10a-access-and-tenancy.md](./10a-access-and-tenancy.md).
+- [ ] Shows the shops list to every member for the shops they can reach, and handles a 403 on shop or user editing.
+- [ ] Re-reads the person's permissions after a refusal and on resume, since an unbound flat API token follows the
+      user's default business (planned, stage 10a first revision).
 
 ## Stage 11
 Stage file: [11-units-quantities-and-batches.md](./11-units-quantities-and-batches.md).
@@ -101,6 +109,7 @@ Stage file: [23-stocktakes-in-the-app.md](./23-stocktakes-in-the-app.md).
 | Stage | Checks |
 |---|---|
 | 10 | 14 |
+| 10a | 2 |
 | 11 | 10 |
 | 11b | 5 |
 | 11c | 2 |
@@ -112,4 +121,4 @@ Stage file: [23-stocktakes-in-the-app.md](./23-stocktakes-in-the-app.md).
 | 21 | 1 |
 | 22 | 1 |
 | 23 | 1 (placeholder) |
-| **Total** | **42** |
+| **Total** | **44** |

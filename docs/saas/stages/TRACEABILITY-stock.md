@@ -60,7 +60,7 @@ true; planning rounds change only `docs/saas/stages/`.
 | 13 | 08, §1 `stock_batches` | One batch per product per delivery, no document | GRNs with many lines: stage 12, step 2 | planned |
 | 14 | 08, §2 `generateBatchNumber()` | Batch numbers counted per day (could clash); one field for our reference and the supplier's lot | GRN number vs supplier lot number: stage 12, step 2 | planned |
 | 15 | 08, §1 status and counters | `status`, `sold_quantity`, `damaged_quantity`, `returned_quantity` stored and drifting | Derived from allocations: stage 1b; batch history: stage 12, step 5 | done / planned |
-| 16 | 08, §3 `allocateStock()` | A sale refused when stock runs out | Dropped: selling below zero is decided (stage 1b) | dropped |
+| 16 | 08, §3 `allocateStock()` | A sale refused when stock runs out | Dropped: selling below zero is decided (stage 1b). Reopened 28 October 2026 as an optional per-business setting, off by default: a follow-up in stage 10 | planned |
 | 17 | 08, §1 shipping and other costs | Delivery costs per batch | Landed costs on the GRN: stage 12, step 2 | planned |
 | 18 | 08, §2 `getProfitAttribute()` | Per-batch profit never built | Batch history: stage 12, step 5 | planned |
 | 19 | 08, §3 `getExpiringStock()`; 09 | Expiring-stock view never built | Expiry, FEFO, expiring list: stage 11, step 5 | planned |
