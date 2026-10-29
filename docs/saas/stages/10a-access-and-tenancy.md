@@ -6,7 +6,9 @@
 > this stage grants and revokes no permission) · **Can ship** at any time, before or after stage 10 · **App checks:**
 > [app-release-checklist.md](./app-release-checklist.md#stage-10a) · **Already merged:** stages 3, 4 and 6
 > ([05](./05-phase-3-accounts-roles-settings.md), [06](./06-phase-4-billing-entitlements.md),
-> [08](./08-phase-6-signup-and-user-invites.md)), whose rules this stage builds on
+> [08](./08-phase-6-signup-and-user-invites.md)), whose rules this stage builds on · **Shipped ahead in a hotfix:**
+> `fix/api-authz` (`c099c16`, 29 October 2026): the flat API's write authorization and the deleted-shop names (see
+> "Hotfix" under Revisions)
 
 ---
 
@@ -99,7 +101,8 @@ of its steps grants or revokes a permission (step 3 changes `ShopPolicy`, not ro
 - Shop deletion is soft and keeps sales, stock, M-Pesa payment requests and audit rows; it clears the shop's staff
   and M-Pesa till registration. The refusal says the history is kept; Risks name what a deleted shop hides (its name
   through `belongsTo`, 5 unguarded views) and that it can't be restored; history relations include deleted shops.
-  Found: the flat API's shop create, update and delete check no permission; fixed in step 3.
+  Found: the flat API's shop create, update and delete check no permission; fixed in step 3. *(Superseded: both
+  shipped in hotfix `fix/api-authz`, which authorized every flat API write and named deleted shops on the 5 pages.)*
 - Pending verification: sign-up has created an `active` business since Phase 6 (2), with 24 hours to verify; only
   rows from the stage 3 sign-up are `pending_verification`; what an unverified owner reaches is stated, with a test.
 - `/api/v1` with a bound token of a suspended or closing business: today no business is resolved and no middleware
@@ -110,6 +113,24 @@ of its steps grants or revokes a permission (step 3 changes `ShopPolicy`, not ro
 - Text made obsolete by the one-shop return rule removed (members keeping other shops; shops read-only on return);
   earlier revisions marked superseded.
 - `members:clean-removed --all` covers every business, whatever its status.
+
+**Hotfix `fix/api-authz` (29 October 2026, `c099c16`, from `main`):** two of the fourth revision's items shipped
+ahead of this stage and are removed from its work:
+- **The flat API's writes are authorized.** The sweep found that not only the shop endpoints but most flat API writes
+  checked only shop access: products, customers, categories, suppliers, expenses and expense categories, purchase-order
+  actions, sales (store, update, delete, complete, void, collect payment), online orders, delivery companies, sale
+  sources and cash registers. Each now checks the web's policy; the till helpers with no web check (opening and
+  closing a register, adding a sale source or delivery company) need `sales.create`, and managing delivery companies
+  needs `settings.update`. Five FormRequests authorize before validating, so a refusal is 403 whatever the input.
+  `Api\ShopController::destroy` goes through `DeleteShopAction`. A refusal is Laravel's `{message}` with 403, like the
+  flat API's other policy refusals (not `{success: false, message}` as written before). `/api/v1` writes already had
+  their checks (owners only, `settings.update`, policies, or a register token).
+- **Deleted shops are named on old records.** The 5 pages (`products/show`, `orders/show`, `abandoned-carts/show`,
+  `stock-adjustments/edit`, `purchase-orders/index`; the last guarded already and showed "—") load the shop with
+  `withTrashed()` and show "Name (deleted)" (`Shop::displayName()`).
+- Checked with it: a signed-in request with no business set reaches no business's rows (the scopes add `1 = 0`); a
+  bound `/api/v1` token of a suspended or closing business sees none, pinned by
+  `TenantIsolation/NoBusinessResolvedTest`. The `no_active_business` answer for those tokens stays this stage's work.
 
 ---
 
@@ -272,12 +293,11 @@ Checked against `main` after Phase 7 (`832f684`) and on UAT, 28 October 2026 (re
       database) all stay. The owner still reaches them (`TenantContext::accessibleShopsQuery()` reads `shops` without
       a `deleted_at` filter); a deleted shop no longer counts toward `Limit::Shops`. What it hides: `belongsTo(Shop)`
       relations (`Sale::shop()`, `StockMovement::shop()`, `CashRegister::shop()` and others) skip deleted shops, so
-      a deleted shop's name is missing on its old records, and 5 views read `->shop->name` with no guard (for example
-      `purchase-orders/index`, `orders/show`) and fail on one. UAT: 2 deleted shops, with no sales.
-      `Api\ShopController::destroy` calls `$shop->delete()` directly, without `DeleteShopAction`.
-    - **The flat API's shop writes check no permission** (fourth revision, checked 29 October 2026):
-      `Api\ShopController::store`, `update` and `destroy` call no policy and their route group has no permission
-      middleware, so any member can create a shop and update or delete any shop they can reach. Fixed in step 3.
+      a deleted shop's name is missing on its old records unless the page loads it with `withTrashed()`. UAT: 2
+      deleted shops, with no sales. *(Hotfix `fix/api-authz`: the 4 pages that failed on a deleted shop, and the one
+      that showed "—", now show "Name (deleted)"; the API's delete goes through `DeleteShopAction`.)*
+    - **The flat API's writes** checked only shop access (fourth revision, checked 29 October 2026). *(Fixed by hotfix
+      `fix/api-authz`, `c099c16`: every flat API write checks the web's policy or a permission.)*
     - **`LegacyImport`** is the one-off import of pre-SaaS data into a freshly migrated database (CLAUDE.md,
       `saas:import-legacy`; checked 29 October 2026), run before go-live and not after.
     - **Deactivated and removed members look alike** (checked 29 October 2026): deactivating sets the membership to
@@ -460,15 +480,10 @@ Checked against `main` after Phase 7 (`832f684`) and on UAT, 28 October 2026 (re
       `shops.view` stays as a permission for roles a business wants to show more of, but no longer gates seeing one's
       own shops. The web and the flat API then agree (the API's list stays as it is; `show` gains the same `view`
       check).
-- [ ] **The flat API's shop writes are authorized** (fourth revision; found above): `Api\ShopController::store`,
-      `update` and `destroy` call `ShopPolicy` (`create`, `update`, `delete`), as the web does, and `destroy` goes
-      through `DeleteShopAction` (staff and M-Pesa registration cleared, as on the web). A refusal is 403
-      `{success: false, message}`.
-- [ ] **A deleted shop's history keeps its name** (fourth revision): the `belongsTo(Shop)` relations on history
-      records (sales, sale returns, stock movements and adjustments, cash registers, purchase orders, e-commerce
-      orders and others found by a search) use `withTrashed()`, and the 5 views that read `->shop->name` unguarded use
-      `?->`. The delete confirmation says "Its sales, stock and payment history are kept; the shop can't be
-      restored."
+- [ ] **The shop delete confirmation** says "Its sales, stock and payment history are kept; the shop can't be
+      restored." (fourth revision; the flat API's authorization and the 5 pages' shop names shipped in hotfix
+      `fix/api-authz`). Other pages that read a shop through a relation still show nothing for a deleted one (they
+      guard with `?->` or `??`); naming it there is left to the page that needs it.
 - [ ] **The default shop:** `businesses.default_shop_id` (nullable foreign key), set to the first shop at sign-up
       (`RegisterBusiness`). The owner can change it on the business settings page (`settings.update`, audited). **While
       the business is on the Free Trial**, the default shop can't be deleted or deactivated until another is chosen;
@@ -540,9 +555,7 @@ Checked against `main` after Phase 7 (`832f684`) and on UAT, 28 October 2026 (re
   - moving to the Free Trial with two shops is refused with "Delete shops until one remains…", and nothing changes;
     deactivating one of them doesn't lift the refusal (a deactivated shop counts); deleting it does, and the switch
     then succeeds with the remaining shop as the default and the business not read-only; the deleted shop's sales,
-    stock movements and M-Pesa payment requests are still there, and its old sales show its name;
-  - on the flat API a cashier's shop create, update and delete are refused with 403; an owner's delete goes through
-    `DeleteShopAction` (staff detached, M-Pesa registration cleared);
+    stock movements and M-Pesa payment requests are still there;
   - `businesses:close-orphaned` closes a business with no active member and no shop (reason `orphaned`, audited as
     "System"), leaves one with a member or a shop alone, and changes nothing on a second run;
   - `ChangeBusinessPlan` on a business with no subscription and three shops gives it a subscription for three shops;
@@ -560,8 +573,8 @@ Checked against `main` after Phase 7 (`832f684`) and on UAT, 28 October 2026 (re
 ## Contract
 
 The flat API's shop list is unchanged (it already lists the person's reachable shops); its shop `show` gains the same
-`view` check as the web, and its shop create, update and delete are authorized (403 when refused). A user or shop
-refusal stays `{success: false, message}` with 403; reactivating a removed member is 422 "Re-invite them instead.".
+`view` check as the web (its writes are authorized since hotfix `fix/api-authz`). A shop refusal is `{message}` with 403,
+like the flat API's other policy refusals; reactivating a removed member is 422 "Re-invite them instead.".
 `/api/v1` answers 403 `no_active_business` on every call but sign-out when the token's business can't be entered. App checks:
 [app-release-checklist.md](./app-release-checklist.md#stage-10a).
 
@@ -587,8 +600,8 @@ No other column (`business_closures.reason` is a string, so `orphaned` needs no 
 - [ ] The Free Trial is known by `Business::onFreeTrial()` (the plan's `is_trial_plan`); a lapse is read-only; a
       return to the Free Trial gives every member the one remaining shop, the default; it is refused unless the
       business has exactly one shop, and it active, so it never lands over quota.
-- [ ] Deleting a shop keeps its history, which still shows the shop's name; the flat API's shop writes are
-      authorized.
+- [ ] Deleting a shop keeps its history, and the confirmation says so (the shop names on old records and the flat
+      API's authorization shipped in hotfix `fix/api-authz`).
 - [ ] Every business has a subscription before this stage's commands run, except orphaned ones, which are closed.
 - [ ] "No shop yet" shows beside a member without a shop, with a link to their edit form, only to someone who may
       update that member.
@@ -640,9 +653,9 @@ No other column (`business_closures.reason` is a string, so `orphaned` needs no 
   same way (see "Go-live"); afterwards only `LegacyImport` could make one, and it isn't run again.
 - **Closing an orphaned business erases it** after the grace period. Mitigation: only a business with no active
   member and no shop; the dry run lists each; the closure's export is built first, as for any closure.
-- **Deleting a shop can't be undone**, and until the `withTrashed()` work ships a deleted shop's old records show no
-  shop name (5 views fail on one). No history is lost: sales, stock, payments, M-Pesa payment requests and audit rows
-  stay. Mitigation: the refusal and the delete confirmation say both; the relations and views are fixed in step 3.
+- **Deleting a shop can't be undone.** No history is lost: sales, stock, payments, M-Pesa payment requests and audit
+  rows stay, and the pages that failed on a deleted shop name it since hotfix `fix/api-authz`. Mitigation: the refusal
+  and the delete confirmation say so.
   Alternative, if deleting proves too final: let a deactivated shop stop counting toward `Limit::Shops`, which is a
   Phase 4 change (its own stage item), not this stage's.
 - **`/api/v1` now refuses a suspended or closing business's tokens on every call**, where some endpoints answered 200
