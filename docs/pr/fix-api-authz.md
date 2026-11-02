@@ -25,6 +25,28 @@ Also in this PR:
   - **Why not attach the customer to the business instead:** that needs `shop_id` to become nullable, a schema change
     to a column with a cascading foreign key, which is out of scope for a hotfix. A customer stays in a shop.
   - Covered by `CustomerNeedsShopTest`.
+- **Hard-coded tenant fallbacks** (swept 2 November 2026: `?? 1`, `shop_id`/`business_id` = 1, `Shop::first()` and
+  `Business::first()` outside seeders and tests, unscoped `first()`). Fixed:
+  - `CustomerController::store` (web): `?? 1` put a customer on shop 1, possibly another business's (above).
+  - `CheckLowStockLevels`: `'created_by' => $userId ?? 1` credited a check with no user to user 1, who belongs to
+    business 1. It now records no creator (the column is nullable). Latent: today's only caller passes the user, and
+    UAT has no alert from user 1.
+  - Writes with no shop for the person, which wrote a null shop or shop 0 and failed with a 500:
+    - `ExpenseController::store` (web), a null `expenses.shop_id`;
+    - `CashRegisterController::store` (web) and `Api\CashRegisterController::open`, shop 0 through
+      `CashRegister::openRegister()`.
+
+    Each now calls `App\Support\Tenancy\ViewerShop::require()` and refuses with "You haven't been given a shop yet.
+    Ask the owner." (422 / back to the form). `openRegister()` itself refuses a null shop.
+  - `CashRegisterController::store` (web) also read the optional `opening_notes` unconditionally (a 500 when left
+    out).
+
+  Left as they are, and safe: about 15 read paths that use `auth()->user()->shop_id ?? Shop::first()?->id` (reports,
+  register lists, customer and expense lists, low-stock checks). `Shop::first()` runs through `ShopAccessScope`, so it
+  never reaches another business. It is null for someone with no shop, and those reads then filter on a null shop and
+  return nothing (or, in `LowStockAlertController`, say so). The remaining `?? 1` hits are page numbers, quantities and
+  month counts. The unscoped `first()` calls are the listed scope bypasses (invite and export tokens, a variation's own
+  product). Covered by `NoShopWritesTest` and `CustomerNeedsShopTest`.
 - **Every 403 has a message.** The 24 `abort(403)` and `abort_unless(…, 403)` calls in the API controllers (flat and
   `/api/v1`) used to send `{"message": ""}`; they now say "This action is unauthorized.", like `authorize()`.
 
@@ -150,8 +172,12 @@ Still allowed for a cashier:
 
 Run on the final commit, 2 November 2026:
 - `vendor/bin/pint --dirty`: pass.
-- `php artisan test --compact` (SQLite): 2,071 passed, 60 skipped, 4 todos.
-- `vendor/bin/pest --configuration=phpunit.mysql.local.xml --compact` (MySQL 8): 2,081 passed, 50 skipped, 4 todos.
+- `php artisan test --compact` (SQLite): 2,076 passed, 60 skipped, 4 todos.
+- `vendor/bin/pest --configuration=phpunit.mysql.local.xml --compact` (MySQL 8): 2,085 passed, 1 failed, 50 skipped,
+  4 todos. The failure is `LiveLikeDatasetTest` ("builds the same dataset twice"): a purchase order's
+  `payment_due_date` differed by a day between two builds. It isn't from this change. `PurchaseOrderFactory` uses
+  `fake()->dateTimeBetween($orderDate, '+90 days')`, whose end moves with the clock, so the same seeded value can fall
+  on the next day. The test file rerun alone on MySQL passes (13 of 13). A follow-up fixes the factory's range.
 - UAT, read-only: no sale is on another shop's cash session (0 of 1,503); 11 cashier copies, all matching the
   template, none holding `customers.create` yet.
 

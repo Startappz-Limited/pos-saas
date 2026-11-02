@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\CashRegister;
 use App\Models\Shop;
+use App\Support\Tenancy\ViewerShop;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -83,7 +84,7 @@ class CashRegisterController extends Controller
             'opening_notes' => 'nullable|string',
         ]);
 
-        $shopId = auth()->user()->shop_id ?? Shop::first()?->id;
+        $shopId = ViewerShop::require();
         $activeRegister = CashRegister::getActiveRegister($shopId);
 
         if ($activeRegister) {
@@ -95,7 +96,7 @@ class CashRegisterController extends Controller
         $register = CashRegister::openRegister(
             $shopId,
             $validated['opening_balance'],
-            $validated['opening_notes'],
+            $validated['opening_notes'] ?? null,
             $validated['expense_opening_balance'] ?? 0
         );
 

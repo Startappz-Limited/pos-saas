@@ -8,6 +8,7 @@ use App\Http\Requests\UpdateCustomerRequest;
 use App\Models\Customer;
 use App\Models\Sale;
 use App\Models\Shop;
+use App\Support\Tenancy\ViewerShop;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
@@ -16,7 +17,6 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response as HttpResponse;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
-use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class CustomerController extends Controller
@@ -98,7 +98,8 @@ class CustomerController extends Controller
         // Generate unique customer code
         $validated['code'] = $this->generateCustomerCode();
         $validated['uuid'] = (string) Str::uuid();
-        $validated['shop_id'] = $this->customerShopId();
+        // A customer belongs to a shop; someone with none is refused (ViewerShop).
+        $validated['shop_id'] = ViewerShop::require();
         $validated['created_by'] = auth()->id();
 
         // Set credit balance to 0 initially
@@ -251,26 +252,6 @@ class CustomerController extends Controller
     /**
      * Generate a unique customer code.
      */
-    /**
-     * The shop a new customer belongs to: the person's own shop, or the first they
-     * can reach. A member with no shop is refused (hotfix fix/api-authz): the web
-     * used to fall back to shop 1, which could put the customer in another
-     * business (its business is taken from the shop), and the API failed with a
-     * 500 (`customers.shop_id` is required).
-     *
-     * @throws ValidationException
-     */
-    private function customerShopId(): int
-    {
-        $shopId = auth()->user()->shop_id ?? Shop::first()?->id;
-
-        if ($shopId === null) {
-            throw ValidationException::withMessages(['shop' => __('You haven\'t been given a shop yet. Ask the owner.')]);
-        }
-
-        return (int) $shopId;
-    }
-
     private function generateCustomerCode(): string
     {
         do {
