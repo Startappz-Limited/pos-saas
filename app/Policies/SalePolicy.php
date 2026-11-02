@@ -2,6 +2,7 @@
 
 namespace App\Policies;
 
+use App\Enums\SaleStatus;
 use App\Models\Sale;
 use App\Models\User;
 
@@ -78,11 +79,25 @@ class SalePolicy
      */
     public function collectPayment(User $user, Sale $sale): bool
     {
-        if ($user->can('sales.edit-all') && $user->canAccessShop($sale->shop_id)) {
-            return true;
+        if (! $user->canAccessShop($sale->shop_id)) {
+            return false;
         }
 
-        return $user->can('sales.update') && $user->canAccessShop($sale->shop_id);
+        // Collecting is also the accountant's job: credit collection or taking payments (hotfix fix/api-authz).
+        return $user->can('sales.edit-all') || $user->can('sales.update')
+            || $user->can('credit-sales.collect') || $user->can('payments.create');
+    }
+
+    /**
+     * Determine whether the user can complete a pending sale. Unlike editing, there
+     * is no 24-hour limit: a delivery or held sale is completed when it is handed
+     * over, which may be days later (hotfix fix/api-authz).
+     */
+    public function complete(User $user, Sale $sale): bool
+    {
+        return $sale->status === SaleStatus::PENDING->value
+            && $user->can('sales.create')
+            && $user->canAccessShop($sale->shop_id);
     }
 
     /**

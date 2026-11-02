@@ -509,7 +509,7 @@ class SaleController extends Controller
      */
     public function complete(Sale $sale): RedirectResponse
     {
-        $this->authorize('update', $sale);
+        $this->authorize('complete', $sale);
 
         $sale->update([
             'status' => 'completed',
@@ -630,6 +630,8 @@ class SaleController extends Controller
      */
     public function storeSaleSource(Request $request)
     {
+        abort_unless($request->user()->can('sales.create'), 403, __('This action is unauthorized.'));
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255', new UniqueForTenant(SaleSource::class, 'name')],
             'description' => 'nullable|string|max:500',
@@ -657,6 +659,8 @@ class SaleController extends Controller
      */
     public function storeDeliveryCompany(Request $request)
     {
+        abort_unless($request->user()->can('sales.create'), 403, __('This action is unauthorized.'));
+
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'phone' => 'required|string|max:20',

@@ -146,6 +146,12 @@ class RoleSeeder extends Seeder
             'users.create',
             'users.update',
 
+            // Customers (all but delete; decided 2 November 2026)
+            'customers.create',
+            'customers.update',
+            'customers.activate',
+            'customers.deactivate',
+
             // Roles & Permissions (view only)
             'roles.view',
             'permissions.view',
@@ -492,6 +498,10 @@ class RoleSeeder extends Seeder
         $permissions = [
             // Sales (view only)
             'sales.view',
+
+            // Customers (add and edit; decided 2 November 2026)
+            'customers.create',
+            'customers.update',
 
             // Payments (full access)
             'payments.view',

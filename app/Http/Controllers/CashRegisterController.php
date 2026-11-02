@@ -78,6 +78,8 @@ class CashRegisterController extends Controller
      */
     public function store(Request $request): RedirectResponse
     {
+        abort_unless($request->user()->can('sales.create'), 403, __('This action is unauthorized.'));
+
         $validated = $request->validate([
             'opening_balance' => 'required|numeric|min:0',
             'expense_opening_balance' => 'nullable|numeric|min:0',
@@ -126,6 +128,8 @@ class CashRegisterController extends Controller
      */
     public function close(Request $request, CashRegister $cashRegister): RedirectResponse
     {
+        abort_unless($request->user()->can('sales.create'), 403, __('This action is unauthorized.'));
+
         if ($cashRegister->isClosed()) {
             return redirect()
                 ->route('cash-registers.show', $cashRegister)

@@ -144,7 +144,7 @@ class SaleController extends Controller
 
     public function complete(Sale $sale): JsonResponse
     {
-        $this->authorize('update', $sale);
+        $this->authorize('complete', $sale);
 
         abort_unless(auth()->user()->canAccessShop($sale->shop_id), 403, __('This action is unauthorized.'));
 

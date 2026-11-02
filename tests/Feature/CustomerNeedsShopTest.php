@@ -1,7 +1,9 @@
 <?php
 
+use App\Models\Business;
 use App\Models\Shop;
 use App\Models\User;
+use App\Support\Tenancy\TenantContext;
 use Illuminate\Support\Facades\DB;
 use Laravel\Sanctum\Sanctum;
 
@@ -31,13 +33,20 @@ it('refuses a customer from a member with no shop on the API, with a message and
 });
 
 it('refuses a customer from a member with no shop on the web, and never puts it in another business', function () {
-    // Shop 1 may belong to another business; the old fallback used it.
+    // Shop 1 belongs to another business, as it can in production: the old fallback (`?? 1`)
+    // wrote the customer onto it, and the customer took that business.
+    $other = Business::factory()->create(['name' => 'Another Business']);
+    app(TenantContext::class)->run($other, fn () => Shop::factory()->create(['id' => 1, 'name' => 'Their Shop']));
+    expect(DB::table('shops')->where('id', 1)->value('business_id'))->toBe($other->id)
+        ->and($other->id)->not->toBe(testBusiness()->id);
+
     $this->actingAs($this->member)->from(route('customers.create'))
         ->post(route('customers.store'), $this->customer)
         ->assertRedirect(route('customers.create'))
         ->assertSessionHasErrors(['shop' => "You haven't been given a shop yet. Ask the owner."]);
 
-    expect(DB::table('customers')->where('name', 'Wanjiru Kamau')->exists())->toBeFalse();
+    expect(DB::table('customers')->where('name', 'Wanjiru Kamau')->exists())->toBeFalse()
+        ->and(DB::table('customers')->where('business_id', $other->id)->exists())->toBeFalse();
 });
 
 it('adds the customer to the member\'s own shop when they have one', function () {

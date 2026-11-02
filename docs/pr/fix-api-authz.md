@@ -9,13 +9,32 @@ Also in this PR:
 - `Api\ShopController::destroy` goes through `DeleteShopAction`, so staff are detached and the M-Pesa till
   registration is cleared, as on the web.
 - Five pages that failed or went blank on a soft-deleted shop now show "Name (deleted)".
-- **Cashiers may add a customer** (decided 2 November 2026). A one-off migration grants `customers.create` to the
-  shared cashier template and to every business's copy of it; `RoleSeeder` lists it for new installs.
+- **Customer permissions for the roles that use the app** (decided 2 November 2026; review finding 1). Two add-only,
+  audited migrations give each shared template and every business's copy of it what it needs, so nobody loses
+  customer work the flat API used to allow (see "The role migrations"):
+  - cashier: `customers.create`;
+  - manager: `customers.create`, `customers.update`, `customers.activate` and `customers.deactivate` (not delete);
+  - accountant: `customers.create` and `customers.update`;
+  - inventory clerk: nothing.
+
+  `RoleSeeder` lists them for new installs.
+- **Collecting a payment** (`SalePolicy::collectPayment`) also allows `credit-sales.collect` or `payments.create`,
+  with shop access, so an accountant collects (review finding 2).
+- **Completing a sale** has its own rule, `SalePolicy::complete` (review finding 3), used on the API and the web:
+  `sales.create`, shop access, and the sale still pending, with no 24-hour limit. Editing a sale keeps
+  `SalePolicy::update`'s 24-hour rule.
+- **Converting an order that's already converted** answers 422 "This order cannot be converted to a sale." on the API,
+  and returns to the order with that message on the web, not 403 (review finding 4). `EcommerceOrderPolicy::convert`
+  checks permission only. The conversion also locks the order row and re-checks it inside its transaction, so two
+  conversions at once can't both succeed.
+- **The web's till helpers need `sales.create`**, as the API's do (review finding 5): opening and closing a register,
+  and adding a sale source or delivery company from the sale screen.
 - **Converting an online order checks its cash session.** A chosen `register_id` must be an open session of the
   order's own shop, as the abandoned-cart conversion already required. Before, any session the user could see was
   accepted, so a sale's totals and invoice series could land on another shop's till. The check runs before the
   website is changed. The sale endpoints that update a session's totals no longer fail with a 500 when the session
-  is hidden from the person (`$sale->register?->`).
+  is hidden from the person (`$sale->register?->`). The session is checked again inside the transaction under a row
+  lock (review finding 7), since it may close between the first check and the sale.
 - **A member with no shop can't add a customer, on the web or the API.** `customers.shop_id` is required.
   - **Before, the API** wrote a null shop and failed with a 500.
   - **Before, the web** fell back to shop id 1. The customer's business is read from its shop, so this could put the
@@ -58,22 +77,22 @@ check of its policy (`sales`, `expenses`, `expense-categories`, `purchase_orders
 
 | # | Endpoint | Check | Permission now needed |
 |---|---|---|---|
-| 1 | `POST /api/cash-registers/open` | permission | `sales.create` (no web check) |
-| 2 | `POST /api/cash-registers/{cashRegister}/close` | permission | `sales.create` (no web check) |
+| 1 | `POST /api/cash-registers/open` | permission | `sales.create` (the web now checks the same) |
+| 2 | `POST /api/cash-registers/{cashRegister}/close` | permission | `sales.create` (the web now checks the same) |
 | 3 | `POST /api/categories` | `CategoryPolicy::create` | `categories.create` |
 | 4 | `PUT /api/categories/{category}` | `CategoryPolicy::update` | `categories.update` |
 | 5 | `DELETE /api/categories/{category}` | `CategoryPolicy::delete` | `categories.delete`, and the category has no products |
-| 6 | `POST /api/customers` | `StoreCustomerRequest` → `CustomerPolicy::create` | `customers.create` (cashiers now hold it, see below) |
-| 7 | `PUT /api/customers/{customer}` | `UpdateCustomerRequest` → `CustomerPolicy::update` | `customers.update` |
+| 6 | `POST /api/customers` | `StoreCustomerRequest` → `CustomerPolicy::create` | `customers.create` (cashiers, managers and accountants hold it) |
+| 7 | `PUT /api/customers/{customer}` | `UpdateCustomerRequest` → `CustomerPolicy::update` | `customers.update` (managers and accountants hold it) |
 | 8 | `DELETE /api/customers/{customer}` | `CustomerPolicy::delete` | `customers.delete` |
-| 9 | `POST /api/customers/{customer}/activate` | `CustomerPolicy::activate` | `customers.activate` |
-| 10 | `POST /api/customers/{customer}/deactivate` | `CustomerPolicy::deactivate` | `customers.deactivate` |
-| 11 | `POST /api/delivery-companies` | permission | `sales.create` (quick add from the sale screen; no web check) |
+| 9 | `POST /api/customers/{customer}/activate` | `CustomerPolicy::activate` | `customers.activate` (managers hold it) |
+| 10 | `POST /api/customers/{customer}/deactivate` | `CustomerPolicy::deactivate` | `customers.deactivate` (managers hold it) |
+| 11 | `POST /api/delivery-companies` | permission | `sales.create` (quick add from the sale screen; the web now checks the same) |
 | 12 | `PUT /api/delivery-companies/{delivery_company}` | permission | `settings.update` (no web screen) |
 | 13 | `DELETE /api/delivery-companies/{delivery_company}` | permission | `settings.update` |
 | 14 | `POST /api/delivery-companies/{deliveryCompany}/toggle-active` | permission | `settings.update` |
 | 15 | `POST /api/ecommerce-orders/refresh` | `EcommerceOrderPolicy::refresh` | `ecommerce-orders.view` |
-| 16 | `POST /api/ecommerce-orders/{order}/convert` | `ConvertOrderToSaleRequest` → `EcommerceOrderPolicy::convert` | `ecommerce-orders.convert` (or `edit-all`), within the shop, and the order can be converted |
+| 16 | `POST /api/ecommerce-orders/{order}/convert` | `ConvertOrderToSaleRequest` → `EcommerceOrderPolicy::convert` | `ecommerce-orders.convert` (or `edit-all`), within the shop; an order already converted is a 422, not a refusal |
 | 17 | `POST /api/ecommerce-orders/{order}/notes` | `EcommerceOrderPolicy::view` | `ecommerce-orders.view`, within the shop |
 | 18 | `POST /api/ecommerce-orders/{order}/reminders` | `EcommerceOrderPolicy::view` | `ecommerce-orders.view`, within the shop |
 | 19 | `POST /api/ecommerce-orders/{order}/reminders/{alert}/resolve` | `EcommerceOrderPolicy::view` | `ecommerce-orders.view`, within the shop |
@@ -99,13 +118,13 @@ check of its policy (`sales`, `expenses`, `expense-categories`, `purchase_orders
 | 39 | `POST /api/purchase-orders/{purchaseOrder}/approve` | `PurchaseOrderPolicy::approve` | `purchase_orders.approve`, when it can be approved |
 | 40 | `POST /api/purchase-orders/{purchaseOrder}/mark-ordered` | `PurchaseOrderPolicy::markAsOrdered` | `purchase_orders.update`, approved only |
 | 41 | `POST /api/purchase-orders/{purchaseOrder}/cancel` | `PurchaseOrderPolicy::cancel` | `purchase_orders.update`, when it can be cancelled |
-| 42 | `POST /api/sale-sources` | permission | `sales.create` (quick add from the sale screen; no web check) |
+| 42 | `POST /api/sale-sources` | permission | `sales.create` (quick add from the sale screen; the web now checks the same) |
 | 43 | `POST /api/sales` | `StoreSaleRequest` → `SalePolicy::create` | `sales.create` |
 | 44 | `PUT /api/sales/{sale}` | `SalePolicy::update` | `sales.update` within the shop and 24 hours of the sale (or `sales.edit-all`) |
 | 45 | `DELETE /api/sales/{sale}` | `SalePolicy::delete` | `sales.delete` (or `delete-all`), within the shop |
-| 46 | `POST /api/sales/{sale}/complete` | `SalePolicy::update` | as 44 |
+| 46 | `POST /api/sales/{sale}/complete` | `SalePolicy::complete` | `sales.create`, within the shop, the sale pending; no 24-hour limit |
 | 47 | `POST /api/sales/{sale}/void` | `SalePolicy::void` | `sales.void` (or `edit-all`), within the shop, not already voided |
-| 48 | `POST /api/sales/{sale}/collect-payment` | `SalePolicy::collectPayment` | `sales.update` (or `edit-all`), within the shop |
+| 48 | `POST /api/sales/{sale}/collect-payment` | `SalePolicy::collectPayment` | `sales.update`, `sales.edit-all`, `credit-sales.collect` or `payments.create`, within the shop |
 | 49 | `POST /api/shops` | `ShopPolicy::create` | `shops.create` |
 | 50 | `PUT /api/shops/{shop}` | `ShopPolicy::update` | `shops.update`, within the shop |
 | 51 | `DELETE /api/shops/{shop}` | `ShopPolicy::delete` | `shops.delete`, within the shop; goes through `DeleteShopAction` |
@@ -126,6 +145,13 @@ permission gets 403 whatever they send, not a 422 that would reveal the rules.
 **Need no permission:** sign-in, sign-out and sign-up; your own till PIN; switching to a business you belong to;
 the three webhooks, which are signature-verified.
 
+**Not in this PR** (decided 2 November 2026; planned on `docs/saas-stage-plans`):
+- `/api/v1/sync/push` checks no permission per item (customer, sale, sale payment, cash session). A member who can
+  sign in on a paired till pushes them without `customers.create` or `sales.create`. A follow-up stage adds the checks,
+  and keeps a refused item and flags it for the owner rather than dropping it.
+- `ViewerShop` gives an owner with no assigned shop the business's first shop for new records. Within the business,
+  as before; a follow-up lets them choose.
+
 ### Refusals
 
 Every refusal is 403 with `{"message": "This action is unauthorized."}`: Laravel's shape, as the flat API's
@@ -134,60 +160,86 @@ checklist says how. The app keys off the status code: per the contract skill, it
 so today it shows a generic error. `tests/Unit/ApiForbiddenMessageTest` fails if an API controller raises a 403
 without a message again.
 
-### The cashier migration
+### The role migrations
 
-`database/migrations/2026_11_02_000001_grant_cashiers_customers_create.php` adds `customers.create` to the shared
-cashier template and to every business's copy of it (`roles.template_id`).
-- **It only adds.** It inserts with `insertOrIgnore` and removes nothing, so a business that took a permission away
-  from its copy keeps it away.
-- **A second run changes nothing.**
+Two migrations, both through `App\Actions\Platform\GrantTemplatePermissions`:
+- `2026_11_02_000001_grant_cashiers_customers_create.php`: cashier, `customers.create`;
+- `2026_11_02_000002_grant_managers_accountants_customers.php`: manager, `customers.create`, `customers.update`,
+  `customers.activate`, `customers.deactivate`; accountant, `customers.create`, `customers.update`.
+
+Each grants a shared template and every business's copy of it (`roles.template_id`):
+- **It only adds.** It inserts the missing grants and changes no other, so a permission a business took off its copy
+  stays off.
+- **A second run changes nothing**, and writes no audit entry.
+- **Every role that gains a permission gets an audit entry** (review finding 1): `permissions_attached` with the
+  permissions and the reason, as a grant on the role screens is recorded, with no person as the actor ("System") and
+  the role's business.
 - **It doesn't wipe customisations.** The console's "Apply to all copies" would have overwritten every copy, and
-  `RoleSeeder` can't reach this old permission on an existing database (stage 10, gap 11).
-- **On UAT** (checked 2 November 2026): 11 cashier copies, all identical to the template, none holding the permission.
+  `RoleSeeder` can't reach these old permissions on an existing database (stage 10, gap 11).
+- **On UAT** (checked 2 November 2026): 12 cashier, manager and accountant roles of each kind (the template and 11
+  copies), none holding any `customers.*` permission.
 
-Cashiers get **only** `customers.create`. `tests/Feature/Roles/CashierCustomersCreateTest` covers the template,
-the copies, idempotence, and an API create that succeeds while a customer edit is still refused.
+`tests/Feature/Roles/CustomerGrantsRolloutTest` covers the grants, idempotence, a removed permission staying removed,
+the audit entries and the API rights; `CashierCustomersCreateTest` covers the cashier one.
 
-### What changes for the app: intended cashier refusals
+### What changes for the app: intended refusals by role
 
-For a cashier, these writes now return 403. **All are intended (decided 2 November 2026)**, matching the web:
+All intended (decided 2 November 2026), matching the web.
 
+**Cashier**, refused:
 - voiding and deleting a sale (`sales.void`, `sales.delete`);
-- every product write: create, update, delete, activate, deactivate;
-- every category, supplier and shop write;
-- customer update, activate, deactivate and delete (cashiers may only **add** a customer);
-- every expense write: create, update, delete, submit, cancel, approve, reject, mark paid, settle from the register;
+- every product, category, supplier and shop write;
+- customer update, activate, deactivate and delete (a cashier may only **add** a customer);
+- every expense write;
 - an online order's status (`ecommerce-orders.update`);
-- purchase-order approvals: approve, mark ordered, cancel, delete;
-- delivery company edits: update, delete, toggle. Quick add still works.
+- purchase-order approvals (approve, mark ordered, cancel, delete);
+- delivery company edits (update, delete, toggle); quick add still works;
+- editing a sale more than 24 hours old (completing it isn't limited).
 
 Still allowed for a cashier:
 - opening and closing a register;
-- adding a sale source, delivery company or customer;
-- creating, updating and completing a sale (update and complete within 24 hours of the sale);
+- adding a customer, sale source or delivery company;
+- creating and completing a sale (complete at any age while pending), and editing one within 24 hours;
 - collecting a payment;
 - converting an online order, and its notes and reminders.
+
+**Manager:** keeps customer create, update, activate and deactivate; customer delete is refused.
+**Accountant:** keeps customer create and update and collecting a payment; activate, deactivate and delete refused.
+**Inventory clerk:** no customer writes.
 
 ### Checks
 
 Run on the final commit, 2 November 2026:
 - `vendor/bin/pint --dirty`: pass.
-- `php artisan test --compact` (SQLite): 2,076 passed, 60 skipped, 4 todos.
-- `vendor/bin/pest --configuration=phpunit.mysql.local.xml --compact` (MySQL 8): 2,085 passed, 1 failed, 50 skipped,
-  4 todos. The failure is `LiveLikeDatasetTest` ("builds the same dataset twice"): a purchase order's
-  `payment_due_date` differed by a day between two builds. It isn't from this change. `PurchaseOrderFactory` uses
-  `fake()->dateTimeBetween($orderDate, '+90 days')`, whose end moves with the clock, so the same seeded value can fall
-  on the next day. The test file rerun alone on MySQL passes (13 of 13). A follow-up fixes the factory's range.
+- `php artisan test --compact` (SQLite): 2,195 passed, 60 skipped, 4 todos.
+- `vendor/bin/pest --configuration=phpunit.mysql.local.xml --compact` (MySQL 8): 2,205 passed, 50 skipped, 4 todos.
+  (`LiveLikeDatasetTest` can fail when its two dataset builds fall either side of a day boundary for one purchase
+  order's due date: `PurchaseOrderFactory` uses `fake()->dateTimeBetween($orderDate, '+90 days')`, whose end moves
+  with the clock. Not from this change; it passed in this run. A follow-up fixes the factory's range.)
 - UAT, read-only: no sale is on another shop's cash session (0 of 1,503); 11 cashier copies, all matching the
   template, none holding `customers.create` yet.
 
 New tests:
-- `FlatApiWriteAuthorizationTest`: 53 writes refused with the message and no row changed; the cashier's till work
-  still allowed; a cashier can't void; the API's shop delete behaves like the web's.
+- `FlatApiWriteAuthorizationTest` (review finding 6), for each of 53 writes:
+  - refused to a member with no permission, with the message, the record's row (or, for a create, the table)
+    unchanged;
+  - refused the same way to a member with only an unrelated permission;
+  - let through (not 401, 403 or 404) for a member with exactly the intended permission.
+
+  Plus: the cashier's till work still allowed, a cashier can't void, and the API's shop delete behaves like the web's.
+  The positive cases show the check asks for that permission; whether a minimal payload then succeeds is not
+  asserted. The 54th write (resolving an online order's reminder) needs an alert and isn't in the data set.
 - `DeletedShopNamesTest`: the five pages.
 - `TenantIsolation/NoBusinessResolvedTest`: a bound `/api/v1` token of a suspended or closing business sees no
   business's data.
 - `Roles/CashierCustomersCreateTest`: the migration and the cashier's customer rights.
+- `Roles/CustomerGrantsRolloutTest`: both role migrations, their audit entries, and managers' and accountants' API
+  rights.
+- `SaleCollectAndCompleteTest`: an accountant collects; a member with none of the collecting permissions can't; a
+  cashier completes a two-day-old pending sale on the API and the web but can't edit it; a non-pending sale, or a
+  member without `sales.create`, can't be completed.
+- `ConvertOrderTwiceTest`: the second conversion of one order is a 422 (API) or the message (web), with one sale.
+- `WebTillHelpersTest`: the web's register and quick-add actions need `sales.create`.
 - `SaleRegisterShopTest`: a conversion refused onto another shop's session, before the website is changed; a
   cashier completes a sale without a 500.
 - `Unit/ApiForbiddenMessageTest`: no 403 without a message in the API controllers.
