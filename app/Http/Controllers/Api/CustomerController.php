@@ -13,6 +13,7 @@ use App\Models\Shop;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class CustomerController extends Controller
 {
@@ -56,7 +57,7 @@ class CustomerController extends Controller
 
         $validated['code'] = $this->generateCustomerCode();
         $validated['uuid'] = (string) Str::uuid();
-        $validated['shop_id'] = auth()->user()->shop_id ?? Shop::first()?->id;
+        $validated['shop_id'] = $this->customerShopId();
         $validated['created_by'] = auth()->id();
         $validated['credit_balance'] = 0;
 
@@ -208,6 +209,26 @@ class CustomerController extends Controller
 
         return $accounts->firstWhere('shop_id', $shopId)
             ?? ($accounts->count() === 1 ? $accounts->first() : null);
+    }
+
+    /**
+     * The shop a new customer belongs to: the person's own shop, or the first they
+     * can reach. A member with no shop is refused (hotfix fix/api-authz): the web
+     * used to fall back to shop 1, which could put the customer in another
+     * business (its business is taken from the shop), and the API failed with a
+     * 500 (`customers.shop_id` is required).
+     *
+     * @throws ValidationException
+     */
+    private function customerShopId(): int
+    {
+        $shopId = auth()->user()->shop_id ?? Shop::first()?->id;
+
+        if ($shopId === null) {
+            throw ValidationException::withMessages(['shop' => __('You haven\'t been given a shop yet. Ask the owner.')]);
+        }
+
+        return (int) $shopId;
     }
 
     private function generateCustomerCode(): string

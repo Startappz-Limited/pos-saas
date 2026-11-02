@@ -16,6 +16,15 @@ Also in this PR:
   accepted, so a sale's totals and invoice series could land on another shop's till. The check runs before the
   website is changed. The sale endpoints that update a session's totals no longer fail with a 500 when the session
   is hidden from the person (`$sale->register?->`).
+- **A member with no shop can't add a customer, on the web or the API.** `customers.shop_id` is required.
+  - **Before, the API** wrote a null shop and failed with a 500.
+  - **Before, the web** fell back to shop id 1. The customer's business is read from its shop, so this could put the
+    customer in **another business**.
+  - **Now both** answer a validation error, "You haven't been given a shop yet. Ask the owner." (422 on the API,
+    `errors.shop`). UAT has no customer in the wrong business (checked 2 November 2026).
+  - **Why not attach the customer to the business instead:** that needs `shop_id` to become nullable, a schema change
+    to a column with a cascading foreign key, which is out of scope for a hotfix. A customer stays in a shop.
+  - Covered by `CustomerNeedsShopTest`.
 - **Every 403 has a message.** The 24 `abort(403)` and `abort_unless(…, 403)` calls in the API controllers (flat and
   `/api/v1`) used to send `{"message": ""}`; they now say "This action is unauthorized.", like `authorize()`.
 
@@ -141,8 +150,8 @@ Still allowed for a cashier:
 
 Run on the final commit, 2 November 2026:
 - `vendor/bin/pint --dirty`: pass.
-- `php artisan test --compact` (SQLite): 2,068 passed, 60 skipped, 4 todos.
-- `vendor/bin/pest --configuration=phpunit.mysql.local.xml --compact` (MySQL 8): 2,078 passed, 50 skipped, 4 todos.
+- `php artisan test --compact` (SQLite): 2,071 passed, 60 skipped, 4 todos.
+- `vendor/bin/pest --configuration=phpunit.mysql.local.xml --compact` (MySQL 8): 2,081 passed, 50 skipped, 4 todos.
 - UAT, read-only: no sale is on another shop's cash session (0 of 1,503); 11 cashier copies, all matching the
   template, none holding `customers.create` yet.
 
