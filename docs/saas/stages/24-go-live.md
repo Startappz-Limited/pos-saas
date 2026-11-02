@@ -30,6 +30,15 @@ users, how business 7 was made, `LegacyImport`, and 10a's "Go-live" section. The
   closure without an export, and they are erased on the normal schedule.
 - The open point about erasing businesses 3 and 5 is closed.
 
+**Revised again 2 November 2026** (code facts checked 2 November 2026):
+- **Downloading a business's export as an operator needs its own platform permission**, `platform.business-data.export`,
+  granted to named operators and audited; being an operator isn't enough.
+- **The closure screens** say "Erased on or after <date>" once the export has been emailed, and "30 days after your
+  export is emailed" before.
+- **After the fifth failed send, every platform operator is notified** by email, as well as the closure being listed.
+- [pos-saas-plan.md](../pos-saas-plan.md) decision 4.9 updated to match (a closure and erasure row; the lapse row and
+  Phase 3's description).
+
 ---
 
 ## Goal
@@ -165,12 +174,27 @@ Checked 29 October and 2 November 2026 (read-only on UAT).
   - **"Invite an owner"**: sends an owner's invite (the `admin` role) to an email (`SendBusinessInvite`); once accepted
     the business has an owner and leaves the list. Audited `business.owner_invited`.
   - **"Download export"**: builds the business's export (`BusinessExport`, purpose `closure`) and lets the operator
-    download it (a new operator-only download route; added to `TenantScopeBypassTest` with its reason). Audited
-    `business.export_downloaded`.
+    download it (a new console route; added to `TenantScopeBypassTest` with its reason). It needs the platform
+    permission **`platform.business-data.export`** (below), not only being an operator. Audited
+    `business.export_downloaded` (the operator, the business, the export, its size).
   - **"Confirm closure"**: offered once the operator has downloaded the export (or, for UAT's 3 and 5 only, with the
     recorded reason "UAT test data, no export needed, decision 2 Nov 2026"); closes the business (reason `orphaned`)
     with `confirmed_by` and `confirmed_at` set, so erasure follows 30 days after the confirmation. Audited
     `business.closure_confirmed`, with whether the export was downloaded.
+- [ ] **The platform permission `platform.business-data.export`** (decided 2 November 2026): a business's data is
+      handed to an operator only by someone given this right on purpose.
+  - It isn't a Spatie permission: a Spatie grant always names a business (checked 2 November 2026:
+    `model_has_permissions.business_id` is NOT NULL and part of its primary key), and an operator belongs to none.
+    It is a row in a new table `platform_grants` (`user_id`, `permission`, `granted_by`, timestamps; unique on the
+    pair), granted to no one at first.
+  - It is checked with `User::hasPlatformPermission('platform.business-data.export')`, **never** `can()`:
+    `Gate::before` lets a platform operator through every `can()` check (checked 2 November 2026: Phase 5, decision
+    4.4; `is_platform_operator` is the only operator flag today), so `can()` would always say yes.
+  - Granted and revoked by `php artisan platform:grant-permission <operator email> platform.business-data.export`
+    (and `--revoke`), only to a platform operator (`User::isPlatformOperator()`), each audited through
+    `PlatformAudit` (`platform.permission_granted` / `_revoked`, with who ran the command in its context).
+  - The console hides "Download export" from an operator without it, and the route answers 404 to them, as console
+    routes do.
 - [ ] Tests:
   - `businesses:list-unsubscribed` lists a business with no subscription and changes nothing; marks an orphaned one;
   - `businesses:close-orphaned --apply` closes a business with no active member, no shop and no sale, confirmed by
@@ -182,17 +206,26 @@ Checked 29 October and 2 November 2026 (read-only on UAT).
   - in the console, an operator invites an owner to a listed business, and once accepted it leaves the list;
   - "Confirm closure" is refused until the export is downloaded (apart from the recorded UAT reason); confirming
     closes the business with `confirmed_at`, audited; a non-operator gets 404 on every one of these (as every console
-    route answers, `EnsurePlatformOperator`).
+    route answers, `EnsurePlatformOperator`);
+  - an operator without `platform.business-data.export` gets 404 on the download and doesn't see the button; one
+    with it downloads, audited; `platform:grant-permission` grants and revokes it only for an operator, audited.
 
 ### 3. A business is never erased before its owner has its data (all closures)
 - [ ] **Schema** (additive): `business_closures` gains `export_id` (nullable, the closure's `business_exports` row),
       `export_sent_at` (nullable timestamp: when the closure export was emailed; "`closure_export_sent_at`" in the
       decision), `export_attempts` (unsigned int, default 0), `export_error` (nullable text, the last failure),
-      `confirmed_by` (nullable, a platform operator) and `confirmed_at` (nullable). `delete_after` becomes nullable:
+      `confirmed_by` (nullable, a platform operator), `confirmed_at` (nullable) and `undelivered_notified_at`
+      (nullable: when operators were emailed about the fifth failure). `delete_after` becomes nullable:
       it is set to the email's or the confirmation's time + 30 days, and stays null until then.
-- [ ] **`CloseBusiness::start()`** no longer sets `delete_after`; it records the closure's `export_id`. The closure
-      screens and emails stop promising a date ("We'll email you the export. 30 days after that, the business is
-      erased."), on the web and `/api/v1` `business/closure`.
+- [ ] **`CloseBusiness::start()`** no longer sets `delete_after`; it records the closure's `export_id`.
+- [ ] **What the closure screens say** (decided 2 November 2026), on the web (the closing business's page and the
+      confirmation after closing) and in `/api/v1`'s `business/closure` message:
+  - before the export has been emailed: "Your data will be erased 30 days after your export is emailed.";
+  - once it has: "Erased on or after <date>." (`delete_after`, in the business's timezone), with the date the export
+    was emailed;
+  - after an operator's confirmation (a business with no owner): "Erased on or after <date>.";
+  - the confirmation email that the closure started says the same as the screen at that moment, and the export email
+    says "Your data will be erased on or after <date>.".
 - [ ] **Sending is separate from building.** For a closure export, `BuildBusinessExport` builds the file and then
       dispatches a new queued `SendClosureExport` job, so a mail failure no longer marks a built export `failed`.
       `SendClosureExport`:
@@ -209,7 +242,10 @@ Checked 29 October and 2 November 2026 (read-only on UAT).
      `export_sent_at` or `confirmed_at` set, and `delete_after` (30 days after that) passed. `CloseBusiness::erase()`
      checks the same before purging.
 
-  A closure with 5 failed attempts is never erased; it is listed for a platform operator.
+  A closure with 5 failed attempts is never erased. It is listed for platform operators, and **every platform operator
+  is emailed** (decided 2 November 2026): a new `ClosureExportUndelivered` notification (mail, queued) with the
+  business, the closure's age, the attempts and the last error, sent once when the fifth attempt fails and audited
+  (`business.closure_export_undelivered`, "System").
 - [ ] **The console lists closures waiting for their export** (`export_sent_at` and `confirmed_at` null, 5 or more
       attempts, or no owner), with the error, on a "Closures" page (operators only). An operator can retry the send,
       invite an owner, or download the export and confirm the closure (as in step 2), each audited.
@@ -219,8 +255,9 @@ Checked 29 October and 2 November 2026 (read-only on UAT).
 - [ ] **Existing closures at deploy** (none on UAT, checked 2 November 2026; production starts with none): a migration
       leaves an open closure with no `export_sent_at` unerasable until the retry pass sends its export, so the 30 days
       start from that email.
-- [ ] **Stage 3's closure description and decision 4.9 in the plan** change with this: stage 3 has a note pointing
-      here; [pos-saas-plan.md](../pos-saas-plan.md) 4.9 is updated when this step ships (a planned item).
+- **Stage 3's closure description and decision 4.9 in the plan** match this: stage 3 has a note pointing here, and
+  [pos-saas-plan.md](../pos-saas-plan.md) 4.9 was updated on 2 November 2026 (a "Closing and erasing a business"
+  row, the lapse row, and Phase 3's description).
 - [ ] Tests (`BusinessClosureTest` and a new `ClosureExportTest`):
   - an owner's closure builds the export and emails it to the primary owner and a co-owner; `export_sent_at` is set,
     `delete_after` is 30 days after it, and the send is audited;
@@ -228,15 +265,18 @@ Checked 29 October and 2 November 2026 (read-only on UAT).
   - it doesn't erase 29 days after the email, and does at 30;
   - a mail failure leaves the export `ready`, records the error and an attempt, and the business isn't erased; the
     next day's pass retries and succeeds, and the 30 days start then;
-  - a business with no owner records "No owner to send it to"; after 5 attempts it is listed for operators and never
+  - a business with no owner records "No owner to send it to"; after 5 attempts it is listed for operators, every
+    operator is emailed once (not again on later passes), the notification is audited, and the business is never
     erased; an operator's confirmation then lets it be erased 30 days later;
   - reopening within the 30 days cancels the erasure; closing again later sends a new export and starts a new 30 days;
   - a lapse's closure (`SweepSubscriptions`) follows the same rule, and a payment that reopens it cancels the erasure;
-  - the closure screens no longer show a fixed erasure date.
+  - the closure screen says "30 days after your export is emailed" before the email and "Erased on or after <date>"
+    after it (the date 30 days after the email), on the web and in `/api/v1`'s message.
 
 ## Contract
 
-`/api/v1` `business/closure`'s message no longer names a date; its fields are unchanged.
+`/api/v1` `business/closure`'s message says "30 days after your export is emailed" (the export can't have gone yet
+when the closure starts); its fields are unchanged.
 
 ## Schema
 
@@ -244,12 +284,19 @@ Checked 29 October and 2 November 2026 (read-only on UAT).
 |---|---|
 | `business_closures`: `export_id`, `export_sent_at`, `export_attempts`, `export_error`, `confirmed_by`, `confirmed_at`; `delete_after` nullable | None on UAT (no closure yet). Any open closure without `export_sent_at` waits for its export to be sent before its 30 days start |
 | `business_closures.reason` gains the value `orphaned` (a string) | None |
+| `business_closures.undelivered_notified_at` (nullable): when operators were told of the fifth failed send | None |
+| `platform_grants` (new: `user_id`, `permission`, `granted_by`, timestamps; unique on `user_id` and `permission`) | Empty: `platform.business-data.export` is granted to no one at first |
 
 ## Acceptance criteria
 
 - [ ] No business is erased before its closure export has been emailed to an owner, or a platform operator has
       confirmed its closure, and 30 days have passed since; a reopened business is never erased.
-- [ ] A failed send is retried, recorded and, after 5 attempts, listed for operators; it never leads to erasure.
+- [ ] A failed send is retried, recorded and, after 5 attempts, listed for operators and emailed to every operator;
+      it never leads to erasure.
+- [ ] The closure screens say "30 days after your export is emailed" before the email, and "Erased on or after <date>"
+      after it.
+- [ ] Only an operator granted `platform.business-data.export` can download a business's export, and each grant and
+      download is audited.
 - [ ] Every business has a subscription before 10a's commands run, except those closed here.
 - [ ] `businesses:close-orphaned` closes only truly empty businesses (UAT: 4 and 7), lists those with data but no
       active member (UAT: 3 and 5) and those with members but no active owner, and removes role grants of deleted
@@ -266,8 +313,11 @@ Checked 29 October and 2 November 2026 (read-only on UAT).
   indefinitely. Mitigation: retries, then the operators' list, where they can invite an owner or confirm the closure.
 - **Erasure now comes later** (30 days after the email, not the request), so data stays a little longer than the
   closure screens used to promise. Mitigation: the screens and emails say when instead of a date.
-- **An operator downloads a business's data** (the new download). Mitigation: operators only, audited, offered only
-  for a business with no active member or a closure waiting for its export.
+- **An operator downloads a business's data** (the new download). Mitigation: only operators granted
+  `platform.business-data.export` by name, every grant and download audited, offered only for a business with no active
+  member or a closure waiting for its export.
+- **Checking the permission with `can()` by mistake** would let every operator through (`Gate::before`). Mitigation:
+  `User::hasPlatformPermission()`, and a test with an operator who lacks it.
 - **Closing UAT's 3 and 5 erases them** 30 days after the operator's confirmation, with no export. Accepted: UAT test
   data (decided 2 November 2026); recorded as a one-off, not a rule.
 - **Removing grants of deleted users** touches every business. Mitigation: only rows whose user has no `users` row,
@@ -304,7 +354,8 @@ PROGRESS.md are updated. The pre-push checks (Pint, SQLite, MySQL) pass.
 
 Nothing is open. Closed 2 November 2026: erasing businesses 3 and 5 (UAT test data: confirmed without an export,
 erased on the normal schedule); the closure rule (erasure only after the export is emailed, or an operator confirms,
-plus 30 days); orphaned businesses with data are listed, not closed.
+plus 30 days); orphaned businesses with data are listed, not closed; the operator download's permission; the closure
+screens' wording; operators emailed after the fifth failed send.
 
 ## Follow-ups (not this stage)
 
