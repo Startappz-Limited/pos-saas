@@ -21,7 +21,7 @@ The plan stays the source of truth. When a stage file and the plan disagree, the
 | Phase 6: Signup, trials and invites | [08-phase-6-signup-and-user-invites.md](./08-phase-6-signup-and-user-invites.md) | `saas/signup-trials-invites` | Phase 4, Phase 5 Part A | None |
 | Phase 7: `/api/v1`, sync, till payments | [09-phase-7-api-v1-sync-payments.md](./09-phase-7-api-v1-sync-payments.md) | `saas/phase-7-api-sync-payments` | Phase 2 (can run alongside 4–6) | None |
 | 10. Stock correctness and voids | [10-stock-correctness-and-voids.md](./10-stock-correctness-and-voids.md) | `fix/stock-voids-fifo` | Phase 7 (merged) | None |
-| 10a. Access and tenancy (users list, owner scope, shop access) | [10a-access-and-tenancy.md](./10a-access-and-tenancy.md) | `fix/access-tenancy` | None | None; can ship at any time |
+| 10a. Access and tenancy (users list, owner scope, member removal, shop access, the default shop) | [10a-access-and-tenancy.md](./10a-access-and-tenancy.md) | `fix/access-tenancy` | None | None; can ship at any time (its billing and go-live parts moved to 21 and 24 on 2 November 2026) |
 | 11. Units, quantities and batches | [11-units-quantities-and-batches.md](./11-units-quantities-and-batches.md) | `feat/stock-units-batches` | 10 | None |
 | 11b. Prices and discounts | [11b-prices-and-discounts.md](./11b-prices-and-discounts.md) | `feat/prices-and-discounts` | 11 (either order with 11c) | None |
 | 11c. Low stock, alerts and snapshots | [11c-low-stock-alerts-and-snapshots.md](./11c-low-stock-alerts-and-snapshots.md) | `feat/low-stock-and-snapshots` | 11 (either order with 11b) | None |
@@ -34,14 +34,16 @@ The plan stays the source of truth. When a stage file and the plan disagree, the
 | 18. Alerts and notifications | [18-alerts-and-notifications.md](./18-alerts-and-notifications.md) | `feat/alert-engine` | 11c, 10 | One point to confirm |
 | 19. Expenses | [19-expenses.md](./19-expenses.md) | `feat/expenses` | 10, 18 | One point to confirm |
 | 20. Reports | [20-reports.md](./20-reports.md) | `feat/reports` | 14, 11c, 12 (18 for scheduled delivery) | Point 1: build or remove the stubs |
-| 21. Plans, billing page and trial banner | [21-plans-billing-trial-banner.md](./21-plans-billing-trial-banner.md) | `feat/plans-trial-banner` | Phases 4 to 7 (can run any time) | Tiers not agreed (point 1) |
+| 21. Plans, billing page and trial banner | [21-plans-billing-trial-banner.md](./21-plans-billing-trial-banner.md) | `feat/plans-trial-banner` | Phases 4 to 7; 10a's default shop for step 3's return to the Free Trial | Tiers not agreed (point 1) |
 | 22. KRA eTIMS | [22-etims.md](./22-etims.md) | `feat/etims` | 10, 14, 11, 17 | Points 1 to 3 (integration type, certification, who must use it) |
 | 23. Stocktakes in the app (outline) | [23-stocktakes-in-the-app.md](./23-stocktakes-in-the-app.md) | `feat/stocktakes-app` | 13, a scheduled app release | Two points to confirm |
+| 24. Go-live (subscriptions, orphaned businesses, deleted users' grants, production steps) | [24-go-live.md](./24-go-live.md) | `chore/go-live` | Phase 5; stage 21's `ChangeBusinessPlan` shop count if the imported business has several shops | Runs before 10a's commands and before go-live (about 12 November 2026); one point (erasing businesses 3 and 5) |
 
 **Proposed order (27 October 2026, sixth round).** The stock stages come first: 10 (with 10a, which depends on no stage and can ship at any time), 11, then 11b and 11c (either
 order), 12, 13, 14. Then 16 (sign-in security; small, and can run alongside the stock stages), 17 (platform; its tills
 step needs stage 10's invoice series), 18 (the alert engine, on 11c's alerts), 19 (expenses, on 18), 20 (reports, on 14),
-22 (eTIMS, when its points are answered). 21 (plans and the trial banner) can run at any time. 15 is unscheduled until
+22 (eTIMS, when its points are answered). 21 (plans and the trial banner) can run at any time. 24 (go-live) runs once
+on UAT before 10a's commands, and on production before go-live (added 2 November 2026, when 10a was split). 15 is unscheduled until
 a regulated customer is in view, and 23 waits for the app's next release.
 
 **The app.** The Flutter app's next release isn't scheduled. Every stage keeps the server backward compatible with the
@@ -57,7 +59,8 @@ app in shops and checks the server against the app's recorded requests; the app-
 review and the review of the pre-SaaS stock documents of 27 October 2026. On 27 October the combined stock stage was
 split into 10, 11 and 12; stocktakes became 13 and the returns stage 14; in the sixth round stage 11 was split again
 into 11, 11b and 11c (by suffix, so no other stage was renumbered), stage 15 became Regulated products, and stages 16
-to 23 were added for the findings outside the stock scope and Phase 7's open items.
+to 23 were added for the findings outside the stock scope and Phase 7's open items. On 2 November 2026 stage 10a
+was split: its billing items moved to 21, step 3, and its business hygiene and go-live steps became stage 24.
 
 **Planning rounds change only this folder** (decided 27 October 2026): changes to code, migrations or other documents
 are planned as items in the stage whose work makes them true; PROGRESS.md is edited only when the user asks.

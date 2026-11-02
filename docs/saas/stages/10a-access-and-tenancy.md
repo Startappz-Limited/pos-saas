@@ -8,7 +8,9 @@
 > ([05](./05-phase-3-accounts-roles-settings.md), [06](./06-phase-4-billing-entitlements.md),
 > [08](./08-phase-6-signup-and-user-invites.md)), whose rules this stage builds on · **Shipped ahead in a hotfix:**
 > `fix/api-authz` (`c099c16`, 29 October 2026): the flat API's write authorization and the deleted-shop names (see
-> "Hotfix" under Revisions)
+> "Hotfix" under Revisions) · **Split (2 November 2026):** the return to the Free Trial and `ChangeBusinessPlan` moved to
+> [stage 21](./21-plans-billing-trial-banner.md), step 3; the business hygiene commands and the go-live steps moved to
+> [24-go-live.md](./24-go-live.md) (see "Points to confirm")
 
 ---
 
@@ -146,6 +148,11 @@ ahead of this stage and are removed from its work:
   businesses are 4 and 7, not 7 alone (business 4 has a subscription, so `list-unsubscribed` misses it).
 - A split of this stage proposed for decision ("Points to confirm"); nothing moved.
 
+**Split (2 November 2026, decided):** the return to the Free Trial and `ChangeBusinessPlan` moved to [stage 21](./21-plans-billing-trial-banner.md),
+step 3; businesses with no subscription, `businesses:close-orphaned` (businesses 3 and 5 now closed too, by
+decision), removing deleted users' grants, `LegacyImport` and the Go-live section moved to [the Go-live stage](./24-go-live.md). Each
+place they were now links to where they went; the table is in "Points to confirm".
+
 ---
 
 ## Goal
@@ -157,8 +164,8 @@ shop, and on any other tier the shops the owner chose on the invite.
 ## Before you start
 
 Nothing must be merged first: this stage grants and revokes no permission (checked 28 October 2026), so it doesn't
-need stage 10's step 0. Everything is decided; a split of the stage is proposed for decision (see "Points to
-confirm"), and the revisions' decisions are in "Decisions that apply".
+need stage 10's step 0. Everything is decided, and the revisions' decisions are in "Decisions that apply". Since the
+split (2 November 2026) the billing and go-live parts are in stage 21 and the Go-live stage (see "Points to confirm").
 
 ## Decisions that apply
 
@@ -180,25 +187,10 @@ confirm"), and the revisions' decisions are in "Decisions that apply".
     `ChangeTrialPlan`, `BillingController` and `ApplyPlatformPayment`). One helper, `Business::onFreeTrial()`, is used
     everywhere this stage asks.
   - **Leaving and returning:** a lapse is read-only, never a fall back to the Free Trial
-    ([stage 4](./06-phase-4-billing-entitlements.md), "Decisions that apply"). A business on a tier's trial can switch
-    back to the Free Trial (checked 28 October 2026: `BillingController::plan` and `ChangeTrialPlan`); when it does,
-    **every member is given the one remaining shop, which is the default** (decided 28 October 2026; "every member",
-    second revision; one shop, third revision), so "on the Free Trial every member has the default shop" always
-    holds.
-  - **The switch back needs exactly one shop, and it active** (decided 29 October 2026, third revision; replaces the
-    open proposal of a writable default shop). Moving to the Free Trial is refused:
-    - while the business has more than one shop: "Delete shops until one remains before returning to the Free
-      Trial. A deleted shop's sales, stock and payment history are kept." Deactivated shops count toward the shop
-      limit (checked 29 October 2026: `PlanLimits::count(Limit::Shops)` counts every shop not soft-deleted, whatever
-      its status), so deactivating doesn't help and the message says "delete". Deleting a shop loses no history (see
-      "Deleting a shop" in "Relevant current state", fourth revision);
-    - while its one shop is inactive, or it has none: "Activate a shop before moving to the Free Trial." (second
-      revision).
-
-    So a business never lands on the Free Trial over quota and no shop is read-only on return. Phase 4's read-only
-    rule is unchanged: a business with more shops than it pays for has every shop read-only ([stage 6](./08-phase-6-signup-and-user-invites.md), §2.6
-    "Changing plan during a trial"; checked 29 October 2026: `Entitlements::readOnlyReason()` returns `over_quota` for
-    the whole business). The switch makes the remaining shop the default when it isn't already (audited).
+    ([stage 4](./06-phase-4-billing-entitlements.md), "Decisions that apply"). A return to the Free Trial from a tier's
+    trial, and its rule (exactly one shop, and it active; every member then has that shop, the default), **moved to
+    [stage 21](./21-plans-billing-trial-banner.md), step 3** (split, 2 November 2026). It relies on this stage's default shop, so "on the Free
+    Trial every member has the default shop" still holds.
   - **The default shop matters only on the Free Trial** (decided 28 October 2026): on other tiers it is kept but
     used for nothing, and may be deleted or deactivated.
 - **Members and owners (first revision, 28 October 2026):** removal, owner protection ("only owners delete") and
@@ -282,23 +274,8 @@ Checked against `main` after Phase 7 (`832f684`) and on UAT, 28 October 2026 (re
       (`plan_limit_reached` on JSON, a message with "Upgrade" on the web). It covers the web (`CreateShopAction`), the
       flat API (`Api\ShopController::store`) and sign-up (`RegisterBusiness`); the one-off `LegacyImport` copies
       `shops` rows directly and isn't checked; a business with no subscription isn't metered.
-    - **Businesses with no subscription** (checked 29 October 2026): sign-up always creates one (`RegisterBusiness`
-      calls `StartTrial` before creating the first shop); the platform console's `ChangeBusinessPlan` creates one;
-      `LegacyImport` creates none. UAT: 1 of 11 businesses has none (business 7, `pending_verification`, created 23
-      October 2026; third revision, checked 29 October 2026: it has no primary owner, no member and no shop, so nobody
-      can verify it and `StartTrialOnEmailVerified` will never run for it). `ChangeBusinessPlan` on a business with no
-      subscription creates a `trialing` one on the chosen plan, `shop_count` 1 whatever the business's shops, ending
-      `trial_days` after the change (14 for the Free Trial).
-    - **How business 7 was made** (fourth revision, checked 29 October 2026, read-only on UAT): by the stage 3 sign-up,
-      the only code that ever created a `pending_verification` business (`RegisterBusiness` from `f8820d9` until
-      `4ecebbb`). It has that sign-up's five role copies and one `admin` grant (`model_has_roles`, user 56), but user
-      56 no longer exists: deleting a user row cascades its `business_user` row and nulls `primary_owner_id`
-      (`nullOnDelete`), while `model_has_roles` has no foreign key and keeps the grant. No app path deletes a single
-      user row (only `PurgeBusiness`, which deletes the business too), so the user was deleted by hand. It isn't from
-      `LegacyImport`, which inserts its business as `active`. It has no subscription because the stage 3 sign-up made
-      none until verification. Business 6 is gone too (its id is unused). **Production** starts from the clean
-      baseline and the one-off import; it can hold such rows only if a stage 3 sign-up ran there or a user row is
-      deleted by hand, and the imported business itself has no subscription (`LegacyImport` creates none).
+    - **Businesses with no subscription, orphaned businesses and `LegacyImport`:** moved to [the Go-live stage](./24-go-live.md)
+      (split, 2 November 2026), with how business 7 was made.
     - **Deleting a shop** (fourth revision, checked 29 October 2026): soft (`Shop` uses `SoftDeletes`; no code
       force-deletes a shop, and there is no restore). The web (`DeleteShopAction`) detaches its staff (`shop_user`)
       and clears its M-Pesa till registration (`mpesa_shortcode`, `mpesa_shortcode_type`, `mpesa_verified_at`) so
@@ -312,8 +289,6 @@ Checked against `main` after Phase 7 (`832f684`) and on UAT, 28 October 2026 (re
       that showed "—", now show "Name (deleted)"; the API's delete goes through `DeleteShopAction`.)*
     - **The flat API's writes** checked only shop access (fourth revision, checked 29 October 2026). *(Fixed by hotfix
       `fix/api-authz`, `c099c16`: every flat API write checks the web's policy or a permission.)*
-    - **`LegacyImport`** is the one-off import of pre-SaaS data into a freshly migrated database (CLAUDE.md,
-      `saas:import-legacy`; checked 29 October 2026), run before go-live and not after.
     - **Deactivated and removed members look alike** (checked 29 October 2026): deactivating sets the membership to
       `inactive` (`UserService::changeStatus`, `UserStatus::INACTIVE`), as removing does; only a removed member has no
       role left in the business (`RemoveFromBusiness` calls `syncRoles([])`). `business_user` has no removal date; its
@@ -507,10 +482,8 @@ Checked against `main` after Phase 7 (`832f684`) and on UAT, 28 October 2026 (re
 - [ ] **The default shop:** `businesses.default_shop_id` (nullable foreign key), set to the first shop at sign-up
       (`RegisterBusiness`). The owner can change it on the business settings page (`settings.update`, audited). **While
       the business is on the Free Trial**, the default shop can't be deleted or deactivated until another is chosen;
-      on other tiers it is used for nothing and may be (decided). A return to the Free Trial needs exactly one shop, and
-      it active (third revision; see "Decisions"); that shop becomes the default when it isn't already (audited;
-      "System" when the switch is made by billing code with no one signed in). `ChangeTrialPlan` and
-      `BillingController::plan` refuse otherwise, before changing anything. Existing businesses:
+      on other tiers it is used for nothing and may be (decided). A return to the Free Trial makes its one remaining
+      shop the default (moved to [stage 21](./21-plans-billing-trial-banner.md), step 3). Existing businesses:
       `php artisan businesses:set-default-shop --business=<id>|--all` (dry run; `--apply`) sets the oldest active shop
       (`--all`: every business, whatever its status).
 - [ ] **The owner grants shop access on the invite** (decided). The invite form lists the business's shops; the person
@@ -524,8 +497,8 @@ Checked against `main` after Phase 7 (`832f684`) and on UAT, 28 October 2026 (re
     is called by `AcceptBusinessInvite`, by `UserService::create` for `POST /api/users`, and by `RegisterBusiness` for
     the founding owner; the one-off `LegacyImport` also creates memberships). A hand-over passes the business to an
     existing co-owner and a role change adds nobody, so neither is a way to join;
-  - returning to the Free Trial from a tier's trial gives every member the one remaining shop, the default (decided;
-    second and third revisions);
+  - returning to the Free Trial from a tier's trial gives every member the one remaining shop, the default: moved to
+    [stage 21](./21-plans-billing-trial-banner.md), step 3;
   - `LegacyImport` assigns no shops and checks no limit; it runs only before go-live, and
     `businesses:set-default-shop` and `users:grant-default-shop` cover what it imported (second revision);
   - once the business moves to another tier, assignments made on the Free Trial stay until the owner changes them on
@@ -533,41 +506,8 @@ Checked against `main` after Phase 7 (`832f684`) and on UAT, 28 October 2026 (re
 - [ ] **Every other tier, its trial included** (decided): the owner sets on the invite which shop(s) the member has
       access to; at least one is required for every role but the owner (the form refuses an empty choice: "Choose
       the shops this person will work in."). When the business has one shop, it is pre-ticked on the invite form.
-- [ ] **Businesses with no subscription** (second revision): `php artisan businesses:list-unsubscribed` (read-only)
-      lists them; a platform operator gives each a plan with the console's "Change plan" (`ChangeBusinessPlan`) before
-      this stage's commands run, so every business is metered and its Free Trial is known. The operator chooses the
-      plan for the business's shops: the Free Trial (`free-trial`) for one shop or none, otherwise a tier.
-      `ChangeBusinessPlan` gives a new subscription the business's current shop count (the shops `Limit::Shops`
-      counts, at least 1) instead of always 1, so an imported business with several shops isn't over quota from the
-      start (fourth revision). Either way it **starts a trial** (`trialing`, ending the plan's `trial_days` after the
-      change). After go-live, only `LegacyImport` could make one, and it isn't run again.
-  - **Who pays for the extra shops** (fifth revision, checked 2 November 2026): the business. It pays
-    `price_at_signup × shop_count` a month (`Subscription::monthlyTotal()`) from its first payment after the trial,
-    and nothing during the trial; no shop is free. The owner can lower the count on the billing page once shops are
-    deleted (`BillingController::shops`), as today.
-  - **The Free Trial is always one shop:** `ChangeBusinessPlan` refuses the Free Trial for a business with more than
-    one shop ("This business has :count shops; the Free Trial allows one. Choose a tier.") and, on the Free Trial,
-    sets `shop_count` to 1, as `StartTrial` and `ChangeTrialPlan` do. Moving a business that already has a
-    subscription to a tier keeps its `shop_count`, as today.
-  - *Proposed to move* (fifth revision; not moved): this item belongs to the platform console's billing, so to
-    [stage 21](./21-plans-billing-trial-banner.md), step 3 ("Editable plans in the console"); see "Points to
-    confirm".
-- [ ] **Orphaned businesses are closed, not given a plan** (fourth revision): `php artisan businesses:close-orphaned`
-      (dry run; `--apply`) lists every business with no active member and no shop, whatever its status, and closes
-      each with `CloseBusiness::start()` (no requester, a new reason `orphaned` beside `owner` and `lapsed`), audited
-      as "System". `EraseClosedBusinesses` erases it when the grace period ends, as for any closure. UAT (checked 2
-      November 2026): businesses **4** (no member, no shop, a `trialing` subscription, so `list-unsubscribed` misses
-      it) and **7** (no member, no shop, `pending_verification`, no subscription). `businesses:list-unsubscribed`
-      marks such businesses "orphaned: close" rather than "needs a plan". The command also (fifth revision):
-  - **lists, and never closes, businesses with shops but no active owner** (no active member holding `admin` in
-    them): their history may matter, so a platform operator decides (hand them to someone through support, or close
-    them by hand). UAT: businesses **3** ("Pos Biz", 1 shop, 1 sale, no member) and **5** ("Hub", 1 shop, no sale,
-    no member), both `trialing`;
-  - **removes role grants of users that no longer exist** (`model_has_roles` and `model_has_permissions` rows of
-    `model_type` User whose `model_id` has no `users` row; neither table has a foreign key to `users`), in every
-    business, audited as "System" with the role and business. UAT: 5 grants, users 51, 52, 53 and 54 (businesses
-    3, 4 and 5) and 56 (business 7); no direct permission grants. All five users were deleted by hand, taking their
-    memberships with them (`business_user` cascades).
+- *Moved (split, 2 November 2026):* `businesses:list-unsubscribed`, `businesses:close-orphaned` and removing deleted
+  users' grants to [the Go-live stage](./24-go-live.md); `ChangeBusinessPlan`'s shop count and the Free Trial's one shop to [stage 21](./21-plans-billing-trial-banner.md), step 3.
 - [ ] **Existing members without a shop:**
   - `php artisan users:list-without-shop --business=<id>` (read-only) lists every non-owner member with no shop;
   - `php artisan users:grant-default-shop --business=<id>` (dry run; `--apply`) gives each member of a business on the
@@ -590,23 +530,10 @@ Checked against `main` after Phase 7 (`832f684`) and on UAT, 28 October 2026 (re
   - after moving from the Free Trial to a tier, the owner removes the default shop from a member, and the member no
     longer sees it;
   - on the Free Trial the default shop can't be deleted or deactivated until another is chosen; on a tier it can;
-    changing it is audited; a business returning to the Free Trial with its default deleted and one active shop left
-    gets that shop as default, and every member has it;
-  - moving to the Free Trial with no active shop is refused, and nothing changes;
-  - moving to the Free Trial with two shops is refused with "Delete shops until one remains…", and nothing changes;
-    deactivating one of them doesn't lift the refusal (a deactivated shop counts); deleting it does, and the switch
-    then succeeds with the remaining shop as the default and the business not read-only; the deleted shop's sales,
-    stock movements and M-Pesa payment requests are still there;
-  - `businesses:close-orphaned` closes a business with no active member and no shop (reason `orphaned`, audited as
-    "System"), leaves one with a member or a shop alone, and changes nothing on a second run; it lists a business
-    with a shop but no active owner and doesn't close it; it removes a role grant of a deleted user and keeps every
-    other grant;
-  - `ChangeBusinessPlan` on a business with no subscription and three shops gives it a subscription for three shops;
-    it refuses the Free Trial for that business, and gives a one-shop business the Free Trial with `shop_count` 1;
+    changing it is audited;
   - a default shop set by billing code with no one signed in is audited as "System";
   - the "No shop yet" link shows to a member who may update that person and opens their edit form; it isn't shown
     to someone who may not;
-  - `businesses:list-unsubscribed` lists a business with no subscription and changes nothing;
   - `users:grant-default-shop --all` and `users:list-without-shop --all` run for every active business;
     `businesses:set-default-shop --all` and `members:clean-removed --all` also cover a suspended, a closing and a
     pending-verification business;
@@ -642,12 +569,10 @@ No other column (`business_closures.reason` is a string, so `orphaned` needs no 
 - [ ] UAT's members without a shop are listed; those of Free Trial businesses get the default shop.
 - [ ] Changing the default shop is audited; on the Free Trial it can't be deleted or deactivated until another is
       chosen.
-- [ ] The Free Trial is known by `Business::onFreeTrial()` (the plan's `is_trial_plan`); a lapse is read-only; a
-      return to the Free Trial gives every member the one remaining shop, the default; it is refused unless the
-      business has exactly one shop, and it active, so it never lands over quota.
+- [ ] The Free Trial is known by `Business::onFreeTrial()` (the plan's `is_trial_plan`); a lapse is read-only. (The
+      return to the Free Trial is accepted in [stage 21](./21-plans-billing-trial-banner.md).)
 - [ ] Deleting a shop keeps its history, and the confirmation says so (the shop names on old records and the flat
       API's authorization shipped in hotfix `fix/api-authz`).
-- [ ] Every business has a subscription before this stage's commands run, except orphaned ones, which are closed.
 - [ ] "No shop yet" shows beside a member without a shop, with a link to their edit form, only to someone who may
       update that member.
 
@@ -667,8 +592,6 @@ No other column (`business_closures.reason` is a string, so `orphaned` needs no 
       new owner works in their business before verifying.
 - [ ] `/api/v1` answers 403 `business_suspended` on every call but sign-out once the token's business is suspended,
       and `no_active_business` once it is closing or the person can't enter it.
-- [ ] `businesses:close-orphaned` closes businesses with no active member and no shop, lists those with shops but no
-      active owner, and removes role grants of deleted users.
 - [ ] A removed member can be brought back only by a re-invite.
 - [ ] Deleting a member removes only their membership of that business: their roles, shops, tokens, till PIN and
       pending invites there; their other businesses and their login stay; the removal is audited.
@@ -695,11 +618,6 @@ No other column (`business_closures.reason` is a string, so `orphaned` needs no 
   role was taken away by hand, and dates the removal from `updated_at`, which may be later than it was. Mitigation:
   the rule runs once; the dry run lists those rows separately for review before `--apply`; a later date only keeps
   fewer invites revoked, never more.
-- **Businesses with no subscription aren't metered** (no shop limit, no Free Trial). Accepted only until the rollout
-  gives each a plan or closes it (UAT: business 7, orphaned, closed); at go-live the imported business is checked the
-  same way (see "Go-live"); afterwards only `LegacyImport` could make one, and it isn't run again.
-- **Closing an orphaned business erases it** after the grace period. Mitigation: only a business with no active
-  member and no shop; the dry run lists each; the closure's export is built first, as for any closure.
 - **Deleting a shop can't be undone.** No history is lost: sales, stock, payments, M-Pesa payment requests and audit
   rows stay, and the pages that failed on a deleted shop name it since hotfix `fix/api-authz`. Mitigation: the refusal
   and the delete confirmation say so.
@@ -707,15 +625,6 @@ No other column (`business_closures.reason` is a string, so `orphaned` needs no 
   Phase 4 change (its own stage item), not this stage's.
 - **`/api/v1` now refuses a suspended or closing business's tokens on every call**, where some endpoints answered 200
   before. Mitigation: the app checklist's `business_suspended` and `no_active_business` checks; sign-out still works.
-- **Removing grants of deleted users** touches every business. Mitigation: only rows whose user has no `users` row,
-  which nothing can read (role checks start from a user); the dry run lists each; audited.
-- **Businesses with shops but no owner** (UAT 3 and 5) stay as they are: nobody can sign in to them, and their
-  trials lapse to read-only and then to closure by the sweep (`SweepSubscriptions`). Mitigation: the command lists
-  them for a decision first; the sweep's closure builds the export, as for any closure.
-- **A business on a tier's trial with several shops can't return to the Free Trial** until it deletes all but one
-  (deactivating isn't enough, since deactivated shops count). Mitigation: the refusal says so and that history is
-  kept, and nothing changes; the business can instead stay on its tier and pay. Phase 4's read-only rule is
-  unchanged.
 - **Reloading roles when the business differs** adds a query where a stale model was reused. Mitigation: only when the
   team id differs from the one the relations were loaded with; the common path (one business per request) is
   unchanged.
@@ -723,10 +632,8 @@ No other column (`business_closures.reason` is a string, so `orphaned` needs no 
 ## Rollout (UAT)
 
 1. Take a snapshot; restore it into `rehearsal_testing`; run the migrations (additive).
-2. `businesses:list-unsubscribed` (read-only: business 7 expected, marked orphaned); `businesses:close-orphaned`
-   (dry run: closes 4 and 7, lists 3 and 5 as having shops but no owner, removes 5 grants of deleted users; then
-   `--apply`), which starts the closures; a platform operator decides about 3 and 5, and gives any other listed
-   business a plan in the console ("Change plan"); check that `list-unsubscribed` then lists none.
+2. [the Go-live stage](./24-go-live.md)'s UAT rollout runs first (its commands close businesses 3, 4, 5 and 7 and remove the deleted users'
+   grants), so this stage's commands see only live businesses.
 3. `businesses:set-default-shop --all` (every business, whatever its status; dry run, then `--apply`); `users:list-without-shop --all` (read-only: 5
    expected); `users:grant-default-shop --all` (dry run: business 12's manager gets the default shop, businesses 1 and
    2's four accountants listed; then `--apply`).
@@ -741,17 +648,8 @@ No other column (`business_closures.reason` is a string, so `orphaned` needs no 
 
 ## Go-live (production)
 
-*Proposed to move* (fifth revision; not moved): no stage owns the import and go-live (checked 2 November 2026: none of
-`00`–`23` does; the plan's go-live is around 12 November 2026, [pos-saas-plan.md](../pos-saas-plan.md)). Proposed: a
-new stage, "Go-live", holding this section, the M-Pesa collection switch and the import; see "Points to confirm".
-
-After the one-off `LegacyImport` into the freshly migrated production database, and before anyone signs in:
-1. `businesses:list-unsubscribed` against production (read-only). The imported business is expected (it has no
-   subscription); any business marked orphaned is closed with `businesses:close-orphaned` (dry run, then `--apply`).
-2. A platform operator gives the imported business a plan for its shops in the console ("Change plan"), and the
-   command is run again until it lists none.
-3. `businesses:set-default-shop --all`, `users:grant-default-shop --all` and `members:clean-removed --all`, each as a
-   dry run, then `--apply`.
+Moved to [the Go-live stage](./24-go-live.md) (split, 2 November 2026). This stage's commands (`businesses:set-default-shop --all`,
+`users:grant-default-shop --all`, `members:clean-removed --all`) are its step 3 there.
 
 ## Definition of done
 
@@ -770,26 +668,22 @@ business is usable. The fourth revision's (29 October 2026): orphaned businesses
 shop keeps its history; a removed member comes back only by a re-invite. The fifth revision's (2 November 2026):
 `/api/v1` answers `business_suspended` for a suspended business and `no_active_business` otherwise; the business
 pays for every shop after the trial, and the Free Trial is one shop; `close-orphaned` lists ownerless businesses with
-shops and removes deleted users' grants.
+shops and removes deleted users' grants (superseded 2 November 2026: businesses with no member are closed, 3 and 5
+included, in [the Go-live stage](./24-go-live.md)).
 
-**Proposed for decision (fifth revision): split this stage.** It has grown from three gaps to about twenty work items
-across four subjects. Nothing is moved until you decide.
+**Split (decided 2 November 2026).** What stayed and where the rest went:
 
-| Part | Stays in 10a, or moves | Why |
-|---|---|---|
-| Step 1: the users list's buttons; who may edit whom | **stays** | access |
-| Step 1: removing a member (`RemoveFromBusiness`, `removed_at`, `members:clean-removed`, no reactivation, the default business moves) | **stays** | access and membership |
-| Step 1: `/api/v1` refusals (`business_suspended`, `no_active_business`) and what a person with no usable business sees | **stays** | access |
-| Step 2: an owner's rights stop at their business | **stays** | tenancy |
-| Step 3: viewing shops follows access; the owner grants shops on the invite; "No shop yet" | **stays** | access |
-| Step 3: the default shop, every member has it on the Free Trial, `set-default-shop`, `grant-default-shop`, `list-without-shop` | **stays** | it is how members see shops on the Free Trial |
-| The return to the Free Trial (one shop, and it active) and `Business::onFreeTrial()` | **moves to stage 21** (plans and billing), which then depends on 10a's default shop | billing rule |
-| `ChangeBusinessPlan`'s shop count; the Free Trial refused for several shops | **moves to stage 21**, step 3 (the console's billing) | billing |
-| `businesses:list-unsubscribed`, `businesses:close-orphaned`, deleted users' grants, the "Go-live" section | **moves to a new stage, "Go-live"** (with the import and the M-Pesa collection switch) | data hygiene before go-live |
-| The shop delete confirmation text | **stays** (one line) | small |
+| Part | Where it is |
+|---|---|
+| Step 1: the users list's buttons; who may edit whom; removing a member (`removed_at`, `members:clean-removed`, no reactivation); `/api/v1` refusals; signing in with no usable business | **this stage**, step 1 |
+| Step 2: an owner's rights stop at their business | **this stage**, step 2 |
+| Step 3: viewing shops; the owner grants shops on the invite; the default shop and the Free Trial's members (`set-default-shop`, `grant-default-shop`, `list-without-shop`); "No shop yet"; `Business::onFreeTrial()`; the shop delete confirmation | **this stage**, step 3 |
+| The return to the Free Trial (exactly one shop, and it active; every member gets it) | [stage 21](./21-plans-billing-trial-banner.md), step 3 |
+| `ChangeBusinessPlan`'s shop count, who pays for extra shops, the Free Trial's one shop | [stage 21](./21-plans-billing-trial-banner.md), step 3 |
+| `businesses:list-unsubscribed`, `businesses:close-orphaned`, removing deleted users' grants, businesses with no subscription, how business 7 was made, `LegacyImport`, the Go-live section | [the Go-live stage](./24-go-live.md) |
 
-With the split, 10a keeps steps 1 to 3 without billing, and the "Go-live" stage runs once, before 12 November 2026.
-The app checklist's 10a section stays with 10a; none of its checks belongs to a part that moves.
+`Business::onFreeTrial()` stays here, because this stage's step 3 needs it; stage 21 uses it. The app checklist's 10a
+section stays with 10a.
 
 ## Follow-ups (not this stage)
 

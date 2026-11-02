@@ -4,7 +4,8 @@
 > started", decisions confirmed 26 October 2026), given a stage in the sixth round, 27 October 2026.
 > **Branch:** `feat/plans-trial-banner` · **Depends on:** Phase 4 (plans, subscriptions, entitlements, read-only mode),
 > Phase 5 (the platform console), Phase 6 (sign-up with plan cards, PR #21), Phase 7 (`/api/v1/billing`, the trading
-> lease, `subscription_inactive` on the push) · **Can run alongside:** any stage · **App checks:**
+> lease, `subscription_inactive` on the push); [stage 10a](./10a-access-and-tenancy.md)'s default shop (`businesses.default_shop_id`) for step 3's
+> return to the Free Trial · **Can run alongside:** any stage · **App checks:**
 > [app-release-checklist.md](./app-release-checklist.md#stage-21) · **Traceability:**
 > [TRACEABILITY-billing.md](./TRACEABILITY-billing.md)
 
@@ -16,6 +17,11 @@
 subscription handling. Its three phases are this stage's steps, in its order (1, then 3, then 2). The tiers and prices
 themselves aren't agreed (26 October 2026: "billing to be reviewed later"); this stage builds how plans are shown and
 edited, not which plans exist.
+
+**Items moved in from stage 10a (2 November 2026, decided split):** in step 3, the return to the Free Trial from a
+tier's trial (decided 28 and 29 October 2026 in 10a's first to third revisions) and `ChangeBusinessPlan`'s shop count
+(10a's fourth and fifth revisions). Their code facts were checked 29 October and 2 November 2026; they keep their
+wording. `Business::onFreeTrial()` and the default shop stay in [stage 10a](./10a-access-and-tenancy.md), which this step depends on.
 
 ---
 
@@ -93,8 +99,46 @@ Checked against `main` after Phase 7 (`832f684`) and PR #21, 27 October 2026.
 - [ ] Seed data moves into `PlanSeeder` (`updateOrCreate` by key), run through `permissions:sync`'s deploy sequence or
       on its own with `--class=PlanSeeder`; the existing migrations stay.
 - [ ] `docs/saas/billing.md` documents it (a planned item: written when this step ships).
+- [ ] **Returning to the Free Trial** (moved from [stage 10a](./10a-access-and-tenancy.md), 2 November 2026). A business on a tier's trial can
+      switch back to the Free Trial (checked 28 October 2026: `BillingController::plan` and `ChangeTrialPlan`); a lapse
+      is read-only, never a fall back to the Free Trial ([stage 4](./06-phase-4-billing-entitlements.md)). The switch
+      back needs **exactly one shop, and it active** (decided 29 October 2026). `ChangeTrialPlan` and
+      `BillingController::plan` refuse otherwise, before changing anything:
+  - with more than one shop: "Delete shops until one remains before returning to the Free Trial. A deleted shop's
+    sales, stock and payment history are kept." Deactivated shops count toward the shop limit (checked 29 October
+    2026: `PlanLimits::count(Limit::Shops)` counts every shop not soft-deleted), so deactivating doesn't help;
+  - with its one shop inactive, or none: "Activate a shop before moving to the Free Trial."
+
+  So a business never lands on the Free Trial over quota, and Phase 4's read-only rule is unchanged (every shop
+  read-only while a business has more shops than it pays for; [stage 6](./08-phase-6-signup-and-user-invites.md),
+  §2.6). The switch makes the remaining shop the default (10a's `businesses.default_shop_id`) when it isn't already,
+  audited ("System" when billing code makes it with no one signed in), and **every member is given that shop**,
+  keeping 10a's rule that on the Free Trial every member has the default shop.
+- [ ] **`ChangeBusinessPlan`'s shop count** (moved from [stage 10a](./10a-access-and-tenancy.md), 2 November 2026; the platform console's
+      "Change plan"):
+  - a business with no subscription gets one with its current shop count (the shops `Limit::Shops` counts, at least
+    1) instead of always 1, so an imported business with several shops isn't over quota from the start; it starts a
+    trial (`trialing`, ending the plan's `trial_days` after the change);
+  - **the Free Trial is always one shop:** the console refuses it for a business with more than one shop ("This
+    business has :count shops; the Free Trial allows one. Choose a tier.") and sets `shop_count` to 1 on it, as
+    `StartTrial` and `ChangeTrialPlan` do; moving a subscribed business to a tier keeps its `shop_count`, as today;
+  - **who pays for extra shops** (checked 2 November 2026): the business pays `price_at_signup × shop_count` a month
+    (`Subscription::monthlyTotal()`) from its first payment after the trial, nothing during it; no shop is free. The
+    owner can lower the count on the billing page once shops are deleted (`BillingController::shops`).
+
+  The Go-live stage ([24-go-live.md](./24-go-live.md)) needs this before go-live if the imported business has several
+  shops.
 - [ ] Tests: an operator creates, edits, activates and deactivates; a tenant never sees an inactive plan on sign-up or
-      billing; non-operators get 403; the isolation matrix row.
+      billing; non-operators get 403; the isolation matrix row;
+  - moving to the Free Trial with no active shop is refused, and nothing changes;
+  - moving to the Free Trial with two shops is refused with "Delete shops until one remains…", and nothing changes;
+    deactivating one of them doesn't lift the refusal; deleting it does, and the switch then succeeds with the
+    remaining shop as the default, every member holding it, and the business not read-only; the deleted shop's sales,
+    stock movements and M-Pesa payment requests are still there;
+  - a business returning with its default deleted and one active shop left gets that shop as default (audited,
+    "System" from billing code);
+  - `ChangeBusinessPlan` on a business with no subscription and three shops gives it a subscription for three shops;
+    it refuses the Free Trial for that business, and gives a one-shop business the Free Trial with `shop_count` 1.
 
 ## Contract
 
@@ -115,6 +159,10 @@ Checked against `main` after Phase 7 (`832f684`) and PR #21, 27 October 2026.
 - [ ] A locked price holds until renewal and then follows the plan.
 - [ ] Owners on a trial see the banner, with the end matching the trading lease; managers don't.
 - [ ] Operators edit plans as data, audited; tenants see only active plans.
+- [ ] A return to the Free Trial is refused unless the business has exactly one shop, and it active; every member then
+      has that shop, the default (moved from 10a).
+- [ ] `ChangeBusinessPlan` gives a new subscription the business's shop count, and the Free Trial is never more than one
+      shop (moved from 10a).
 - [ ] Phase 7's lapse handling is unchanged (its tests pass unmodified).
 - [ ] The isolation suite and both full suites pass.
 
@@ -123,6 +171,9 @@ Checked against `main` after Phase 7 (`832f684`) and PR #21, 27 October 2026.
 - **Editing a live plan's price** surprises subscribers. Mitigation: the lock until renewal, and billing shows both
   prices.
 - **Plans not agreed yet.** Mitigation: the stage builds the mechanism; the tiers are data an operator sets later.
+- **A business on a tier's trial with several shops can't return to the Free Trial** until it deletes all but one
+  (deactivating isn't enough, since deactivated shops count). Mitigation: the refusal says so and that history is
+  kept, and nothing changes; the business can instead stay on its tier and pay (moved from 10a).
 
 ## Rollout (UAT)
 

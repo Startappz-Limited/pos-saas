@@ -50,27 +50,36 @@ Stage file: [10a-access-and-tenancy.md](./10a-access-and-tenancy.md).
       signs out of `/api/v1` (sign-out still works).
 
 ## Hotfix fix/api-authz
-Branch `fix/api-authz` (`c099c16`, `ef9f74d`, 29 October and 2 November 2026), not a stage: the flat API's writes now
-check the web's permissions. Its PR body lists all 54 endpoints with the permission each needs.
-- [ ] **A cashier's calls that are now refused** (403, probed 2 November 2026 against the seeded cashier role) are
-      handled, not shown as a server error. The app hides or explains the action instead:
-      - intended: void and delete a sale (`sales.void`, `sales.delete`); create, edit, delete, activate and deactivate
-        products; every write on categories, suppliers, shops and expense categories; approve, mark ordered, cancel
-        and delete purchase orders; approve, reject and mark paid expenses; edit, delete and toggle delivery
-        companies (quick add still works); delete, activate and deactivate customers;
-      - **decision pending** (possible regressions): adding a customer (`POST /api/customers`, needs
-        `customers.create`), editing one (`customers.update`), recording, editing, submitting and cancelling an
-        expense (`expenses.create`, `expenses.update`), and moving an online order's status (`ecommerce-orders.update`).
-        If the cashier template gains any of these, the check changes with it.
+Branch `fix/api-authz` (29 October to 2 November 2026), not a stage: the flat API's writes check the web's permissions,
+and cashiers may add a customer (`customers.create`, granted to every cashier role by a migration). Its PR body,
+`docs/pr/fix-api-authz.md`, lists all 54 endpoints with the permission each needs. **The server's 403 body stays as it
+is:** `{"message": "This action is unauthorized."}` (Laravel's shape, no `success`), on every refusal, flat API and
+`/api/v1`, where `ShapeApiV1Response` fills in the rest of its envelope (`success`, `data`, `meta`, a `code`). Handling it is the app's job, before or alongside this hotfix:
+- [ ] **Shows the refusal, not a server error.** A 403 shows the server's `message`, or "You don't have permission to
+      do this. Ask your manager." when it is empty, instead of a generic server error. (Today the app's
+      `ErrorInterceptor` has no 403 case, so a 403 falls through to `ServerException`; checked 2 November 2026
+      against the contract skill.)
+- [ ] **Treats 403 differently from 401.** On 403 the person stays signed in and the app doesn't retry the call; only
+      401 clears the stored credentials and goes to sign-in.
+- [ ] **Handles the account codes with their own screens or messages:** `business_suspended` ("This business is
+      suspended…"), `no_active_business` ("You are not a member of any active business."), and
+      `email_verification_required` (verify your email, with a resend), on the flat API and `/api/v1`.
+- [ ] **Re-reads the person's permissions after a 403 and on resume, and hides what they lack:** voiding and deleting a
+      sale, editing a customer, expenses, product edits and an online order's status (and the rest below), so a
+      cashier rarely meets a 403 at all.
+- [ ] **A cashier's refusals are intended** (decided 2 November 2026), matching the web, and the app hides each:
+      - voiding and deleting a sale (`sales.void`, `sales.delete`);
+      - product, category, supplier and shop writes;
+      - customer update, activate, deactivate and delete (a cashier may only **add** a customer: `POST /api/customers`
+        is allowed);
+      - expenses: every write (`expenses.create`, `expenses.update` and the rest);
+      - an online order's status (`ecommerce-orders.update`);
+      - purchase-order approvals (approve, mark ordered, cancel, delete);
+      - delivery company edits (update, delete, toggle); quick add still works.
 
-      Still allowed for a cashier: opening and closing a register, adding a sale source or delivery company,
-      creating, updating and completing a sale (update and complete within 24 hours of the sale), collecting a
-      payment, converting an online order, and its notes and reminders.
-- [ ] **The 403 body** is `{"message": "This action is unauthorized."}` (Laravel's shape, no `success`) on every
-      refusal the hotfix added; the older shop-access refusals still send `{"message": ""}`. The app keys off the
-      status code (its `ErrorInterceptor` has no 403 case, so a 403 falls through to `ServerException`, checked 2
-      November 2026 against the contract skill): it maps 403 to a "You don't have permission to do that." message,
-      and uses `message` when it isn't empty.
+      Still allowed for a cashier: opening and closing a register, adding a customer, sale source or delivery
+      company, creating, updating and completing a sale (update and complete within 24 hours of the sale), collecting
+      a payment, converting an online order, and its notes and reminders.
 
 ## Stage 11
 Stage file: [11-units-quantities-and-batches.md](./11-units-quantities-and-batches.md).
@@ -143,7 +152,7 @@ Stage file: [23-stocktakes-in-the-app.md](./23-stocktakes-in-the-app.md).
 |---|---|
 | 10 | 14 |
 | 10a | 3 |
-| Hotfix fix/api-authz | 2 |
+| Hotfix fix/api-authz | 5 |
 | 11 | 10 |
 | 11b | 5 |
 | 11c | 2 |
@@ -155,4 +164,4 @@ Stage file: [23-stocktakes-in-the-app.md](./23-stocktakes-in-the-app.md).
 | 21 | 1 |
 | 22 | 1 |
 | 23 | 1 (placeholder) |
-| **Total** | **47** |
+| **Total** | **50** |
