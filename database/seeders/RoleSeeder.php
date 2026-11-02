@@ -350,6 +350,9 @@ class RoleSeeder extends Seeder
             // Products (view only)
             'products.view',
 
+            // Customers (add one at the till; decided 2 November 2026)
+            'customers.create',
+
             // Inventory (view and count)
             'inventory.view',
             'inventory.count',

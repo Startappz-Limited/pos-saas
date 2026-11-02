@@ -30,7 +30,7 @@ class EcommerceOrderController extends Controller
         $selectedShopId = $request->integer('shop_id') ?: null;
 
         if ($selectedShopId !== null && ! $user->canAccessShop($selectedShopId)) {
-            abort(403);
+            abort(403, __('This action is unauthorized.'));
         }
 
         $query = EcommerceOrder::query()
@@ -87,7 +87,7 @@ class EcommerceOrderController extends Controller
 
     public function show(EcommerceOrder $order): JsonResponse
     {
-        abort_unless(auth()->user()->canAccessShop($order->shop_id), 403);
+        abort_unless(auth()->user()->canAccessShop($order->shop_id), 403, __('This action is unauthorized.'));
 
         $order->load(['shop', 'sale', 'convertedBy', 'items.product', 'orderNotes.creator', 'reminders.creator']);
 
@@ -105,7 +105,7 @@ class EcommerceOrderController extends Controller
             'shop_id' => ['required', 'exists:shops,id'],
         ]);
 
-        abort_unless($request->user()->canAccessShop((int) $request->shop_id), 403);
+        abort_unless($request->user()->canAccessShop((int) $request->shop_id), 403, __('This action is unauthorized.'));
 
         $shop = Shop::findOrFail($request->shop_id);
         $enabledIntegrations = $shop->getEnabledIntegrations();
@@ -131,7 +131,7 @@ class EcommerceOrderController extends Controller
     {
         $this->authorize('updateStatus', $order);
 
-        abort_unless($request->user()->canAccessShop($order->shop_id), 403);
+        abort_unless($request->user()->canAccessShop($order->shop_id), 403, __('This action is unauthorized.'));
 
         if (! $order->status->canChangeStatus()) {
             return response()->json([
@@ -163,7 +163,7 @@ class EcommerceOrderController extends Controller
     {
         $this->authorize('convert', $order);
 
-        abort_unless($request->user()->canAccessShop($order->shop_id), 403);
+        abort_unless($request->user()->canAccessShop($order->shop_id), 403, __('This action is unauthorized.'));
 
         if (! $order->can_be_converted) {
             return response()->json([
@@ -191,7 +191,7 @@ class EcommerceOrderController extends Controller
     {
         $this->authorize('view', $order);
 
-        abort_unless($request->user()->canAccessShop($order->shop_id), 403);
+        abort_unless($request->user()->canAccessShop($order->shop_id), 403, __('This action is unauthorized.'));
 
         $request->validate([
             'message' => ['required', 'string', 'max:2000'],
@@ -221,7 +221,7 @@ class EcommerceOrderController extends Controller
     {
         $this->authorize('view', $order);
 
-        abort_unless($request->user()->canAccessShop($order->shop_id), 403);
+        abort_unless($request->user()->canAccessShop($order->shop_id), 403, __('This action is unauthorized.'));
 
         $request->validate([
             'title' => ['required', 'string', 'max:255'],
@@ -257,7 +257,7 @@ class EcommerceOrderController extends Controller
     {
         $this->authorize('view', $order);
 
-        abort_unless(auth()->user()->canAccessShop($order->shop_id), 403);
+        abort_unless(auth()->user()->canAccessShop($order->shop_id), 403, __('This action is unauthorized.'));
 
         if ($alert->alertable_id !== $order->id || $alert->alertable_type !== EcommerceOrder::class) {
             return response()->json([

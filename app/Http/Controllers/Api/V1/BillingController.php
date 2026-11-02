@@ -105,7 +105,7 @@ class BillingController extends Controller
 
     private function ownersOnly(Request $request): void
     {
-        abort_unless($request->user()->isBusinessOwner(), 403);
+        abort_unless($request->user()->isBusinessOwner(), 403, __('This action is unauthorized.'));
     }
 
     private function ok(mixed $data, ?string $message = null): JsonResponse

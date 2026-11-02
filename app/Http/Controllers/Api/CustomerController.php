@@ -164,8 +164,8 @@ class CustomerController extends Controller
         }
 
         // 403, never 401 — a 401 logs the cashier out mid-shift.
-        abort_unless($request->user()->can('sendStatement', $account), 403);
-        abort_unless($request->user()->canAccessShop($account->shop_id), 403);
+        abort_unless($request->user()->can('sendStatement', $account), 403, __('This action is unauthorized.'));
+        abort_unless($request->user()->canAccessShop($account->shop_id), 403, __('This action is unauthorized.'));
 
         if (empty($customer->phone)) {
             return response()->json([

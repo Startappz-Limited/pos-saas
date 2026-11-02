@@ -248,19 +248,19 @@ class BusinessAdminController extends Controller
 
     private function settingsOnly(Request $request): void
     {
-        abort_unless($request->user()->can('settings.update') || $request->user()->can('settings.full-access'), 403);
+        abort_unless($request->user()->can('settings.update') || $request->user()->can('settings.full-access'), 403, __('This action is unauthorized.'));
     }
 
     private function ownersOnly(Request $request): void
     {
-        abort_unless($this->isOwner($request->user()), 403);
+        abort_unless($this->isOwner($request->user()), 403, __('This action is unauthorized.'));
     }
 
     private function primaryOwnerOnly(Request $request): void
     {
         $primary = $this->tenant->business()->primary_owner_id;
 
-        abort_unless($this->isOwner($request->user()) && ($primary === null || $primary === $request->user()->id), 403);
+        abort_unless($this->isOwner($request->user()) && ($primary === null || $primary === $request->user()->id), 403, __('This action is unauthorized.'));
     }
 
     private function isOwner(?User $user): bool

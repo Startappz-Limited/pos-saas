@@ -36,6 +36,14 @@ class ConvertEcommerceOrderToSale
             throw new BusinessRuleException('This order cannot be converted to a sale.');
         }
 
+        // A chosen register must be an open session of the order's shop (as
+        // ConvertAbandonedCartToSale checks), or the sale's totals and invoice
+        // series land on another shop's till. Checked before the website is changed.
+        if (! empty($data['register_id'])
+            && ! CashRegister::whereKey($data['register_id'])->where('shop_id', $order->shop_id)->where('status', 'open')->exists()) {
+            throw new BusinessRuleException('The selected register is not an open register of this shop.');
+        }
+
         $this->syncOrderItemsToPlatform($order, $data);
 
         return DB::transaction(function () use ($order, $data, $user) {

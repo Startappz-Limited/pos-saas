@@ -41,7 +41,7 @@ class AbandonedCartController extends Controller
         $shopId = isset($filters['shop_id']) ? (int) $filters['shop_id'] : null;
 
         if ($shopId !== null && ! $user->canAccessShop($shopId)) {
-            abort(403);
+            abort(403, __('This action is unauthorized.'));
         }
 
         $carts = AbandonedCart::query()

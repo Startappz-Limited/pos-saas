@@ -23,7 +23,7 @@ class SaleController extends Controller
         $shopId = $request->integer('shop_id') ?: null;
 
         if ($shopId !== null && ! $user->canAccessShop($shopId)) {
-            abort(403);
+            abort(403, __('This action is unauthorized.'));
         }
 
         $query = Sale::with(['customer', 'source', 'createdBy'])
@@ -98,7 +98,7 @@ class SaleController extends Controller
 
     public function show(Sale $sale): JsonResponse
     {
-        abort_unless(auth()->user()->canAccessShop($sale->shop_id), 403);
+        abort_unless(auth()->user()->canAccessShop($sale->shop_id), 403, __('This action is unauthorized.'));
 
         $sale->load(['customer', 'shop', 'items.product', 'items.variation', 'createdBy', 'source', 'deliveryCompany', 'payments.receiver']);
 
@@ -112,7 +112,7 @@ class SaleController extends Controller
     {
         $this->authorize('update', $sale);
 
-        abort_unless($request->user()->canAccessShop($sale->shop_id), 403);
+        abort_unless($request->user()->canAccessShop($sale->shop_id), 403, __('This action is unauthorized.'));
 
         $validated = $request->validate([
             'customer_id' => ['nullable', 'exists:customers,id'],
@@ -132,7 +132,7 @@ class SaleController extends Controller
     {
         $this->authorize('delete', $sale);
 
-        abort_unless(auth()->user()->canAccessShop($sale->shop_id), 403);
+        abort_unless(auth()->user()->canAccessShop($sale->shop_id), 403, __('This action is unauthorized.'));
 
         $sale->delete();
 
@@ -146,7 +146,7 @@ class SaleController extends Controller
     {
         $this->authorize('update', $sale);
 
-        abort_unless(auth()->user()->canAccessShop($sale->shop_id), 403);
+        abort_unless(auth()->user()->canAccessShop($sale->shop_id), 403, __('This action is unauthorized.'));
 
         $sale->update([
             'status' => 'completed',
@@ -154,7 +154,7 @@ class SaleController extends Controller
         ]);
 
         if ($sale->register_id) {
-            $sale->register->updateSalesTotals();
+            $sale->register?->updateSalesTotals();
         }
 
         app(SendSaleNotifications::class)->execute($sale);
@@ -184,7 +184,7 @@ class SaleController extends Controller
     {
         $this->authorize('void', $sale);
 
-        abort_unless($request->user()->canAccessShop($sale->shop_id), 403);
+        abort_unless($request->user()->canAccessShop($sale->shop_id), 403, __('This action is unauthorized.'));
 
         $validated = $request->validate([
             'void_reason' => ['required', 'string', 'max:255'],
@@ -204,7 +204,7 @@ class SaleController extends Controller
         });
 
         if ($sale->register_id) {
-            $sale->register->updateSalesTotals();
+            $sale->register?->updateSalesTotals();
         }
 
         return response()->json([
@@ -218,7 +218,7 @@ class SaleController extends Controller
     {
         $this->authorize('collectPayment', $sale);
 
-        abort_unless($request->user()->canAccessShop($sale->shop_id), 403);
+        abort_unless($request->user()->canAccessShop($sale->shop_id), 403, __('This action is unauthorized.'));
 
         if ($sale->payment_status === 'paid') {
             return response()->json([
@@ -253,7 +253,7 @@ class SaleController extends Controller
 
     public function payments(Sale $sale): JsonResponse
     {
-        abort_unless(auth()->user()->canAccessShop($sale->shop_id), 403);
+        abort_unless(auth()->user()->canAccessShop($sale->shop_id), 403, __('This action is unauthorized.'));
 
         $payments = $sale->payments()->with('receiver')->latest('paid_at')->get();
 
@@ -269,7 +269,7 @@ class SaleController extends Controller
         $shopId = $request->integer('shop_id') ?: ($user->shop_id ?? Shop::query()->visibleTo($user)->value('id'));
 
         abort_if($shopId === null, 422, 'No shop is available for this action.');
-        abort_unless($user->canAccessShop((int) $shopId), 403);
+        abort_unless($user->canAccessShop((int) $shopId), 403, __('This action is unauthorized.'));
 
         return (int) $shopId;
     }

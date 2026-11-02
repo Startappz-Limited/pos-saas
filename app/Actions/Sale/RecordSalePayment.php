@@ -98,7 +98,7 @@ class RecordSalePayment
         $sale->refresh();
 
         if ($sale->register_id) {
-            $sale->register->updateSalesTotals();
+            $sale->register?->updateSalesTotals();
         }
 
         return $sale;
