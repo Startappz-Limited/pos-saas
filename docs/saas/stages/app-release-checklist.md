@@ -1,7 +1,8 @@
 # App Release Checklist
 
 Created 27 October 2026 (sixth round); stage 10a's section added and stage 10's discard item updated in the eighth round (28 October 2026), and again in the
-ninth and tenth (28 October 2026) and in stage 10a's third and fourth revisions (29 October 2026). The Flutter app's next release isn't scheduled, and the app isn't on this
+ninth and tenth (28 October 2026) and in stage 10a's third and fourth revisions (29 October 2026), its fifth revision and the hotfix
+fix/api-authz (2 November 2026). The Flutter app's next release isn't scheduled, and the app isn't on this
 machine (`MOBILE_APP_PATH` points nowhere). The server stays backward compatible with the app in shops through every
 stage (additions only, old fields kept, Phase 7's codes for apps without a new enough `X-App-Version`), and each
 stage's rollout checks **the server** against the app's recorded requests. Everything below checks **the app**, and is
@@ -42,10 +43,34 @@ Stage file: [10a-access-and-tenancy.md](./10a-access-and-tenancy.md).
       any active business, instead of an empty or zero screen (checked 29
       October 2026: the flat API's `EnsureActiveBusiness` returns it on every authenticated route, and `/api/v1`
       sign-in returns it when the person has no usable business; planned, stage 10a third revision). From stage 10a's
-      fourth revision `/api/v1` also returns it on every call but sign-out once the token's business is suspended or
-      closing, sync included, where some calls answered 200 or a generic 403 before; the app then signs out of
-      `/api/v1` (sign-out still works). The flat API answers `business_suspended` for a suspended business; the app
-      handles both.
+      fourth revision `/api/v1` also refuses every call but sign-out once the token's business can't be entered, sync
+      included, where some calls answered 200 or a generic 403 before: **403 `business_suspended`** when the business
+      is suspended (as the flat API does), **403 `no_active_business`** otherwise (fifth revision, 2 November 2026).
+      The app says which ("This business is suspended…" or "You are not a member of any active business."), then
+      signs out of `/api/v1` (sign-out still works).
+
+## Hotfix fix/api-authz
+Branch `fix/api-authz` (`c099c16`, `ef9f74d`, 29 October and 2 November 2026), not a stage: the flat API's writes now
+check the web's permissions. Its PR body lists all 54 endpoints with the permission each needs.
+- [ ] **A cashier's calls that are now refused** (403, probed 2 November 2026 against the seeded cashier role) are
+      handled, not shown as a server error. The app hides or explains the action instead:
+      - intended: void and delete a sale (`sales.void`, `sales.delete`); create, edit, delete, activate and deactivate
+        products; every write on categories, suppliers, shops and expense categories; approve, mark ordered, cancel
+        and delete purchase orders; approve, reject and mark paid expenses; edit, delete and toggle delivery
+        companies (quick add still works); delete, activate and deactivate customers;
+      - **decision pending** (possible regressions): adding a customer (`POST /api/customers`, needs
+        `customers.create`), editing one (`customers.update`), recording, editing, submitting and cancelling an
+        expense (`expenses.create`, `expenses.update`), and moving an online order's status (`ecommerce-orders.update`).
+        If the cashier template gains any of these, the check changes with it.
+
+      Still allowed for a cashier: opening and closing a register, adding a sale source or delivery company,
+      creating, updating and completing a sale (update and complete within 24 hours of the sale), collecting a
+      payment, converting an online order, and its notes and reminders.
+- [ ] **The 403 body** is `{"message": "This action is unauthorized."}` (Laravel's shape, no `success`) on every
+      refusal the hotfix added; the older shop-access refusals still send `{"message": ""}`. The app keys off the
+      status code (its `ErrorInterceptor` has no 403 case, so a 403 falls through to `ServerException`, checked 2
+      November 2026 against the contract skill): it maps 403 to a "You don't have permission to do that." message,
+      and uses `message` when it isn't empty.
 
 ## Stage 11
 Stage file: [11-units-quantities-and-batches.md](./11-units-quantities-and-batches.md).
@@ -118,6 +143,7 @@ Stage file: [23-stocktakes-in-the-app.md](./23-stocktakes-in-the-app.md).
 |---|---|
 | 10 | 14 |
 | 10a | 3 |
+| Hotfix fix/api-authz | 2 |
 | 11 | 10 |
 | 11b | 5 |
 | 11c | 2 |
@@ -129,4 +155,4 @@ Stage file: [23-stocktakes-in-the-app.md](./23-stocktakes-in-the-app.md).
 | 21 | 1 |
 | 22 | 1 |
 | 23 | 1 (placeholder) |
-| **Total** | **45** |
+| **Total** | **47** |
