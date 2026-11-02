@@ -82,6 +82,9 @@ integration credentials.
       grace period ends; also triggered automatically after 30 business days of lapse (4.9). Deletion uses
       `forceDelete` on the 19 soft-deleting models and also covers the business's rows in the **SQLite
       audit database** and its files on the private disk.
+      *(Changed 2 November 2026, planned in [stage 24](./24-go-live.md), step 3: a business is erased only once its
+      closure export has been emailed to an owner, or a platform operator has confirmed the closure, and 30 days
+      have passed since; not 30 days after the request.)*
 - [x] **Ownership handover** to an existing co-owner, confirmed by a code emailed to the owner.
 - [x] **One active business per session:** pages and forms carry the business they were loaded for; a
       submission for a business that's no longer active is refused with a "reload the page" message.
