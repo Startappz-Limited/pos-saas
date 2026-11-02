@@ -8,6 +8,7 @@ use App\Models\Expense;
 use App\Models\ExpenseCategory;
 use App\Models\Shop;
 use App\Models\Supplier;
+use App\Support\Tenancy\ViewerShop;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -98,7 +99,7 @@ class ExpenseController extends Controller
             'settle_from_register' => ['nullable', 'boolean'],
         ]);
 
-        $validated['shop_id'] = auth()->user()->shop_id ?? Shop::first()?->id;
+        $validated['shop_id'] = ViewerShop::require();
         $validated['created_by'] = auth()->id();
         $validated['status'] = ExpenseStatus::DRAFT;
         $validated['is_tax_deductible'] = $request->boolean('is_tax_deductible');

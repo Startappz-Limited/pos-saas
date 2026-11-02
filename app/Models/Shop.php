@@ -198,6 +198,15 @@ class Shop extends Model
         return $this->status === ShopStatus::SUSPENDED;
     }
 
+    /**
+     * The name shown on old records: a deleted shop keeps its history, so it
+     * is still named, marked as deleted. Load it with `withTrashed()`.
+     */
+    public function displayName(): string
+    {
+        return $this->trashed() ? __(':name (deleted)', ['name' => $this->name]) : (string) $this->name;
+    }
+
     public function canProcessTransactions(): bool
     {
         return $this->status->canProcessTransactions();

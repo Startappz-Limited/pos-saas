@@ -32,7 +32,7 @@
                             <div class="row">
                                 <div class="col-md-6 mb-3">
                                     <label class="form-label">Shop</label>
-                                    <input type="text" class="form-control" value="{{ $stockAdjustment->shop->name }}" disabled>
+                                    <input type="text" class="form-control" value="{{ $stockAdjustment->shop?->displayName() ?? '—' }}" disabled>
                                     <small class="text-muted">Shop cannot be changed after creation</small>
                                 </div>
                                 <div class="col-md-6 mb-3">

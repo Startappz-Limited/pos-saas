@@ -31,6 +31,8 @@ class ProductController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        $this->authorize('create', Product::class);
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
@@ -71,6 +73,8 @@ class ProductController extends Controller
 
     public function update(Request $request, Product $product): JsonResponse
     {
+        $this->authorize('update', $product);
+
         $validated = $request->validate([
             'name' => ['sometimes', 'required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
@@ -101,6 +105,8 @@ class ProductController extends Controller
 
     public function destroy(Product $product): JsonResponse
     {
+        $this->authorize('delete', $product);
+
         $this->productService->deleteProduct($product);
 
         return response()->json([
@@ -111,6 +117,8 @@ class ProductController extends Controller
 
     public function activate(Product $product): JsonResponse
     {
+        $this->authorize('update', $product);
+
         $product = $this->productService->activateProduct($product);
 
         return response()->json([
@@ -122,6 +130,8 @@ class ProductController extends Controller
 
     public function deactivate(Product $product): JsonResponse
     {
+        $this->authorize('update', $product);
+
         $product = $this->productService->deactivateProduct($product);
 
         return response()->json([

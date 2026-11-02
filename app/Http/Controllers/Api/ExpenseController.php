@@ -83,6 +83,8 @@ class ExpenseController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        $this->authorize('create', Expense::class);
+
         $validated = $request->validate([
             'category_id' => ['required', 'exists:expense_categories,id'],
             'vendor_id' => ['nullable', 'exists:suppliers,id'],
@@ -162,6 +164,8 @@ class ExpenseController extends Controller
 
     public function update(Request $request, Expense $expense): JsonResponse
     {
+        $this->authorize('update', $expense);
+
         $this->authorizeShopAccess($expense);
 
         if (! $expense->canEdit()) {
@@ -199,6 +203,8 @@ class ExpenseController extends Controller
 
     public function destroy(Expense $expense): JsonResponse
     {
+        $this->authorize('delete', $expense);
+
         $this->authorizeShopAccess($expense);
 
         if (! $expense->canEdit()) {
@@ -218,6 +224,8 @@ class ExpenseController extends Controller
 
     public function submit(Expense $expense): JsonResponse
     {
+        $this->authorize('update', $expense);
+
         $this->authorizeShopAccess($expense);
 
         if ($expense->status !== ExpenseStatus::DRAFT) {
@@ -239,6 +247,8 @@ class ExpenseController extends Controller
 
     public function approve(Request $request, Expense $expense): JsonResponse
     {
+        $this->authorize('approve', $expense);
+
         $this->authorizeShopAccess($expense);
 
         if (! $expense->canApprove()) {
@@ -260,6 +270,8 @@ class ExpenseController extends Controller
 
     public function reject(Request $request, Expense $expense): JsonResponse
     {
+        $this->authorize('approve', $expense);
+
         $this->authorizeShopAccess($expense);
 
         if (! $expense->canApprove()) {
@@ -285,6 +297,8 @@ class ExpenseController extends Controller
 
     public function markPaid(Request $request, Expense $expense): JsonResponse
     {
+        $this->authorize('update', $expense);
+
         $this->authorizeShopAccess($expense);
 
         if (! $expense->canPay()) {
@@ -314,6 +328,8 @@ class ExpenseController extends Controller
 
     public function settleFromRegister(Expense $expense): JsonResponse
     {
+        $this->authorize('update', $expense);
+
         $this->authorizeShopAccess($expense);
 
         if (! $expense->canPay()) {
@@ -365,6 +381,8 @@ class ExpenseController extends Controller
 
     public function cancel(Expense $expense): JsonResponse
     {
+        $this->authorize('update', $expense);
+
         $this->authorizeShopAccess($expense);
 
         if ($expense->status === ExpenseStatus::PAID || $expense->status === ExpenseStatus::CANCELLED) {

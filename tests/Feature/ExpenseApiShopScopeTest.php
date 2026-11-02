@@ -22,6 +22,8 @@ beforeEach(function () {
     // Deliberately NOT attached to any shop.
     $this->user = User::factory()->create();
     expect($this->user->shop_id)->toBeNull();
+    seedPermissions();
+    $this->user->givePermissionTo(['expenses.view', 'expenses.create']);
 
     $this->actingAs($this->user);
 

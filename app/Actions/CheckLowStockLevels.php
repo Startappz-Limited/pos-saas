@@ -48,7 +48,8 @@ class CheckLowStockLevels
             'variation_id' => $row->is_default ? null : $row->variation_id,
             'current_quantity' => (int) $row->stock_quantity,
             'threshold_quantity' => (int) $row->threshold,
-            'created_by' => $userId ?? 1,
+            // No user (a scheduled check) records no creator, never user 1, who may be another business's.
+            'created_by' => $userId,
         ]));
     }
 }

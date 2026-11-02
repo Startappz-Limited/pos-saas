@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\CashRegisterResource;
 use App\Models\CashRegister;
 use App\Models\Shop;
+use App\Support\Tenancy\ViewerShop;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -47,13 +48,15 @@ class CashRegisterController extends Controller
 
     public function open(Request $request): JsonResponse
     {
+        abort_unless($request->user()->can('sales.create'), 403, __('This action is unauthorized.'));
+
         $validated = $request->validate([
             'opening_balance' => ['required', 'numeric', 'min:0'],
             'expense_opening_balance' => ['nullable', 'numeric', 'min:0'],
             'opening_notes' => ['nullable', 'string'],
         ]);
 
-        $shopId = auth()->user()->shop_id ?? Shop::first()?->id;
+        $shopId = ViewerShop::require();
         $activeRegister = CashRegister::getActiveRegister($shopId);
 
         if ($activeRegister) {
@@ -94,6 +97,8 @@ class CashRegisterController extends Controller
 
     public function close(Request $request, CashRegister $cashRegister): JsonResponse
     {
+        abort_unless($request->user()->can('sales.create'), 403, __('This action is unauthorized.'));
+
         if ($cashRegister->isClosed()) {
             return response()->json([
                 'success' => false,

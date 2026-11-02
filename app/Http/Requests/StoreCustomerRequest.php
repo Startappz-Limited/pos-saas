@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Models\Customer;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -12,9 +13,13 @@ class StoreCustomerRequest extends FormRequest
     /**
      * Determine if the user is authorized to make this request.
      */
+    /**
+     * The same policy check as the controller's, made here so a caller who
+     * may not do this is refused with 403 before their input is validated.
+     */
     public function authorize(): bool
     {
-        return true;
+        return $this->user()?->can('create', Customer::class) ?? false;
     }
 
     /**

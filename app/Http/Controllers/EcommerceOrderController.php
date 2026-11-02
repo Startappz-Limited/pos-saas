@@ -108,7 +108,7 @@ class EcommerceOrderController extends Controller
     {
         $this->authorize('view', $order);
 
-        $order->load(['shop', 'sale', 'convertedBy', 'items.product', 'orderNotes.creator', 'reminders.creator']);
+        $order->load(['shop' => fn ($query) => $query->withTrashed(), 'sale', 'convertedBy', 'items.product', 'orderNotes.creator', 'reminders.creator']);
 
         return view('orders.show', compact('order'));
     }

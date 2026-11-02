@@ -36,6 +36,7 @@ const ALLOWED_RAW_QUERIES = [
     'app/Services/Billing/PlanLimits.php' => [8, 'quota counts for the one business the caller names, across all its shops whatever the viewer may see'],
     'app/Actions/Customer/MergeCustomers.php' => [1, 'moves rows from one customer to another, both bound through the business\'s scopes (Phase 7)'],
     'app/Actions/Customer/MergeCustomers.php' => [1, 'moves rows naming the duplicate to the kept customer; both customers are the current business\'s, bound through its scopes (Phase 7)'],
+    'app/Actions/Platform/GrantTemplatePermissions.php' => [5, 'platform-wide on purpose: grants a shared role template and every business\'s copy of it permissions they lack (a rollout migration), adding only'],
     'app/Actions/Register/PairRegister.php' => [3, 'the register is the caller\'s (bound and authorised): revokes its tokens and reads its own shop\'s register codes'],
     'app/Actions/Shop/SaveShopMpesaAccount.php' => [1, 'a shortcode is unique on the platform: reads only whether another shop holds the number'],
     'app/Actions/PurchaseReturn/MarkPurchaseReturnShippedAction.php' => [1, 'the cost layer of a scoped intake'],

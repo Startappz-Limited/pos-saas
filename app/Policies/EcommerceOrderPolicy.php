@@ -33,15 +33,15 @@ class EcommerceOrderPolicy
         return $user->can('ecommerce-orders.view') && $user->canAccessShop($order->shop_id);
     }
 
+    /**
+     * Permission only: whether the order can still be converted is checked by the
+     * callers, which answer 422 "This order cannot be converted to a sale." rather
+     * than a permission refusal (hotfix fix/api-authz).
+     */
     public function convert(User $user, EcommerceOrder $order): bool
     {
-        if ($user->can('ecommerce-orders.edit-all') && $user->canAccessShop($order->shop_id)) {
-            return $order->can_be_converted;
-        }
-
-        return $user->can('ecommerce-orders.convert') &&
-            $user->canAccessShop($order->shop_id) &&
-            $order->can_be_converted;
+        return ($user->can('ecommerce-orders.edit-all') || $user->can('ecommerce-orders.convert'))
+            && $user->canAccessShop($order->shop_id);
     }
 
     public function updateStatus(User $user, EcommerceOrder $order): bool

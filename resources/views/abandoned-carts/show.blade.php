@@ -67,7 +67,7 @@
                                 <tbody>
                                     <tr>
                                         <td class="fw-medium">{{ __('Shop') }}:</td>
-                                        <td>{{ $cart->shop->name }}</td>
+                                        <td>{{ $cart->shop?->displayName() ?? '—' }}</td>
                                     </tr>
                                     <tr>
                                         <td class="fw-medium">{{ __('Website cart #') }}:</td>

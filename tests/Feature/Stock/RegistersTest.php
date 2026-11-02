@@ -17,6 +17,9 @@ beforeEach(function () {
     $this->shop = Shop::factory()->create(['code' => 'MAIN']);
     $this->cashier = User::factory()->create();
     $this->cashier->shops()->attach($this->shop);
+    // The flat API's register and sale calls need what a cashier holds.
+    seedPermissions();
+    $this->cashier->givePermissionTo('sales.create');
     $this->actingAs($this->cashier);
 });
 

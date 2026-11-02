@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\CashRegister;
 use App\Models\Shop;
+use App\Support\Tenancy\ViewerShop;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -77,13 +78,15 @@ class CashRegisterController extends Controller
      */
     public function store(Request $request): RedirectResponse
     {
+        abort_unless($request->user()->can('sales.create'), 403, __('This action is unauthorized.'));
+
         $validated = $request->validate([
             'opening_balance' => 'required|numeric|min:0',
             'expense_opening_balance' => 'nullable|numeric|min:0',
             'opening_notes' => 'nullable|string',
         ]);
 
-        $shopId = auth()->user()->shop_id ?? Shop::first()?->id;
+        $shopId = ViewerShop::require();
         $activeRegister = CashRegister::getActiveRegister($shopId);
 
         if ($activeRegister) {
@@ -95,7 +98,7 @@ class CashRegisterController extends Controller
         $register = CashRegister::openRegister(
             $shopId,
             $validated['opening_balance'],
-            $validated['opening_notes'],
+            $validated['opening_notes'] ?? null,
             $validated['expense_opening_balance'] ?? 0
         );
 
@@ -125,6 +128,8 @@ class CashRegisterController extends Controller
      */
     public function close(Request $request, CashRegister $cashRegister): RedirectResponse
     {
+        abort_unless($request->user()->can('sales.create'), 403, __('This action is unauthorized.'));
+
         if ($cashRegister->isClosed()) {
             return redirect()
                 ->route('cash-registers.show', $cashRegister)

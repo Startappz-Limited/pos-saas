@@ -36,6 +36,8 @@ class SupplierController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        $this->authorize('create', Supplier::class);
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'email' => ['nullable', 'email', 'max:255'],
@@ -71,6 +73,8 @@ class SupplierController extends Controller
 
     public function update(Request $request, Supplier $supplier): JsonResponse
     {
+        $this->authorize('update', $supplier);
+
         $validated = $request->validate([
             'name' => ['sometimes', 'required', 'string', 'max:255'],
             'email' => ['nullable', 'email', 'max:255'],
@@ -97,6 +101,8 @@ class SupplierController extends Controller
 
     public function destroy(Supplier $supplier): JsonResponse
     {
+        $this->authorize('delete', $supplier);
+
         $supplier->delete();
 
         return response()->json([

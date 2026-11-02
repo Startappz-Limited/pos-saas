@@ -5,6 +5,7 @@ namespace App\Http\Requests;
 use App\Models\Customer;
 use App\Models\Product;
 use App\Models\ProductVariation;
+use App\Models\Sale;
 use App\Rules\KraPin;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Validator;
@@ -14,9 +15,13 @@ class StoreSaleRequest extends FormRequest
     /**
      * Determine if the user is authorized to make this request.
      */
+    /**
+     * The same policy check as the controller's, made here so a caller who
+     * may not do this is refused with 403 before their input is validated.
+     */
     public function authorize(): bool
     {
-        return true;
+        return $this->user()?->can('create', Sale::class) ?? false;
     }
 
     /**

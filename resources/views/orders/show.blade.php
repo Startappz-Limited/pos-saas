@@ -77,7 +77,7 @@
                                         </tr>
                                         <tr>
                                             <td class="fw-medium">Shop:</td>
-                                            <td>{{ $order->shop->name }}</td>
+                                            <td>{{ $order->shop?->displayName() ?? '—' }}</td>
                                         </tr>
                                         <tr>
                                             <td class="fw-medium">Platform Order ID:</td>

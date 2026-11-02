@@ -36,14 +36,31 @@ class ConvertEcommerceOrderToSale
             throw new BusinessRuleException('This order cannot be converted to a sale.');
         }
 
+        // A chosen register must be an open session of the order's shop (as
+        // ConvertAbandonedCartToSale checks), or the sale's totals and invoice
+        // series land on another shop's till. Checked here so the website isn't
+        // changed for a conversion that would be refused, and again under a lock below.
+        if (! empty($data['register_id']) && ! $this->isOpenSessionOf($data['register_id'], $order->shop_id)) {
+            throw new BusinessRuleException('The selected register is not an open register of this shop.');
+        }
+
         $this->syncOrderItemsToPlatform($order, $data);
 
         return DB::transaction(function () use ($order, $data, $user) {
+            // Locked, so two conversions of one order can't both go through: the second sees it converted.
+            EcommerceOrder::query()->whereKey($order->getKey())->lockForUpdate()->first();
             $order->refresh()->load(['shop', 'items.product']);
             $shopId = $order->shop_id;
 
-            // Ensure we have a register
+            if (! $order->can_be_converted) {
+                throw new BusinessRuleException('This order cannot be converted to a sale.');
+            }
+
+            // Ensure we have a register; a chosen one is re-checked under a row lock, since it may have closed since.
             $registerId = $data['register_id'] ?? null;
+            if ($registerId && ! $this->isOpenSessionOf($registerId, $shopId, lock: true)) {
+                throw new BusinessRuleException('The selected register is not an open register of this shop.');
+            }
             if (! $registerId) {
                 $activeRegister = CashRegister::getActiveRegister($shopId);
                 if (! $activeRegister) {
@@ -249,5 +266,16 @@ class ConvertEcommerceOrderToSale
         if (! ($result['success'] ?? false)) {
             throw new BusinessRuleException('Could not update website order items: '.($result['message'] ?? 'Unknown platform sync error.'));
         }
+    }
+
+    /**
+     * Whether $registerId is an open cash session of $shopId; with $lock, the row
+     * stays locked until the transaction ends.
+     */
+    private function isOpenSessionOf(int|string $registerId, int $shopId, bool $lock = false): bool
+    {
+        return CashRegister::whereKey($registerId)->where('shop_id', $shopId)->where('status', 'open')
+            ->when($lock, fn ($query) => $query->lockForUpdate())
+            ->first(['id']) !== null; // a row, not exists(): a lock inside "select exists(...)" isn't taken
     }
 }

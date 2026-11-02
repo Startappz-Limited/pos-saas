@@ -29,7 +29,7 @@ class PurchaseOrderService
         ?int $supplierId = null,
         ?int $shopId = null,
     ): LengthAwarePaginator {
-        $query = PurchaseOrder::query()->with(['supplier', 'shop', 'items']);
+        $query = PurchaseOrder::query()->with(['supplier', 'shop' => fn ($query) => $query->withTrashed(), 'items']);
 
         if ($search) {
             $query->where(function ($q) use ($search) {

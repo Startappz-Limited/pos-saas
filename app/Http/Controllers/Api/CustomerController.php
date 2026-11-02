@@ -10,6 +10,7 @@ use App\Jobs\SendCreditStatementViaBaileysJob;
 use App\Models\CreditAccount;
 use App\Models\Customer;
 use App\Models\Shop;
+use App\Support\Tenancy\ViewerShop;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -50,11 +51,14 @@ class CustomerController extends Controller
 
     public function store(StoreCustomerRequest $request): JsonResponse
     {
+        $this->authorize('create', Customer::class);
+
         $validated = $request->validated();
 
         $validated['code'] = $this->generateCustomerCode();
         $validated['uuid'] = (string) Str::uuid();
-        $validated['shop_id'] = auth()->user()->shop_id ?? Shop::first()?->id;
+        // A customer belongs to a shop; someone with none is refused (ViewerShop).
+        $validated['shop_id'] = ViewerShop::require();
         $validated['created_by'] = auth()->id();
         $validated['credit_balance'] = 0;
 
@@ -81,6 +85,8 @@ class CustomerController extends Controller
 
     public function update(UpdateCustomerRequest $request, Customer $customer): JsonResponse
     {
+        $this->authorize('update', $customer);
+
         $validated = $request->validated();
         $validated['updated_by'] = auth()->id();
 
@@ -99,6 +105,8 @@ class CustomerController extends Controller
 
     public function destroy(Customer $customer): JsonResponse
     {
+        $this->authorize('delete', $customer);
+
         $customer->delete();
 
         return response()->json([
@@ -109,6 +117,8 @@ class CustomerController extends Controller
 
     public function activate(Customer $customer): JsonResponse
     {
+        $this->authorize('activate', $customer);
+
         $customer->update([
             'status' => 'active',
             'updated_by' => auth()->id(),
@@ -123,6 +133,8 @@ class CustomerController extends Controller
 
     public function deactivate(Customer $customer): JsonResponse
     {
+        $this->authorize('deactivate', $customer);
+
         $customer->update([
             'status' => 'inactive',
             'updated_by' => auth()->id(),
@@ -154,8 +166,8 @@ class CustomerController extends Controller
         }
 
         // 403, never 401 — a 401 logs the cashier out mid-shift.
-        abort_unless($request->user()->can('sendStatement', $account), 403);
-        abort_unless($request->user()->canAccessShop($account->shop_id), 403);
+        abort_unless($request->user()->can('sendStatement', $account), 403, __('This action is unauthorized.'));
+        abort_unless($request->user()->canAccessShop($account->shop_id), 403, __('This action is unauthorized.'));
 
         if (empty($customer->phone)) {
             return response()->json([

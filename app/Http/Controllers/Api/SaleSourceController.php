@@ -22,6 +22,8 @@ class SaleSourceController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        abort_unless($request->user()->can('sales.create'), 403, __('This action is unauthorized.'));
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255', new UniqueForTenant(SaleSource::class, 'name')],
             'description' => ['nullable', 'string', 'max:500'],

@@ -243,7 +243,7 @@
                     </div>
                     <div class="card-body">
                         @php
-                            $syncRecords = $product->ecommerceSyncs()->with('shop')->get();
+                            $syncRecords = $product->ecommerceSyncs()->with(['shop' => fn ($query) => $query->withTrashed()])->get();
                             $shopsWithIntegration = \App\Models\Shop::active()
                                 ->get()
                                 ->filter(fn($shop) => $shop->hasAnyEcommerceIntegration());
@@ -263,8 +263,11 @@
                                         @foreach ($syncRecords as $sync)
                                             <tr>
                                                 <td>
-                                                    <a
-                                                        href="{{ route('shops.show', $sync->shop) }}">{{ $sync->shop->name }}</a>
+                                                    @if ($sync->shop && ! $sync->shop->trashed())
+                                                        <a href="{{ route('shops.show', $sync->shop) }}">{{ $sync->shop->name }}</a>
+                                                    @else
+                                                        {{ $sync->shop?->displayName() ?? '—' }}
+                                                    @endif
                                                 </td>
                                                 <td>
                                                     @if ($sync->platform === 'woocommerce')

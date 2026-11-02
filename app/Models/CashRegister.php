@@ -2,9 +2,11 @@
 
 namespace App\Models;
 
+use App\Exceptions\BusinessRuleException;
 use App\Models\Concerns\Auditable;
 use App\Models\Concerns\BelongsToBusiness;
 use App\Models\Concerns\BelongsToShop;
+use App\Support\Tenancy\ViewerShop;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -200,7 +202,7 @@ class CashRegister extends Model
      */
     public static function getActiveRegister($shopId = null, ?int $registerId = null): ?self
     {
-        $shopId = $shopId ?? auth()->user()->shop_id ?? Shop::first()?->id;
+        $shopId = $shopId ?? ViewerShop::id();
         if ($shopId === null) {
             return null;
         }
@@ -218,7 +220,8 @@ class CashRegister extends Model
      */
     public static function openRegister($shopId = null, $openingBalance = 0, $notes = null, $expenseOpeningBalance = 0, ?int $registerId = null): self
     {
-        $shopId = $shopId ?? auth()->user()->shop_id ?? Shop::first()?->id;
+        // Never a session without a shop: that wrote shop 0 and failed (hotfix fix/api-authz).
+        $shopId = $shopId ?? ViewerShop::id() ?? throw new BusinessRuleException(ViewerShop::message());
         $userId = auth()->id();
         $registerId ??= Register::defaultFor((int) $shopId)->id;
 

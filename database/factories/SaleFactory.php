@@ -10,7 +10,7 @@ use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Str;
 
 /**
- * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\Sale>
+ * @extends Factory<Sale>
  */
 class SaleFactory extends Factory
 {
@@ -30,13 +30,14 @@ class SaleFactory extends Factory
         return [
             'uuid' => (string) Str::uuid(),
             'shop_id' => Shop::factory(),
-            'register_id' => CashRegister::factory(),
+            // The sale's cash session is in the sale's own shop, as every sale path makes it.
+            'register_id' => fn (array $attributes) => CashRegister::factory()->create(['shop_id' => $attributes['shop_id']])->id,
             'customer_id' => null,
             'source_id' => null,
             'delivery_location' => fake()->address(),
             'walk_in_customer_name' => fake()->name(),
             'walk_in_customer_phone' => fake()->phoneNumber(),
-            'invoice_number' => 'INV-' . strtoupper(Str::random(8)),
+            'invoice_number' => 'INV-'.strtoupper(Str::random(8)),
             'sale_type' => 'regular',
             'subtotal' => $subtotal,
             'discount_amount' => 0,

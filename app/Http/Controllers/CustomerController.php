@@ -8,6 +8,7 @@ use App\Http\Requests\UpdateCustomerRequest;
 use App\Models\Customer;
 use App\Models\Sale;
 use App\Models\Shop;
+use App\Support\Tenancy\ViewerShop;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
@@ -97,7 +98,8 @@ class CustomerController extends Controller
         // Generate unique customer code
         $validated['code'] = $this->generateCustomerCode();
         $validated['uuid'] = (string) Str::uuid();
-        $validated['shop_id'] = auth()->user()->shop_id ?? Shop::first()?->id ?? 1;
+        // A customer belongs to a shop; someone with none is refused (ViewerShop).
+        $validated['shop_id'] = ViewerShop::require();
         $validated['created_by'] = auth()->id();
 
         // Set credit balance to 0 initially

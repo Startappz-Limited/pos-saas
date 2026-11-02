@@ -2,15 +2,22 @@
 
 namespace App\Http\Requests;
 
+use App\Models\EcommerceOrder;
 use App\Models\Product;
 use App\Models\ProductVariation;
 use Illuminate\Foundation\Http\FormRequest;
 
 class ConvertOrderToSaleRequest extends FormRequest
 {
+    /**
+     * The same policy check as the controller's, made here so a caller who
+     * may not do this is refused with 403 before their input is validated.
+     */
     public function authorize(): bool
     {
-        return true;
+        $order = $this->route('order');
+
+        return $order instanceof EcommerceOrder && ($this->user()?->can('convert', $order) ?? false);
     }
 
     /**

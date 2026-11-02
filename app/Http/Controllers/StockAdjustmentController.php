@@ -90,7 +90,7 @@ class StockAdjustmentController extends Controller
                 ->with('error', 'Only pending adjustments can be edited.');
         }
 
-        $stockAdjustment->load(['shop', 'items.product']);
+        $stockAdjustment->load(['shop' => fn ($query) => $query->withTrashed(), 'items.product']);
         $shops = Shop::active()->select('id', 'name')->orderBy('name')->get();
         $products = Product::active()->select('id', 'name')->orderBy('name')->get();
         $adjustmentTypes = AdjustmentType::cases();
