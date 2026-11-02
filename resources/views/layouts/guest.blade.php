@@ -27,7 +27,8 @@
             <div class="row h-100">
                 <div class="col-xxl-7">
                     <div class="row justify-content-center h-100">
-                        <div class="col-lg-6 py-lg-5">
+                        {{-- `<x-guest-layout wide>`: a wider column for forms laid out in two columns (sign-up). --}}
+                        <div class="{{ $attributes->has('wide') ? 'col-lg-10 col-xl-8' : 'col-lg-6' }} py-lg-5">
                             <div class="d-flex flex-column h-100 justify-content-center">
                                 <div class="auth-logo mb-4">
                                     <a href="{{ url('/') }}" class="logo-dark">

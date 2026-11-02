@@ -139,7 +139,7 @@ test('the page asks only for name, business, email, password and the terms', fun
     expect($html)->not->toContain('name="password_confirmation"')
         ->toContain('autocomplete="name"')->toContain('autocomplete="organization"')
         ->toContain('autocomplete="email"')->toContain('autocomplete="new-password"')
-        ->toContain('id="password-toggle"')
+        ->toContain('data-password-toggle')
         ->toMatch('/type="checkbox"[^>]*name="agree_terms"/')
         // The honeypot is on the form.
         ->toContain('name="valid_from"');
@@ -207,4 +207,35 @@ test('links the terms when their pages are configured, and names them otherwise'
     config(['legal.terms_url' => 'https://example.test/terms', 'legal.privacy_url' => 'https://example.test/privacy']);
 
     $this->get('/register')->assertSee('href="https://example.test/terms"', false)->assertSee('href="https://example.test/privacy"', false);
+});
+
+test('the form pairs you with your business and your email with your password, one pair per row', function () {
+    $html = $this->get('/register')->assertOk()->getContent();
+
+    // Each pair shares a row; the fields keep their order, so tabbing goes left to right, row by row.
+    expect($html)->toMatch('/<div class="row">\s*<div class="col-md-6 mb-3">\s*<label for="name"[\s\S]*?<div class="col-md-6 mb-3">\s*<label for="business_name"/')
+        ->toMatch('/<div class="row">\s*<div class="col-md-6 mb-3">\s*<label for="email"[\s\S]*?<div class="col-md-6">\s*<div class="mb-3" data-password-field>/')
+        ->and(strpos($html, 'id="name"'))->toBeLessThan(strpos($html, 'id="business_name"'))
+        ->and(strpos($html, 'id="business_name"'))->toBeLessThan(strpos($html, 'id="email"'))
+        ->and(strpos($html, 'id="email"'))->toBeLessThan(strpos($html, 'id="password"'));
+});
+
+test('the password shows a show/hide button, the strength meter and the server\'s requirements, and nothing is loaded from elsewhere', function () {
+    $html = $this->get('/register')->assertOk()->getContent();
+
+    expect($html)->toContain('aria-label="Show password"')->toContain('aria-pressed="false"')
+        ->toMatch('/<button type="button"[^>]*data-password-toggle/')
+        ->toContain('id="password-strength"')->toContain('10 to 128 characters')
+        ->toContain('Not your name, email or business name')
+        ->toContain('data-personal="name,business_name,email"')
+        ->not->toContain('libs/zxcvbn');
+});
+
+test('a password error stays under the password, beside an email without one', function () {
+    $this->from('/register')->post('/register', signupForm(['password' => 'short']));
+
+    $html = $this->get('/register')->assertOk()->getContent();
+
+    expect($html)->toContain('id="password-error"')->not->toContain('id="email-error"')
+        ->toMatch('/aria-describedby="password-help password-strength password-error"/');
 });

@@ -12,11 +12,12 @@
         <x-ui-form-input name="email" type="email" label="Email Address" :value="old('email', $request->email)"
             placeholder="Enter your email" required autofocus readonly />
 
-        <x-ui-form-input name="password" type="password" label="New Password" placeholder="Enter new password"
-            help="Minimum 8 characters" required />
+        {{-- The meter shows the server's rules (StrongPassword), so no separate "minimum" hint. --}}
+        <x-ui-password-input name="password" label="New Password" placeholder="Enter new password" required
+            required-marker strength :personal="['email']" />
 
-        <x-ui-form-input name="password_confirmation" type="password" label="Confirm Password"
-            placeholder="Re-enter new password" required />
+        <x-ui-password-input name="password_confirmation" label="Confirm Password" placeholder="Re-enter new password"
+            required required-marker matches="password" />
 
         <x-ui-button variant="primary" type="submit" class="w-100 mb-3">
             Reset Password
