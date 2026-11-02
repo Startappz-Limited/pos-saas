@@ -37,7 +37,7 @@ The plan stays the source of truth. When a stage file and the plan disagree, the
 | 21. Plans, billing page and trial banner | [21-plans-billing-trial-banner.md](./21-plans-billing-trial-banner.md) | `feat/plans-trial-banner` | Phases 4 to 7; 10a's default shop for step 3's return to the Free Trial | Tiers not agreed (point 1) |
 | 22. KRA eTIMS | [22-etims.md](./22-etims.md) | `feat/etims` | 10, 14, 11, 17 | Points 1 to 3 (integration type, certification, who must use it) |
 | 23. Stocktakes in the app (outline) | [23-stocktakes-in-the-app.md](./23-stocktakes-in-the-app.md) | `feat/stocktakes-app` | 13, a scheduled app release | Two points to confirm |
-| 24. Go-live (subscriptions, orphaned businesses, deleted users' grants, production steps) | [24-go-live.md](./24-go-live.md) | `chore/go-live` | Phase 5; stage 21's `ChangeBusinessPlan` shop count if the imported business has several shops | Runs before 10a's commands and before go-live (about 12 November 2026); one point (erasing businesses 3 and 5) |
+| 24. Go-live (subscriptions, orphaned businesses, deleted users' grants, no erasure before the owner has the export, production steps) | [24-go-live.md](./24-go-live.md) | `chore/go-live` | Phase 5; stage 21's `ChangeBusinessPlan` shop count if the imported business has several shops | Step 3 (the closure rule) ships first; runs before 10a's commands and before go-live (about 12 November 2026); nothing open |
 
 **Proposed order (27 October 2026, sixth round).** The stock stages come first: 10 (with 10a, which depends on no stage and can ship at any time), 11, then 11b and 11c (either
 order), 12, 13, 14. Then 16 (sign-in security; small, and can run alongside the stock stages), 17 (platform; its tills

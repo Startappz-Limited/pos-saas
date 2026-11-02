@@ -53,7 +53,8 @@ package, and AI runs on prepaid credit.
     automatically after a top-up.
   - **How long a lapsed business stays read-only:** 30 business days from the lapse; then closed through
     the business-closure flow (built in Phase 3); paying before deletion reopens it; the owner is warned
-    before the 30 business days run out.
+    before the 30 business days run out. *(The closure's erasure waits for its export to be emailed, then 30 days:
+    [stage 24](./24-go-live.md), step 3, 2 November 2026.)*
 - **Assumption 12:** business days are Monday to Friday, excluding Kenyan public holidays, kept in a
   configurable calendar.
 

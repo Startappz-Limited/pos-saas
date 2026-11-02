@@ -11,5 +11,6 @@ Phase 7's open items in PROGRESS.md and eTIMS, reviewed 27 October 2026 (sixth r
 | 5 | PROGRESS.md, Phase 7 "Open"; plan open question 6 | eTIMS through `FiscalProvider` | Stage 22 | pending decision (stage 22, points 1 to 3) |
 | 6 | Sixth round | Accepting a held sale renumbered it | Never renumbered; per-register and web series: stage 10, steps 5c and 5d | planned |
 | 7 | PROGRESS.md, Phase 7 "Open" | Flutter paired changes | [app-release-checklist.md](./app-release-checklist.md) | planned (app release unscheduled) |
-| 8 | Stage 10a, second to fifth revisions (29 October to 2 November 2026) | Businesses with no subscription (UAT 7) or no members (UAT 3, 4, 5, 7); role grants of deleted users (UAT 5) | Stage 24 (Go-live), steps 1 and 2 (moved from 10a, 2 November 2026) | planned; one point (erasing 3 and 5) |
+| 8 | Stage 10a, second to fifth revisions (29 October to 2 November 2026) | Businesses with no subscription (UAT 7) or no members (UAT 3, 4, 5, 7); role grants of deleted users (UAT 5) | Stage 24 (Go-live), steps 1 and 2 (moved from 10a, 2 November 2026) | planned |
+| 10 | Decision, 2 November 2026 | A closed business was erased 30 days after the request whether or not its owners had received the export | Stage 24, step 3: erasure only after the export is emailed (or an operator confirms), plus 30 days | planned |
 | 9 | Stage 10a, fourth revision (29 October 2026) | No production go-live steps for the imported business | Stage 24, "Go-live (production)" | planned |

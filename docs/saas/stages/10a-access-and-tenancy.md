@@ -150,7 +150,8 @@ ahead of this stage and are removed from its work:
 
 **Split (2 November 2026, decided):** the return to the Free Trial and `ChangeBusinessPlan` moved to [stage 21](./21-plans-billing-trial-banner.md),
 step 3; businesses with no subscription, `businesses:close-orphaned` (businesses 3 and 5 now closed too, by
-decision), removing deleted users' grants, `LegacyImport` and the Go-live section moved to [the Go-live stage](./24-go-live.md). Each
+decision; revised the same day: an operator confirms them as UAT test data, and only empty businesses are closed
+automatically), removing deleted users' grants, `LegacyImport` and the Go-live section moved to [the Go-live stage](./24-go-live.md). Each
 place they were now links to where they went; the table is in "Points to confirm".
 
 ---
@@ -632,8 +633,8 @@ No other column (`business_closures.reason` is a string, so `orphaned` needs no 
 ## Rollout (UAT)
 
 1. Take a snapshot; restore it into `rehearsal_testing`; run the migrations (additive).
-2. [the Go-live stage](./24-go-live.md)'s UAT rollout runs first (its commands close businesses 3, 4, 5 and 7 and remove the deleted users'
-   grants), so this stage's commands see only live businesses.
+2. [the Go-live stage](./24-go-live.md)'s UAT rollout runs first (it closes the empty businesses 4 and 7, has an operator confirm 3 and 5 as
+   test data, and removes the deleted users' grants), so this stage's commands see only live businesses.
 3. `businesses:set-default-shop --all` (every business, whatever its status; dry run, then `--apply`); `users:list-without-shop --all` (read-only: 5
    expected); `users:grant-default-shop --all` (dry run: business 12's manager gets the default shop, businesses 1 and
    2's four accountants listed; then `--apply`).
@@ -668,8 +669,8 @@ business is usable. The fourth revision's (29 October 2026): orphaned businesses
 shop keeps its history; a removed member comes back only by a re-invite. The fifth revision's (2 November 2026):
 `/api/v1` answers `business_suspended` for a suspended business and `no_active_business` otherwise; the business
 pays for every shop after the trial, and the Free Trial is one shop; `close-orphaned` lists ownerless businesses with
-shops and removes deleted users' grants (superseded 2 November 2026: businesses with no member are closed, 3 and 5
-included, in [the Go-live stage](./24-go-live.md)).
+shops and removes deleted users' grants (since 2 November 2026 in [the Go-live stage](./24-go-live.md): only truly
+empty businesses are closed automatically; those with data are decided by a platform operator).
 
 **Split (decided 2 November 2026).** What stayed and where the rest went:
 
