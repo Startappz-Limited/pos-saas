@@ -65,7 +65,10 @@ it('refuses every unchecked flat API write to a member with no permission', func
     Sanctum::actingAs($this->member, ['*']);
     $before = writeTableCounts();
 
-    $this->json($method, $uri($this->records, $this->shop), ['name' => 'Changed'])->assertForbidden();
+    $response = $this->json($method, $uri($this->records, $this->shop), ['name' => 'Changed'])->assertForbidden();
+
+    // The app keys off the status; the message is what it can show (`abort_unless` without one sends "").
+    expect($response->json('message'))->toBe('This action is unauthorized.');
 
     expect(writeTableCounts())->toBe($before);
 })->with([

@@ -21,7 +21,7 @@ class DeliveryCompanyController extends Controller
 
     public function store(Request $request): JsonResponse
     {
-        abort_unless($request->user()->can('sales.create'), 403);
+        abort_unless($request->user()->can('sales.create'), 403, __('This action is unauthorized.'));
 
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
@@ -53,7 +53,7 @@ class DeliveryCompanyController extends Controller
 
     public function update(Request $request, DeliveryCompany $deliveryCompany): JsonResponse
     {
-        abort_unless($request->user()->can('settings.update'), 403);
+        abort_unless($request->user()->can('settings.update'), 403, __('This action is unauthorized.'));
 
         $validated = $request->validate([
             'name' => ['sometimes', 'required', 'string', 'max:255'],
@@ -74,7 +74,7 @@ class DeliveryCompanyController extends Controller
 
     public function destroy(DeliveryCompany $deliveryCompany): JsonResponse
     {
-        abort_unless(auth()->user()->can('settings.update'), 403);
+        abort_unless(auth()->user()->can('settings.update'), 403, __('This action is unauthorized.'));
 
         $deliveryCompany->delete();
 
@@ -86,7 +86,7 @@ class DeliveryCompanyController extends Controller
 
     public function toggleActive(DeliveryCompany $deliveryCompany): JsonResponse
     {
-        abort_unless(auth()->user()->can('settings.update'), 403);
+        abort_unless(auth()->user()->can('settings.update'), 403, __('This action is unauthorized.'));
 
         $deliveryCompany->update([
             'is_active' => ! $deliveryCompany->is_active,
