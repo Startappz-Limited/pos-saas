@@ -4,84 +4,89 @@ namespace App\Policies;
 
 use App\Models\StockAdjustment;
 use App\Models\User;
+use App\Support\Stock\AdjustmentApproval;
 
 class StockAdjustmentPolicy
 {
     /**
-     * Allow users with full access to bypass all checks.
+     * Full access stands in for the permission of each ability, never for the
+     * state checks: only a pending adjustment is edited or cancelled, and
+     * approving is a second person's act (stage 10, step 1g).
      */
-    public function before(User $user, string $ability): ?bool
+    private function holds(User $user, string $permission): bool
     {
-        // Approving is a second person's act (stage 10, step 1g): full access, the
-        // owner's included, never lets the creator approve their own.
-        if ($ability === 'approve') {
-            return null;
-        }
-
-        if ($user->can('stock-adjustments.full-access')) {
-            return true;
-        }
-
-        return null;
+        return $user->can($permission) || $user->can('stock-adjustments.full-access');
     }
 
-    /**
-     * Determine whether the user can view any models.
-     */
     public function viewAny(User $user): bool
     {
-        return $user->can('stock-adjustments.view');
+        return $this->holds($user, 'stock-adjustments.view');
     }
 
-    /**
-     * Determine whether the user can view the model.
-     */
     public function view(User $user, StockAdjustment $stockAdjustment): bool
     {
-        return $user->can('stock-adjustments.view');
+        return $this->holds($user, 'stock-adjustments.view');
     }
 
-    /**
-     * Determine whether the user can create models.
-     */
     public function create(User $user): bool
     {
-        return $user->can('stock-adjustments.create');
+        return $this->holds($user, 'stock-adjustments.create');
     }
 
     /**
-     * Determine whether the user can update the model.
+     * Only a pending adjustment is edited; an applied, rejected or cancelled one
+     * is history.
      */
     public function update(User $user, StockAdjustment $stockAdjustment): bool
     {
-        return $user->can('stock-adjustments.update') && $stockAdjustment->isPending();
+        return $this->holds($user, 'stock-adjustments.update') && $stockAdjustment->isPending();
     }
 
     /**
-     * Determine whether the user can delete the model.
+     * Cancelling replaces deleting: a pending adjustment is withdrawn by its
+     * creator or by someone holding the delete permission, and keeps its number.
+     */
+    public function cancel(User $user, StockAdjustment $stockAdjustment): bool
+    {
+        return $stockAdjustment->isPending()
+            && ((int) $stockAdjustment->created_by === (int) $user->id || $this->holds($user, 'stock-adjustments.delete'));
+    }
+
+    /**
+     * Rows are never deleted (their numbers would leave gaps); see cancel().
      */
     public function delete(User $user, StockAdjustment $stockAdjustment): bool
     {
-        return $user->can('stock-adjustments.delete') && $stockAdjustment->isPending();
+        return false;
     }
 
     /**
-     * Determine whether the user can approve the model.
-     */
-    /**
-     * A second person approves, which applies the stock (stage 10, step 1g):
-     * someone other than the creator holding `stock-adjustments.approve` (or full
-     * access), whoever the creator is.
+     * Approving applies the stock (stage 10, step 1g; revised 3 November 2026):
+     * someone holding the approve permission in this business who may work in
+     * the adjustment's shop, other than its creator. Its creator may only as
+     * an owner whom nobody else could relieve (with a note).
      */
     public function approve(User $user, StockAdjustment $stockAdjustment): bool
     {
-        return ($user->can('stock-adjustments.approve') || $user->can('stock-adjustments.full-access'))
-            && $stockAdjustment->canBeApproved()
-            && (int) $stockAdjustment->created_by !== (int) $user->id;
+        if (! $stockAdjustment->canBeApproved()
+            || ! $this->holds($user, 'stock-adjustments.approve')
+            || ! $user->canAccessShop((int) $stockAdjustment->shop_id)) {
+            return false;
+        }
+
+        return (int) $stockAdjustment->created_by !== (int) $user->id
+            || app(AdjustmentApproval::class)->mayApproveOwn($user, $stockAdjustment);
     }
 
+    /**
+     * Rejecting, with a reason, by the same people who may approve; a creator
+     * withdraws their own by cancelling it.
+     */
     public function reject(User $user, StockAdjustment $stockAdjustment): bool
     {
-        return $user->can('stock-adjustments.approve') && $stockAdjustment->canBeRejected();
+        return $stockAdjustment->canBeRejected()
+            && $this->holds($user, 'stock-adjustments.approve')
+            && $user->canAccessShop((int) $stockAdjustment->shop_id)
+            && (int) $stockAdjustment->created_by !== (int) $user->id;
     }
 }

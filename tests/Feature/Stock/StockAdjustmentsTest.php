@@ -69,7 +69,7 @@ it('adjusts the variation it names, not the default one', function () {
     [$product, $red] = shirt();
     ($this->stock)($red, 5, 10);
 
-    $adjustment = ($this->adjust)($this->clerk, 'found', [[$red, 2]]);
+    $adjustment = ($this->adjust)($this->manager, 'found', [[$red, 2]]);
 
     expect($adjustment->status)->toBe('completed')
         ->and($adjustment->items->first()->variation_id)->toBe($red->id)
@@ -113,16 +113,24 @@ it('refuses a change against its reason\'s direction', function (string $reason,
     'no change' => ['recount', 0],
 ]);
 
-it('raises one line and lowers another in one recount', function () {
+it('raises one line and lowers another in one recount, which waits because it lowers stock', function () {
     [, $red, $blue] = shirt();
     ($this->stock)($red, 5, 10);
     ($this->stock)($blue, 5, 10);
 
-    $adjustment = ($this->adjust)($this->clerk, 'recount', [[$red, 1], [$blue, -1]]);
+    $adjustment = ($this->adjust)($this->manager, 'recount', [[$red, 1], [$blue, -1]]);
+    expect($adjustment->status)->toBe('pending')
+        ->and($adjustment->type->value)->toBe('mixed');
 
-    expect($adjustment->status)->toBe('completed')
-        ->and($adjustment->type->value)->toBe('mixed')
-        ->and([($this->quantity)($red), ($this->quantity)($blue)])->toBe([6, 4]);
+    $this->actingAs(($this->member)('owner'))->post(route('stock-adjustments.approve', $adjustment))->assertRedirect();
+    expect([($this->quantity)($red), ($this->quantity)($blue)])->toBe([6, 4]);
+});
+
+it('applies a recount that only raises stock on saving', function () {
+    ($this->stock)($this->default, 5, 10);
+
+    expect(($this->adjust)($this->manager, 'recount', [[$this->default, 2]])->status)->toBe('completed')
+        ->and(($this->quantity)($this->default))->toBe(7);
 });
 
 it('applies the stock once on approval and can\'t be approved twice', function () {
@@ -138,13 +146,18 @@ it('applies the stock once on approval and can\'t be approved twice', function (
         ->and(DB::table('stock_movements')->where('variation_id', $this->default->id)->where('movement_type', StockMovementType::ADJUSTMENT_REMOVE->value)->count())->toBe(1);
 });
 
-it('lets the creator apply found stock on saving', function () {
+it('lets a creator holding the approve permission apply found stock on saving, and holds a clerk\'s', function () {
     ($this->stock)($this->default, 5, 10);
 
-    $adjustment = ($this->adjust)($this->clerk, 'found', [[$this->default, 3]]);
+    $applied = ($this->adjust)($this->manager, 'found', [[$this->default, 3]]);
+    expect($applied->status)->toBe('completed')
+        ->and($applied->approved_by)->toBe($this->manager->id)
+        ->and($applied->auto_applied)->toBeTrue()
+        ->and((float) $applied->cost_value)->toBe(30.0)
+        ->and(($this->quantity)($this->default))->toBe(8);
 
-    expect($adjustment->status)->toBe('completed')
-        ->and($adjustment->approved_by)->toBe($this->clerk->id)
+    // The clerk holds create, not approve: theirs always waits.
+    expect(($this->adjust)($this->clerk, 'found', [[$this->default, 1]])->status)->toBe('pending')
         ->and(($this->quantity)($this->default))->toBe(8);
 });
 
@@ -165,7 +178,7 @@ it('holds damaged stock for a second person: not its creator, even the owner, bu
 it('holds an adjustment worth the threshold or more, and applies one below it', function (int $units, string $status) {
     ($this->stock)($this->default, 100, 100);
 
-    expect(($this->adjust)($this->clerk, 'other', [[$this->default, -$units]])->status)->toBe($status);
+    expect(($this->adjust)($this->manager, 'other', [[$this->default, -$units]])->status)->toBe($status);
 })->with([
     'exactly KES 5,000' => [50, 'pending'],
     'above it' => [51, 'pending'],
@@ -187,7 +200,7 @@ it('receives found stock at the shop\'s latest batch cost', function () {
     ($this->stock)($this->default, 2, 10, '-3 days');
     ($this->stock)($this->default, 2, 12, '-1 day');
 
-    $adjustment = ($this->adjust)($this->clerk, 'found', [[$this->default, 2]]);
+    $adjustment = ($this->adjust)($this->manager, 'found', [[$this->default, 2]]);
 
     expect($adjustment->status)->toBe('completed')
         ->and((float) DB::table('cost_layers')->where('source_type', 'adjustment')->where('source_id', $adjustment->id)->value('unit_cost'))->toBe(12.0);
@@ -207,14 +220,24 @@ it('holds found stock with no batch to cost it for a second person, then receive
         ->and((int) $layer->remaining_quantity)->toBe(2);
 });
 
-it('lets settings.update change the threshold, and audits the change', function () {
+it('lets only the owner change the threshold, and audits the change', function () {
     migrateAuditDatabase();
     $owner = ($this->member)('owner');
     $business = testBusiness();
+    $settingsEditor = User::factory()->create();
+    $settingsEditor->givePermissionTo('settings.update');
+    $settingsEditor->shops()->attach($this->shop);
 
-    $this->actingAs($this->clerk)->put(route('business.settings.update'), [
-        'name' => $business->name, 'currency' => $business->currency, 'timezone' => $business->timezone, 'adjustment_approval_threshold' => 1000,
-    ])->assertForbidden();
+    foreach ([$this->clerk, $settingsEditor] as $refused) {
+        $this->actingAs($refused)->put(route('business.settings.update'), [
+            'name' => $business->name, 'currency' => $business->currency, 'timezone' => $business->timezone, 'adjustment_approval_threshold' => 1000,
+        ])->assertForbidden();
+    }
+    // Saving the page's other settings, the threshold unchanged, still works for them.
+    $this->actingAs($settingsEditor)->put(route('business.settings.update'), [
+        'name' => $business->name, 'currency' => $business->currency, 'timezone' => $business->timezone,
+    ])->assertRedirect()->assertSessionHasNoErrors();
+    expect(data_get($business->fresh()->settings, 'stock.adjustment_approval_threshold'))->toBeNull();
 
     $this->actingAs($owner)->put(route('business.settings.update'), [
         'name' => $business->name, 'currency' => $business->currency, 'timezone' => $business->timezone, 'adjustment_approval_threshold' => 1000,
@@ -229,7 +252,7 @@ it('lets settings.update change the threshold, and audits the change', function 
 
     // Now worth KES 1,000 or more waits.
     ($this->stock)($this->default, 20, 100);
-    expect(($this->adjust)($this->clerk, 'other', [[$this->default, -10]])->status)->toBe('pending');
+    expect(($this->adjust)($this->manager, 'other', [[$this->default, -10]])->status)->toBe('pending');
 });
 
 it('refuses "returned to supplier" on a new adjustment', function () {

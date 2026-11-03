@@ -19,24 +19,41 @@
                     </div>
                     <div class="d-flex gap-2">
                         @can('approve', $stockAdjustment)
-                            <form action="{{ route('stock-adjustments.approve', $stockAdjustment) }}" method="POST"
-                                class="d-inline">
+                            @if ($stockAdjustment->created_by === auth()->id())
+                                <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#selfApproveModal">
+                                    <iconify-icon icon="solar:check-circle-bold-duotone" class="align-middle me-1" aria-hidden="true"></iconify-icon>
+                                    {{ __('Approve your own') }}
+                                </button>
+                            @else
+                                <form action="{{ route('stock-adjustments.approve', $stockAdjustment) }}" method="POST"
+                                    class="d-inline">
+                                    @csrf
+                                    <button type="submit" class="btn btn-success"
+                                        onclick="return confirm(@js(__('Approve this adjustment and update the stock?')))">
+                                        <iconify-icon icon="solar:check-circle-bold-duotone"
+                                            class="align-middle me-1" aria-hidden="true"></iconify-icon>
+                                        {{ __('Approve & Apply') }}
+                                    </button>
+                                </form>
+                            @endif
+                        @endcan
+
+                        @can('update', $stockAdjustment)
+                            <a href="{{ route('stock-adjustments.edit', $stockAdjustment) }}" class="btn btn-soft-primary">
+                                <iconify-icon icon="solar:pen-2-broken" class="align-middle me-1" aria-hidden="true"></iconify-icon>
+                                {{ __('Edit') }}
+                            </a>
+                        @endcan
+
+                        @can('cancel', $stockAdjustment)
+                            <form action="{{ route('stock-adjustments.cancel', $stockAdjustment) }}" method="POST" class="d-inline">
                                 @csrf
-                                <button type="submit" class="btn btn-success"
-                                    onclick="return confirm(@js(__('Approve this adjustment and update the stock?')))">
-                                    <iconify-icon icon="solar:check-circle-bold-duotone"
-                                        class="align-middle me-1" aria-hidden="true"></iconify-icon>
-                                    {{ __('Approve & Apply') }}
+                                <button type="submit" class="btn btn-soft-secondary"
+                                    onclick="return confirm(@js(__('Cancel this adjustment? It keeps its number and moves no stock.')))">
+                                    {{ __('Cancel adjustment') }}
                                 </button>
                             </form>
                         @endcan
-
-                        @if ($stockAdjustment->isPending())
-                            <a href="{{ route('stock-adjustments.edit', $stockAdjustment) }}" class="btn btn-soft-primary">
-                                <iconify-icon icon="solar:pen-2-broken" class="align-middle me-1"></iconify-icon>
-                                Edit
-                            </a>
-                        @endif
 
                         @can('reject', $stockAdjustment)
                             <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#rejectModal">
@@ -54,8 +71,10 @@
             <div class="alert alert-warning" role="status">
                 @if ($stockAdjustment->isApproved())
                     {{ __('Approved before approving applied the stock: its stock was never changed. Approve it to apply it now, at today\'s stock, or reject it.') }}
+                @elseif ($stockAdjustment->created_by === auth()->id() && auth()->user()->can('approve', $stockAdjustment))
+                    {{ __('Nobody else in the business can approve this adjustment, so as the owner you may approve your own, with a note. It will be marked self-approved.') }}
                 @elseif ($stockAdjustment->created_by === auth()->id())
-                    {{ __('This adjustment waits for someone else holding the approve permission. You can\'t approve your own.') }}
+                    {{ __('This adjustment waits for someone else holding the approve permission. They have been notified. You can\'t approve your own.') }}
                 @else
                     {{ __('This adjustment waits for approval. Approving it applies the stock.') }}
                 @endif
@@ -75,11 +94,19 @@
                                 'approved' => 'info',
                                 'completed' => 'success',
                                 'rejected' => 'danger',
+                                'cancelled' => 'secondary',
                             ];
                             $color = $statusColors[$stockAdjustment->status] ?? 'secondary';
                         @endphp
-                        <span class="badge bg-{{ $color }}-subtle text-{{ $color }} fs-13">
-                            {{ ucfirst($stockAdjustment->status) }}
+                        <span>
+                            <span class="badge bg-{{ $color }}-subtle text-{{ $color }} fs-13">
+                                {{ __(ucfirst($stockAdjustment->status)) }}
+                            </span>
+                            @if ($stockAdjustment->self_approved)
+                                <span class="badge bg-warning-subtle text-warning fs-13">{{ __('Self-approved') }}</span>
+                            @elseif ($stockAdjustment->auto_applied)
+                                <span class="badge bg-light text-body fs-13">{{ __('Applied on saving') }}</span>
+                            @endif
                         </span>
                     </div>
                     <div class="card-body">
@@ -130,6 +157,13 @@
                             <div class="mt-3 p-3 bg-light rounded">
                                 <strong class="text-muted">Notes:</strong>
                                 <p class="mb-0 mt-1">{{ $stockAdjustment->notes }}</p>
+                            </div>
+                        @endif
+
+                        @if ($stockAdjustment->approval_note)
+                            <div class="mt-3 p-3 bg-warning-subtle rounded">
+                                <strong>{{ __('Self-approval note:') }}</strong>
+                                <p class="mb-0 mt-1">{{ $stockAdjustment->approval_note }}</p>
                             </div>
                         @endif
 
@@ -341,9 +375,10 @@
                         </div>
                         <div class="modal-body">
                             <div class="mb-3">
-                                <label for="rejection_reason" class="form-label">Rejection Reason</label>
-                                <textarea class="form-control" id="rejection_reason" name="rejection_reason" rows="3"
-                                    placeholder="Enter reason for rejection (optional)"></textarea>
+                                <label for="rejection_reason" class="form-label">{{ __('Rejection Reason') }} <span class="text-danger">*</span></label>
+                                <textarea class="form-control @error('rejection_reason') is-invalid @enderror" id="rejection_reason" name="rejection_reason" rows="3" maxlength="500" required
+                                    placeholder="{{ __('Why is it rejected? Its creator is told.') }}"></textarea>
+                                @error('rejection_reason')<div class="invalid-feedback">{{ $message }}</div>@enderror
                             </div>
                         </div>
                         <div class="modal-footer">
@@ -356,3 +391,31 @@
         </div>
     @endcan
 @endsection
+
+    @can('approve', $stockAdjustment)
+        @if ($stockAdjustment->created_by === auth()->id())
+            <div class="modal fade" id="selfApproveModal" tabindex="-1" aria-labelledby="selfApproveModalLabel" aria-hidden="true">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <form action="{{ route('stock-adjustments.approve', $stockAdjustment) }}" method="POST">
+                            @csrf
+                            <div class="modal-header">
+                                <h5 class="modal-title" id="selfApproveModalLabel">{{ __('Approve your own adjustment') }}</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ __('Close') }}"></button>
+                            </div>
+                            <div class="modal-body">
+                                <p class="text-muted">{{ __('Nobody else in the business can approve it. It will be marked self-approved and audited.') }}</p>
+                                <label for="approval_note" class="form-label">{{ __('Why are you approving it yourself?') }} <span class="text-danger">*</span></label>
+                                <textarea class="form-control @error('approval_note') is-invalid @enderror" id="approval_note" name="approval_note" rows="3" maxlength="500" required></textarea>
+                                @error('approval_note')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-light" data-bs-dismiss="modal">{{ __('Cancel') }}</button>
+                                <button type="submit" class="btn btn-success">{{ __('Approve & Apply') }}</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        @endif
+    @endcan

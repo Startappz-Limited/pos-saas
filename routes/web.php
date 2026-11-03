@@ -27,6 +27,7 @@ use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\InventorySnapshotController;
 use App\Http\Controllers\InvitationController;
 use App\Http\Controllers\LowStockAlertController;
+use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\Platform\BusinessController as PlatformBusinessController;
 use App\Http\Controllers\Platform\DashboardController as PlatformDashboardController;
@@ -446,6 +447,10 @@ Route::middleware(['auth', 'business'])->group(function () {
 
     // Dashboard Routes
     Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
+
+    // In-app notifications: approval requests, reminders and outcomes (stage 10).
+    Route::get('notifications/{notification}/open', [NotificationController::class, 'open'])->name('notifications.open');
+    Route::post('notifications/read-all', [NotificationController::class, 'readAll'])->name('notifications.read-all');
     Route::post('dashboard/widgets', [DashboardController::class, 'addWidget'])->name('dashboard.addWidget');
     Route::put('dashboard/widgets/{widget}', [DashboardController::class, 'updateWidget'])->name('dashboard.updateWidget');
     Route::delete('dashboard/widgets/{widget}', [DashboardController::class, 'removeWidget'])->name('dashboard.removeWidget');
@@ -488,7 +493,9 @@ Route::middleware(['auth', 'business'])->group(function () {
     // snapshotted onto sale_items at sale time. See .claude/skills/pos-domain-rules.
 
     // Stock Adjustment Routes
-    Route::resource('stock-adjustments', StockAdjustmentController::class);
+    // No destroy: an adjustment is cancelled and keeps its number (stage 10, step 1g).
+    Route::resource('stock-adjustments', StockAdjustmentController::class)->except('destroy');
+    Route::post('stock-adjustments/{stockAdjustment}/cancel', [StockAdjustmentController::class, 'cancel'])->name('stock-adjustments.cancel');
     Route::post('stock-adjustments/{stockAdjustment}/approve', [StockAdjustmentController::class, 'approve'])->name('stock-adjustments.approve');
     Route::post('stock-adjustments/{stockAdjustment}/reject', [StockAdjustmentController::class, 'reject'])->name('stock-adjustments.reject');
 });

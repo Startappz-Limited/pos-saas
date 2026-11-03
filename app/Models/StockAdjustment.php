@@ -27,10 +27,17 @@ class StockAdjustment extends Model
         'reason',
         'notes',
         'status',
+        'auto_applied',
         'created_by',
         'approved_by',
         'approved_at',
+        'self_approved',
+        'approval_note',
+        'cost_value',
+        'reminded_at',
         'rejection_reason',
+        'cancelled_by',
+        'cancelled_at',
     ];
 
     protected function casts(): array
@@ -39,6 +46,11 @@ class StockAdjustment extends Model
             'type' => AdjustmentType::class,
             'reason' => AdjustmentReason::class,
             'approved_at' => 'datetime',
+            'auto_applied' => 'boolean',
+            'self_approved' => 'boolean',
+            'cost_value' => 'decimal:2',
+            'reminded_at' => 'datetime',
+            'cancelled_at' => 'datetime',
         ];
     }
 
@@ -81,6 +93,11 @@ class StockAdjustment extends Model
         return $this->belongsTo(User::class, 'approved_by');
     }
 
+    public function canceller(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'cancelled_by');
+    }
+
     // Scopes
     public function scopePending($query)
     {
@@ -121,6 +138,11 @@ class StockAdjustment extends Model
     public function isRejected(): bool
     {
         return $this->status === 'rejected';
+    }
+
+    public function isCancelled(): bool
+    {
+        return $this->status === 'cancelled';
     }
 
     /**

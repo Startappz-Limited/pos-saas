@@ -7,6 +7,7 @@
 
         @if (auth()->user()->isBusinessOwner())
             @include('partials.onboarding-checklist')
+            @include('partials.overdue-approvals')
         @endif
 
         <!-- Quick Actions - Always visible -->

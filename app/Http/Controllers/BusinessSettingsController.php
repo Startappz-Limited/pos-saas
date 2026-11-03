@@ -47,6 +47,9 @@ class BusinessSettingsController extends Controller
         $threshold = $request->filled('adjustment_approval_threshold')
             ? round((float) $request->validated('adjustment_approval_threshold'), 2)
             : $previous;
+        // Who may skip a second person is the owner's decision (3 November 2026).
+        abort_if($threshold !== $previous && ! $request->user()->isBusinessOwner(), 403, __('Only the owner can change the adjustment approval threshold.'));
+
         if ($threshold !== $previous) {
             $settings = $business->settings ?? [];
             data_set($settings, 'stock.adjustment_approval_threshold', $threshold);

@@ -207,6 +207,15 @@ class Shop extends Model
         return $this->trashed() ? __(':name (deleted)', ['name' => $this->name]) : (string) $this->name;
     }
 
+    /**
+     * The shop's timezone for "the day" (void windows, the day's adjustment
+     * total; stage 10): its own, else its business's, else Africa/Nairobi.
+     */
+    public function localTimezone(): string
+    {
+        return $this->timezone ?: ($this->business?->timezone ?: 'Africa/Nairobi');
+    }
+
     public function canProcessTransactions(): bool
     {
         return $this->status->canProcessTransactions();

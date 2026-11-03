@@ -39,6 +39,7 @@ const ALLOWED_RAW_QUERIES = [
     'app/Actions/Platform/GrantTemplatePermissions.php' => [5, 'platform-wide on purpose: grants a shared role template and every business\'s copy of it permissions they lack (a rollout migration), adding only'],
     'app/Support/Authorization/RoleRevocations.php' => [4, 'role_revoked_permissions names roles and permissions, which carry no business scope (templates are shared); callers pass a role they already resolved'],
     'app/Support/Authorization/RolloutBackfill.php' => [3, 'platform-wide on purpose: the rollout backfill compares every business\'s role copies with their templates (stage 10, step 0), optionally for one business'],
+    'app/Support/Stock/LegacyAdjustmentSigns.php' => [2, 'platform-wide on purpose: the one-off sign fix for every business\'s old decrease lines, run by the step 1g migration (stage 10)'],
     'app/Actions/Platform/RevokeTemplatePermissions.php' => [6, 'platform-wide on purpose: takes permissions off a shared role template and every business\'s copy of it (a rollout migration), recording each removal'],
     'app/Actions/Register/PairRegister.php' => [3, 'the register is the caller\'s (bound and authorised): revokes its tokens and reads its own shop\'s register codes'],
     'app/Actions/Shop/SaveShopMpesaAccount.php' => [1, 'a shortcode is unique on the platform: reads only whether another shop holds the number'],

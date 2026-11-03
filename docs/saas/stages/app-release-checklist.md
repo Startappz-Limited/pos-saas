@@ -2,7 +2,7 @@
 
 Created 27 October 2026 (sixth round); stage 10a's section added and stage 10's discard item updated in the eighth round (28 October 2026), and again in the
 ninth and tenth (28 October 2026) and in stage 10a's third and fourth revisions (29 October 2026), its fifth revision and the hotfix
-fix/api-authz (2 November 2026). The Flutter app's next release isn't scheduled, and the app isn't on this
+fix/api-authz (2 November 2026), and stage 10's implementation (3 November 2026). The Flutter app's next release isn't scheduled, and the app isn't on this
 machine (`MOBILE_APP_PATH` points nowhere). The server stays backward compatible with the app in shops through every
 stage (additions only, old fields kept, Phase 7's codes for apps without a new enough `X-App-Version`), and each
 stage's rollout checks **the server** against the app's recorded requests. Everything below checks **the app**, and is
@@ -33,6 +33,10 @@ Stage file: [10-stock-correctness-and-voids.md](./10-stock-correctness-and-voids
 - [ ] Treats `invoice_number` as an opaque string (server-numbered sales now use the web series `INV-{shop}-W-…`).
 - [ ] Numbers offline sales only in its own register's series, from `last_invoice_number` at pairing.
 - [ ] Shows the till sync review's outcome for a held sale (accepted with its own number, or discarded).
+- [ ] Stock adjustments, if the app makes them: no longer offers "Returned to supplier" (a purchase return now), and
+      shows the 422 on `reason` if an older build sends it; sends signed changes (`+` adds, `−` removes) that agree with
+      the reason, and a `variation_id` for a product with variations; expects one it makes to wait for an approver
+      unless its maker holds `stock-adjustments.approve` (step 1g follow-up).
 
 ## Stage 10a
 Stage file: [10a-access-and-tenancy.md](./10a-access-and-tenancy.md).

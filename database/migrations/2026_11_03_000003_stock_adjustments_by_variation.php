@@ -1,5 +1,6 @@
 <?php
 
+use App\Support\Stock\LegacyAdjustmentSigns;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
@@ -35,9 +36,7 @@ return new class extends Migration
         ]);
         $after = DB::table('stock_adjustment_items')->whereNull('variation_id')->count();
 
-        $negated = DB::table('stock_adjustment_items')->where('quantity_change', '>', 0)
-            ->whereIn('stock_adjustment_id', DB::table('stock_adjustments')->where('type', 'decrease')->select('id'))
-            ->update(['quantity_change' => DB::raw('-quantity_change')]);
+        $negated = app(LegacyAdjustmentSigns::class)->fix();
 
         Schema::table('stock_adjustments', function (Blueprint $table) {
             $table->dropUnique(['adjustment_number']);

@@ -76,9 +76,14 @@
                     <h5 class="mt-4 mb-3">{{ __('Stock') }}</h5>
                     <div class="mb-3">
                         <label class="form-label" for="adjustment_approval_threshold">{{ __('Adjustment approval threshold') }}</label>
-                        <input type="number" name="adjustment_approval_threshold" id="adjustment_approval_threshold" min="0" step="0.01"
-                            class="form-control @error('adjustment_approval_threshold') is-invalid @enderror"
-                            value="{{ old('adjustment_approval_threshold', $adjustmentThreshold) }}">
+                        @if (auth()->user()->isBusinessOwner())
+                            <input type="number" name="adjustment_approval_threshold" id="adjustment_approval_threshold" min="0" step="0.01"
+                                class="form-control @error('adjustment_approval_threshold') is-invalid @enderror"
+                                value="{{ old('adjustment_approval_threshold', $adjustmentThreshold) }}">
+                        @else
+                            <input type="text" id="adjustment_approval_threshold" class="form-control" value="{{ number_format($adjustmentThreshold, 2) }}" disabled>
+                            <div class="form-text">{{ __('Only the owner can change it.') }}</div>
+                        @endif
                         <div class="form-text">{{ __('A stock adjustment worth this much or more at cost waits for a second person to approve it. Loss, theft, damage, expiry and unknown costs always do.') }}</div>
                         @error('adjustment_approval_threshold')<div class="invalid-feedback">{{ $message }}</div>@enderror
                     </div>

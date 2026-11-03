@@ -89,7 +89,8 @@ describe('writers', function () {
                 'shop_id' => $this->shop->id, 'quantity_change' => $type === 'increase' ? $quantity : -$quantity,
             ]);
 
-            return app(StockAdjustmentService::class)->approveAdjustment($adjustment->fresh(), $this->user->id);
+            // Approved by a second person (stage 10, step 1g).
+            return app(StockAdjustmentService::class)->approveAdjustment($adjustment->fresh(), User::factory()->create()->id);
         };
 
         $adjust('increase', 4);

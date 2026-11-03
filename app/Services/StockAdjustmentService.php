@@ -9,7 +9,9 @@ use App\Models\CostLayer;
 use App\Models\Product;
 use App\Models\StockAdjustment;
 use App\Models\StockAdjustmentItem;
+use App\Models\User;
 use App\Services\Stock\StockLedger;
+use App\Support\Approvals\ApprovalInbox;
 use App\Support\Stock\AdjustmentApproval;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
@@ -17,7 +19,7 @@ use Illuminate\Support\Facades\DB;
 
 class StockAdjustmentService
 {
-    public function __construct(private StockLedger $ledger, private AdjustmentApproval $approval) {}
+    public function __construct(private StockLedger $ledger, private AdjustmentApproval $approval, private ApprovalInbox $inbox) {}
 
     public function getAllAdjustments(
         int $perPage = 15,
@@ -25,6 +27,7 @@ class StockAdjustmentService
         ?string $status = null,
         ?string $type = null,
         ?int $shopId = null,
+        bool $selfApprovedOnly = false,
     ): LengthAwarePaginator {
         $query = StockAdjustment::query()
             ->with(['shop', 'creator', 'approver', 'items.product']);
@@ -46,6 +49,10 @@ class StockAdjustmentService
 
         if ($shopId) {
             $query->where('shop_id', $shopId);
+        }
+
+        if ($selfApprovedOnly) {
+            $query->where('self_approved', true);
         }
 
         return $query->latest()->paginate($perPage);
@@ -84,9 +91,15 @@ class StockAdjustmentService
             }
 
             $adjustment->load(['shop', 'creator', 'items.product', 'items.variation']);
+            $creator = $adjustment->creator;
 
-            if (! $this->approval->needsSecondPerson($adjustment)) {
-                $this->apply($adjustment, (int) $userId);
+            // Applied on saving only by a creator holding the approve permission,
+            // when no second person is needed (revised 3 November 2026);
+            // otherwise every eligible approver but the creator is told.
+            if ($creator !== null && $this->approval->appliesOnSaving($adjustment, $creator)) {
+                $this->apply($adjustment, $creator->id, autoApplied: true);
+            } else {
+                $this->inbox->request($this->approval->subject($adjustment), $this->approval->approversOf($adjustment));
             }
 
             return $adjustment->fresh(['shop', 'creator', 'approver', 'items.product', 'items.variation']);
@@ -144,38 +157,79 @@ class StockAdjustmentService
 
     /**
      * A second person approves, which applies the stock in the same step (stage
-     * 10, step 1g); the policy refuses the creator. Also how an adjustment
-     * approved before this stage, whose stock never moved, is applied.
+     * 10, step 1g). The first approval or rejection wins: the row is locked and
+     * re-read. Their creator approves only as an owner nobody else could
+     * relieve, with a note, flagged self-approved (the policy checks who may).
+     * Also how an adjustment approved before this stage, whose stock never
+     * moved, is applied.
      */
-    public function approveAdjustment(StockAdjustment $adjustment, int $userId): StockAdjustment
+    public function approveAdjustment(StockAdjustment $adjustment, int $userId, ?string $note = null): StockAdjustment
     {
-        return DB::transaction(function () use ($adjustment, $userId) {
+        return DB::transaction(function () use ($adjustment, $userId, $note) {
             $adjustment = StockAdjustment::query()->whereKey($adjustment->id)->lockForUpdate()->firstOrFail();
 
             if (! $adjustment->canBeApproved()) {
                 throw new BusinessRuleException('This adjustment has already been applied or rejected.');
             }
 
-            $this->apply($adjustment->load(['items.product', 'items.variation']), $userId);
+            $selfApproved = (int) $adjustment->created_by === $userId;
+            if ($selfApproved && trim((string) $note) === '') {
+                throw new BusinessRuleException('Approving your own adjustment needs a note saying why.');
+            }
+
+            $this->apply($adjustment->load(['shop', 'creator', 'items.product', 'items.variation']), $userId, selfApproved: $selfApproved, note: $note);
+            $this->inbox->settle($this->approval->subject($adjustment), $adjustment->creator, 'approved', User::findOrFail($userId), $note);
 
             return $adjustment->fresh(['shop', 'creator', 'approver', 'items.product', 'items.variation']);
         });
     }
 
+    /**
+     * Rejecting needs a reason; the first approval or rejection wins.
+     */
     public function rejectAdjustment(StockAdjustment $adjustment, int $userId, ?string $reason = null): StockAdjustment
     {
-        if (! $adjustment->canBeRejected()) {
-            throw new BusinessRuleException('Adjustment cannot be rejected in current status.');
+        if (trim((string) $reason) === '') {
+            throw new BusinessRuleException('Rejecting an adjustment needs a reason.');
         }
 
-        $adjustment->update([
-            'status' => 'rejected',
-            'approved_by' => $userId,
-            'approved_at' => now(),
-            'rejection_reason' => $reason,
-        ]);
+        return DB::transaction(function () use ($adjustment, $userId, $reason) {
+            $adjustment = StockAdjustment::query()->whereKey($adjustment->id)->lockForUpdate()->firstOrFail();
 
-        return $adjustment->fresh();
+            if (! $adjustment->canBeRejected()) {
+                throw new BusinessRuleException('This adjustment has already been applied or rejected.');
+            }
+
+            $adjustment->update([
+                'status' => 'rejected',
+                'approved_by' => $userId,
+                'approved_at' => now(),
+                'rejection_reason' => $reason,
+            ]);
+            $this->inbox->settle($this->approval->subject($adjustment), $adjustment->creator, 'rejected', User::findOrFail($userId), $reason);
+
+            return $adjustment->fresh();
+        });
+    }
+
+    /**
+     * Withdraws a pending adjustment. It keeps its number (status `cancelled`),
+     * so the series has no gaps; nothing moves.
+     */
+    public function cancelAdjustment(StockAdjustment $adjustment, int $userId): StockAdjustment
+    {
+        return DB::transaction(function () use ($adjustment, $userId) {
+            $adjustment = StockAdjustment::query()->whereKey($adjustment->id)->lockForUpdate()->firstOrFail();
+
+            if (! $adjustment->isPending()) {
+                throw new BusinessRuleException('Only pending adjustments can be cancelled.');
+            }
+
+            $adjustment->update(['status' => 'cancelled', 'cancelled_by' => $userId, 'cancelled_at' => now()]);
+            $this->inbox->resolve('stock_adjustment', (string) $adjustment->uuid, 'cancelled');
+
+            return $adjustment->fresh();
+        });
     }
 
     /**
@@ -185,8 +239,11 @@ class StockAdjustmentService
      * cost of the variation, else at an unknown cost (stage 10, step 1g); a
      * decrease consumes batches oldest first.
      */
-    private function apply(StockAdjustment $adjustment, int $userId): void
+    private function apply(StockAdjustment $adjustment, int $userId, bool $autoApplied = false, bool $selfApproved = false, ?string $note = null): void
     {
+        // Valued before stock moves, at the costs the lines move at.
+        $costValue = $this->approval->value($adjustment);
+
         $shopId = (int) $adjustment->shop_id;
         $context = ['reference' => $adjustment, 'notes' => "Stock adjustment {$adjustment->adjustment_number}.", 'user_id' => $userId];
 
@@ -211,16 +268,15 @@ class StockAdjustmentService
             ]);
         }
 
-        $adjustment->update(['status' => 'completed', 'approved_by' => $userId, 'approved_at' => now()]);
-    }
-
-    public function deleteAdjustment(StockAdjustment $adjustment): bool
-    {
-        if (! $adjustment->isPending()) {
-            throw new BusinessRuleException('Only pending adjustments can be deleted.');
-        }
-
-        return $adjustment->delete();
+        $adjustment->update([
+            'status' => 'completed',
+            'approved_by' => $userId,
+            'approved_at' => now(),
+            'auto_applied' => $autoApplied,
+            'self_approved' => $selfApproved,
+            'approval_note' => $note,
+            'cost_value' => $costValue,
+        ]);
     }
 
     public function getStatistics(?int $shopId = null): array
@@ -237,6 +293,7 @@ class StockAdjustmentService
             'approved_count' => (clone $query)->approved()->count(),
             'completed_count' => (clone $query)->completed()->count(),
             'rejected_count' => (clone $query)->rejected()->count(),
+            'cancelled_count' => (clone $query)->where('status', 'cancelled')->count(),
             'increase_count' => (clone $query)->where('type', AdjustmentType::INCREASE)->count(),
             'mixed_count' => (clone $query)->where('type', AdjustmentType::MIXED)->count(),
             'decrease_count' => (clone $query)->where('type', AdjustmentType::DECREASE)->count(),

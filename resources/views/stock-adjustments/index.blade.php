@@ -109,6 +109,7 @@
                                     <option value="pending" {{ request('status') === 'pending' ? 'selected' : '' }}>Pending</option>
                                     <option value="approved" {{ request('status') === 'approved' ? 'selected' : '' }}>Approved</option>
                                     <option value="completed" {{ request('status') === 'completed' ? 'selected' : '' }}>Completed</option>
+                                    <option value="cancelled" @selected(request('status') === 'cancelled')>{{ __('Cancelled') }}</option>
                                     <option value="rejected" {{ request('status') === 'rejected' ? 'selected' : '' }}>Rejected</option>
                                 </select>
                             </div>
@@ -134,7 +135,13 @@
                                     @endforeach
                                 </select>
                             </div>
-                            <div class="col-md-3">
+                            <div class="col-md-1 d-flex align-items-center">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="self_approved" value="1" id="filter-self-approved" @checked(request()->boolean('self_approved'))>
+                                    <label class="form-check-label small" for="filter-self-approved">{{ __('Self-approved') }}</label>
+                                </div>
+                            </div>
+                            <div class="col-md-2">
                                 <button type="submit" class="btn btn-secondary w-100">
                                     <iconify-icon icon="solar:magnifer-linear" class="align-middle"></iconify-icon> Search
                                 </button>
@@ -184,12 +191,16 @@
                                                         'approved' => 'info',
                                                         'completed' => 'success',
                                                         'rejected' => 'danger',
+                                                        'cancelled' => 'secondary',
                                                     ];
                                                     $color = $statusColors[$adjustment->status] ?? 'secondary';
                                                 @endphp
                                                 <span class="badge bg-{{ $color }}-subtle text-{{ $color }}">
                                                     {{ ucfirst($adjustment->status) }}
                                                 </span>
+                                                @if ($adjustment->self_approved)
+                                                    <span class="badge bg-warning-subtle text-warning">{{ __('Self-approved') }}</span>
+                                                @endif
                                             </td>
                                             <td>
                                                 <div class="d-flex gap-2">

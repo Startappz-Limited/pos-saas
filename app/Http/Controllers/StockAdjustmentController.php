@@ -28,6 +28,7 @@ class StockAdjustmentController extends Controller
             status: $request->input('status'),
             type: $request->input('type'),
             shopId: $request->input('shop_id'),
+            selfApprovedOnly: $request->boolean('self_approved'),
         );
 
         $statistics = $this->stockAdjustmentService->getStatistics();
@@ -105,30 +106,37 @@ class StockAdjustmentController extends Controller
         }
     }
 
-    public function destroy(StockAdjustment $stockAdjustment): RedirectResponse
+    /**
+     * Withdraws a pending adjustment; it keeps its number (replaces deleting).
+     */
+    public function cancel(Request $request, StockAdjustment $stockAdjustment): RedirectResponse
     {
-        $this->authorize('delete', $stockAdjustment);
+        $this->authorize('cancel', $stockAdjustment);
 
         try {
-            $this->stockAdjustmentService->deleteAdjustment($stockAdjustment);
+            $this->stockAdjustmentService->cancelAdjustment($stockAdjustment, $request->user()->id);
 
-            return redirect()
-                ->route('stock-adjustments.index')
-                ->with('success', 'Stock adjustment deleted successfully.');
+            return redirect()->route('stock-adjustments.show', $stockAdjustment)->with('success', __('Stock adjustment cancelled. It keeps its number.'));
         } catch (\Exception $e) {
             return $this->failed($e);
         }
     }
 
+    /**
+     * Applies the adjustment. Its creator approves only as an owner whom nobody
+     * else could relieve, with a note (flagged self-approved).
+     */
     public function approve(Request $request, StockAdjustment $stockAdjustment): RedirectResponse
     {
         $this->authorize('approve', $stockAdjustment);
 
+        $selfApproving = (int) $stockAdjustment->created_by === (int) $request->user()->id;
+        $validated = $request->validate([
+            'approval_note' => [$selfApproving ? 'required' : 'nullable', 'string', 'max:500'],
+        ], ['approval_note.required' => __('Say why you are approving your own adjustment.')]);
+
         try {
-            $this->stockAdjustmentService->approveAdjustment(
-                $stockAdjustment,
-                $request->user()->id
-            );
+            $this->stockAdjustmentService->approveAdjustment($stockAdjustment, $request->user()->id, $validated['approval_note'] ?? null);
 
             return back()->with('success', __('Stock adjustment approved and applied. Stock has been updated.'));
         } catch (\Exception $e) {
@@ -141,17 +149,13 @@ class StockAdjustmentController extends Controller
         $this->authorize('reject', $stockAdjustment);
 
         $validated = $request->validate([
-            'rejection_reason' => 'nullable|string|max:500',
+            'rejection_reason' => ['required', 'string', 'max:500'],
         ]);
 
         try {
-            $this->stockAdjustmentService->rejectAdjustment(
-                $stockAdjustment,
-                $request->user()->id,
-                $validated['rejection_reason'] ?? null
-            );
+            $this->stockAdjustmentService->rejectAdjustment($stockAdjustment, $request->user()->id, $validated['rejection_reason']);
 
-            return back()->with('success', 'Stock adjustment rejected.');
+            return back()->with('success', __('Stock adjustment rejected.'));
         } catch (\Exception $e) {
             return $this->failed($e);
         }

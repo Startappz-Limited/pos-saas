@@ -24,20 +24,17 @@
             @include('stock-adjustments._form')
         </form>
 
-        @can('delete', $stockAdjustment)
+        @can('cancel', $stockAdjustment)
             <div class="row">
                 <div class="col-xl-4 offset-xl-8">
-                    <div class="card mt-4 border-danger">
+                    <div class="card mt-4">
                         <div class="card-body">
-                            <h6 class="text-danger">{{ __('Danger Zone') }}</h6>
-                            <p class="text-muted small mb-3">{{ __('Deleting this adjustment cannot be undone.') }}</p>
-                            <form action="{{ route('stock-adjustments.destroy', $stockAdjustment) }}" method="POST">
+                            <p class="text-muted small mb-3">{{ __('Cancelling keeps the adjustment and its number, and moves no stock.') }}</p>
+                            <form action="{{ route('stock-adjustments.cancel', $stockAdjustment) }}" method="POST">
                                 @csrf
-                                @method('DELETE')
-                                <button type="submit" class="btn btn-danger btn-sm w-100"
-                                    onclick="return confirm(@js(__('Are you sure you want to delete this adjustment?')))">
-                                    <iconify-icon icon="solar:trash-bin-trash-bold-duotone" class="align-middle me-1" aria-hidden="true"></iconify-icon>
-                                    {{ __('Delete Adjustment') }}
+                                <button type="submit" class="btn btn-soft-secondary btn-sm w-100"
+                                    onclick="return confirm(@js(__('Cancel this adjustment?')))">
+                                    {{ __('Cancel Adjustment') }}
                                 </button>
                             </form>
                         </div>

@@ -54,34 +54,61 @@
                     </button>
                 </div>
 
-                <!-- Notifications -->
+                <!-- Notifications: approval requests, reminders and outcomes (stage 10) -->
+                @php
+                    $bellQuery = current_business() !== null
+                        ? auth()->user()->unreadNotifications()->where('data->business_id', current_business()->id)
+                        : null;
+                    $bellCount = $bellQuery?->count() ?? 0;
+                    $bellItems = $bellQuery?->latest()->limit(8)->get() ?? collect();
+                @endphp
                 <div class="dropdown topbar-item">
                     <button type="button" class="topbar-button position-relative"
                         id="page-header-notifications-dropdown" data-bs-toggle="dropdown" aria-haspopup="true"
-                        aria-expanded="false">
-                        <iconify-icon icon="solar:bell-bing-bold-duotone" class="fs-24 align-middle"></iconify-icon>
-                        <span
-                            class="position-absolute topbar-badge fs-10 translate-middle badge bg-danger rounded-pill">3<span
-                                class="visually-hidden">unread messages</span></span>
+                        aria-expanded="false" aria-label="{{ __('Notifications') }}">
+                        <iconify-icon icon="solar:bell-bing-bold-duotone" class="fs-24 align-middle" aria-hidden="true"></iconify-icon>
+                        @if ($bellCount > 0)
+                            <span class="position-absolute topbar-badge fs-10 translate-middle badge bg-danger rounded-pill">{{ $bellCount > 99 ? '99+' : $bellCount }}<span
+                                    class="visually-hidden">{{ __('unread notifications') }}</span></span>
+                        @endif
                     </button>
                     <div class="dropdown-menu py-0 dropdown-lg dropdown-menu-end"
                         aria-labelledby="page-header-notifications-dropdown">
                         <div class="p-3 border-top-0 border-start-0 border-end-0 border-dashed border">
                             <div class="row align-items-center">
                                 <div class="col">
-                                    <h6 class="m-0 fs-16 fw-semibold">Notifications</h6>
+                                    <h6 class="m-0 fs-16 fw-semibold">{{ __('Notifications') }}</h6>
                                 </div>
-                                <div class="col-auto">
-                                    <a href="javascript: void(0);" class="text-dark text-decoration-underline">
-                                        <small>Clear All</small>
-                                    </a>
-                                </div>
+                                @if ($bellCount > 0)
+                                    <div class="col-auto">
+                                        <form action="{{ route('notifications.read-all') }}" method="POST">
+                                            @csrf
+                                            <button type="submit" class="btn btn-link btn-sm p-0 text-dark text-decoration-underline">{{ __('Mark all read') }}</button>
+                                        </form>
+                                    </div>
+                                @endif
                             </div>
                         </div>
-                        <div data-simplebar style="max-height: 280px;">
-                            <div class="text-center p-4">
-                                <p class="text-muted mb-0">No new notifications</p>
-                            </div>
+                        <div data-simplebar class="overflow-auto" style="max-height: 280px;">
+                            @forelse ($bellItems as $item)
+                                <a href="{{ route('notifications.open', $item->id) }}" class="dropdown-item py-3 border-bottom text-wrap">
+                                    <p class="mb-0 fw-semibold">
+                                        @if (isset($item->data['outcome']))
+                                            {{ $item->data['outcome'] === 'approved' ? __('Approved: :title', ['title' => $item->data['title'] ?? '']) : __('Rejected: :title', ['title' => $item->data['title'] ?? '']) }}
+                                        @elseif (! empty($item->data['reminder']))
+                                            {{ __('Still waiting: :title', ['title' => $item->data['title'] ?? '']) }}
+                                        @else
+                                            {{ __('Approval needed: :title', ['title' => $item->data['title'] ?? '']) }}
+                                        @endif
+                                    </p>
+                                    <p class="mb-0 text-muted small">{{ $item->data['summary'] ?? '' }}</p>
+                                    <p class="mb-0 text-muted small">{{ $item->created_at?->diffForHumans() }}</p>
+                                </a>
+                            @empty
+                                <div class="text-center p-4">
+                                    <p class="text-muted mb-0">{{ __('No new notifications') }}</p>
+                                </div>
+                            @endforelse
                         </div>
                     </div>
                 </div>

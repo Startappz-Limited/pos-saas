@@ -60,14 +60,30 @@ class ListUnappliedStockAdjustments extends Command
                     trim(($item->product?->name ?? 'Product deleted').($item->variation && ! $item->variation->is_default ? ' / '.$item->variation->name : '')),
                     $this->signed((int) $item->quantity_change),
                     $item->variation_id ? $ledger->quantity((int) $item->shop_id, (int) $item->variation_id) : '-',
+                    $this->nextStep($adjustment),
                 ];
             }
         }
 
-        $this->table(['Adjustment', 'Status', 'Reason', 'Shop', 'Created', 'Line', 'Change', 'Stock now'], $rows);
+        $this->table(['Adjustment', 'Status', 'Reason', 'Shop', 'Created', 'Line', 'Change', 'Stock now', 'What to do'], $rows);
         $this->info($adjustments->count().' adjustment(s). Nothing was changed: apply or reject each from its page.');
 
         return self::SUCCESS;
+    }
+
+    /**
+     * What the owner does with it from its page.
+     */
+    private function nextStep(StockAdjustment $adjustment): string
+    {
+        $open = in_array($adjustment->status, ['pending', 'approved'], true);
+
+        return match (true) {
+            $adjustment->reason === AdjustmentReason::RETURNED_TO_SUPPLIER && $open => 'Raise a purchase return for it, then reject this',
+            $adjustment->reason === AdjustmentReason::RETURNED_TO_SUPPLIER => 'Raise a purchase return if credit is still owed',
+            $open => 'Apply (approve) or reject it from its page',
+            default => '-',
+        };
     }
 
     private function signed(int $change): string
