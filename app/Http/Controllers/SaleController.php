@@ -24,6 +24,7 @@ use App\Models\User;
 use App\Rules\UniqueForTenant;
 use App\Services\InvoiceNumberService;
 use App\Services\Stock\StockLedger;
+use App\Support\Sync\SyncIssues;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
@@ -315,7 +316,7 @@ class SaleController extends Controller
                     'uuid' => (string) Str::uuid(),
                     'sale_id' => $sale->id,
                     'product_id' => $item['product_id'],
-                    'shop_id' => $product->shop_id ?? $shopId,
+                    'shop_id' => $shopId,
                     'variation_id' => $item['variation_id'] ?? null,
                     'quantity' => $item['quantity'],
                     'unit_price' => $item['price'],
@@ -346,6 +347,9 @@ class SaleController extends Controller
             $recordCreditSale->handle($sale);
 
             DB::commit();
+
+            // Sold below zero: on the till sync review (stage 10, step 1a).
+            app(SyncIssues::class)->recordNegativeStock($sale);
 
             // Send WhatsApp notifications to customer
             $this->sendSaleNotifications($sale);

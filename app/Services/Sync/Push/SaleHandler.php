@@ -9,7 +9,6 @@ use App\Http\Requests\StoreSaleRequest;
 use App\Models\CashRegister;
 use App\Models\Customer;
 use App\Models\Sale;
-use App\Models\StockMovement;
 use App\Models\SyncIssue;
 use App\Services\Mpesa\TillPayments;
 use App\Services\Sync\TradingLease;
@@ -103,9 +102,8 @@ final class SaleHandler implements PushHandler
             $this->issues->record(SyncIssue::IMPLAUSIBLE_TIME, 'sale:'.$sale->uuid, [...$about, 'received_at' => now()->toIso8601String()], $item->register);
         }
         // Sold below zero: the ledger let it through and costed it provisionally.
-        if (StockMovement::query()->where('reference_uuid', $sale->uuid)->where('quantity_after', '<', 0)->exists()) {
+        if ($this->issues->recordNegativeStock($sale, $item->register, $about)) {
             $flags[] = 'negative_stock';
-            $this->issues->record(SyncIssue::NEGATIVE_STOCK, 'sale:'.$sale->uuid, $about, $item->register);
         }
         if ($recorded->overCreditLimit) {
             $flags[] = 'over_credit_limit';

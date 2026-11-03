@@ -214,6 +214,8 @@ class ConvertEcommerceOrderToSale
                     'uuid' => (string) Str::uuid(),
                     'sale_id' => $sale->id,
                     'product_id' => $productId,
+                    // The selling shop: the order's (stage 10, step 1a).
+                    'shop_id' => $order->shop_id,
                     'variation_id' => $variationId,
                     'quantity' => $quantity,
                     'unit_price' => $unitPrice,

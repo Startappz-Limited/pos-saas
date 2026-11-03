@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Actions\Sale\RecordSale;
 use App\Actions\Sale\RecordSalePayment;
+use App\Actions\Sale\SaleContext;
 use App\Actions\SendSaleNotifications;
 use App\Actions\SettleCreditSalePayment;
 use App\Http\Controllers\Controller;
@@ -74,12 +75,13 @@ class SaleController extends Controller
         $this->authorize('create', Sale::class);
 
         $validated = $request->validated();
-        // Refuses a user with no shop, or one they can't act in, before anything is made.
-        $this->resolveShopId($request);
+        // Refuses a user with no shop, or one they can't act in, before anything is made. The sale
+        // and every line take this shop's stock, never a product's first shop (stage 10, step 1a).
+        $shopId = $this->resolveShopId($request);
 
         try {
             // Resolved here, not injected: the live-like dataset seeder calls store() directly.
-            $recorded = app(RecordSale::class)->execute($validated);
+            $recorded = app(RecordSale::class)->execute($validated, new SaleContext(shopId: $shopId));
         } catch (\Exception $e) {
             return $this->failed($e, __('Failed to create sale:'));
         }

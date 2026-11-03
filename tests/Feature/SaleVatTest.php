@@ -258,8 +258,9 @@ describe('invoice numbering', function () {
             ->postJson('/api/sales', vatSalePayload($productA))
             ->assertCreated();
 
+        // The flat API sells at the shop it names (stage 10, step 1a), not the product's first shop.
         $this->actingAs($this->user, 'sanctum')
-            ->postJson('/api/sales', vatSalePayload($productB))
+            ->postJson('/api/sales', [...vatSalePayload($productB), 'shop_id' => $other->id])
             ->assertCreated();
 
         $year = now()->format('Y');

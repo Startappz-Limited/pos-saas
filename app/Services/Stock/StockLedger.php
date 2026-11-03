@@ -148,11 +148,20 @@ class StockLedger
     /**
      * Takes a sale line's stock from its shop and sets its cost and profit
      * from the layers it consumed. Call recostSale() once all lines are done.
+     * A product that doesn't track stock moves nothing (stage 10, step 1a): no
+     * movement, no allocation; its line is costed at the variation's cost.
      */
-    public function sellItem(SaleItem $item, ProductVariation $variation, array $context = []): StockChange
+    public function sellItem(SaleItem $item, ProductVariation $variation, array $context = []): ?StockChange
     {
-        // A line's own shop (its product's), else its sale's: converted online
-        // orders record no shop on their lines.
+        if (! $this->tracksStock($variation)) {
+            $cost = $variation->cost_price ?? ($variation->is_default ? DB::table('products')->where('id', $variation->product_id)->value('cost_price') : null);
+            $this->applyItemCost($item->id, round((int) $item->quantity * (float) $cost, 2));
+
+            return null;
+        }
+
+        // The selling shop, recorded on the line (stage 10, step 1a), else its sale's:
+        // converted online orders record no shop on their lines.
         $shopId = (int) ($item->shop_id ?? DB::table('sales')->where('id', $item->sale_id)->value('shop_id'));
         $change = $this->consume($shopId, $variation, (int) $item->quantity, StockMovementType::SALE, $item, ['reference' => $context['reference'] ?? $item->sale, ...$context]);
         $this->applyItemCost($item->id, $change->totalCost);
@@ -212,6 +221,11 @@ class StockLedger
     }
 
     // --- internals -----------------------------------------------------------
+
+    private function tracksStock(ProductVariation $variation): bool
+    {
+        return (bool) (DB::table('products')->where('id', $variation->product_id)->value('track_stock') ?? true);
+    }
 
     /**
      * Locks the shop's stock row for the variation, creating it at zero when

@@ -3,6 +3,8 @@
 namespace App\Support\Sync;
 
 use App\Models\Register;
+use App\Models\Sale;
+use App\Models\StockMovement;
 use App\Models\SyncIssue;
 
 /**
@@ -17,12 +19,31 @@ class SyncIssues
     /**
      * @param  array<string, mixed>  $details
      */
-    public function record(string $type, string $key, array $details, ?Register $register = null): SyncIssue
+    public function record(string $type, string $key, array $details, ?Register $register = null, ?int $shopId = null): SyncIssue
     {
         return SyncIssue::query()->firstOrCreate(
             ['type' => $type, 'key' => $key],
-            ['details' => $details, 'register_id' => $register?->id, 'shop_id' => $register?->shop_id],
+            ['details' => $details, 'register_id' => $register?->id, 'shop_id' => $register?->shop_id ?? $shopId],
         );
+    }
+
+    /**
+     * Records a sale that took stock below zero (the ledger let it through and
+     * costed it provisionally), once per sale, for the review screen: from a
+     * till's push, and since stage 10 (step 1a) from the web and the flat API too.
+     *
+     * @param  array<string, mixed>  $details
+     * @return bool whether it went below zero
+     */
+    public function recordNegativeStock(Sale $sale, ?Register $register = null, array $details = []): bool
+    {
+        if (! StockMovement::query()->where('reference_uuid', $sale->uuid)->where('quantity_after', '<', 0)->exists()) {
+            return false;
+        }
+
+        $this->record(SyncIssue::NEGATIVE_STOCK, 'sale:'.$sale->uuid, ['sale' => $sale->uuid, 'invoice_number' => $sale->invoice_number, ...$details], $register, (int) $sale->shop_id);
+
+        return true;
     }
 
     /**

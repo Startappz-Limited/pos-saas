@@ -14,6 +14,8 @@ use App\Models\SaleItem;
 use App\Models\Shop;
 use App\Services\InvoiceNumberService;
 use App\Services\Stock\StockLedger;
+use App\Support\Sync\SyncIssues;
+use App\Support\Tenancy\ViewerShop;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -51,12 +53,10 @@ class RecordSale
             $productsById = Product::whereIn('id', $productIds)->get()->keyBy('id');
             $variationsById = ProductVariation::whereIn('id', $variationIds)->get()->keyBy('id');
 
-            // The sale's primary shop is the owning shop of its first product.
-            // Each line records its own product's shop, so a single sale may
-            // span multiple shops while still being attributed correctly.
-            // A till's sale belongs to the till's shop.
-            $firstProductId = $validated['items'][0]['product_id'];
-            $shopId = $context->shopId ?? $productsById[$firstProductId]?->shop_id ?? Shop::first()?->id;
+            // The selling shop (stage 10, step 1a): the till's for a push, the one the flat API
+            // checked for the person. The sale and every line take its stock, never the shop a
+            // product was first stocked at.
+            $shopId = $context->shopId ?? ViewerShop::require();
 
             // The till's cash session, else the register's open one, else a new one.
             $activeRegister = $context->cashSession ?? CashRegister::getActiveRegister($shopId, $context->registerId);
@@ -167,7 +167,7 @@ class RecordSale
                     'uuid' => (string) Str::uuid(),
                     'sale_id' => $sale->id,
                     'product_id' => $item['product_id'],
-                    'shop_id' => $product->shop_id ?? $shopId,
+                    'shop_id' => $shopId,
                     'variation_id' => $item['variation_id'] ?? null,
                     'quantity' => $item['quantity'],
                     'unit_price' => $item['price'],
@@ -200,6 +200,12 @@ class RecordSale
         });
 
         $register->updateSalesTotals();
+
+        // Sold below zero: on the till sync review (stage 10, step 1a). A till's push records it
+        // itself, with the till and its recorded time.
+        if ($context->clientUuid === null) {
+            app(SyncIssues::class)->recordNegativeStock($sale);
+        }
 
         // Notify the customer, exactly as the web POS does. COD sales stay
         // pending until delivery, so they are notified on completion instead.

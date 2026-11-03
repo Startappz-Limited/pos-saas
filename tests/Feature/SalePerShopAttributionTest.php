@@ -21,7 +21,9 @@ beforeEach(function () {
     $this->user->givePermissionTo('sales.create');
 });
 
-test('a sale mixing products from two shops attributes each line to its product owning shop', function () {
+// Stage 10, step 1a (decided 27 October 2026): a sale takes stock from the shop that sells it, so
+// every line is the selling shop's, whichever shop each product was first stocked at.
+test('a sale mixing products first stocked at two shops attributes every line to the selling shop', function () {
     $source = SaleSource::create(['name' => 'Counter', 'is_active' => true, 'sort_order' => 1]);
 
     $productA = Product::factory()->create([
@@ -43,6 +45,7 @@ test('a sale mixing products from two shops attributes each line to its product 
     ]);
 
     $this->post(route('sales.store'), [
+        'shop_id' => $this->shopA->id,
         'customer_id' => $customer->id,
         'source_id' => $source->id,
         'delivery_location' => 'Front counter',
@@ -55,18 +58,13 @@ test('a sale mixing products from two shops attributes each line to its product 
 
     $sale = Sale::firstOrFail();
 
-    // Each line is attributed to the shop that owns its product.
-    $itemA = SaleItem::where('product_id', $productA->id)->firstOrFail();
-    $itemB = SaleItem::where('product_id', $productB->id)->firstOrFail();
-
-    expect($itemA->shop_id)->toBe($this->shopA->id)
-        ->and($itemB->shop_id)->toBe($this->shopB->id)
-        // The sale itself is stamped with the cashier's resolved (default/selected)
-        // shop; per-shop attribution lives on the line items above.
-        ->and([$this->shopA->id, $this->shopB->id])->toContain($sale->shop_id);
+    // Every line, and the sale, belong to the selling shop.
+    expect($sale->shop_id)->toBe($this->shopA->id)
+        ->and(SaleItem::where('product_id', $productA->id)->firstOrFail()->shop_id)->toBe($this->shopA->id)
+        ->and(SaleItem::where('product_id', $productB->id)->firstOrFail()->shop_id)->toBe($this->shopA->id);
 });
 
-test('shop performance report splits revenue per shop at the line-item level', function () {
+test('shop performance report counts a sale\'s revenue under the shop that sold it', function () {
     $source = SaleSource::create(['name' => 'Counter', 'is_active' => true, 'sort_order' => 1]);
 
     $productA = Product::factory()->create([
@@ -78,13 +76,14 @@ test('shop performance report splits revenue per shop at the line-item level', f
     $customer = Customer::factory()->create(['shop_id' => $this->shopA->id, 'customer_type' => 'retail']);
 
     $this->post(route('sales.store'), [
+        'shop_id' => $this->shopB->id,
         'customer_id' => $customer->id,
         'source_id' => $source->id,
         'delivery_location' => 'Front counter',
         'payment_method' => 'cash',
         'items' => [
-            ['product_id' => $productA->id, 'quantity' => 1, 'price' => 100], // shop A: 100
-            ['product_id' => $productB->id, 'quantity' => 2, 'price' => 200], // shop B: 400
+            ['product_id' => $productA->id, 'quantity' => 1, 'price' => 100], // first stocked at A
+            ['product_id' => $productB->id, 'quantity' => 2, 'price' => 200], // first stocked at B
         ],
     ])->assertRedirect();
 
@@ -97,8 +96,8 @@ test('shop performance report splits revenue per shop at the line-item level', f
 
     $byShop = collect($report['shop_performance'])->keyBy('shop_id');
 
-    expect((float) $byShop[$this->shopA->id]['revenue'])->toBe(100.0)
-        ->and((float) $byShop[$this->shopB->id]['revenue'])->toBe(400.0)
-        ->and((int) $byShop[$this->shopA->id]['transactions'])->toBe(1)
+    // Sold at B: all 500 is B's, none A's.
+    expect($byShop->has($this->shopA->id))->toBeFalse()
+        ->and((float) $byShop[$this->shopB->id]['revenue'])->toBe(500.0)
         ->and((int) $byShop[$this->shopB->id]['transactions'])->toBe(1);
 });
