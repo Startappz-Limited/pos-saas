@@ -878,7 +878,7 @@ Planned in six rounds on 26 and 27 October 2026; none started. The stage files a
 
 | Stage | File | Depends on | Status |
 |---|---|---|---|
-| 10. Stock correctness and voids | [10](stages/10-stock-correctness-and-voids.md) | Phase 7 | Not started; nothing open |
+| 10. Stock correctness and voids | [10](stages/10-stock-correctness-and-voids.md) | Phase 7 | **In progress** (see below) |
 | 11. Units, quantities and batches | [11](stages/11-units-quantities-and-batches.md) | 10 | Not started; nothing open |
 | 11b. Prices and discounts | [11b](stages/11b-prices-and-discounts.md) | 11 | Not started; nothing open |
 | 11c. Low stock, alerts and snapshots | [11c](stages/11c-low-stock-alerts-and-snapshots.md) | 11 | Not started; nothing open |
@@ -899,4 +899,24 @@ Proposed order: 10, 11, 11b and 11c, 12, 13, 14; then 16, 17, 18, 19, 20 and 22;
 triggers arrive. UAT before stage 10 (read-only, 27 October 2026): ten businesses, three with products; 1,503 sales, all
 in their shop's `R1` invoice series but one; no voided sales; 21 stock adjustments (16 approved but never applied); no
 pricing-rule customers; 205 sales with a discount.
+
+## Stage 10: Stock correctness and voids
+
+Branch: `fix/stock-voids-fifo` (from `main` at `d142fe0`, after the `fix/api-authz` hotfix, 3 November 2026). The
+stage file is the plan: [stages/10-stock-correctness-and-voids.md](stages/10-stock-correctness-and-voids.md).
+
+### Steps
+
+| Step | Done | What | Commit |
+|---|---|---|---|
+| 0 | 3 Nov | Permissions reach every business: `role_revoked_permissions` (removals recorded by the role screens, the console's template editor, "Reset to default" and "Apply to all copies"), `RoleSeeder` without timestamps (`syncBusinessCopies()`), the backfill inside the migration and `roles:backfill-rollout`, `permissions:sync`, the new permissions `cash-registers.payout`, `sync-issues.accept` and `sync-issues.discard` (manager template). `PermissionRolloutTest` (8); unit guards, roles, tenancy, isolation, contract and platform suites green; full suites deferred to the end of the stage | (this commit) |
+
+### Already true before the stage (checked 3 November 2026)
+
+- Step 0: `PermissionSeeder::names()` no longer lists `registers.view` twice; UAT's business copies all match their
+  templates (nothing for the backfill to record there).
+- Step 1a: `StockLedger::lockStock()` already inserts the `shop_variation` row before locking it; `UpdateProductAction`
+  and new variations already call `syncShopVariationRows()`.
+- Steps 1f and 2 (hotfix `fix/api-authz`): the flat API's product writes and sale void and delete already check
+  `ProductPolicy` and `SalePolicy`.
 

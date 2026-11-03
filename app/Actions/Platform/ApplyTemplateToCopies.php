@@ -4,6 +4,7 @@ namespace App\Actions\Platform;
 
 use App\Enums\AuditEvent;
 use App\Models\Role;
+use App\Support\Authorization\RoleRevocations;
 use App\Support\Platform\PlatformAudit;
 use App\Support\Tenancy\TenantContext;
 use DomainException;
@@ -35,6 +36,7 @@ class ApplyTemplateToCopies
         DB::transaction(function () use ($copies, $permissionIds): void {
             foreach ($copies as $copy) {
                 $copy->permissions()->sync($permissionIds);
+                RoleRevocations::clear((int) $copy->id);
             }
         });
 

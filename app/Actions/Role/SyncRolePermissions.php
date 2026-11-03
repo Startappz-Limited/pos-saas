@@ -4,6 +4,7 @@ namespace App\Actions\Role;
 
 use App\Models\Role;
 use App\Models\User;
+use App\Support\Authorization\RoleRevocations;
 use Illuminate\Support\Collection;
 
 /**
@@ -59,6 +60,10 @@ class SyncRolePermissions
             $chosen = $chosen->intersect($givable)->merge($outOfReach)->unique();
         }
 
+        $before = $role->permissions()->pluck('permissions.id');
         $role->syncPermissions($chosen->values()->all());
+
+        // What was taken off stays off when permissions roll out again (stage 10, step 0).
+        RoleRevocations::recordEdit((int) $role->id, $before, $chosen, $editor->id);
     }
 }

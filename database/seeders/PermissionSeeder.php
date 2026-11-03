@@ -49,9 +49,15 @@ class PermissionSeeder extends Seeder
             'registers.view',
             'registers.pair',
 
-            // Till sync review: invoice gaps, duplicate customers (Phase 7)
+            // Till sync review: invoice gaps, duplicate customers (Phase 7); accept a held
+            // push item, or discard a stuck one (stage 10, step 5c)
             'sync-issues.view',
             'sync-issues.resolve',
+            'sync-issues.accept',
+            'sync-issues.discard',
+
+            // Cash paid out of a register session: a void's cash, petty cash (stage 10, step 4)
+            'cash-registers.payout',
 
             // Categories Management
             'categories.view',

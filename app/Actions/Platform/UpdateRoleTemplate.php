@@ -4,6 +4,7 @@ namespace App\Actions\Platform;
 
 use App\Enums\AuditEvent;
 use App\Models\Role;
+use App\Support\Authorization\RoleRevocations;
 use App\Support\Platform\PlatformAudit;
 use DomainException;
 
@@ -28,7 +29,11 @@ class UpdateRoleTemplate
         }
 
         $before = $template->permissions()->pluck('name');
-        $template->syncPermissions(collect($permissionIds)->map(fn ($id): int => (int) $id)->unique()->values()->all());
+        $beforeIds = $template->permissions()->pluck('permissions.id');
+        $chosen = collect($permissionIds)->map(fn ($id): int => (int) $id)->unique()->values();
+        $template->syncPermissions($chosen->all());
+        // A permission the console took off the template stays off when permissions roll out (stage 10, step 0).
+        RoleRevocations::recordEdit((int) $template->id, $beforeIds, $chosen, auth()->id());
         $template->touch();
         $after = $template->permissions()->pluck('name');
 

@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\Role;
+use App\Support\Authorization\RoleRevocations;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
@@ -11,13 +12,6 @@ use Spatie\Permission\PermissionRegistrar;
 
 class RoleSeeder extends Seeder
 {
-    /**
-     * Which templates this run created (name => true), and which existed.
-     *
-     * @var array<string, bool>
-     */
-    private array $created = [];
-
     /**
      * Run the database seeds.
      */
@@ -60,11 +54,10 @@ class RoleSeeder extends Seeder
         // business_id), whichever business is current (Spatie teams, stage 1a).
         app(TenantContext::class)->withoutBusiness(function () use ($roles): void {
             foreach ($roles as $roleData) {
-                $role = Role::firstOrCreate(
+                Role::firstOrCreate(
                     ['name' => $roleData['name']],
                     ['guard_name' => 'web']
                 );
-                $this->created[$role->name] = $role->wasRecentlyCreated;
             }
 
             // Assign permissions to roles
@@ -74,7 +67,7 @@ class RoleSeeder extends Seeder
             $this->assignInventoryClerkPermissions();
             $this->assignAccountantPermissions();
             $this->assignCustomerPermissions();
-            $this->grantNewPermissionsToBusinessCopies();
+            $this->syncBusinessCopies();
         });
 
         $this->command->info('✅ Created '.count($roles).' roles and assigned permissions successfully!');
@@ -90,44 +83,35 @@ class RoleSeeder extends Seeder
     }
 
     /**
-     * Gives a template its listed permissions. A template this run created
-     * gets them all; an existing one only those created since it last
-     * changed (Phase 5), as copies do: a template edited on the platform
-     * console keeps the edit when the seeder runs again, and a permission
-     * rolled out later still reaches it.
+     * Gives a template its listed permissions, minus those taken off it on
+     * purpose (`role_revoked_permissions`, stage 10, step 0): a template edited
+     * on the platform console keeps the edit, and a permission rolled out later
+     * always reaches it, whenever it was created. It never removes one.
      *
      * @param  array<int, string>  $names
      */
     private function grant(Role $role, array $names): void
     {
-        if (! ($this->created[$role->name] ?? false)) {
-            $names = Permission::query()->whereIn('name', $names)
-                ->where('created_at', '>', $role->updated_at)
-                ->pluck('name')->all();
-        }
+        $revoked = RoleRevocations::ids((int) $role->id)->all();
 
-        $role->givePermissionTo($names);
+        $role->givePermissionTo(Permission::query()->whereIn('name', $names)->whereNotIn('id', $revoked)->pluck('name')->all());
     }
 
     /**
-     * Each business has its own copies of the templates (stage 3). A
-     * permission created after a business made its copies is granted to them
-     * as it is to the template, so rolling out a new permission still reaches
-     * every business; permissions a business took away from its copies before
-     * stay away.
+     * Each business has its own copies of the templates (stage 3), each naming
+     * its template (`roles.template_id`, Phase 5). A copy gets its template's
+     * permissions minus those the business took off it (`role_revoked_permissions`),
+     * so every permission rolled out reaches every business, whenever it was
+     * created, and what a business removed stays removed. It never removes one.
      */
-    private function grantNewPermissionsToBusinessCopies(): void
+    private function syncBusinessCopies(): void
     {
-        // Each copy names its template (roles.template_id, Phase 5).
-        foreach (DB::table('roles as copies')->join('roles as templates', 'templates.id', '=', 'copies.template_id')
-            ->whereNotNull('copies.business_id')->get(['copies.id', 'copies.created_at', 'copies.template_id']) as $copy) {
-            $newer = DB::table('role_has_permissions')
-                ->join('permissions', 'permissions.id', '=', 'role_has_permissions.permission_id')
-                ->where('role_has_permissions.role_id', $copy->template_id)
-                ->where('permissions.created_at', '>', $copy->created_at)
-                ->pluck('permissions.id');
+        foreach (DB::table('roles')->whereNotNull('template_id')->whereNotNull('business_id')->get(['id', 'template_id']) as $copy) {
+            $missing = DB::table('role_has_permissions')->where('role_id', $copy->template_id)
+                ->whereNotIn('permission_id', RoleRevocations::ids((int) $copy->id)->all())
+                ->pluck('permission_id');
 
-            DB::table('role_has_permissions')->insertOrIgnore($newer->map(fn ($id): array => ['permission_id' => $id, 'role_id' => $copy->id])->all());
+            DB::table('role_has_permissions')->insertOrIgnore($missing->map(fn ($id): array => ['permission_id' => $id, 'role_id' => $copy->id])->all());
         }
 
         app(PermissionRegistrar::class)->forgetCachedPermissions();
@@ -159,6 +143,12 @@ class RoleSeeder extends Seeder
             // Registers: list them and pair a till (Phase 7)
             'registers.view',
             'registers.pair',
+
+            // Till sync review: accept held items and discard stuck ones; pay cash out of a
+            // session (stage 10, steps 4 and 5c)
+            'sync-issues.accept',
+            'sync-issues.discard',
+            'cash-registers.payout',
             'sync-issues.view',
             'sync-issues.resolve',
 
