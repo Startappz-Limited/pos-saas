@@ -186,6 +186,55 @@ class StockLedger
     }
 
     /**
+     * What taking $quantity of a variation from a shop would cost now, per unit,
+     * without taking it (stage 10, step 1g: an adjustment's value before it is
+     * applied): the batches oldest first, then the fallback cost for a
+     * shortfall, as consume() would. Null when any unit's cost is unknown.
+     */
+    public function costToConsume(int $shopId, ProductVariation $variation, int $quantity): ?float
+    {
+        $quantity = abs($quantity);
+        $needed = $quantity;
+        $total = 0.0;
+
+        foreach (DB::table('cost_layers')->where('shop_id', $shopId)->where('variation_id', $variation->id)->where('remaining_quantity', '>', 0)
+            ->orderBy('received_at')->orderBy('id')->get(['remaining_quantity', 'unit_cost']) as $layer) {
+            if ($needed <= 0) {
+                break;
+            }
+            if ($layer->unit_cost === null) {
+                return null;
+            }
+            $take = min($needed, (int) $layer->remaining_quantity);
+            $total += $take * (float) $layer->unit_cost;
+            $needed -= $take;
+        }
+
+        if ($needed > 0) {
+            $fallback = $this->fallbackCost($shopId, $variation);
+            if ($fallback === null) {
+                return null;
+            }
+            $total += $needed * $fallback;
+        }
+
+        return $quantity > 0 ? round($total / $quantity, 2) : null;
+    }
+
+    /**
+     * The cost of the latest batch of a variation at a shop that has one, or
+     * null: what found stock is received at (stage 10, step 1g; stage 13 does the
+     * same for stocktake surpluses), never a cost_price nobody entered for it.
+     */
+    public function latestBatchCost(int $shopId, ProductVariation $variation): ?float
+    {
+        $cost = DB::table('cost_layers')->where('shop_id', $shopId)->where('variation_id', $variation->id)
+            ->whereNotNull('unit_cost')->orderByDesc('received_at')->orderByDesc('id')->value('unit_cost');
+
+        return $cost === null ? null : (float) $cost;
+    }
+
+    /**
      * The shop's stock of a variation.
      */
     public function quantity(int $shopId, int $variationId): int

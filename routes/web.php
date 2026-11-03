@@ -491,7 +491,6 @@ Route::middleware(['auth', 'business'])->group(function () {
     Route::resource('stock-adjustments', StockAdjustmentController::class);
     Route::post('stock-adjustments/{stockAdjustment}/approve', [StockAdjustmentController::class, 'approve'])->name('stock-adjustments.approve');
     Route::post('stock-adjustments/{stockAdjustment}/reject', [StockAdjustmentController::class, 'reject'])->name('stock-adjustments.reject');
-    Route::post('stock-adjustments/{stockAdjustment}/complete', [StockAdjustmentController::class, 'complete'])->name('stock-adjustments.complete');
 });
 
 require __DIR__.'/auth.php';

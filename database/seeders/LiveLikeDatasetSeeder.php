@@ -429,7 +429,8 @@ class LiveLikeDatasetSeeder extends Seeder
                 ]],
             ], $this->managers[$shop->id]->id);
 
-            if ($i % 5 !== 0) {
+            // Found stock and small recounts are applied on saving (stage 10, step 1g).
+            if ($i % 5 !== 0 && $adjustment->isPending()) {
                 $adjustments->approveAdjustment($adjustment, $this->owner->id);
             }
         }

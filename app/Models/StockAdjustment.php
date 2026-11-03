@@ -6,6 +6,7 @@ use App\Enums\AdjustmentReason;
 use App\Enums\AdjustmentType;
 use App\Models\Concerns\Auditable;
 use App\Models\Concerns\BelongsToShop;
+use App\Services\InvoiceNumberService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -47,8 +48,9 @@ class StockAdjustment extends Model
             if (empty($adjustment->uuid)) {
                 $adjustment->uuid = (string) Str::uuid();
             }
+            // A gapless series per shop and year (stage 10, step 1g).
             if (empty($adjustment->adjustment_number)) {
-                $adjustment->adjustment_number = 'ADJ-'.strtoupper(Str::random(8));
+                $adjustment->adjustment_number = app(InvoiceNumberService::class)->nextAdjustment((int) $adjustment->shop_id);
             }
         });
     }
@@ -121,19 +123,19 @@ class StockAdjustment extends Model
         return $this->status === 'rejected';
     }
 
+    /**
+     * Approving applies the stock in the same step (stage 10, step 1g). An
+     * "approved" adjustment is one approved before that, whose stock never moved:
+     * it is applied or rejected from its page, like a pending one.
+     */
     public function canBeApproved(): bool
     {
-        return $this->isPending();
-    }
-
-    public function canBeCompleted(): bool
-    {
-        return $this->isApproved();
+        return $this->isPending() || $this->isApproved();
     }
 
     public function canBeRejected(): bool
     {
-        return $this->isPending();
+        return $this->isPending() || $this->isApproved();
     }
 
     public function getTotalQuantityChangeAttribute(): int

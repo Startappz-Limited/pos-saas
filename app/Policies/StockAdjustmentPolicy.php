@@ -12,6 +12,12 @@ class StockAdjustmentPolicy
      */
     public function before(User $user, string $ability): ?bool
     {
+        // Approving is a second person's act (stage 10, step 1g): full access, the
+        // owner's included, never lets the creator approve their own.
+        if ($ability === 'approve') {
+            return null;
+        }
+
         if ($user->can('stock-adjustments.full-access')) {
             return true;
         }
@@ -62,24 +68,20 @@ class StockAdjustmentPolicy
     /**
      * Determine whether the user can approve the model.
      */
+    /**
+     * A second person approves, which applies the stock (stage 10, step 1g):
+     * someone other than the creator holding `stock-adjustments.approve` (or full
+     * access), whoever the creator is.
+     */
     public function approve(User $user, StockAdjustment $stockAdjustment): bool
     {
-        return $user->can('stock-adjustments.approve') && $stockAdjustment->canBeApproved();
+        return ($user->can('stock-adjustments.approve') || $user->can('stock-adjustments.full-access'))
+            && $stockAdjustment->canBeApproved()
+            && (int) $stockAdjustment->created_by !== (int) $user->id;
     }
 
-    /**
-     * Determine whether the user can reject the model.
-     */
     public function reject(User $user, StockAdjustment $stockAdjustment): bool
     {
         return $user->can('stock-adjustments.approve') && $stockAdjustment->canBeRejected();
-    }
-
-    /**
-     * Determine whether the user can complete the model.
-     */
-    public function complete(User $user, StockAdjustment $stockAdjustment): bool
-    {
-        return $user->can('stock-adjustments.approve') && $stockAdjustment->canBeCompleted();
     }
 }

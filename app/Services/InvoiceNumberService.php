@@ -142,6 +142,29 @@ class InvoiceNumberService
      */
     private function claim(int $shopId, int $registerId, string $series): int
     {
+        return $this->noted($registerId, $this->claimInSeries($shopId, $series, "register {$registerId}"));
+    }
+
+    /**
+     * The next stock adjustment number of a shop (stage 10, step 1g):
+     * `ADJ-{shop}-{year}-{n}`, gapless per shop and year in the series
+     * `adj:{year}`. Call within the adjustment's transaction, so a failed save
+     * gives the number back.
+     */
+    public function nextAdjustment(Shop|int $shop, ?CarbonInterface $at = null): string
+    {
+        $shop = $shop instanceof Shop ? $shop : Shop::query()->findOrFail($shop);
+        $year = ($at ?? now())->format('Y');
+        $number = $this->claimInSeries((int) $shop->id, "adj:{$year}", "shop {$shop->id}'s adjustments");
+
+        return implode('-', ['ADJ', $this->code((string) $shop->code, 'SHOP'), $year, str_pad((string) $number, (int) config('invoicing.pad', 6), '0', STR_PAD_LEFT)]);
+    }
+
+    /**
+     * Atomically take the next number of a shop's series (see claim()).
+     */
+    private function claimInSeries(int $shopId, string $series, string $what): int
+    {
         $sequence = DB::table('invoice_sequences')->where('shop_id', $shopId)->where('series', $series);
 
         if (! (clone $sequence)->exists()) {
@@ -153,14 +176,14 @@ class InvoiceNumberService
         }
 
         $row = (clone $sequence)->lockForUpdate()->first()
-            ?? throw new \RuntimeException("Could not allocate an invoice number for register {$registerId}.");
+            ?? throw new \RuntimeException("Could not allocate a number for {$what}.");
 
         DB::table('invoice_sequences')->where('id', $row->id)->update([
             'next_number' => $row->next_number + 1,
             'updated_at' => now(),
         ]);
 
-        return $this->noted($registerId, (int) $row->next_number);
+        return (int) $row->next_number;
     }
 
     /**

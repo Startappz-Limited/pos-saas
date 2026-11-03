@@ -23,23 +23,10 @@
                                 class="d-inline">
                                 @csrf
                                 <button type="submit" class="btn btn-success"
-                                    onclick="return confirm('Approve this adjustment?')">
+                                    onclick="return confirm(@js(__('Approve this adjustment and update the stock?')))">
                                     <iconify-icon icon="solar:check-circle-bold-duotone"
-                                        class="align-middle me-1"></iconify-icon>
-                                    Approve
-                                </button>
-                            </form>
-                        @endcan
-
-                        @can('complete', $stockAdjustment)
-                            <form action="{{ route('stock-adjustments.complete', $stockAdjustment) }}" method="POST"
-                                class="d-inline">
-                                @csrf
-                                <button type="submit" class="btn btn-primary"
-                                    onclick="return confirm('Complete this adjustment and update inventory?')">
-                                    <iconify-icon icon="solar:box-bold-duotone"
-                                        class="align-middle me-1"></iconify-icon>
-                                    Complete & Apply
+                                        class="align-middle me-1" aria-hidden="true"></iconify-icon>
+                                    {{ __('Approve & Apply') }}
                                 </button>
                             </form>
                         @endcan
@@ -62,6 +49,18 @@
                 </div>
             </div>
         </div>
+
+        @if ($stockAdjustment->isPending() || $stockAdjustment->isApproved())
+            <div class="alert alert-warning" role="status">
+                @if ($stockAdjustment->isApproved())
+                    {{ __('Approved before approving applied the stock: its stock was never changed. Approve it to apply it now, at today\'s stock, or reject it.') }}
+                @elseif ($stockAdjustment->created_by === auth()->id())
+                    {{ __('This adjustment waits for someone else holding the approve permission. You can\'t approve your own.') }}
+                @else
+                    {{ __('This adjustment waits for approval. Approving it applies the stock.') }}
+                @endif
+            </div>
+        @endif
 
         <div class="row">
             <!-- Main Content -->
@@ -90,22 +89,12 @@
                                     <tr>
                                         <td class="text-muted" style="width: 150px;">Type:</td>
                                         <td class="fw-medium">
-                                            @if($stockAdjustment->type->value === 'increase')
-                                                <span class="badge bg-success-subtle text-success">
-                                                    <iconify-icon icon="solar:arrow-up-bold" class="align-middle"></iconify-icon>
-                                                    Increase
-                                                </span>
-                                            @else
-                                                <span class="badge bg-danger-subtle text-danger">
-                                                    <iconify-icon icon="solar:arrow-down-bold" class="align-middle"></iconify-icon>
-                                                    Decrease
-                                                </span>
-                                            @endif
+                                            @include('stock-adjustments._type', ['type' => $stockAdjustment->type])
                                         </td>
                                     </tr>
                                     <tr>
                                         <td class="text-muted">Reason:</td>
-                                        <td class="text-capitalize">{{ str_replace('_', ' ', $stockAdjustment->reason->value) }}</td>
+                                        <td>{{ __($stockAdjustment->reason->label()) }}</td>
                                     </tr>
                                     <tr>
                                         <td class="text-muted">Shop:</td>
@@ -163,11 +152,19 @@
                             <table class="table align-middle mb-0">
                                 <thead class="table-light">
                                     <tr>
-                                        <th>Product</th>
-                                        <th class="text-center">Before</th>
-                                        <th class="text-center">Change</th>
-                                        <th class="text-center">After</th>
-                                        <th>Notes</th>
+                                        <th>{{ __('Product') }}</th>
+                                        @if ($stockAdjustment->isCompleted())
+                                            <th class="text-center">{{ __('Before') }}</th>
+                                        @else
+                                            <th class="text-center">{{ __('Stock now') }}</th>
+                                        @endif
+                                        <th class="text-center">{{ __('Change') }}</th>
+                                        @if ($stockAdjustment->isCompleted())
+                                            <th class="text-center">{{ __('After') }}</th>
+                                        @else
+                                            <th class="text-end">{{ __('Unit cost') }}</th>
+                                        @endif
+                                        <th>{{ __('Notes') }}</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -179,18 +176,40 @@
                                                         {{ $item->product->name }}
                                                     </a>
                                                 @else
-                                                    <span class="text-muted">Product Deleted</span>
+                                                    <span class="text-muted">{{ __('Product Deleted') }}</span>
+                                                @endif
+                                                @if ($item->variation && ! $item->variation->is_default)
+                                                    <small class="d-block text-muted">{{ $item->variation->name }}</small>
                                                 @endif
                                             </td>
-                                            <td class="text-center">{{ number_format($item->quantity_before) }}</td>
+                                            @if ($stockAdjustment->isCompleted())
+                                                <td class="text-center">{{ $item->quantity_before === null ? '—' : number_format($item->quantity_before) }}</td>
+                                            @else
+                                                <td class="text-center">{{ $item->variation_id ? number_format($ledger->quantity($item->shop_id, $item->variation_id)) : '—' }}</td>
+                                            @endif
                                             <td class="text-center">
-                                                @if($stockAdjustment->type->value === 'increase')
+                                                @if ($item->quantity_change > 0)
                                                     <span class="text-success">+{{ number_format($item->quantity_change) }}</span>
                                                 @else
-                                                    <span class="text-danger">-{{ number_format($item->quantity_change) }}</span>
+                                                    <span class="text-danger">−{{ number_format(abs($item->quantity_change)) }}</span>
                                                 @endif
                                             </td>
-                                            <td class="text-center fw-medium">{{ number_format($item->quantity_after) }}</td>
+                                            @if ($stockAdjustment->isCompleted())
+                                                <td class="text-center fw-medium">{{ $item->quantity_after === null ? '—' : number_format($item->quantity_after) }}</td>
+                                            @else
+                                                @php($unitCost = $item->product ? $approval->unitCost($item) : null)
+                                                <td class="text-end">
+                                                    @if ($unitCost === null)
+                                                        <span class="badge bg-warning-subtle text-warning">{{ __('Cost unknown') }}</span>
+                                                    @else
+                                                        @can('viewCost', App\Models\Product::class)
+                                                            {{ number_format($unitCost, 2) }}
+                                                        @else
+                                                            <span class="text-muted">{{ __('Known') }}</span>
+                                                        @endcan
+                                                    @endif
+                                                </td>
+                                            @endif
                                             <td>
                                                 @if ($item->item_notes)
                                                     <small class="text-muted">{{ $item->item_notes }}</small>
@@ -225,13 +244,13 @@
                             <span class="text-muted">Total Items</span>
                             <span class="fw-medium">{{ $stockAdjustment->items->count() }}</span>
                         </div>
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <span class="text-muted">{{ __('Units added') }}</span>
+                            <span class="fw-medium text-success">+{{ number_format($stockAdjustment->items->where('quantity_change', '>', 0)->sum('quantity_change')) }}</span>
+                        </div>
                         <div class="d-flex justify-content-between align-items-center">
-                            <span class="text-muted">Total Quantity Change</span>
-                            @if($stockAdjustment->type->value === 'increase')
-                                <span class="fw-medium text-success">+{{ number_format($stockAdjustment->total_quantity_change) }}</span>
-                            @else
-                                <span class="fw-medium text-danger">-{{ number_format($stockAdjustment->total_quantity_change) }}</span>
-                            @endif
+                            <span class="text-muted">{{ __('Units removed') }}</span>
+                            <span class="fw-medium text-danger">−{{ number_format(abs($stockAdjustment->items->where('quantity_change', '<', 0)->sum('quantity_change'))) }}</span>
                         </div>
                     </div>
                 </div>
@@ -281,8 +300,8 @@
                                         </span>
                                     </div>
                                     <div class="flex-grow-1 ms-3">
-                                        <h6 class="mb-1">Completed</h6>
-                                        <p class="text-muted mb-0 fs-13">Inventory updated</p>
+                                        <h6 class="mb-1">{{ __('Applied') }}</h6>
+                                        <p class="text-muted mb-0 fs-13">{{ __('Stock updated') }}</p>
                                     </div>
                                 </li>
                             @endif

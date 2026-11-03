@@ -17,6 +17,7 @@ class StockAdjustmentItem extends Model
         'uuid',
         'stock_adjustment_id',
         'product_id',
+        'variation_id',
         'shop_id',
         'quantity_before',
         'quantity_change',
@@ -56,6 +57,15 @@ class StockAdjustmentItem extends Model
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);
+    }
+
+    /**
+     * The variation the line moves (stage 10, step 1g): the product's default
+     * one for a product without variations.
+     */
+    public function variation(): BelongsTo
+    {
+        return $this->belongsTo(ProductVariation::class, 'variation_id');
     }
 
     public function shop(): BelongsTo

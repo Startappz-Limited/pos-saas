@@ -118,7 +118,7 @@
                                     @foreach (App\Enums\AdjustmentType::cases() as $type)
                                         <option value="{{ $type->value }}"
                                             {{ request('type') === $type->value ? 'selected' : '' }}>
-                                            {{ ucfirst($type->value) }}
+                                            {{ __($type->label()) }}
                                         </option>
                                     @endforeach
                                 </select>
@@ -166,20 +166,10 @@
                                                 </a>
                                             </td>
                                             <td>
-                                                @if($adjustment->type->value === 'increase')
-                                                    <span class="badge bg-success-subtle text-success">
-                                                        <iconify-icon icon="solar:arrow-up-bold" class="align-middle"></iconify-icon>
-                                                        Increase
-                                                    </span>
-                                                @else
-                                                    <span class="badge bg-danger-subtle text-danger">
-                                                        <iconify-icon icon="solar:arrow-down-bold" class="align-middle"></iconify-icon>
-                                                        Decrease
-                                                    </span>
-                                                @endif
+                                                @include('stock-adjustments._type', ['type' => $adjustment->type])
                                             </td>
                                             <td>
-                                                <span class="text-capitalize">{{ str_replace('_', ' ', $adjustment->reason->value) }}</span>
+                                                {{ __($adjustment->reason->label()) }}
                                             </td>
                                             <td>{{ $adjustment->shop?->name ?? '—' }}</td>
                                             <td class="text-center">
@@ -222,10 +212,10 @@
                                                             method="POST" class="d-inline">
                                                             @csrf
                                                             <button type="submit" class="btn btn-soft-success btn-sm"
-                                                                title="Approve"
-                                                                onclick="return confirm('Approve this adjustment?')">
+                                                                title="{{ __('Approve & Apply') }}" aria-label="{{ __('Approve & Apply') }}"
+                                                                onclick="return confirm(@js(__('Approve this adjustment and update the stock?')))">
                                                                 <iconify-icon icon="solar:check-circle-bold-duotone"
-                                                                    class="align-middle fs-18"></iconify-icon>
+                                                                    class="align-middle fs-18" aria-hidden="true"></iconify-icon>
                                                             </button>
                                                         </form>
                                                     @endcan

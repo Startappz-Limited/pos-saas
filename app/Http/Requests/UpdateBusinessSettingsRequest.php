@@ -27,6 +27,8 @@ class UpdateBusinessSettingsRequest extends FormRequest
             'invoice_prefix' => ['nullable', 'string', 'min:2', 'max:10', 'regex:/^[A-Za-z0-9]+$/'],
             'logo' => ['nullable', 'image', 'mimes:png,jpg,jpeg,webp', 'max:2048'],
             'remove_logo' => ['nullable', 'boolean'],
+            // Stock adjustments at or above it need a second person (stage 10, step 1g).
+            'adjustment_approval_threshold' => ['nullable', 'numeric', 'min:0', 'max:100000000'],
         ];
     }
 
