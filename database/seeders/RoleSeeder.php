@@ -409,6 +409,7 @@ class RoleSeeder extends Seeder
         $role = Role::findByName('inventory-clerk');
 
         $permissions = [
+            // No cost permission: clerks count stock, they don't see or set costs (stage 10, step 1f).
             // Categories (full access)
             'categories.view',
             'categories.create',
@@ -422,8 +423,6 @@ class RoleSeeder extends Seeder
             'products.delete',
             'products.import',
             'products.export',
-            'products.view-cost',
-            'products.set-cost',
 
             // Suppliers (full access)
             'suppliers.view',
