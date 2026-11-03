@@ -19,16 +19,17 @@ use Illuminate\Support\Collection;
  *
  * Its creator applies it on saving only when they hold
  * `stock-adjustments.approve` and it needs no second person. It needs one when:
- * - its reason is loss, theft, damage or expiry (any direction);
+ * - its reason is loss, theft, damage, expiry, a quality issue or a
+ *   promotional giveaway (any direction);
  * - it is a recount with any line that lowers stock;
  * - any line's cost is unknown;
  * - its cost value, added to what the same person auto-applied at the same
  *   shop on the same shop-local day, is at or above the business's threshold.
  *
- * So, by reason: found and a recount that only raises stock apply on saving
- * (within the threshold, known cost); "other", quality issue and promotional
- * giveaway likewise, in either direction; lost, stolen, damaged, expired and a
- * recount that lowers stock always wait. "Returned to supplier" is no longer
+ * So, by reason: found, a recount that only raises stock, and "other" in
+ * either direction apply on saving (within the threshold, known cost); lost,
+ * stolen, damaged, expired, quality issue, promotional giveaway and a recount
+ * that lowers stock always wait (decided 3 November 2026). "Returned to supplier" is no longer
  * offered (purchase returns).
  *
  * The cost value is Σ |quantity| × unit cost over the lines (gross, never

@@ -86,7 +86,7 @@ describe('who', function () {
     });
 
     it('lets a pending sale be voided days later, but not by a manager without sales.void', function () {
-        $sale = ($this->sale)(['status' => 'pending', 'completed_at' => null]);
+        $sale = ($this->sale)(['status' => 'pending', 'completed_at' => null, 'paid_amount' => 0]);
         $this->travel(5)->days();
 
         expect(($this->member)('manager')->can('void', $sale))->toBeFalse()
@@ -317,5 +317,21 @@ describe('the migration', function () {
             ->and($byOwner[1]->fresh()->hasPermissionTo($void))->toBeTrue()
             ->and($byOperator[1]->fresh()->hasPermissionTo($void))->toBeFalse()
             ->and(DB::table('role_revoked_permissions')->where('role_id', $byOwner[1]->id)->exists())->toBeFalse();
+    });
+});
+
+// TEMPORARY until step 4 refunds payments on a void (decided 3 November 2026): remove with the refusal.
+describe('a pending sale with payments (temporary)', function () {
+    it('refuses to void a pending sale that has payments, with 422 sale_has_payments', function () {
+        $sale = ($this->sale)(['status' => 'pending', 'completed_at' => null, 'paid_amount' => 500]);
+
+        ($this->voidApi)($this->owner, $sale)->assertUnprocessable()
+            ->assertJsonPath('code', 'sale_has_payments')
+            ->assertJsonPath('message', "This sale has payments. It can't be voided until refunds are supported.");
+        ($this->voidWeb)($this->owner, $sale)->assertRedirect()->assertSessionHas('error', "This sale has payments. It can't be voided until refunds are supported.");
+        expect($sale->fresh()->status)->toBe('pending');
+
+        // Without payments it can still be voided at any time.
+        ($this->voidApi)($this->owner, ($this->sale)(['status' => 'pending', 'completed_at' => null, 'paid_amount' => 0]))->assertOk();
     });
 });

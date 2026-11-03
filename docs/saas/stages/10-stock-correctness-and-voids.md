@@ -19,6 +19,12 @@
 
 ## Revisions
 
+**Implementation decisions (3 November 2026).** Made while building steps 1g and 2 on `fix/stock-voids-fifo`; they
+replace the earlier text where they differ, and are listed under "Decisions that apply" (3 November 2026): approval by
+permission with notifications (shared by adjustments and voids), stricter adjustment rules, owner-only limits, void
+requests, 422 for a closed window, the shop's timezone on its form, and a temporary refusal for pending sales with
+payments until step 4.
+
 **Split from the combined stage (27 October 2026).** "Stock Intake, Products and FIFO Integrity" became three
 stages, because it mixed bug fixes in code that exists today with two new foundations (units and decimal
 quantities, then receiving and transfers on top of them), and the decisions of 27 October changed the foundations:
@@ -207,7 +213,56 @@ permission, checked 28 October 2026).
 ## Decisions that apply
 
 Decisions of 26, 27 and 28 October 2026, for steps 0 to 8. Each step says which apply; later rounds' decisions replace
-earlier ones where they differ (the Revisions list says which).
+earlier ones where they differ (the Revisions list says which). The decisions of 3 November 2026 (below, first) replace
+any earlier text they contradict.
+
+- **Decisions of 3 November 2026 (during implementation, steps 1g and 2):**
+  - **Approval by permission, with notifications (shared by stock adjustments and void requests):**
+    - approvers are the active members of the business who hold the approve permission there
+      (`stock-adjustments.approve`, or `sales.void` for voids) and may work in the request's shop; never a role name;
+      the owner can give the permission to anyone;
+    - nobody approves their own request, except an owner when no other member is eligible: they approve with a
+      required note, audited and flagged "self-approved" (a filter on the adjustments list); non-owners never do;
+    - when a request is made, every eligible approver but its creator is notified (in the app under the topbar's
+      bell, and by email; queued, sent once the request is saved; no push: the backend has none); the first approval
+      or rejection settles it and the others' notifications are marked resolved; approving and rejecting are audited;
+      rejecting needs a reason; the creator is told the outcome;
+    - a request still pending after 24 hours gets one reminder to its approvers and is listed on the owner's
+      dashboard (`approvals:remind`, hourly);
+    - a pending request whose creator leaves stays pending and listed, never applies by itself, and the owner can
+      settle it.
+  - **Stock adjustments (step 1g):**
+    - `stock-adjustments.create` and `stock-adjustments.approve` are separate: a creator holding approve applies on
+      saving where the rules allow; a creator without it always waits. Owner and manager templates hold approve
+      (add-only rollout through `GrantTemplatePermissions`, audited);
+    - always wait, whatever the value: lost, stolen, damaged, expired, **quality issue, promotional giveaway**, and a
+      **recount with any line lowering stock**. Apply on saving (known cost, under the threshold): found, a recount
+      that only raises stock, and "other";
+    - the threshold stays "at or above waits" (exactly KES 5,000 waits); the value is gross (Σ |quantity| × cost, never
+      netted), and **cumulative**: one person's auto-applied adjustments at one shop on one shop-local day count
+      together;
+    - **changing the threshold is owner-only** (not `settings.update` alone), audited;
+    - **cancel replaces delete**: a pending adjustment is cancelled (status `cancelled`) and keeps its number, so the
+      series has no gaps; an applied, rejected or cancelled adjustment can't be edited or cancelled, full access
+      included;
+    - a pending decrease doesn't hold stock: the till keeps selling it, and **the till shows a non-blocking warning
+      "N units pending removal"**, built where the till's stock display is touched (step 5c); stock is never held.
+  - **Voids (step 2):**
+    - `sales.void` stays off the manager template; the revocation keeps it on a manager copy whose owner gave it on
+      purpose, as the audit trail shows (an attach by a person who isn't a platform operator);
+    - **changing the void time limit (including "no limit") is owner-only**, audited;
+    - **a void refused because the window has passed answers 422** `void_window_closed` with the time-limit message
+      (a browser form goes back with the message); 403 stays for no permission. Web and flat API;
+    - **void requests:** someone with `sales.create` and without `sales.void` asks, with a reason, inside the window;
+      eligible approvers (holding `sales.void`, with access to the shop, not the requester) are notified under the
+      shared rule and approve or reject on the web or the app; approval voids the sale, with the window checked at
+      the request's time, so an approval up to **48 hours** after a timely request still voids it; after that the
+      request expires and the requester is told. Holders of `sales.void` void directly;
+    - **the shop's timezone** is on the shop form and flat API (optional IANA zone; else the business's, else
+      Africa/Nairobi);
+    - **temporary, until step 4 ships the refund rule:** a pending sale with payments can't be voided, nor a void of it
+      requested: 422 "This sale has payments. It can't be voided until refunds are supported." (`sale_has_payments`).
+      Step 4 removes the refusal and its tests.
 
 - **Context (27 October 2026):** there are no customers yet; the system is being set up for new businesses,
   including pharmacies, agro-vets and wholesalers. The existing businesses on UAT are kept, so every change to
@@ -569,6 +624,8 @@ is deployed.
       holding `products.create` creates a simple product with a `status`.
 
 ### 1g. Stock adjustments: fix what is wrong today (legacy design review)
+> **Revised 3 November 2026** (see "Decisions that apply"): approval by permission with notifications, stricter
+> reasons, a cumulative and owner-only threshold, and cancel instead of delete. Done; see PROGRESS.
 - [ ] **By variation:** `stock_adjustment_items.variation_id` (foreign key; required for a product with variations,
       the default variation for one without). The form and `StoreStockAdjustmentRequest` (used by the controller,
       which validates inline today) pick a variation; the service adjusts that one. Existing items get the default
@@ -632,6 +689,9 @@ is deployed.
       numbers are gapless per shop and two businesses' don't collide; another business's adjustment is a 404.
 
 ### 2. Who can void and delete, and for how long
+> **Revised 3 November 2026** (see "Decisions that apply"): void requests, 422 for a closed window, an owner-only
+> limit, deliberate grants kept, the shop's timezone on its form, and a temporary refusal for pending sales with
+> payments until step 4. Done; see PROGRESS.
 - [ ] **API checks:** `Api\SaleController::void` calls `$this->authorize('void', $sale)`; `::destroy` calls
       `$this->authorize('delete', $sale)`, so web and API apply the same policy. Refusals stay
       `{success: false, message}` with 403 (flat API shape).
@@ -942,6 +1002,9 @@ is deployed.
   - a void for a sale that has had a return since (one that isn't rejected) is `refused` (`sale_has_returns`) and goes on the till sync review
     as a new `void_refused` issue (the till, the person, the recorded time and the reason), so a manager sees the
     void that didn't happen.
+- [ ] **Pending removals at the till** (decided 3 November 2026): the pull's `stock` carries, per variation, the units
+      that pending stock-adjustment decreases would remove (`pending_removal`), and the till shows a non-blocking
+      warning "N units pending removal" when it sells into them. Stock is never held.
 - [ ] **Telling the tills:** the pull gains `sale_voids`, the shop's sales voided since the cursor (`uuid`,
       `client_uuid`, `voided_at`, `void_recorded_at`, `reason`), so every till of the shop marks them, wherever the
       void was made. The restored stock reaches the tills through the pull's `stock` section (step 3).
@@ -1610,9 +1673,13 @@ stage 11 makes them decimal.
    `stock-adjustments:list-unapplied` for each business. **The owner applies or rejects each listed adjustment on its
    page**, through the one-step approval (a second person where step 1g requires one). Nothing is applied by a
    command.
-8. **Server before app:** deploy the server first. Every sync change is an addition, so the app in shops ignores
+8. **Background work (step 1g follow-up and step 2):** the scheduler must run `approvals:remind` hourly (it is in
+   `routes/console.php`; `schedule:run` must run every minute), and a queue worker must be running for approval
+   notifications (queued on `default`; the worker's `--queue=` list must include it). Without them nobody is
+   reminded, void requests never expire, and no approval email or in-app notification is delivered.
+9. **Server before app:** deploy the server first. Every sync change is an addition, so the app in shops ignores
    `sale_voids`, `voidable` and `voidable_until`, and never sends `sale_void`.
-9. Check the server, on the rehearsal, against the app's recorded requests: the Phase 7 sync tests run unchanged;
+10. Check the server, on the rehearsal, against the app's recorded requests: the Phase 7 sync tests run unchanged;
    the recorded pushes and pulls, and the flat API contract fixtures, succeed; the replay test (no `X-App-Version`)
    gets Phase 7's codes. How the app itself behaves is checked in its own release
    ([app-release-checklist.md](./app-release-checklist.md#stage-10)), whose date isn't set.

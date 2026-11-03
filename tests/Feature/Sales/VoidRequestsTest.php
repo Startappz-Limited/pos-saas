@@ -161,3 +161,13 @@ it('shows the request on the sale page: Request void to a cashier, Approve to an
     $this->actingAs($this->lead)->get(route('sales.show', $this->sale))->assertOk()->assertSee('Approve and void')->assertSee('Rang it up twice');
     $this->actingAs($this->lead)->get(route('void-requests.index'))->assertOk()->assertSee($this->sale->invoice_number);
 });
+
+// TEMPORARY until step 4 refunds payments on a void (decided 3 November 2026): remove with the refusal.
+it('refuses a void request for a pending sale that has payments', function () {
+    $sale = Sale::factory()->create(['shop_id' => $this->shop->id, 'register_id' => $this->session->id, 'status' => 'pending', 'completed_at' => null, 'paid_amount' => 500]);
+
+    ($this->ask)($this->cashier, $sale)->assertSessionHas('error', "This sale has payments. It can't be voided until refunds are supported.");
+    Sanctum::actingAs($this->cashier, ['*']);
+    $this->postJson("/api/sales/{$sale->getRouteKey()}/void-request", ['reason' => 'x'])->assertUnprocessable();
+    expect(SaleVoidRequest::count())->toBe(0);
+});

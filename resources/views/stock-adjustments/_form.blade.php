@@ -160,7 +160,7 @@
                     <span class="fw-medium text-danger" id="total-removed">0</span>
                 </div>
                 <p class="text-muted small mb-0">
-                    {{ __('Loss, theft, damage, expiry, an unknown cost or a value of :threshold or more waits for someone else to approve it. Anything else is applied when you save.', ['threshold' => number_format(App\Support\Stock\AdjustmentApproval::threshold(app(App\Support\Tenancy\TenantContext::class)->business()), 2)]) }}
+                    {{ __('Loss, theft, damage, expiry, quality issues, giveaways, a recount that lowers stock, an unknown cost or a value of :threshold or more (with what you applied today) waits for someone else to approve it. Anything else is applied when you save, if you may approve adjustments.', ['threshold' => number_format(App\Support\Stock\AdjustmentApproval::threshold(app(App\Support\Tenancy\TenantContext::class)->business()), 2)]) }}
                 </p>
             </div>
         </div>

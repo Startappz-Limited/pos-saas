@@ -190,7 +190,7 @@ class SaleController extends Controller
     {
         $decision = Gate::inspect('void', $sale);
         if ($decision->denied() && $decision->status() === 422) {
-            return response()->json(['success' => false, 'message' => $decision->message(), 'code' => 'void_window_closed'], 422);
+            return response()->json(['success' => false, 'message' => $decision->message(), 'code' => $decision->code()], 422);
         }
         $decision->authorize();
 

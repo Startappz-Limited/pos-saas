@@ -62,11 +62,12 @@ enum AdjustmentReason: string
 
     /**
      * Loss, theft, damage and expiry always need a second person to approve
-     * (decided 27 October 2026), whatever the value.
+     * (decided 27 October 2026), whatever the value; so do quality issues and
+     * promotional giveaways (decided 3 November 2026).
      */
     public function needsSecondPerson(): bool
     {
-        return in_array($this, [self::LOST, self::STOLEN, self::DAMAGED, self::EXPIRED], true);
+        return in_array($this, [self::LOST, self::STOLEN, self::DAMAGED, self::EXPIRED, self::QUALITY_ISSUE, self::PROMOTIONAL_GIVEAWAY], true);
     }
 
     /**

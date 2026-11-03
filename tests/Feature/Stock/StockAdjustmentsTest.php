@@ -317,3 +317,10 @@ it('answers 404 for another business\'s adjustment', function () {
     $this->actingAs($two->a->owner)->get("/stock-adjustments/{$adjustment->getRouteKey()}")->assertNotFound();
     $this->actingAs($two->a->owner)->post("/stock-adjustments/{$adjustment->getRouteKey()}/approve")->assertNotFound();
 });
+
+it('holds quality issues and promotional giveaways for a second person, however small (decided 3 November 2026)', function (string $reason) {
+    ($this->stock)($this->default, 5, 10);
+
+    expect(($this->adjust)($this->manager, $reason, [[$this->default, -1]])->status)->toBe('pending')
+        ->and(($this->quantity)($this->default))->toBe(5);
+})->with(['quality_issue', 'promotional_giveaway']);

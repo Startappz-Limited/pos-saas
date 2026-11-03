@@ -38,6 +38,19 @@ final class VoidWindow
     public const DEFAULT_TIMEZONE = 'Africa/Nairobi';
 
     /**
+     * Temporary (decided 3 November 2026): until step 4 refunds what a voided
+     * sale took, a pending sale with payments can't be voided or asked about.
+     */
+    public const PAYMENTS_REFUSAL = 'This sale has payments. It can\'t be voided until refunds are supported.';
+
+    public static function pendingWithPayments(Sale $sale): bool
+    {
+        $status = $sale->status instanceof \BackedEnum ? $sale->status->value : $sale->status;
+
+        return $status === 'pending' && ((float) $sale->paid_amount > 0 || $sale->payments()->exists());
+    }
+
+    /**
      * The business's setting: one of the constants, or a number of minutes.
      */
     public static function setting(?Business $business): string|int

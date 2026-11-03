@@ -51,6 +51,9 @@ final class VoidRequests
             if (SaleVoidRequest::query()->pending()->where('sale_id', $sale->id)->exists()) {
                 throw new BusinessRuleException(__('A void of this sale has already been requested.'));
             }
+            if (VoidWindow::pendingWithPayments($sale)) {
+                throw new BusinessRuleException(__(VoidWindow::PAYMENTS_REFUSAL));
+            }
             if (! $this->window->allows($sale, now())) {
                 throw new BusinessRuleException($this->window->refusal($sale, now()));
             }
@@ -84,6 +87,9 @@ final class VoidRequests
             $sale = Sale::query()->whereKey($request->sale_id)->lockForUpdate()->firstOrFail();
             if ($sale->status === 'voided') {
                 throw new BusinessRuleException(__('This sale is already voided.'));
+            }
+            if (VoidWindow::pendingWithPayments($sale)) {
+                throw new BusinessRuleException(__(VoidWindow::PAYMENTS_REFUSAL));
             }
             if (! $this->window->allows($sale, $request->requested_at)) {
                 throw new BusinessRuleException($this->window->refusal($sale, $request->requested_at));

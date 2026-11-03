@@ -121,10 +121,15 @@ class SalePolicy
             return false;
         }
 
+        // Until step 4 refunds payments on a void (decided 3 November 2026).
+        if (VoidWindow::pendingWithPayments($sale)) {
+            return Response::denyWithStatus(422, VoidWindow::PAYMENTS_REFUSAL, 'sale_has_payments');
+        }
+
         $window = app(VoidWindow::class);
         $now = now();
 
-        return $window->allows($sale, $now) ? Response::allow() : Response::denyWithStatus(422, $window->refusal($sale, $now));
+        return $window->allows($sale, $now) ? Response::allow() : Response::denyWithStatus(422, $window->refusal($sale, $now), 'void_window_closed');
     }
 
     /**
