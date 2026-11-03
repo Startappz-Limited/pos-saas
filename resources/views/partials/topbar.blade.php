@@ -94,7 +94,11 @@
                                 <a href="{{ route('notifications.open', $item->id) }}" class="dropdown-item py-3 border-bottom text-wrap">
                                     <p class="mb-0 fw-semibold">
                                         @if (isset($item->data['outcome']))
-                                            {{ $item->data['outcome'] === 'approved' ? __('Approved: :title', ['title' => $item->data['title'] ?? '']) : __('Rejected: :title', ['title' => $item->data['title'] ?? '']) }}
+                                            {{ match ($item->data['outcome']) {
+                                                'approved' => __('Approved: :title', ['title' => $item->data['title'] ?? '']),
+                                                'expired' => __('Expired: :title', ['title' => $item->data['title'] ?? '']),
+                                                default => __('Rejected: :title', ['title' => $item->data['title'] ?? '']),
+                                            } }}
                                         @elseif (! empty($item->data['reminder']))
                                             {{ __('Still waiting: :title', ['title' => $item->data['title'] ?? '']) }}
                                         @else

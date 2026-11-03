@@ -94,6 +94,20 @@
                             </div>
 
                             <div class="col-md-4">
+                                <label for="timezone" class="form-label">{{ __('Timezone') }}</label>
+                                <select class="form-select @error('timezone') is-invalid @enderror" id="timezone" name="timezone">
+                                    <option value="">{{ __('Same as the business (:timezone)', ['timezone' => current_business()?->timezone ?? 'Africa/Nairobi']) }}</option>
+                                    @foreach (\DateTimeZone::listIdentifiers() as $zone)
+                                        <option value="{{ $zone }}" @selected(old('timezone', $shop->timezone) === $zone)>{{ $zone }}</option>
+                                    @endforeach
+                                </select>
+                                <div class="form-text">{{ __('Sets the shop\'s day, for example how long a sale can be voided.') }}</div>
+                                @error('timezone')
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                            </div>
+
+                            <div class="col-md-4">
                                 <label for="postal_code" class="form-label">Postal Code</label>
                                 <input type="text" class="form-control @error('postal_code') is-invalid @enderror"
                                     id="postal_code" name="postal_code"

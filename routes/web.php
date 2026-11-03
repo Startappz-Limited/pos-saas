@@ -47,6 +47,7 @@ use App\Http\Controllers\ReportController;
 use App\Http\Controllers\ReturnController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\SaleController;
+use App\Http\Controllers\SaleVoidRequestController;
 use App\Http\Controllers\ShopController;
 use App\Http\Controllers\ShopMpesaController;
 use App\Http\Controllers\SocialAccountController;
@@ -336,6 +337,12 @@ Route::middleware(['auth', 'business'])->group(function () {
     Route::get('sales/completed/list', [SaleController::class, 'completed'])->name('sales.completed');
     Route::post('sales/{sale:uuid}/complete', [SaleController::class, 'complete'])->name('sales.complete');
     Route::post('sales/{sale:uuid}/void', [SaleController::class, 'void'])->name('sales.void')->middleware('throttle:5,1');
+    // Void requests: asked by someone without sales.void, settled by someone with it (stage 10, step 2).
+    Route::post('sales/{sale:uuid}/void-requests', [SaleVoidRequestController::class, 'store'])->name('sales.void-requests.store')->middleware('throttle:5,1');
+    Route::get('void-requests', [SaleVoidRequestController::class, 'index'])->name('void-requests.index');
+    Route::post('void-requests/{voidRequest}/approve', [SaleVoidRequestController::class, 'approve'])->name('void-requests.approve')->middleware('throttle:5,1');
+    Route::post('void-requests/{voidRequest}/reject', [SaleVoidRequestController::class, 'reject'])->name('void-requests.reject');
+    Route::post('void-requests/{voidRequest}/cancel', [SaleVoidRequestController::class, 'cancel'])->name('void-requests.cancel');
     Route::post('sales/{sale:uuid}/collect-payment', [SaleController::class, 'collectPayment'])->name('sales.collectPayment');
     Route::get('sales/{sale:uuid}/payments', [SaleController::class, 'getPayments'])->name('sales.getPayments');
     Route::get('sales/report/daily', [SaleController::class, 'dailyReport'])->name('sales.dailyReport');

@@ -21,6 +21,7 @@ use App\Models\PricingRule;
 use App\Models\PurchaseOrder;
 use App\Models\Register;
 use App\Models\Role;
+use App\Models\SaleVoidRequest;
 use App\Models\SocialAccount;
 use App\Models\StockAdjustment;
 use App\Models\SyncIssue;
@@ -88,6 +89,7 @@ function recordOfB(TwoBusinesses $fixture, string $resource): Model
         'suppliers' => $b->supplier,
         'sync-issues' => SyncIssue::create(['type' => SyncIssue::POSSIBLE_DUPLICATE_CUSTOMER, 'key' => 'customer:b', 'details' => ['customer' => (string) $b->customer->uuid, 'duplicate_of' => (string) $b->customer->uuid]]),
         'users' => $b->cashier,
+        'void-requests' => SaleVoidRequest::factory()->create(['sale_id' => $b->sale->id, 'shop_id' => $b->sale->shop_id, 'requested_by' => $b->cashier->id]),
     });
 }
 
@@ -108,7 +110,7 @@ const WEB_RESOURCES = [
     'products' => ['show', 'update', 'destroy'],
     'purchase-orders' => ['show', 'update', 'destroy'],
     'roles' => ['show', 'edit', 'update', 'destroy', 'permissions', 'updatePermissions', 'reset', 'active'],
-    'sales' => ['show', 'update', 'destroy'],
+    'sales' => ['show', 'update', 'destroy', 'void-requests.store'],
     'shops' => ['show', 'update', 'destroy'],
     // show: SocialAccountController::show doesn't exist (already on main).
     'social-accounts' => ['update', 'destroy'],
@@ -118,6 +120,8 @@ const WEB_RESOURCES = [
     'users' => ['show', 'update', 'destroy', 'till-pin.reset', 'till-pin.unlock'],
     'invites' => ['resend', 'destroy', 'role'],
     'sync-issues' => ['resolve', 'merge'],
+    // Void requests (stage 10, step 2).
+    'void-requests' => ['approve', 'reject', 'cancel'],
 ];
 
 /** Resource => the actions its flat API routes offer on one record. */
@@ -132,10 +136,11 @@ const API_RESOURCES = [
     'expenses' => ['show', 'update', 'destroy'],
     'products' => ['show', 'update', 'destroy'],
     'purchase-orders' => ['show', 'update', 'destroy'],
-    'sales' => ['show', 'update', 'destroy'],
+    'sales' => ['show', 'update', 'destroy', 'void-requests.store'],
     'shops' => ['show', 'update', 'destroy'],
     'suppliers' => ['show', 'update', 'destroy'],
     'users' => ['show', 'update', 'destroy'],
+    'void-requests' => ['approve', 'reject', 'cancel'],
 ];
 
 /**

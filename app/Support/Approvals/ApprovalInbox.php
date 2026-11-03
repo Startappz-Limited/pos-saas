@@ -2,6 +2,7 @@
 
 namespace App\Support\Approvals;
 
+use App\Models\SaleVoidRequest;
 use App\Models\StockAdjustment;
 use App\Models\User;
 use App\Notifications\Approvals\ApprovalRequested;
@@ -25,6 +26,7 @@ final class ApprovalInbox
      */
     private const KINDS = [
         'stock_adjustment' => StockAdjustment::class,
+        'void_request' => SaleVoidRequest::class,
     ];
 
     /**
@@ -42,13 +44,15 @@ final class ApprovalInbox
 
     /**
      * Marks every open notification about the request resolved, with how it
-     * was settled, and tells its creator (unless they settled it themselves).
+     * was settled, and tells its creator: approved or rejected (unless they
+     * settled it themselves), or expired.
      */
     public function settle(ApprovalSubject $subject, ?User $creator, string $outcome, User $by, ?string $note = null): void
     {
         $this->resolve($subject->kind, $subject->uuid, $outcome);
 
-        if ($creator !== null && $creator->id !== $by->id && in_array($outcome, ['approved', 'rejected'], true)) {
+        $told = $outcome === 'expired' || (in_array($outcome, ['approved', 'rejected'], true) && $creator?->id !== $by->id);
+        if ($creator !== null && $told) {
             DB::afterCommit(fn () => $creator->notify(new ApprovalSettled($subject, $outcome, $by->name, $note)));
         }
     }

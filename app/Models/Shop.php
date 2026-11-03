@@ -29,6 +29,7 @@ class Shop extends Model
         'code',
         'description',
         'phone',
+        'timezone',
         'email',
         'tax_pin',
         'vat_registered',

@@ -9,8 +9,8 @@ use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
 /**
- * Tells whoever made a request how it was settled (stage 10): approved or
- * rejected, by whom, and the reason given. Queued; in the app and by email.
+ * Tells whoever made a request how it was settled (stage 10): approved,
+ * rejected (by whom, with the reason given) or expired. Queued; in the app and by email.
  */
 class ApprovalSettled extends Notification implements ShouldQueue
 {
@@ -34,12 +34,16 @@ class ApprovalSettled extends Notification implements ShouldQueue
     public function toMail(object $notifiable): MailMessage
     {
         $mail = (new MailMessage)
-            ->subject($this->outcome === 'approved'
-                ? __('Approved: :title', ['title' => $this->subject->title])
-                : __('Rejected: :title', ['title' => $this->subject->title]))
-            ->line($this->outcome === 'approved'
-                ? __(':name approved it.', ['name' => $this->settledBy])
-                : __(':name rejected it.', ['name' => $this->settledBy]));
+            ->subject(match ($this->outcome) {
+                'approved' => __('Approved: :title', ['title' => $this->subject->title]),
+                'expired' => __('Expired: :title', ['title' => $this->subject->title]),
+                default => __('Rejected: :title', ['title' => $this->subject->title]),
+            })
+            ->line(match ($this->outcome) {
+                'approved' => __(':name approved it.', ['name' => $this->settledBy]),
+                'expired' => __('Nobody approved it in time, so nothing changed.'),
+                default => __(':name rejected it.', ['name' => $this->settledBy]),
+            });
 
         if ($this->note !== null && $this->note !== '') {
             $mail->line(__('Reason: :note', ['note' => $this->note]));

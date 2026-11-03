@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Actions\CalculateSaleTotals;
 use App\Actions\GenerateSaleInvoicePdf;
 use App\Actions\RecordCreditSale;
+use App\Actions\Sale\VoidSale;
 use App\Actions\SendSaleNotifications;
 use App\Actions\SettleCreditSalePayment;
 use App\Http\Requests\StoreSaleRequest;
@@ -35,6 +36,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response as HttpResponse;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
@@ -544,30 +546,30 @@ class SaleController extends Controller
     /**
      * Void a sale.
      */
-    public function void(Request $request, Sale $sale): RedirectResponse
+    /**
+     * Voids the sale (stage 10, step 2): 403 without `sales.void`; past the void
+     * window, the time-limit message (422 to a JSON request, back to the form
+     * otherwise).
+     */
+    public function void(Request $request, Sale $sale): RedirectResponse|JsonResponse
     {
-        $this->authorize('void', $sale);
+        $decision = Gate::inspect('void', $sale);
+        if ($decision->denied() && $decision->status() === 422) {
+            return $request->expectsJson()
+                ? response()->json(['success' => false, 'message' => $decision->message(), 'code' => 'void_window_closed'], 422)
+                : back()->with('error', $decision->message());
+        }
+        $decision->authorize();
 
         $validated = $request->validate([
             'void_reason' => 'required|string|max:255',
         ]);
 
-        DB::transaction(function () use ($sale, $validated): void {
-            $sale->update([
-                'status' => 'voided',
-                'voided_at' => now(),
-                'voided_by' => auth()->id(),
-                'void_reason' => $validated['void_reason'],
-            ]);
+        app(VoidSale::class)->execute($sale, $validated['void_reason'], $request->user());
 
-            // Release the debt a voided credit sale created, or the customer
-            // keeps owing for a sale that no longer exists.
-            app(SettleCreditSalePayment::class)->reverse($sale, $validated['void_reason']);
-        });
-
-        return redirect()
-            ->back()
-            ->with('success', 'Sale voided successfully.');
+        return $request->expectsJson()
+            ? response()->json(['success' => true, 'message' => __('Sale voided successfully.'), 'data' => $sale->fresh()])
+            : redirect()->back()->with('success', __('Sale voided successfully.'));
     }
 
     /**

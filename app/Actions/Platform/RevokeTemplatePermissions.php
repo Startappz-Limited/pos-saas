@@ -27,9 +27,10 @@ final class RevokeTemplatePermissions
 {
     /**
      * @param  list<string>  $permissions
-     * @return array{before: int, after: int, roles: array<int, list<string>>} grants held before and after, and what each role lost
+     * @param  list<int>  $keepRoleIds  roles left as they are (an owner granted the permission on purpose)
+     * @return array{before: int, after: int, roles: array<int, list<string>>} grants held before and after (by the roles changed), and what each role lost
      */
-    public function execute(string $roleName, array $permissions, string $reason): array
+    public function execute(string $roleName, array $permissions, string $reason, array $keepRoleIds = []): array
     {
         $template = DB::table('roles')->whereNull('business_id')->where('name', $roleName)->where('guard_name', 'web')->value('id');
         $ids = DB::table('permissions')->whereIn('name', $permissions)->where('guard_name', 'web')->pluck('id', 'name');
@@ -38,7 +39,9 @@ final class RevokeTemplatePermissions
             return ['before' => 0, 'after' => 0, 'roles' => []];
         }
 
-        $roles = DB::table('roles')->where('id', $template)->orWhere('template_id', $template)->get(['id', 'uuid', 'business_id']);
+        // $keepRoleIds: copies whose owner granted it on purpose keep it (stage 10, step 2).
+        $roles = DB::table('roles')->where(fn ($query) => $query->where('id', $template)->orWhere('template_id', $template))
+            ->whereNotIn('id', $keepRoleIds)->get(['id', 'uuid', 'business_id']);
         $held = fn (): int => DB::table('role_has_permissions')->whereIn('role_id', $roles->pluck('id'))->whereIn('permission_id', $ids->values())->count();
         $before = $held();
         $lost = [];

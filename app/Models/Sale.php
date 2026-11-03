@@ -56,11 +56,16 @@ class Sale extends Model
         'status',
         'notes',
         'completed_at',
+        // Who voided it, when and why: missing before stage 10, so voids kept only their status.
+        'voided_at',
+        'voided_by',
+        'void_reason',
         'created_by',
     ];
 
     protected $casts = [
         'completed_at' => 'datetime',
+        'voided_at' => 'datetime',
         'is_cod' => 'boolean',
         'tax_inclusive' => 'boolean',
         'tax_breakdown' => 'array',

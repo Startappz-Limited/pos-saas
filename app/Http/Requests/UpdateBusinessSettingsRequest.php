@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Support\Currency;
+use App\Support\Sales\VoidWindow;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -29,6 +30,9 @@ class UpdateBusinessSettingsRequest extends FormRequest
             'remove_logo' => ['nullable', 'boolean'],
             // Stock adjustments at or above it need a second person (stage 10, step 1g).
             'adjustment_approval_threshold' => ['nullable', 'numeric', 'min:0', 'max:100000000'],
+            // How long a sale can be voided (stage 10, step 2).
+            'void_window' => ['nullable', Rule::in([VoidWindow::SESSION, VoidWindow::END_OF_DAY, 'minutes', VoidWindow::NONE])],
+            'void_window_minutes' => ['nullable', 'required_if:void_window,minutes', 'integer', 'min:1', 'max:'.VoidWindow::MAX_MINUTES],
         ];
     }
 

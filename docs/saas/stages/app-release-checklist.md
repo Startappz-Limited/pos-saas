@@ -33,6 +33,14 @@ Stage file: [10-stock-correctness-and-voids.md](./10-stock-correctness-and-voids
 - [ ] Treats `invoice_number` as an opaque string (server-numbered sales now use the web series `INV-{shop}-W-…`).
 - [ ] Numbers offline sales only in its own register's series, from `last_invoice_number` at pairing.
 - [ ] Shows the till sync review's outcome for a held sale (accepted with its own number, or discarded).
+- [ ] Void requests (step 2): someone without `sales.void` sees "Request void" instead of Void, sends
+      `POST /api/sales/{uuid}/void-request` with a `reason`, and shows the 422 message (window closed, already
+      requested); someone holding `sales.void` lists `GET /api/void-requests`, approves
+      (`POST /api/void-requests/{uuid}/approve`) or rejects with a `rejection_reason`, and handles the 422 when it was
+      settled or expired (48 hours). The backend sends no push: the app shows the list, and approvers also get an
+      email and the web's notification.
+- [ ] A void outside the window answers 422 `void_window_closed` with the time-limit message (no longer 403) on
+      `POST /api/sales/{uuid}/void`; 403 means no permission. The app shows the message.
 - [ ] Stock adjustments, if the app makes them: no longer offers "Returned to supplier" (a purchase return now), and
       shows the 422 on `reason` if an older build sends it; sends signed changes (`+` adds, `−` removes) that agree with
       the reason, and a `variation_id` for a product with variations; expects one it makes to wait for an approver

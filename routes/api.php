@@ -16,6 +16,7 @@ use App\Http\Controllers\Api\PurchaseOrderController;
 use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\SaleController;
 use App\Http\Controllers\Api\SaleSourceController;
+use App\Http\Controllers\Api\SaleVoidRequestController;
 use App\Http\Controllers\Api\ShopController;
 use App\Http\Controllers\Api\SupplierController;
 use App\Http\Controllers\Api\UserController;
@@ -191,6 +192,16 @@ Route::middleware(['auth:sanctum', 'business'])->group(function () {
         ->middleware('throttle:writes')->name('api.sales.collect-payment');
     Route::post('sales/{sale}/void', [SaleController::class, 'void'])
         ->middleware('throttle:destructive')->name('api.sales.void');
+    // Void requests (stage 10, step 2): approving one voids the sale, so it is throttled as a void.
+    Route::post('sales/{sale}/void-request', [SaleVoidRequestController::class, 'store'])
+        ->middleware('throttle:writes')->name('api.sales.void-requests.store');
+    Route::get('void-requests', [SaleVoidRequestController::class, 'index'])->name('api.void-requests.index');
+    Route::post('void-requests/{voidRequest}/approve', [SaleVoidRequestController::class, 'approve'])
+        ->middleware('throttle:destructive')->name('api.void-requests.approve');
+    Route::post('void-requests/{voidRequest}/reject', [SaleVoidRequestController::class, 'reject'])
+        ->middleware('throttle:writes')->name('api.void-requests.reject');
+    Route::post('void-requests/{voidRequest}/cancel', [SaleVoidRequestController::class, 'cancel'])
+        ->middleware('throttle:writes')->name('api.void-requests.cancel');
     Route::get('sales/{sale}/payments', [SaleController::class, 'payments'])->name('api.sales.payments');
 
     // store/destroy are declared separately so each gets its own limiter — passing

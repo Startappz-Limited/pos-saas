@@ -249,7 +249,7 @@ class RoleSeeder extends Seeder
             'sales.create',
             'sales.update',
             'sales.edit-all',
-            'sales.void',
+            // No sales.void: voiding is the owner's by default (stage 10, step 2).
             'sales.refund',
             'sales.restore',
 

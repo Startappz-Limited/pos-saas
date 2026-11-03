@@ -335,6 +335,8 @@
                         </div>
                     @endif
 
+                    @include('sales.partials.void-request')
+
                     <!-- Payment History -->
                     @if ($sale->payments->count() > 0)
                         <div class="mt-4">
