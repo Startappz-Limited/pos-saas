@@ -38,7 +38,10 @@ Stage file: [10-stock-correctness-and-voids.md](./10-stock-correctness-and-voids
       offline.
 - [ ] Hides Delete on completed sales; handles the 422 if shown (`code`: `sale_completed`, `sale_not_deletable`,
       `sale_has_payments` with "This sale has payments. Void it instead."). A deleted sale is a 404.
-- [ ] Treats `invoice_number` as an opaque string (server-numbered sales now use the web series `INV-{shop}-W-…`).
+- [ ] **Never assumes the invoice number's format:** treats `invoice_number` as an opaque string (no parsing of the shop,
+      register, year or sequence; no fixed length; search and display it as given). Server-numbered sales now use the web
+      series `INV-{shop}-W-{year}-{n}`, tills their register's `INV-{shop}-{register}-{year}-{n}`, and a business may set
+      its own prefix.
 - [ ] Numbers offline sales only in its own register's series, from `last_invoice_number` at pairing.
 - [ ] Shows the till sync review's outcome for a held sale (accepted with its own number, or discarded).
 - [ ] Void requests (step 2): someone without `sales.void` sees "Request void" instead of Void, sends

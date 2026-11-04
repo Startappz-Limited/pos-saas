@@ -104,3 +104,33 @@ it('numbers stock adjustments of a shop concurrently without collisions or gaps,
 
     expect($issued)->toBe(array_map(fn (int $n): string => sprintf('ADJ-NRB-%s-%06d', now()->format('Y'), $n), range(1, $total)));
 })->skip(fn () => DB::getDriverName() !== 'mysql', 'Needs MySQL 8: runs with phpunit.mysql.xml.');
+
+it('numbers web sales of a shop concurrently without collisions or gaps, a rolled-back save giving its number back (stage 10, step 5d)', function () {
+    $config = config('database.connections.concurrency_testing');
+    expect($config['database'])->toEndWith('_testing');
+    config(['database.connections.concurrency_server' => array_merge($config, ['database' => null])]);
+    DB::connection('concurrency_server')->statement("CREATE DATABASE IF NOT EXISTS `{$config['database']}`");
+    Artisan::call('migrate:fresh', ['--database' => 'concurrency_testing', '--force' => true]);
+
+    $db = DB::connection('concurrency_testing');
+    $businessId = $db->table('businesses')->insertGetId(['uuid' => (string) Str::uuid(), 'name' => 'Concurrency', 'created_at' => now(), 'updated_at' => now()]);
+    $shopId = $db->table('shops')->insertGetId(['business_id' => $businessId, 'uuid' => (string) Str::uuid(), 'name' => 'Nairobi', 'code' => 'NRB', 'created_at' => now(), 'updated_at' => now()]);
+
+    $startAt = microtime(true) + 3;
+    $results = Process::pool(function ($pool) use ($shopId, $startAt): void {
+        foreach (range(1, CONCURRENCY_PROCESSES_PER_REGISTER * 2) as $n) {
+            $pool->as("web-{$n}")->path(base_path())->env(['DB_CONNECTION' => 'concurrency_testing'])->timeout(120)
+                ->command([PHP_BINARY, 'tests/Fixtures/claim-invoice-numbers.php', $shopId, 0, CONCURRENCY_CLAIMS_PER_PROCESS, sprintf('%.6F', $startAt), 'web']);
+        }
+    })->start()->wait();
+
+    $issued = [];
+    foreach ($results->collect() as $key => $result) {
+        expect($result->successful())->toBeTrue("{$key} failed: ".$result->errorOutput());
+        array_push($issued, ...json_decode($result->output(), true));
+    }
+    sort($issued);
+    $total = CONCURRENCY_PROCESSES_PER_REGISTER * 2 * CONCURRENCY_CLAIMS_PER_PROCESS;
+
+    expect($issued)->toBe(array_map(fn (int $n): string => sprintf('INV-NRB-W-%s-%06d', now()->format('Y'), $n), range(1, $total)));
+})->skip(fn () => DB::getDriverName() !== 'mysql', 'Needs MySQL 8: runs with phpunit.mysql.xml.');

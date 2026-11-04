@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Register;
 use App\Models\Shop;
 use Carbon\CarbonInterface;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -42,7 +43,7 @@ class InvoiceNumberService
     public function next(Shop|int|null $shop, Register|int|null $register = null): string
     {
         $shopId = $shop instanceof Shop ? $shop->id : $shop;
-        $period = $this->period();
+        $period = $this->period(null, $shopId);
 
         if ($shopId === null) {
             // Nothing to key a sequence on; fall back to a timestamped number
@@ -81,7 +82,7 @@ class InvoiceNumberService
      */
     public function adopt(int $shopId, int $registerId, string $invoiceNumber, CarbonInterface $recordedAt): array
     {
-        $period = $this->period($recordedAt);
+        $period = $this->period($recordedAt, $shopId);
         $number = (int) (preg_match('/(\d+)$/', $invoiceNumber, $match) ? $match[1] : 0);
         $expected = $this->format(
             DB::table('shops')->where('id', $shopId)->value('code'),
@@ -161,7 +162,7 @@ class InvoiceNumberService
     public function nextWeb(Shop|int $shop, ?CarbonInterface $at = null): string
     {
         $shopId = $shop instanceof Shop ? (int) $shop->id : $shop;
-        $period = $this->period($at);
+        $period = $this->period($at, $shopId);
         $number = $this->claimInSeries($shopId, self::webSeries($shopId, $period), "shop {$shopId}'s web sales");
 
         return $this->format(DB::table('shops')->where('id', $shopId)->value('code'), self::WEB_CODE, $period, $number);
@@ -190,7 +191,7 @@ class InvoiceNumberService
     public function nextAdjustment(Shop|int $shop, ?CarbonInterface $at = null): string
     {
         $shop = $shop instanceof Shop ? $shop : Shop::query()->findOrFail($shop);
-        $year = ($at ?? now())->format('Y');
+        $year = $this->localDate($at, (int) $shop->id)->format('Y');
         $number = $this->claimInSeries((int) $shop->id, "adj:{$year}", "shop {$shop->id}'s adjustments");
 
         return implode('-', ['ADJ', $this->code((string) $shop->code, 'SHOP'), $year, str_pad((string) $number, (int) config('invoicing.pad', 6), '0', STR_PAD_LEFT)]);
@@ -236,11 +237,33 @@ class InvoiceNumberService
     /**
      * The period: the calendar year for a yearly reset, "*" otherwise.
      */
-    private function period(?CarbonInterface $at = null): string
+    /**
+     * The year a number belongs to: the shop's local date (stage 10, step 5d),
+     * so a sale just after midnight on 1 January in Nairobi starts the new
+     * year's series though the server's clock (UTC) still says 31 December.
+     */
+    private function period(?CarbonInterface $at = null, ?int $shopId = null): string
     {
         return config('invoicing.reset', 'yearly') === 'yearly'
-            ? ($at ?? now())->format('Y')
+            ? $this->localDate($at, $shopId)->format('Y')
             : '*';
+    }
+
+    /**
+     * $at (now when null) in the shop's timezone: its own, else its business's,
+     * else Africa/Nairobi.
+     */
+    private function localDate(?CarbonInterface $at, ?int $shopId): CarbonInterface
+    {
+        $moment = Carbon::instance($at ?? now());
+        if ($shopId === null) {
+            return $moment;
+        }
+
+        $shop = DB::table('shops')->where('id', $shopId)->first(['timezone', 'business_id']);
+        $timezone = $shop?->timezone ?: (DB::table('businesses')->where('id', $shop?->business_id)->value('timezone') ?: 'Africa/Nairobi');
+
+        return $moment->copy()->setTimezone($timezone);
     }
 
     private function format(?string $shopCode, ?string $registerCode, string $period, int $number): string

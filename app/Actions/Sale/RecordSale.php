@@ -128,7 +128,10 @@ class RecordSale
                     $context->invoiceNumber !== null && $context->invoiceAsGiven => $context->invoiceNumber,
                     $context->invoiceNumber !== null => $this->adoptInvoiceNumber($shopId, (int) $activeRegister->register_id, $context->invoiceNumber, $at, $adoption),
                     $context->webSeries => app(InvoiceNumberService::class)->nextWeb($shop ?? $shopId, $at),
-                    default => app(InvoiceNumberService::class)->next($shop ?? $shopId, $activeRegister->register_id),
+                    // A till's sale without a number stays in its register's series; anything else the
+                    // server numbers (the flat API) takes the shop's web series (stage 10, step 5d).
+                    $context->registerId !== null => app(InvoiceNumberService::class)->next($shop ?? $shopId, $activeRegister->register_id),
+                    default => app(InvoiceNumberService::class)->nextWeb($shop ?? $shopId, $at),
                 },
                 'sale_type' => 'regular',
                 'subtotal' => $totals->subtotal,

@@ -1299,32 +1299,38 @@ is deployed.
     header) and gets Phase 7's codes and shapes (`validation_failed`, `not_found`, `refused`, no `disposition`).
 
 ### 5d. Invoice series: tills and the web never share one
-- [ ] **What Phase 7 does today** (checked 27 October 2026): `InvoiceNumberService` keeps one series per register
+> **Done 4 November 2026** (`InvoiceSeriesTest`; `nextWeb()` itself came with step 5c's re-ringing). The web POS,
+> `RecordSale` with no till context (the flat API), online orders and abandoned carts take `nextWeb()`; a till's sale with
+> no number keeps its register's series. `Register` refuses a code that isn't `R` and digits (UAT: every register is `R1`,
+> read-only check 4 November 2026). `invoices:report-series --business=<id>` (read-only) lists each shop's series.
+> The year of every series follows the shop's local date (fixed 4 November 2026; it used the server's clock). Nothing
+> outside `InvoiceNumberService` parses an invoice number (checked 4 November 2026).
+- [x] **What Phase 7 does today** (checked 27 October 2026): `InvoiceNumberService` keeps one series per register
       and year (`invoice_sequences`, series key `r{register}:{year}`), formatted `INV-{shop}-{register}-{year}-{n}`;
       `next()` claims the next number under a row lock; `adopt()` takes a till's offline number when it is in that
       register's series, moves the series on past it and records gaps. **Every sale path numbers from its cash
       session's register:** the web POS (`SaleController::store`), `RecordSale` (flat API and push), online orders and
       abandoned carts. Each shop has one register (`R1`), so web sales and a paired till's offline sales draw on the
       same series, and a web sale can take a number the till has already printed offline.
-- [ ] **Tills keep their register's series, unchanged in form** (`INV-{shop}-{register}-{year}-{n}`, e.g.
+- [x] **Tills keep their register's series, unchanged in form** (`INV-{shop}-{register}-{year}-{n}`, e.g.
       `INV-NRB-R2-2026-000145`): a till numbers only from its own register, so two tills issuing the same sequence
       number differ by register code. The year stays in the number (today's form, which the app in shops already
       produces).
-- [ ] **Web and online sales take a per-shop web series:** `INV-{shop}-W-{year}-{n}` (series key `w{shop}:{year}`),
+- [x] **Web and online sales take a per-shop web series:** `INV-{shop}-W-{year}-{n}` (series key `w{shop}:{year}`),
       claimed by `InvoiceNumberService::nextWeb($shop)`, used by the web POS, the flat API (`RecordSale` without a till
       context), online orders and abandoned carts. The cash session still belongs to its register; only the number's
       series changes. **`W` can never be a register code** (register codes are validated `R` + digits; `W` is
       reserved), so a web number and a till number can't collide.
-- [ ] **Old apps keep working, without clashes:** the app in shops sells through the flat API, which the server
+- [x] **Old apps keep working, without clashes:** the app in shops sells through the flat API, which the server
       numbers, so its new sales take web numbers; a till app that numbers offline (Phase 7's contract) numbers in its
       register's series, which no server path draws on any more. No app change is needed; the series a register
       issues is told to the till at pairing as today (`last_invoice_number`). `adopt()` refuses a number in the web
       series (`invalid_invoice_number`), and such a sale is never accepted later (discard only, step 5c). Whether the app treats the number as an opaque string is an app check
       ([app-release-checklist.md](./app-release-checklist.md#stage-10)).
-- [ ] **Existing sales keep their numbers.** Only new numbers use the web series. UAT (read-only, 27 October 2026):
+- [x] **Existing sales keep their numbers.** Only new numbers use the web series. UAT (read-only, 27 October 2026):
       1,503 sales, all in their shop's `R1` series but one (not `INV-…`); one register per shop; no paired till.
       `invoices:report-series --business=<id>` (read-only) counts numbers per shop and series before and after.
-- [ ] Tests: two tills of one shop issue sequence number 145 and both are recorded (`…-R1-…-000145`,
+- [x] Tests: two tills of one shop issue sequence number 145 and both are recorded (`…-R1-…-000145`,
       `…-R2-…-000145`); an accepted held sale keeps its number; a web sale and a till sale made at the same moment
       can't collide (`W` vs `R1`); a till can't adopt a web-series number; an old-app sale through the flat API and a
       till sale in the register series can't collide; existing numbers are untouched.

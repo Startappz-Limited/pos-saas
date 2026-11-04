@@ -28,6 +28,8 @@ $app->make(Kernel::class)->bootstrap();
 
 [, $shopId, $registerId, $count, $startAt] = $argv;
 $adjustments = ($argv[5] ?? null) === 'adjustments';
+// `web`: the shop's web series (stage 10, step 5d), every third claim rolled back too.
+$web = ($argv[5] ?? null) === 'web';
 
 $connection = config('database.default');
 TestCase::assertSafeTestDatabase(
@@ -40,19 +42,21 @@ time_sleep_until(max((float) $startAt, microtime(true) + 0.001));
 
 $numbers = [];
 // Adjustments are numbered inside the shop's business, as the app always is.
-if ($adjustments) {
+if ($adjustments || $web) {
     $business = Business::query()->findOrFail(DB::table('shops')->where('id', $shopId)->value('business_id'));
     app(TenantContext::class)->set($business);
 }
 for ($i = 0; $i < (int) $count; $i++) {
-    if ($adjustments && $i % 3 === 2) {
+    if (($adjustments || $web) && $i % 3 === 2) {
         DB::beginTransaction();
-        app(InvoiceNumberService::class)->nextAdjustment((int) $shopId);
+        $web ? app(InvoiceNumberService::class)->nextWeb((int) $shopId) : app(InvoiceNumberService::class)->nextAdjustment((int) $shopId);
         DB::rollBack();
     }
-    $numbers[] = DB::transaction(fn (): string => $adjustments
-        ? app(InvoiceNumberService::class)->nextAdjustment((int) $shopId)
-        : app(InvoiceNumberService::class)->next((int) $shopId, (int) $registerId));
+    $numbers[] = DB::transaction(fn (): string => match (true) {
+        $adjustments => app(InvoiceNumberService::class)->nextAdjustment((int) $shopId),
+        $web => app(InvoiceNumberService::class)->nextWeb((int) $shopId),
+        default => app(InvoiceNumberService::class)->next((int) $shopId, (int) $registerId),
+    });
 }
 
 echo json_encode($numbers);

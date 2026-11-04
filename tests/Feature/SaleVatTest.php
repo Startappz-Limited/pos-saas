@@ -223,6 +223,7 @@ describe('the API path', function () {
 
 describe('invoice numbering', function () {
     it('issues sequential numbers rather than random strings', function () {
+        // Sales the server numbers take the shop's web series (stage 10, step 5d).
         $product = vatProduct();
 
         foreach (range(1, 3) as $ignored) {
@@ -234,9 +235,9 @@ describe('invoice numbering', function () {
         $numbers = Sale::orderBy('id')->pluck('invoice_number')->all();
 
         expect($numbers)->toBe([
-            'INV-NRB-R1-'.now()->format('Y').'-000001',
-            'INV-NRB-R1-'.now()->format('Y').'-000002',
-            'INV-NRB-R1-'.now()->format('Y').'-000003',
+            'INV-NRB-W-'.now()->format('Y').'-000001',
+            'INV-NRB-W-'.now()->format('Y').'-000002',
+            'INV-NRB-W-'.now()->format('Y').'-000003',
         ]);
     });
 
@@ -266,7 +267,7 @@ describe('invoice numbering', function () {
         $year = now()->format('Y');
 
         expect(Sale::orderBy('id')->pluck('invoice_number')->all())
-            ->toBe(["INV-NRB-R1-{$year}-000001", "INV-MSA-R1-{$year}-000001"]);
+            ->toBe(["INV-NRB-W-{$year}-000001", "INV-MSA-W-{$year}-000001"]);
     });
 });
 
