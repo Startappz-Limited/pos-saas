@@ -20,6 +20,8 @@ class PairRegisterRequest extends FormRequest
             // The app's own id for this installation; a reinstall makes a new one.
             'device_id' => ['required', 'string', 'max:191'],
             'device_name' => ['nullable', 'string', 'max:255'],
+            // Re-pair even though the device replaced last reported unsynced items (stage 10, step 5c).
+            'confirm' => ['nullable', 'boolean'],
         ];
     }
 }

@@ -32,7 +32,7 @@ final class PaymentHandler implements PushHandler
         $sale = Sale::query()
             ->when($data['sale'] ?? null, fn ($query, $uuid) => $query->where('uuid', $uuid))
             ->when(! ($data['sale'] ?? null), fn ($query) => $query->where('client_uuid', $data['sale_client_uuid']))
-            ->first() ?? throw new PushRefused(ApiErrorCode::NotFound, __('No such sale in this shop. Push the sale before its payment.'));
+            ->first() ?? throw new PushPending(ApiErrorCode::SaleNotSynced, __('No such sale in this shop yet. Push the sale before its payment.'));
 
         if ($sale->payment_status === 'paid') {
             throw new PushRefused(ApiErrorCode::SaleAlreadyPaid, __('This sale is already fully paid.'));

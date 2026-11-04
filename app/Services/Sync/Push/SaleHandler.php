@@ -46,7 +46,8 @@ final class SaleHandler implements PushHandler
             // A customer merged into another since (decision 4.9) leads to the one kept.
             $named = Customer::query()->withTrashed()->where('client_uuid', $data['customer_client_uuid'])->first(['id', 'merged_into_id']);
             $data['customer_id'] = ($named?->merged_into_id ?? $named?->id)
-                ?? throw new PushRefused(ApiErrorCode::ValidationFailed, __('The sale\'s customer has not been synced.'), ['customer_client_uuid' => [__('Push the customer before the sale.')]]);
+                // Push the other item first (stage 10, step 5c): pending, sent again; Phase 7's apps get validation_failed.
+                ?? throw new PushPending(ApiErrorCode::CustomerNotSynced, __('The sale\'s customer has not been synced. Push the customer before the sale.'));
         }
 
         $validated = $this->validated($data, $item);

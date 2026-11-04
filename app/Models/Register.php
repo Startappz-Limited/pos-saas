@@ -48,6 +48,9 @@ class Register extends Model
             'last_synced_at' => 'datetime',
             'sync_overdue_warned_at' => 'datetime',
             'last_invoice_number' => 'integer',
+            'outbox_count' => 'integer',
+            'outbox_reported_at' => 'datetime',
+            'app_version_reported_at' => 'datetime',
         ];
     }
 

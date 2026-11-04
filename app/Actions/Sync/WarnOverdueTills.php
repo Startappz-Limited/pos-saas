@@ -35,7 +35,7 @@ class WarnOverdueTills
             $owners = User::query()->inCurrentBusiness()->role(CopyRoleTemplates::OWNER_ROLE)->get();
 
             foreach ($tills as $till) {
-                Notification::send($owners, new TillSyncOverdue($business->name, (string) $till->shop?->name, $till->name, $till->code, $till->last_synced_at));
+                Notification::send($owners, new TillSyncOverdue($business->name, (string) $till->shop?->name, $till->name, $till->code, $till->last_synced_at, $till->outbox_count));
                 $till->forceFill(['sync_overdue_warned_at' => now()])->saveQuietly();
                 $warned++;
             }

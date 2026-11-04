@@ -1,6 +1,13 @@
 <?php
 
 return [
+    // The app version from which each stage 10 feature is sent (step 5c): `disposition`, the
+    // `*_not_synced` codes and `pending`. Unset until the paired app is released, so every
+    // app gets Phase 7's codes (App\Support\Sync\LegacyRefusals).
+    'min_version' => [
+        'dispositions' => env('SYNC_MIN_VERSION_DISPOSITIONS'),
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | Offline sync for the till (Phase 7, decision 4.5)

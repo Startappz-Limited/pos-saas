@@ -45,6 +45,10 @@ enum ApiErrorCode: string
     case SaleAlreadyVoided = 'sale_already_voided';
     // A pushed item that needs another item first (stage 10, step 5c): status `pending`, sent again.
     case SaleNotSynced = 'sale_not_synced';
+    case CustomerNotSynced = 'customer_not_synced';
+    case CashSessionNotSynced = 'cash_session_not_synced';
+    // Re-pairing a till that last reported unsynced items, without confirming (stage 10, step 5c).
+    case TillHasUnsyncedItems = 'till_has_unsynced_items';
 
     // Till M-Pesa (Phase 7).
     case MpesaNotSetUp = 'mpesa_not_set_up';
@@ -103,6 +107,9 @@ enum ApiErrorCode: string
             self::SaleHasReturns => 'The sale has a return that isn\'t rejected, so it can\'t be voided.',
             self::SaleAlreadyVoided => 'The sale is already voided.',
             self::SaleNotSynced => 'The sale this item names hasn\'t reached the server yet; send the item again after it.',
+            self::CustomerNotSynced => 'The customer this sale names hasn\'t reached the server yet; send the sale again after it.',
+            self::CashSessionNotSynced => 'The cash session this event names hasn\'t been opened on the server yet; send it again after the opening.',
+            self::TillHasUnsyncedItems => 'The till being replaced last reported unsynced items; confirm to pair anyway.',
             self::UnknownItemType => 'The server does not know this kind of pushed item.',
             self::MpesaNotSetUp => 'The shop has no proven M-Pesa Till or Paybill, so it can\'t take M-Pesa at the till.',
             self::SubscriptionInactive => 'The subscription has lapsed or the business is over its shops; it is read-only.',

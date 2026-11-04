@@ -24,6 +24,9 @@
                             {{ $till->last_synced_at
                                 ? __('last synced :when', ['when' => $till->last_synced_at->diffForHumans()])
                                 : __('not synced since it was paired :when', ['when' => $till->paired_at?->diffForHumans()]) }}
+                            @if ($till->outbox_count)
+                                {{ __('and holds :count unsynced item(s)', ['count' => $till->outbox_count]) }}
+                            @endif
                         </li>
                     @endforeach
                 </ul>

@@ -19,6 +19,7 @@ use App\Services\Sync\Push\PushRefused;
 use App\Services\Sync\Push\SaleHandler;
 use App\Services\Sync\Push\SaleVoidHandler;
 use App\Services\Sync\Push\TillSignInHandler;
+use App\Support\Sync\Dispositions;
 use App\Support\Sync\SyncIssues;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Carbon;
@@ -65,7 +66,13 @@ class SyncPush
      */
     public function push(Register $register, User $user, array $items): array
     {
-        return array_map(fn (array $raw): array => $this->apply($register, $user, $raw), $items);
+        return array_map(function (array $raw) use ($register, $user): array {
+            $result = $this->apply($register, $user, $raw);
+            // What the till does with it (stage 10, step 5c).
+            $disposition = Dispositions::for((string) $result['status'], $result['code'] ?? null);
+
+            return $disposition === null ? $result : [...$result, 'disposition' => $disposition];
+        }, $items);
     }
 
     /**

@@ -14,7 +14,8 @@ server, tick it, and note the app version. `php artisan mobile:contract-diff` ru
 
 ## Stage 10
 Stage file: [10-stock-correctness-and-voids.md](./10-stock-correctness-and-voids.md).
-- [ ] Sends `X-App-Version` on every push, pull and pairing request.
+- [ ] Sends `X-App-Version` on every push, pull and pairing request. (The server reads dispositions and the `*_not_synced` codes only from versions at or
+      above `SYNC_MIN_VERSION_DISPOSITIONS`, set when this app ships.)
 - [ ] Follows `disposition` on push results: `retry` resends, `drop` removes and shows why, `hold` keeps the item marked.
 - [ ] Handles status `pending` and the codes `customer_not_synced`, `sale_not_synced`, `cash_session_not_synced`.
 - [ ] Handles the void flow: shows Void when `voidable` is true and the person holds `sales.void`; calls

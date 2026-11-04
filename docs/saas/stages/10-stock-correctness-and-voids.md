@@ -1109,7 +1109,8 @@ is deployed.
     the shop; a cash refund owed is paid from **the payer's own open session**; with none open it is refused ("Open
     your register to pay a cash refund."). Audited; done once (the issue is checked under a lock). [Stage 14](./14-returns-in-reports.md),
     step 6, replaces it: a refund processed for the issue resolves it.
-- [ ] **A till that would lose unsynced work** (a reinstall, a lost device, signing out, re-pairing):
+- [x] **A till that would lose unsynced work** (part 2: `outbox_count`, the overdue warning and the re-pairing check;
+      the held-sale and lost-sale discards are part 3) (a reinstall, a lost device, signing out, re-pairing):
   - **The server knows what a till holds:** every push and pull sends `outbox_count` (unsynced items on the till);
     the server keeps it on the register (`outbox_count`, `outbox_reported_at`), shows it in the register list, and
     adds it to the overdue-sync warning ("Till R2 hasn't synced for 26 hours and holds 41 unsynced items").
@@ -1136,7 +1137,7 @@ is deployed.
       are discarded with it under the same rule. A manager can still accept a held sale, or re-ring one whose number
       was taken (below). A discard of an item the server has already applied is applied as a no-op
       (`result.already_applied`), so the till clears it.
-- [ ] **Every refusal has one class.** Each push result that isn't `applied` or `duplicate` gains `disposition`:
+- [x] **Every refusal has one class.** Each push result that isn't `applied` or `duplicate` gains `disposition`:
   - `retry` (transient): the till keeps the item and sends it again with the next push;
   - `drop` (final): the till removes the item and shows why;
   - `hold` (final, kept for a person): the till keeps the item, marked, until a manager **accepts** it on the server
@@ -1229,11 +1230,11 @@ is deployed.
 - [ ] **A payment pushed for a sale already paid** (decided): `PaymentHandler` records a `refund_due` with
       `source = duplicate_payment` (amount, method, reference, the sale) and answers `refused` with
       `sale_already_paid`, disposition **drop**, so the till clears it. The money is on the review as owed back.
-- [ ] **The app's version** (decided): every push, pull and pairing request sends `X-App-Version` (semantic version).
+- [x] **The app's version** (decided): every push, pull and pairing request sends `X-App-Version` (semantic version).
       Phase 7 sends none. The server stores the latest per register (`registers.app_version`,
       `app_version_reported_at`) and shows it in the register list. A request without the header is treated as an app
       before this stage.
-- [ ] **Old apps get the codes they know** (decided): `App\Support\Sync\LegacyRefusals` rewrites a push result for an
+- [x] **Old apps get the codes they know** (decided): `App\Support\Sync\LegacyRefusals` rewrites a push result for an
       app older than this stage's minimum version (`config('sync.min_version.dispositions')`): `customer_not_synced`
       → `validation_failed`, `sale_not_synced` and `cash_session_not_synced` → `not_found`, status `pending` →
       `refused`, and no `disposition`. A `sale_void` or `outbox_item_discarded` can't come from such an app. The

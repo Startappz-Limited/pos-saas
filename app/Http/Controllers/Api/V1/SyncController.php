@@ -9,6 +9,7 @@ use App\Services\Sync\SyncCursor;
 use App\Services\Sync\SyncPull;
 use App\Services\Sync\SyncPush;
 use App\Services\Sync\TradingLease;
+use App\Support\Sync\LegacyRefusals;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -35,7 +36,7 @@ class SyncController extends Controller
         ]);
 
         $register = Register::query()->findOrFail($this->tenant->registerId());
-        $overdue = $this->noteSync($register);
+        $overdue = $this->noteSync($register, $request);
         $result = $sync->pull($register, SyncCursor::decode($validated['since'] ?? null), (int) ($validated['limit'] ?? 500));
 
         return ApiV1::ok($result['data'], null, [
@@ -65,8 +66,9 @@ class SyncController extends Controller
         ]);
 
         $register = Register::query()->findOrFail($this->tenant->registerId());
-        $overdue = $this->noteSync($register);
-        $results = $sync->push($register, $request->user(), $validated['items']);
+        $overdue = $this->noteSync($register, $request);
+        // Phase 7's codes for an app before this stage (step 5c).
+        $results = LegacyRefusals::forApp($sync->push($register, $request->user(), $validated['items']), $request->header('X-App-Version'));
 
         return ApiV1::ok(['results' => $results], null, [
             'applied' => count(array_filter($results, fn (array $result): bool => $result['status'] === 'applied')),
@@ -89,12 +91,35 @@ class SyncController extends Controller
      * Notes that the till synced now, and returns whether it had been
      * overdue (decision 4.5): the till can say so to whoever is at it.
      */
-    private function noteSync(Register $register): bool
+    private function noteSync(Register $register, Request $request): bool
     {
         $overdue = $register->isSyncOverdue();
         $register->markSynced();
+        self::noteTill($register, $request);
 
         return $overdue;
+    }
+
+    /**
+     * What the till reports with every push, pull and pairing (stage 10, step
+     * 5c): its unsynced items (`outbox_count`) and its app version
+     * (`X-App-Version`). Neither is required: an app before this stage sends
+     * neither.
+     */
+    public static function noteTill(Register $register, Request $request): void
+    {
+        $changes = [];
+        $count = $request->input('outbox_count');
+        if (is_numeric($count) && (int) $count >= 0) {
+            $changes += ['outbox_count' => (int) $count, 'outbox_reported_at' => now()];
+        }
+        $version = $request->header('X-App-Version');
+        if (is_string($version) && preg_match('/^\d+(\.\d+){0,3}([-+][0-9A-Za-z.-]+)?$/', $version) === 1) {
+            $changes += ['app_version' => substr($version, 0, 32), 'app_version_reported_at' => now()];
+        }
+        if ($changes !== []) {
+            $register->forceFill($changes)->save();
+        }
     }
 
     /**

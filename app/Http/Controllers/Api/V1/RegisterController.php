@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Actions\Register\PairRegister;
+use App\Actions\Register\TillHasUnsyncedItems;
+use App\Enums\ApiErrorCode;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\PairRegisterRequest;
 use App\Http\Responses\ApiV1;
@@ -40,7 +42,14 @@ class RegisterController extends Controller
     {
         $validated = $request->validated();
 
-        $result = $pair->execute($register, $request->user(), $validated['device_id'], $validated['device_name'] ?? null, (int) $tenant->id());
+        try {
+            $result = $pair->execute($register, $request->user(), $validated['device_id'], $validated['device_name'] ?? null, (int) $tenant->id(), (bool) ($validated['confirm'] ?? false));
+        } catch (TillHasUnsyncedItems $e) {
+            return ApiV1::error(ApiErrorCode::TillHasUnsyncedItems, $e->getMessage(), 422, null, [
+                'unsynced_items' => $e->count, 'reported_at' => $e->reportedAt?->toIso8601String(),
+            ]);
+        }
+        SyncController::noteTill($result['register'], $request);
         $register = $result['register']->load('shop:id,uuid,name,code');
         $lease = $leases->present($leases->issue($register, $request->user()), $register);
 
@@ -72,6 +81,10 @@ class RegisterController extends Controller
             'paired_at' => $register->paired_at?->toIso8601String(),
             'last_synced_at' => $register->last_synced_at?->toIso8601String(),
             'sync_overdue' => $register->isSyncOverdue(),
+            // What the till last reported (stage 10, step 5c).
+            'outbox_count' => $register->outbox_count,
+            'outbox_reported_at' => $register->outbox_reported_at?->toIso8601String(),
+            'app_version' => $register->app_version,
             'shop' => $shop ? ['uuid' => $shop->uuid, 'name' => $shop->name, 'code' => $shop->code] : null,
         ];
     }

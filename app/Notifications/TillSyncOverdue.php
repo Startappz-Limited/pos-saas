@@ -23,6 +23,8 @@ class TillSyncOverdue extends Notification
         private string $tillName,
         private string $tillCode,
         private ?Carbon $lastSyncedAt,
+        // The unsynced items it last reported (stage 10, step 5c); null before this stage.
+        private ?int $outboxCount = null,
     ) {}
 
     /**
@@ -39,12 +41,17 @@ class TillSyncOverdue extends Notification
             ? __('It last synced on :time.', ['time' => $this->lastSyncedAt->toDayDateTimeString()])
             : __('It hasn\'t synced since it was paired.');
 
-        return (new MailMessage)
+        $mail = (new MailMessage)
             ->subject(__(':business: the till ":till" hasn\'t synced', ['business' => $this->businessName, 'till' => $this->tillName]))
             ->line(__('The till ":till" (:code) at :shop hasn\'t been in touch with the server for over :hours hours.', [
                 'till' => $this->tillName, 'code' => $this->tillCode, 'shop' => $this->shopName, 'hours' => (int) config('sync.overdue_hours'),
             ]))
-            ->line($since)
+            ->line($since);
+        if ($this->outboxCount) {
+            $mail->line(__('It holds :count unsynced item(s).', ['count' => $this->outboxCount]));
+        }
+
+        return $mail
             ->line(__('It can keep selling, but its sales won\'t show in your reports, and its stock won\'t update, until it connects. Check that it is switched on and online.'))
             ->action(__('See your tills'), BusinessLink::to('/dashboard'));
     }
