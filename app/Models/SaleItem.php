@@ -29,12 +29,15 @@ class SaleItem extends Model
         'total_cost',
         'profit',
         'profit_margin',
+        // Every unit costed from a batch with a cost, or a known estimate (stage 10, step 6).
+        'cost_known',
         'status',
     ];
 
     protected function casts(): array
     {
         return [
+            'cost_known' => 'boolean',
             'tax_class' => TaxClass::class,
             'tax_rate' => 'decimal:3',
             'tax_amount' => 'decimal:2',

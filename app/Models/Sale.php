@@ -145,6 +145,14 @@ class Sale extends Model
         return $this->hasOne(EcommerceOrder::class);
     }
 
+    /**
+     * Sales with any line whose cost isn't fully known (stage 10, step 6).
+     */
+    public function scopeCostIncomplete(Builder $query): Builder
+    {
+        return $query->whereHas('items', fn (Builder $items) => $items->where('cost_known', false));
+    }
+
     public function scopeVisibleTo(Builder $query, User $user): Builder
     {
         if (! $user->hasShopRestrictions()) {

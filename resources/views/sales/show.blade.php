@@ -240,6 +240,9 @@
                                             <td>
                                                 <div class="fw-medium">{{ $item->product->name }}</div>
                                                 <small class="text-muted">SKU: {{ $item->product->sku }}</small>
+                                                @if (! $item->cost_known)
+                                                    @include('sales.partials.cost-incomplete')
+                                                @endif
                                             </td>
                                             <td>
                                                 @if ($item->variation)

@@ -1336,18 +1336,22 @@ is deployed.
       till sale in the register series can't collide; existing numbers are untouched.
 
 ### 6. Mark lines whose cost isn't fully known
-- [ ] Migration: `sale_items.cost_known` boolean, default true. It records whether every unit was costed from a
+> **Done 4 November 2026** (`CostKnownTest`). An allocation counts as unknown when its own cost is NULL or its batch's is
+> (`StockLedger::lineCostKnown()`), so `sales:recompute-profit` now fills both cases. **Found:** the profit report
+> (`sales.profitReport`) had no view and failed when opened; a simple one was built to carry the badge. The daily
+> report (`sales.dailyReport`) has none either and is left as it is (nothing links to it).
+- [x] Migration: `sale_items.cost_known` boolean, default true. It records whether every unit was costed from a
       batch with a cost, or from a known estimate.
-- [ ] `sellItem()` sets it from `StockChange::$costKnown`. `settleProvisional()` and `release()` recompute it from
+- [x] `sellItem()` sets it from `StockChange::$costKnown`. `settleProvisional()` and `release()` recompute it from
       the line's remaining allocations (stage 12's `recostLayer()` does too).
-- [ ] When settling against a batch with no cost, **keep the provisional estimate** as the allocation's cost and
+- [x] When settling against a batch with no cost, **keep the provisional estimate** as the allocation's cost and
       mark the line `cost_known = false`, rather than replacing the estimate with NULL (decided).
-- [ ] `Sale::scopeCostIncomplete()` (sales with any line not known). Show a "cost incomplete" badge on the sale
+- [x] `Sale::scopeCostIncomplete()` (sales with any line not known). Show a "cost incomplete" badge on the sale
       page and in the profit report, linking to Products → Purchase Costs (stage 12 links to the GRN waiting for
       costs when the batch came from one).
-- [ ] Backfill in the migration: `cost_known = false` for lines with an allocation whose `unit_cost` is NULL.
+- [x] Backfill in the migration: `cost_known = false` for lines with an allocation whose `unit_cost` is NULL.
       Count the lines before and after.
-- [ ] Tests: a line from a cost-unknown batch is marked; entering the cost and re-costing clears it (with
+- [x] Tests: a line from a cost-unknown batch is marked; entering the cost and re-costing clears it (with
       `sales:recompute-profit`); the badge shows.
 
 ### 7. Repair sales voided and deleted before this stage

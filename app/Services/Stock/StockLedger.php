@@ -238,6 +238,7 @@ class StockLedger
         if (! $this->tracksStock($variation)) {
             $cost = $variation->cost_price ?? ($variation->is_default ? DB::table('products')->where('id', $variation->product_id)->value('cost_price') : null);
             $this->applyItemCost($item->id, round((int) $item->quantity * (float) $cost, 2));
+            DB::table('sale_items')->where('id', $item->id)->update(['cost_known' => $cost !== null]);
 
             return null;
         }
@@ -247,6 +248,8 @@ class StockLedger
         $shopId = (int) ($item->shop_id ?? DB::table('sales')->where('id', $item->sale_id)->value('shop_id'));
         $change = $this->consume($shopId, $variation, (int) $item->quantity, StockMovementType::SALE, $item, ['reference' => $context['reference'] ?? $item->sale, ...$context]);
         $this->applyItemCost($item->id, $change->totalCost);
+        // Whether every unit's cost is known (stage 10, step 6).
+        DB::table('sale_items')->where('id', $item->id)->update(['cost_known' => $change->costKnown]);
 
         return $change;
     }
@@ -492,10 +495,13 @@ class StockLedger
                 break;
             }
             $take = min($available, (int) $allocation->quantity_allocated);
+            // A batch with no cost keeps the provisional estimate (stage 10, step 6):
+            // the line is marked cost unknown instead of dropping to no cost.
+            $settledCost = $cost ?? ($allocation->unit_cost === null ? null : (float) $allocation->unit_cost);
             $settled = [
                 'cost_layer_id' => $layerId,
-                'unit_cost' => $cost,
-                'total_cost' => $cost === null ? null : round($take * $cost, 2),
+                'unit_cost' => $settledCost,
+                'total_cost' => $settledCost === null ? null : round($take * $settledCost, 2),
                 'is_provisional' => false,
                 'settled_at' => now(),
                 'updated_at' => now(),
@@ -530,8 +536,23 @@ class StockLedger
         foreach ($recost->unique() as $saleItemId) {
             $total = round((float) DB::table('cost_allocations')->where('sale_item_id', $saleItemId)->sum('total_cost'), 2);
             $this->applyItemCost($saleItemId, $total);
+            DB::table('sale_items')->where('id', $saleItemId)->update(['cost_known' => $this->lineCostKnown($saleItemId)]);
             $this->recostSale((int) DB::table('sale_items')->where('id', $saleItemId)->value('sale_id'));
         }
+    }
+
+    /**
+     * Whether every unit of a sale line has a known cost (stage 10, step 6):
+     * no allocation with no cost, or from a batch with no cost.
+     */
+    public function lineCostKnown(int $saleItemId): bool
+    {
+        return ! DB::table('cost_allocations')
+            ->leftJoin('cost_layers', 'cost_layers.id', '=', 'cost_allocations.cost_layer_id')
+            ->where('cost_allocations.sale_item_id', $saleItemId)
+            ->where(fn ($query) => $query->whereNull('cost_allocations.unit_cost')
+                ->orWhere(fn ($layer) => $layer->whereNotNull('cost_allocations.cost_layer_id')->whereNull('cost_layers.unit_cost')))
+            ->exists();
     }
 
     /**

@@ -645,10 +645,14 @@ class SaleController extends Controller
         $startDate = $request->input('start_date', now()->startOfMonth());
         $endDate = $request->input('end_date', now()->endOfMonth());
 
+        $this->authorize('viewAny', Sale::class);
+
         $salesQuery = Sale::with(['customer', 'shop'])
             ->visibleTo($user)
             ->where('status', 'completed')
             ->whereBetween('completed_at', [$startDate, $endDate])
+            // Lines whose cost isn't fully known (stage 10, step 6).
+            ->withExists(['items as cost_incomplete' => fn ($query) => $query->where('cost_known', false)])
             ->latest('completed_at');
 
         $statisticsQuery = DB::table('sales')->whereNull('sales.deleted_at')
