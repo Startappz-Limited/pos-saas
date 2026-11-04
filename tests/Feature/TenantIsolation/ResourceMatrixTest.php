@@ -403,6 +403,20 @@ it('refuses business B\'s sale receipt to business A on /api/v1 (Phase 7)', func
     $this->withToken($token)->getJson(route('api.v1.sales.receipt', $this->fixture->b->sale))->assertNotFound();
 });
 
+it('refuses business B\'s sale, and a sale of another shop, to a till\'s void on /api/v1 (stage 10, step 5c)', function () {
+    $a = $this->fixture->a;
+    $register = app(TenantContext::class)->run($a->business, fn () => Register::defaultFor($a->shops[0]->id));
+    app(TenantContext::class)->forget();
+    $token = Till::token($a->owner, $register);
+
+    Till::freshRequest();
+    $this->withToken($token)->postJson(route('api.v1.sales.void', $this->fixture->b->sale), ['reason' => 'x'])->assertNotFound();
+    // The fixture's sale is in A's second shop: a till of the first shop doesn't reach it.
+    Till::freshRequest();
+    $this->withToken($token)->postJson(route('api.v1.sales.void', $a->sale), ['reason' => 'x'])->assertNotFound();
+    expect(app(TenantContext::class)->run($a->business, fn () => $a->sale->fresh()->status))->not->toBe('voided');
+});
+
 it('refuses every platform console route to business A\'s owner (Phase 5)', function () {
     // B's records as parameters; the console is for platform operators only.
     foreach (PlatformRoutes::all($this->fixture) as [$method, $url, $name]) {

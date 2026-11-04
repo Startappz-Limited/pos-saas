@@ -27,6 +27,7 @@ use App\Http\Controllers\Api\V1\BusinessController as V1BusinessController;
 use App\Http\Controllers\Api\V1\MpesaController as V1MpesaController;
 use App\Http\Controllers\Api\V1\ReceiptController as V1ReceiptController;
 use App\Http\Controllers\Api\V1\RegisterController as V1RegisterController;
+use App\Http\Controllers\Api\V1\SaleVoidController as V1SaleVoidController;
 use App\Http\Controllers\Api\V1\SyncController as V1SyncController;
 use App\Http\Controllers\Api\V1\TillPinController as V1TillPinController;
 use App\Http\Controllers\PlatformPaymentWebhookController;
@@ -83,6 +84,9 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
 
         // A sale's receipt for an ESC/POS printer (Phase 7).
         Route::get('/sales/{sale:uuid}/receipt', [V1ReceiptController::class, 'show'])->name('sales.receipt');
+        // A void at a till (stage 10, step 5c): register-bound tokens only, so its session pays.
+        Route::post('/sales/{sale:uuid}/void', [V1SaleVoidController::class, 'store'])
+            ->middleware([EnsureRegisterToken::class, 'throttle:destructive'])->name('sales.void');
 
         // M-Pesa at a paired till (Phase 7).
         Route::middleware(EnsureRegisterToken::class)->prefix('mpesa')->name('mpesa.')->group(function () {

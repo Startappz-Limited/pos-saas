@@ -20,6 +20,9 @@ Stage file: [10-stock-correctness-and-voids.md](./10-stock-correctness-and-voids
 - [ ] Handles the void flow: shows Void when `voidable` is true and the person holds `sales.void`; calls
       `POST /api/v1/sales/{uuid}/void` online; queues `sale_void` offline; reads `sale_voids` from the pull.
 - [ ] Handles the void refusals: `void_window_closed`, `sale_has_returns`, `sale_already_voided`, 403.
+- [ ] Shows a non-blocking warning "N units pending removal" when selling into `stock.pending_removal` (never blocks the
+      sale). Handles status `pending` with `sale_not_synced` on a `sale_void` (keeps it and sends it again). Shows a void's
+      `money` (`paid_out` from the till's drawer; `refunds_due`).
 - [ ] Clears items listed in the pull's `resolved_items`, and items answered `applied` or `discarded`.
 - [ ] Lets a manager holding `sync-issues.discard` (from the staff list) discard a held or stuck item with a reason
       (`outbox_item_discarded`), with the items queued behind it; offers discarding a held sale or a payment only to

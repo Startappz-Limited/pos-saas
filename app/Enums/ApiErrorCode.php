@@ -39,6 +39,13 @@ enum ApiErrorCode: string
     case SaleAlreadyPaid = 'sale_already_paid';
     case UnknownItemType = 'unknown_item_type';
 
+    // Voids (stage 10, steps 2, 4 and 5c), online and in the push.
+    case VoidWindowClosed = 'void_window_closed';
+    case SaleHasReturns = 'sale_has_returns';
+    case SaleAlreadyVoided = 'sale_already_voided';
+    // A pushed item that needs another item first (stage 10, step 5c): status `pending`, sent again.
+    case SaleNotSynced = 'sale_not_synced';
+
     // Till M-Pesa (Phase 7).
     case MpesaNotSetUp = 'mpesa_not_set_up';
 
@@ -92,6 +99,10 @@ enum ApiErrorCode: string
             self::InvalidInvoiceNumber => 'The invoice number is not in this till\'s series for the year the sale was made.',
             self::InvoiceNumberTaken => 'Another sale of the business already has this invoice number.',
             self::SaleAlreadyPaid => 'The sale is already fully paid.',
+            self::VoidWindowClosed => 'The sale can no longer be voided: its void time limit has passed. Use a return.',
+            self::SaleHasReturns => 'The sale has a return that isn\'t rejected, so it can\'t be voided.',
+            self::SaleAlreadyVoided => 'The sale is already voided.',
+            self::SaleNotSynced => 'The sale this item names hasn\'t reached the server yet; send the item again after it.',
             self::UnknownItemType => 'The server does not know this kind of pushed item.',
             self::MpesaNotSetUp => 'The shop has no proven M-Pesa Till or Paybill, so it can\'t take M-Pesa at the till.',
             self::SubscriptionInactive => 'The subscription has lapsed or the business is over its shops; it is read-only.',

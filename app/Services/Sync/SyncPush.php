@@ -14,8 +14,10 @@ use App\Services\Sync\Push\MpesaCodeHandler;
 use App\Services\Sync\Push\PaymentHandler;
 use App\Services\Sync\Push\PushHandler;
 use App\Services\Sync\Push\PushItem;
+use App\Services\Sync\Push\PushPending;
 use App\Services\Sync\Push\PushRefused;
 use App\Services\Sync\Push\SaleHandler;
+use App\Services\Sync\Push\SaleVoidHandler;
 use App\Services\Sync\Push\TillSignInHandler;
 use App\Support\Sync\SyncIssues;
 use Illuminate\Database\UniqueConstraintViolationException;
@@ -34,6 +36,9 @@ use Throwable;
  *   the result it had then, so a batch pushed twice is applied once;
  * - `refused`: not done, with a code; nothing is kept, so the till may push it
  *   again once the reason is gone;
+ * - `pending` (stage 10, step 5c): not done yet, because it names an item the
+ *   server hasn't received (a void before its sale); nothing is kept, and the
+ *   till sends it again with its next push;
  * - `failed`: an error on the server; nothing is kept either.
  *
  * One item's refusal doesn't stop the rest. Every item is applied for the
@@ -50,6 +55,8 @@ class SyncPush
         'cash_session' => CashSessionHandler::class,
         'till_sign_in' => TillSignInHandler::class,
         'mpesa_code' => MpesaCodeHandler::class,
+        // A void recorded at the till (stage 10, step 5c).
+        'sale_void' => SaleVoidHandler::class,
     ];
 
     /**
@@ -101,6 +108,8 @@ class SyncPush
             });
 
             return [...$base, 'status' => 'applied', 'result' => $result];
+        } catch (PushPending $e) {
+            return [...$base, 'status' => 'pending', 'code' => $e->errorCode->value, 'message' => $e->getMessage()];
         } catch (PushRefused $e) {
             // Outside the rolled-back transaction, so the issue is kept for review.
             if ($e->issue !== null) {

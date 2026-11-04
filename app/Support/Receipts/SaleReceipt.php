@@ -7,6 +7,7 @@ use App\Enums\TaxClass;
 use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Models\SalePayment;
+use App\Support\Sales\VoidWindow;
 
 /**
  * A sale's receipt as structured data for an ESC/POS printer (Phase 7): the
@@ -53,6 +54,9 @@ class SaleReceipt
                 'customer' => $sale->customer?->name ?? $sale->walk_in_customer_name,
                 'customer_tax_pin' => $sale->customer_tax_pin,
                 'tax_inclusive' => (bool) $sale->tax_inclusive,
+                // Whether it can be voided now, and until when (stage 10, step 5c).
+                'voidable' => app(VoidWindow::class)->voidable($sale),
+                'voidable_until' => app(VoidWindow::class)->voidableUntil($sale)?->toIso8601String(),
             ],
             'lines' => $sale->items->map(fn (SaleItem $item): array => [
                 'name' => $item->product?->name,

@@ -75,6 +75,13 @@
                                             <td class="text-end text-warning">
                                                 {{ format_currency($cashRegister->total_credit_sales) }}</td>
                                         </tr>
+                                        {{-- Cash paid out of the session (stage 10, steps 4 and 5c), each named. --}}
+                                        @foreach ($cashRegister->payouts as $payout)
+                                            <tr>
+                                                <td class="fw-medium bg-light">{{ $payout->reason }}</td>
+                                                <td class="text-end text-danger">− {{ format_currency($payout->amount) }}</td>
+                                            </tr>
+                                        @endforeach
                                         <tr class="table-primary">
                                             <td class="fw-semibold fs-16">Expected Cash in Drawer:</td>
                                             <td class="text-end fw-semibold fs-16">

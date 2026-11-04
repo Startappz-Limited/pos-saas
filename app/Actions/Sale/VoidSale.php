@@ -6,10 +6,12 @@ use App\Actions\SettleCreditSalePayment;
 use App\Enums\StockMovementType;
 use App\Models\CashPayout;
 use App\Models\RefundDue;
+use App\Models\Register;
 use App\Models\Sale;
 use App\Models\User;
 use App\Services\Stock\StockLedger;
 use App\Support\Sales\VoidRefunds;
+use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -33,18 +35,19 @@ class VoidSale
     /**
      * @param  ?User  $by  who voided it; null for an automatic void (step 5b)
      * @param  bool  $approvedRequest  voided by approving a request: cash is owed, never paid out at once
+     * @param  ?Register  $till  voided at this till: its session at $recordedAt pays the cash (step 5c)
      * @return array{payouts: list<CashPayout>, refunds: list<RefundDue>, units: int}
      */
-    public function execute(Sale $sale, string $reason, ?User $by, bool $approvedRequest = false): array
+    public function execute(Sale $sale, string $reason, ?User $by, bool $approvedRequest = false, ?Register $till = null, ?CarbonInterface $recordedAt = null): array
     {
-        $result = DB::transaction(function () use ($sale, $reason, $by, $approvedRequest): array {
+        $result = DB::transaction(function () use ($sale, $reason, $by, $approvedRequest, $till, $recordedAt): array {
             $units = 0;
             foreach ($sale->items()->orderBy('id')->get() as $item) {
                 $units += $this->ledger->release($item, StockMovementType::SALE_VOID, ['reference' => $sale, 'user_id' => $by?->id, 'notes' => "Sale {$sale->invoice_number} voided."])?->quantity ?? 0;
             }
 
             // Before the status changes: what it took, and whether its session counted it.
-            $money = $this->refunds->settle($sale, $by, $approvedRequest);
+            $money = $this->refunds->settle($sale, $by, $approvedRequest, $till, $recordedAt);
 
             $sale->update([
                 'status' => 'voided',
@@ -52,6 +55,9 @@ class VoidSale
                 // NULL for an automatic void (an online order cancelled in its store, step 5b).
                 'voided_by' => $by?->id,
                 'void_reason' => $reason,
+                // At a till (stage 10, step 5c): which, and when the till recorded it.
+                'voided_register_id' => $till?->id,
+                'void_recorded_at' => $till !== null ? ($recordedAt ?? now()) : null,
             ]);
 
             // Release the debt a voided credit sale created, or the customer

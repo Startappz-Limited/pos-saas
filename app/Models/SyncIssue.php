@@ -42,6 +42,9 @@ class SyncIssue extends Model
 
     public const MPESA_NOT_NEEDED = 'mpesa_not_needed';
 
+    /** A void recorded at a till that the server refused (stage 10, step 5c): the sale had a return since. */
+    public const VOID_REFUSED = 'void_refused';
+
     protected $fillable = ['uuid', 'business_id', 'shop_id', 'register_id', 'type', 'key', 'details', 'resolved_at', 'resolved_by', 'resolution'];
 
     protected function casts(): array
@@ -96,6 +99,7 @@ class SyncIssue extends Model
             self::MPESA_AMOUNT_MISMATCH => __('M-Pesa amount differs'),
             self::MPESA_CODE_REUSED => __('M-Pesa code used twice'),
             self::MPESA_NOT_NEEDED => __('M-Pesa payment for a paid sale'),
+            self::VOID_REFUSED => __('Void refused'),
             default => $this->type,
         };
     }
@@ -106,7 +110,7 @@ class SyncIssue extends Model
     public function badgeVariant(): string
     {
         return match ($this->type) {
-            self::INVOICE_REPEAT, self::MPESA_CODE_REUSED => 'danger',
+            self::INVOICE_REPEAT, self::MPESA_CODE_REUSED, self::VOID_REFUSED => 'danger',
             self::MPESA_UNMATCHED, self::MPESA_AMOUNT_MISMATCH, self::MPESA_NOT_NEEDED => 'warning',
             self::INVOICE_GAP, self::NEGATIVE_STOCK => 'warning',
             self::POSSIBLE_DUPLICATE_CUSTOMER => 'info',

@@ -3,18 +3,13 @@
 namespace App\Support\Sales;
 
 use App\Actions\Sale\VoidSale;
-use App\Enums\AlertCategory;
-use App\Enums\AlertType;
 use App\Enums\AuditEvent;
 use App\Events\AuditableEvent;
-use App\Models\Alert;
 use App\Models\EcommerceOrder;
 use App\Models\RefundDue;
 use App\Models\Sale;
 use App\Observers\ProductObserver;
-use App\Support\Approvals\ApprovalInbox;
-use App\Support\Approvals\ApprovalSubject;
-use App\Support\Approvals\Approvers;
+use App\Support\Approvals\Flags;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -43,11 +38,7 @@ final class StoreCancellations
 
     public const AFTER_DISPATCH = 'store_cancelled_after_dispatch';
 
-    public function __construct(
-        private VoidSale $voidSale,
-        private ApprovalInbox $inbox,
-        private Approvers $approvers,
-    ) {}
+    public function __construct(private VoidSale $voidSale, private Flags $flags) {}
 
     /**
      * Called by the stores' order upsert: a converted order's cancellation is
@@ -182,35 +173,7 @@ final class StoreCancellations
      */
     private function flag(Sale $sale, string $code, string $message, bool $notifyOwners): void
     {
-        $exists = Alert::query()->where('alertable_type', Sale::class)->where('alertable_id', $sale->id)
-            ->where('type', AlertType::SALE_REVIEW->value)->where('data->code', $code)->exists();
-        if ($exists) {
-            return;
-        }
-
-        $alert = Alert::create([
-            'shop_id' => $sale->shop_id,
-            'title' => __('Check sale :invoice', ['invoice' => $sale->invoice_number]),
-            'message' => $message,
-            'type' => AlertType::SALE_REVIEW,
-            'severity' => AlertType::SALE_REVIEW->defaultSeverity(),
-            'category' => AlertCategory::SALES,
-            'alertable_type' => Sale::class,
-            'alertable_id' => $sale->id,
-            'data' => ['code' => $code],
-        ]);
-
-        if ($notifyOwners) {
-            $this->inbox->request(new ApprovalSubject(
-                kind: 'sale_review',
-                uuid: (string) $alert->uuid,
-                businessId: (int) $sale->business_id,
-                title: __('Sale :invoice', ['invoice' => $sale->invoice_number]),
-                summary: $message,
-                url: route('sales.show', $sale),
-                requestedBy: __('the online store'),
-                prompt: __('Check'),
-            ), $this->approvers->owners());
-        }
+        $this->flags->raise($sale, (int) $sale->shop_id, (int) $sale->business_id, $code,
+            __('Check sale :invoice', ['invoice' => $sale->invoice_number]), $message, route('sales.show', $sale), $notifyOwners);
     }
 }

@@ -64,12 +64,16 @@ class Sale extends Model
         'voided_at',
         'voided_by',
         'void_reason',
+        // The till it was voided at, and when the till recorded it (stage 10, step 5c).
+        'voided_register_id',
+        'void_recorded_at',
         'created_by',
     ];
 
     protected $casts = [
         'completed_at' => 'datetime',
         'voided_at' => 'datetime',
+        'void_recorded_at' => 'datetime',
         'is_cod' => 'boolean',
         'tax_inclusive' => 'boolean',
         'tax_breakdown' => 'array',

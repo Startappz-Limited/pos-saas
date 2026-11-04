@@ -216,6 +216,19 @@ Decisions of 26, 27 and 28 October 2026, for steps 0 to 8. Each step says which 
 earlier ones where they differ (the Revisions list says which). The decisions of 3 November 2026 (below, first) replace
 any earlier text they contradict.
 
+- **Decisions of 4 November 2026 (step 5c, voids at the till):**
+  - **The till's session pays** a cash payout for a void made at that till, whoever signs in to void (the stage's
+    rule, kept for tills). The 4 November rule for the web, the flat API and void requests is unchanged (the voider's
+    own open session, else a refund owed).
+  - The payout is recorded in that session with the voider's name and the invoice, and appears in the session's totals
+    and close report ("Cash paid out by :name (void of :invoice)").
+  - **Offline voids:** the payout belongs to the session that was open at the till at the void's recorded time. If that
+    session was already closed on the server when the void syncs, its totals are corrected (the payout recorded in it,
+    its expected balance and variance recalculated) with an audit note, and the owners are told under the shared
+    notification rule; the payout is never moved to another session silently. If the till had no open session at the
+    void's time, the cash becomes a refund owed.
+  - **Paying any refund owed** uses one rule: `sales.void` or `refunds.approve`; a cash refund owed is paid from the
+    payer's own open session.
 - **Decisions of 4 November 2026 (step 5b, online orders cancelled in the store):**
   - **A POS refund owed is never created for money taken through the store** (on any void, automatic or by a
     person). On an automatic void of a cancelled online order, the store payment is marked **"refunded in store"** (a
@@ -1037,13 +1050,17 @@ is deployed.
     `syncInProgress` guard).
 
 ### 5c. Voids from the till: `/api/v1` and offline
-- [ ] **Online:** `POST /api/v1/sales/{uuid}/void` (`reason` required), through `SalePolicy::void` (permission,
+> **Built in parts (4 November 2026).** Part 1 (`TillVoidTest`, `ApiV1VoidContractTest`): the online void, the
+> `sale_void` push item (with the `pending` status and `sale_not_synced`), the till-session payouts and closed-session
+> corrections decided on 4 November, `voidable`/`voidable_until` on the receipt, `sale_voids` and `pending_removal` in the
+> pull, the `void_refused` issue, and the matrix rows. Parts 2 and 3 follow; their items are ticked as they are built.
+- [x] **Online:** `POST /api/v1/sales/{uuid}/void` (`reason` required), through `SalePolicy::void` (permission,
       `VoidWindow` checked at the current time, no return that isn't rejected, not already voided) and the same void
       action as the web
       (step 4). Refusals carry codes, added to `ApiErrorCode`: `void_window_closed`, `sale_has_returns`,
       `sale_already_voided`, and 403 `forbidden` without `sales.void`. A register-bound token reaches only its shop's
       sales. The sale records the till (`voided_register_id`).
-- [ ] **Offline:** a new push item `sale_void` with its own `client_uuid` (`sale` uuid or `sale_client_uuid`,
+- [x] **Offline:** a new push item `sale_void` with its own `client_uuid` (`sale` uuid or `sale_client_uuid`,
       `reason`, `voided_by`). The till checks the person's `sales.void` from the staff list; the server checks it
       again. The time limit is judged by `VoidWindow` at the item's `recorded_at`, which must lie inside a lease the
       till was given. **A `sale_void` recorded outside any lease** is refused `outside_trading_lease`, class **hold**
@@ -1051,24 +1068,24 @@ is deployed.
       a manager rather than dropped. Accepting it applies the void only if `VoidWindow` allows it at the server's
       current time and the sale has no return that isn't rejected; otherwise it can only be discarded. Released and audited as an online void, with the till (`voided_register_id`) and the recorded
       time (`void_recorded_at`; `voided_at` stays the server's time).
-- [ ] **Order and a sale not yet on the server:** push items are applied in the order sent, so a void after its
+- [x] **Order and a sale not yet on the server:** push items are applied in the order sent, so a void after its
       sale in the same push finds it. A `sale_void` whose sale is unknown (later in the same push, or not pushed
       yet) gets a new result status, `pending` ("not yet applied"). Nothing is kept, no receipt is written, and the
       till sends it again with its next push. It is not refused.
-- [ ] **Once only, and races:**
+- [x] **Once only, and races:**
   - the push's once-per-`client_uuid` rule applies: a void pushed twice is applied once and releases stock once;
   - a void for a sale already voided elsewhere (the web, another till, an online cancellation) is `applied` as a
     no-op, with `result.already_voided = true`, so the till clears it;
   - a void for a sale that has had a return since (one that isn't rejected) is `refused` (`sale_has_returns`) and goes on the till sync review
     as a new `void_refused` issue (the till, the person, the recorded time and the reason), so a manager sees the
     void that didn't happen.
-- [ ] **Pending removals at the till** (decided 3 November 2026): the pull's `stock` carries, per variation, the units
+- [x] **Pending removals at the till** (decided 3 November 2026): the pull's `stock` carries, per variation, the units
       that pending stock-adjustment decreases would remove (`pending_removal`), and the till shows a non-blocking
       warning "N units pending removal" when it sells into them. Stock is never held.
-- [ ] **Telling the tills:** the pull gains `sale_voids`, the shop's sales voided since the cursor (`uuid`,
+- [x] **Telling the tills:** the pull gains `sale_voids`, the shop's sales voided since the cursor (`uuid`,
       `client_uuid`, `voided_at`, `void_recorded_at`, `reason`), so every till of the shop marks them, wherever the
       void was made. The restored stock reaches the tills through the pull's `stock` section (step 3).
-- [ ] **When voiding is possible** (decided 28 October 2026, tenth round): `/api/v1` sale and receipt responses carry
+- [x] **When voiding is possible** (decided 28 October 2026, tenth round): `/api/v1` sale and receipt responses carry
       `voidable` (true or false) and `voidable_until`:
   - `voidable` is true when the sale can be voided now: completed and inside its window, or pending with payments
     (no window, step 2); false when it has a return that isn't rejected, is voided, is past its window, or is pending
@@ -1087,10 +1104,10 @@ is deployed.
     (an STK request still pending at the void, or a code matched later) is left unapplied and recorded as one.
   - **Closing it, until stage 14** (decided 28 October 2026, ninth round; gap 29): a "Mark refunded" action on the
     review records the method, reference, amount, who and when, in the issue's details, and resolves it
-    (`resolution = refunded`, `resolved_at`, `resolved_by`); an open issue has no resolution. It needs
-    `cash-registers.payout` for cash, and `sync-issues.accept` for any other method. For cash it also records a
-    payout in an open session the person chooses (step 4); with none open it is refused ("Open the register to pay a
-    cash refund."). Audited; done once (the issue is checked under a lock). [Stage 14](./14-returns-in-reports.md),
+    (`resolution = refunded`, `resolved_at`, `resolved_by`); an open issue has no resolution. **Revised 4 November
+    2026:** paying any refund owed uses one rule: someone holding `sales.void` or `refunds.approve` with access to
+    the shop; a cash refund owed is paid from **the payer's own open session**; with none open it is refused ("Open
+    your register to pay a cash refund."). Audited; done once (the issue is checked under a lock). [Stage 14](./14-returns-in-reports.md),
     step 6, replaces it: a refund processed for the issue resolves it.
 - [ ] **A till that would lose unsynced work** (a reinstall, a lost device, signing out, re-pairing):
   - **The server knows what a till holds:** every push and pull sends `outbox_count` (unsynced items on the till);
@@ -1258,9 +1275,9 @@ is deployed.
     `sync-issues.accept` can't;
   - a payment queued behind a re-rung sale applies to the new sale; a void queued behind it voids the new sale under
     the void rules; the original sale item pushed again answers `discarded` and creates nothing;
-  - a `refund_due` marked refunded is resolved once and audited; a cash one records a payout in the chosen session
-    and is refused with no open session; a cashier without `cash-registers.payout` can't mark a cash one, and someone
-    without `sync-issues.accept` can't mark an M-Pesa one;
+  - a `refund_due` marked refunded is resolved once and audited; a cash one records a payout in the payer's own open
+    session and is refused with none; someone holding neither `sales.void` nor `refunds.approve` can't mark one (revised
+    4 November 2026);
   - a till's sale numbered in the web series (`INV-{shop}-W-…`) is refused and can't be accepted, only discarded;
   - a `sale_void` recorded outside any lease is held (`outside_trading_lease`); accepted, it voids the sale when the
     window allows it now and there is no return that isn't rejected; otherwise only discard is offered;

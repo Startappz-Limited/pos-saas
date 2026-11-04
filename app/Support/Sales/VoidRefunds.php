@@ -2,15 +2,20 @@
 
 namespace App\Support\Sales;
 
+use App\Enums\AuditEvent;
+use App\Events\AuditableEvent;
 use App\Exceptions\BusinessRuleException;
 use App\Models\CashPayout;
 use App\Models\CashRegister;
 use App\Models\RefundDue;
+use App\Models\Register;
 use App\Models\Sale;
 use App\Models\User;
 use App\Support\Approvals\ApprovalInbox;
 use App\Support\Approvals\ApprovalSubject;
 use App\Support\Approvals\Approvers;
+use App\Support\Approvals\Flags;
+use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -30,6 +35,12 @@ use Illuminate\Support\Facades\DB;
  *   reversal clears what the customer still owed);
  * - money taken through an online store (a converted order that wasn't cash
  *   on delivery) is never a POS refund owed: the store refunds it (step 5b).
+ *
+ * A void made at a till (stage 10, step 5c; decided 4 November 2026) pays its
+ * cash out of that till's session open at the void's time, whoever signed in to
+ * void; a session already closed when an offline void syncs has the payout
+ * recorded in it and its totals corrected, with an audit note, and the owners
+ * are told; with no session open at that time the cash is owed.
  *
  * A refund owed is paid later by someone holding `sales.void` or
  * `refunds.approve` with access to the shop: cash out of their own open
@@ -88,24 +99,32 @@ final class VoidRefunds
      * @param  bool  $approvedRequest  an approved void request: cash is never paid out at once
      * @return array{payouts: list<CashPayout>, refunds: list<RefundDue>}
      */
-    public function settle(Sale $sale, ?User $by, bool $approvedRequest = false): array
+    public function settle(Sale $sale, ?User $by, bool $approvedRequest = false, ?Register $till = null, ?CarbonInterface $at = null): array
     {
         $sessionOpen = $sale->register_id !== null && $sale->register?->status === 'open';
-        // No person (an automatic void) has no session of their own: cash is owed.
-        $own = $approvedRequest || $by === null ? null : $this->ownSession($by, (int) $sale->shop_id);
+        // At a till, its session at the void's time pays; otherwise the voider's own
+        // open session (no person, as an automatic void, has none: cash is owed).
+        $pays = match (true) {
+            $till !== null => $this->tillSessionAt($till, $at ?? now()),
+            $approvedRequest || $by === null => null,
+            default => $this->ownSession($by, (int) $sale->shop_id),
+        };
         $payouts = [];
         $refunds = [];
+        $corrected = false;
 
         foreach ($this->received($sale) as $part) {
             if ($part['method'] === 'cash') {
                 if ($part['in_session_totals'] && $sessionOpen) {
                     continue; // leaves the sale's own session when its totals are recalculated
                 }
-                if ($own !== null) {
+                if ($pays !== null) {
                     $payouts[] = CashPayout::create([
-                        'shop_id' => $sale->shop_id, 'cash_register_id' => $own->id, 'amount' => $part['amount'],
-                        'reason' => __('Void of sale :invoice', ['invoice' => $sale->invoice_number]), 'sale_id' => $sale->id, 'created_by' => $by?->id,
+                        'shop_id' => $sale->shop_id, 'cash_register_id' => $pays->id, 'amount' => $part['amount'],
+                        'reason' => __('Cash paid out by :name (void of :invoice)', ['name' => $by?->name ?? __('the system'), 'invoice' => $sale->invoice_number]),
+                        'sale_id' => $sale->id, 'created_by' => $by?->id,
                     ]);
+                    $corrected = $corrected || $pays->status !== 'open';
 
                     continue;
                 }
@@ -122,7 +141,48 @@ final class VoidRefunds
             $this->inbox->request($this->subject($refund), $this->payersOf($refund, $by));
         }
 
+        if ($corrected) {
+            $this->correctClosedSession($pays, $sale, $by);
+        }
+
         return ['payouts' => $payouts, 'refunds' => $refunds];
+    }
+
+    /**
+     * The till's session open at $at, open or closed since.
+     */
+    public function tillSessionAt(Register $till, CarbonInterface $at): ?CashRegister
+    {
+        return CashRegister::query()->where('register_id', $till->id)->where('opened_at', '<=', $at)
+            ->where(fn ($query) => $query->whereNull('closed_at')->orWhere('closed_at', '>=', $at))
+            ->latest('opened_at')->first();
+    }
+
+    /**
+     * An offline void that syncs after its session closed (decided 4 November
+     * 2026): the payout stays in that session, whose expected balance and
+     * variance are recalculated, with an audit note; the owners are told.
+     */
+    private function correctClosedSession(CashRegister $session, Sale $sale, ?User $by): void
+    {
+        $before = ['expected_balance' => (float) $session->expected_balance, 'variance' => (float) $session->variance];
+        $expected = $session->calculateExpectedBalance();
+        $session->forceFill([
+            'expected_balance' => $expected,
+            'variance' => $session->closing_balance === null ? $session->variance : round((float) $session->closing_balance - $expected, 2),
+        ])->save();
+
+        AuditableEvent::dispatch(
+            auditableType: CashRegister::class, auditableId: $session->id, auditableUuid: (string) $session->uuid, event: AuditEvent::UPDATED,
+            oldValues: $before, newValues: ['expected_balance' => (float) $session->expected_balance, 'variance' => (float) $session->variance,
+                'note' => __('Corrected after closing: an offline void of :invoice synced late and its cash was paid out of this session.', ['invoice' => $sale->invoice_number])],
+            userId: $by?->id, userName: $by?->name, shopId: (int) $session->shop_id, tags: ['cash-register', 'corrected', 'void'], businessId: (int) $sale->business_id,
+        );
+
+        app(Flags::class)->raise($session, (int) $session->shop_id, (int) $sale->business_id, 'session_corrected_by_void:'.$sale->uuid,
+            __('Session :number corrected after closing', ['number' => $session->register_number]),
+            __('An offline void of sale :invoice synced after this session closed. Its cash was paid out of this session, so its expected balance and variance were recalculated.', ['invoice' => $sale->invoice_number]),
+            route('cash-registers.show', $session), notifyOwners: true);
     }
 
     /**
@@ -153,7 +213,7 @@ final class VoidRefunds
                         ?? throw new BusinessRuleException(__('Open your register to pay a cash refund.'));
                     $payoutId = CashPayout::create([
                         'shop_id' => $refund->shop_id, 'cash_register_id' => $own->id, 'amount' => $refund->amount,
-                        'reason' => __('Refund for voided sale :invoice', ['invoice' => $refund->sale?->invoice_number]), 'sale_id' => $refund->sale_id, 'created_by' => $by->id,
+                        'reason' => __('Cash paid out by :name (refund owed for :invoice)', ['name' => $by->name, 'invoice' => $refund->sale?->invoice_number]), 'sale_id' => $refund->sale_id, 'created_by' => $by->id,
                     ])->id;
                 } elseif (trim((string) ($data['reference'] ?? '')) === '') {
                     throw new BusinessRuleException(__('Enter the reference of the refund (the M-Pesa, bank or card reference).'));

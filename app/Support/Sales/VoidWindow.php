@@ -131,6 +131,33 @@ final class VoidWindow
     }
 
     /**
+     * Whether the sale can be voided now, for the till (stage 10, step 5c;
+     * `voidable`): about time and the sale's state only, so the same for
+     * everyone; the app adds the person's `sales.void`. True for a completed
+     * sale inside its window, and for a pending sale with payments (no window);
+     * false when voided, with a return that isn't rejected, past its window, or
+     * pending with no payments (deleted instead).
+     */
+    public function voidable(Sale $sale): bool
+    {
+        $status = $sale->status instanceof \BackedEnum ? $sale->status->value : $sale->status;
+
+        return match (true) {
+            $status === 'voided', self::hasOpenReturns($sale) => false,
+            $status === 'pending', $status === 'draft' => (float) $sale->paid_amount > 0 || $sale->payments()->exists(),
+            default => $this->allows($sale, now()),
+        };
+    }
+
+    /**
+     * The end of the window while the sale is voidable and has one (`voidable_until`).
+     */
+    public function voidableUntil(Sale $sale): ?CarbonImmutable
+    {
+        return $this->voidable($sale) ? $this->until($sale) : null;
+    }
+
+    /**
      * The shop's timezone, else the business's, else Africa/Nairobi.
      */
     public function timezone(Sale $sale): string

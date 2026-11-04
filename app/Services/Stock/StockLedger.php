@@ -317,6 +317,16 @@ class StockLedger
     }
 
     /**
+     * Moves the shop's stock row of a variation on (its `updated_at`) without
+     * changing stock, so tills pull it again (stage 10, step 5c: a pending
+     * adjustment decrease changes the units it shows as pending removal).
+     */
+    public function touch(int $shopId, int $variationId): void
+    {
+        DB::table('shop_variation')->where('shop_id', $shopId)->where('variation_id', $variationId)->update(['updated_at' => now()]);
+    }
+
+    /**
      * The shop's stock of a variation.
      */
     public function quantity(int $shopId, int $variationId): int

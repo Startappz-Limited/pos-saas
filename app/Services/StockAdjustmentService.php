@@ -100,6 +100,7 @@ class StockAdjustmentService
                 $this->apply($adjustment, $creator->id, autoApplied: true);
             } else {
                 $this->inbox->request($this->approval->subject($adjustment), $this->approval->approversOf($adjustment));
+                $this->touchPendingDecreases($adjustment);
             }
 
             return $adjustment->fresh(['shop', 'creator', 'approver', 'items.product', 'items.variation']);
@@ -122,11 +123,13 @@ class StockAdjustmentService
             ]);
 
             if (isset($data['items'])) {
+                $this->touchPendingDecreases($adjustment);
                 $adjustment->items()->delete();
                 foreach ($data['items'] as $item) {
                     $this->addItem($adjustment, $item);
                 }
                 $adjustment->update(['type' => AdjustmentType::fromChanges(array_map(fn (array $item): int => (int) $item['quantity_change'], $data['items']))]);
+                $this->touchPendingDecreases($adjustment);
             }
 
             return $adjustment->fresh()->load(['shop', 'creator', 'items.product', 'items.variation']);
@@ -206,6 +209,7 @@ class StockAdjustmentService
                 'approved_at' => now(),
                 'rejection_reason' => $reason,
             ]);
+            $this->touchPendingDecreases($adjustment);
             $this->inbox->settle($this->approval->subject($adjustment), $adjustment->creator, 'rejected', User::findOrFail($userId), $reason);
 
             return $adjustment->fresh();
@@ -226,6 +230,7 @@ class StockAdjustmentService
             }
 
             $adjustment->update(['status' => 'cancelled', 'cancelled_by' => $userId, 'cancelled_at' => now()]);
+            $this->touchPendingDecreases($adjustment);
             $this->inbox->resolve('stock_adjustment', (string) $adjustment->uuid, 'cancelled');
 
             return $adjustment->fresh();
@@ -277,6 +282,17 @@ class StockAdjustmentService
             'approval_note' => $note,
             'cost_value' => $costValue,
         ]);
+    }
+
+    /**
+     * Tills show units pending decreases would remove (stage 10, step 5c): their
+     * stock rows are moved on when a pending adjustment's decreases change.
+     */
+    private function touchPendingDecreases(StockAdjustment $adjustment): void
+    {
+        foreach ($adjustment->items()->where('quantity_change', '<', 0)->whereNotNull('variation_id')->get(['shop_id', 'variation_id']) as $item) {
+            $this->ledger->touch((int) $item->shop_id, (int) $item->variation_id);
+        }
     }
 
     public function getStatistics(?int $shopId = null): array
