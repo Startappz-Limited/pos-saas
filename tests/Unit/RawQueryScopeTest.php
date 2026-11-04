@@ -47,6 +47,7 @@ const ALLOWED_RAW_QUERIES = [
     'app/Console/Commands/RecomputeSaleProfit.php' => [3, 'allocations and layers of scoped sales\' lines'],
     'app/Models/Product.php' => [5, 'the product\'s own shop and per-shop rows'],
     'app/Models/Register.php' => [4, 'the default register of a shop the caller names'],
+    'app/Console/Commands/RestockVoidedSales.php' => [2, 'the allocations of lines of voided sales found through the tenant-scoped Sale query (stage 10, step 7)'],
     'app/Services/InvoiceNumberService.php' => [16, 'the invoice series of the sale\'s shop and register, adopting a number a till gave a sale offline (Phase 7), the shop\'s web series and the shop\'s local date (stage 10)'],
     'app/Services/Mpesa/TillPayments.php' => [1, 'an M-Pesa receipt pays once on the whole platform (the column is unique across businesses): reads only whether one is used (Phase 7)'],
     'app/Services/ProductService.php' => [1, 'per-shop stock of scoped products in the viewer\'s shops (StockQuery)'],

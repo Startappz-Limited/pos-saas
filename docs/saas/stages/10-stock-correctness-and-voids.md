@@ -1355,18 +1355,19 @@ is deployed.
       `sales:recompute-profit`); the badge shows.
 
 ### 7. Repair sales voided and deleted before this stage
-- [ ] `php artisan sales:restock-voided --business=<id>` (`RunsForBusiness`), kept for the UAT businesses' voided
+> **Done 4 November 2026** (`RepairCommandsTest`).
+- [x] `php artisan sales:restock-voided --business=<id>` (`RunsForBusiness`), kept for the UAT businesses' voided
       sales (none on 27 October 2026; any voided before this stage is deployed). For every voided sale whose lines
       still have allocations, it runs `release()` (dry run by default; `--apply` writes). It reports per sale: the
       lines, the units, the shops.
-- [ ] `php artisan stock:orphaned-movements --business=<id>` (read-only) lists `SALE` movements whose sale row no
+- [x] `php artisan stock:orphaned-movements --business=<id>` (read-only) lists `SALE` movements whose sale row no
       longer exists, so the business can correct stock by hand for sales hard-deleted before this stage. Sales
       deleted after it are soft-deleted (step 5), so their rows remain and they are never listed. Their
       allocations are gone, so nothing can be released automatically.
-- [ ] **Old voids keep their money as it was:** `sales:restock-voided` gives back stock only. It records no payouts
+- [x] **Old voids keep their money as it was:** `sales:restock-voided` gives back stock only. It records no payouts
       and no `refund_due` issues: those sales' sessions were counted at the time. The report says so.
-- [ ] `sales:report-cross-shop-lines` is **not** built (removed 27 October 2026; step 1a).
-- [ ] Tests on fixtures: an old voided sale is restored once (a second `--apply` changes nothing), with no payout or
+- [x] `sales:report-cross-shop-lines` is **not** built (removed 27 October 2026; step 1a).
+- [x] Tests on fixtures: an old voided sale is restored once (a second `--apply` changes nothing), with no payout or
       issue recorded. The orphaned list finds a deleted sale's movements.
 
 ### 8. Housekeeping
