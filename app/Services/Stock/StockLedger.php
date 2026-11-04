@@ -31,7 +31,9 @@ use Illuminate\Support\Str;
  *   re-costing those sales;
  * - consume(): stock out (sale, write-off, purchase return) takes layers
  *   oldest first; a shortfall is allocated provisionally at the last known
- *   cost and stock goes negative (offline sales are always accepted, 4.5).
+ *   cost and stock goes negative (offline sales are always accepted, 4.5);
+ * - release(): gives back everything one consumer took (a voided or deleted
+ *   sale's line), into the batches it came from (stage 10, step 3).
  *
  * Callers have already authorised the shop: queries here filter by the given
  * shop and variation explicitly rather than through the viewer's scopes, so a
@@ -122,6 +124,86 @@ class StockLedger
             $totalCost = round($totalCost, 2);
             $unitCost = $quantity > 0 ? round($totalCost / $quantity, 2) : null;
             $movement = $this->recordMovement($shopId, $variation, $type, $quantity, $before, $before - $quantity, $costKnown ? $unitCost : null, $context);
+
+            return new StockChange($movement, $quantity, $totalCost, $costKnown);
+        });
+    }
+
+    /**
+     * Gives back everything one consumer took (stage 10, step 3): a sale line,
+     * adjustment line or supplier-return line, found through consumerKey(), so
+     * any consumer releases through this one method. Settled units go back into
+     * the batch they came from (a new `release` batch at their cost if it no
+     * longer exists), so FIFO order and cost stay exact; provisional units come
+     * back with no batch. Stock rises by the total, one movement of $type is
+     * written at the weighted cost released, the allocations are deleted (their
+     * history is in the movement and the audit log), and the batches given
+     * units then settle waiting below-zero sales, oldest first. The consumer's
+     * own cost figures are left as they were. Nothing to release (already
+     * released, or never consumed) gives null and changes nothing.
+     *
+     * @param  array{reference?: Model|null, notes?: string|null, user_id?: int|null}  $context
+     */
+    public function release(Model $consumer, StockMovementType $type, array $context = []): ?StockChange
+    {
+        [$consumerType, $consumerId] = $this->consumerKey($consumer);
+
+        return DB::transaction(function () use ($consumerType, $consumerId, $type, $context): ?StockChange {
+            $first = DB::table('cost_allocations')->where('consumer_type', $consumerType)->where('consumer_id', $consumerId)
+                ->orderBy('id')->first(['shop_id', 'product_id', 'variation_id']);
+            if ($first === null) {
+                return null;
+            }
+
+            $shopId = (int) $first->shop_id;
+            $variation = (new ProductVariation)->forceFill(['id' => (int) $first->variation_id, 'product_id' => (int) $first->product_id]);
+            $before = $this->lockStock($shopId, $variation);
+
+            $allocations = DB::table('cost_allocations')->where('consumer_type', $consumerType)->where('consumer_id', $consumerId)
+                ->where('shop_id', $shopId)->where('variation_id', $variation->id)
+                ->orderBy('id')->lockForUpdate()->get();
+
+            $quantity = 0;
+            $totalCost = 0.0;
+            $costKnown = true;
+            $batches = [];
+
+            foreach ($allocations as $allocation) {
+                $units = (int) $allocation->quantity_allocated;
+                $cost = $allocation->unit_cost === null ? null : (float) $allocation->unit_cost;
+                $quantity += $units;
+                $totalCost += $units * (float) $cost;
+                $costKnown = $costKnown && $cost !== null;
+
+                if ($allocation->is_provisional) {
+                    continue; // stock comes back with no batch, as it left
+                }
+
+                $layerId = $allocation->cost_layer_id === null ? null : (int) $allocation->cost_layer_id;
+                if ($layerId !== null && DB::table('cost_layers')->where('id', $layerId)->lockForUpdate()->exists()) {
+                    DB::table('cost_layers')->where('id', $layerId)->update([
+                        'remaining_quantity' => DB::raw('remaining_quantity + '.$units),
+                        'consumed_at' => null,
+                        'updated_at' => now(),
+                    ]);
+                } else {
+                    $layerId = $this->createLayer($shopId, $variation, $units, $cost, ['source_type' => CostLayer::SOURCE_RELEASE, 'source_id' => $consumerId]);
+                }
+                $batches[$layerId] = true;
+            }
+
+            DB::table('cost_allocations')->whereIn('id', $allocations->pluck('id'))->delete();
+            $this->changeStock($shopId, $variation, $quantity);
+
+            $totalCost = round($totalCost, 2);
+            $unitCost = $quantity > 0 && $costKnown ? round($totalCost / $quantity, 2) : null;
+            $movement = $this->recordMovement($shopId, $variation, $type, $quantity, $before, $before + $quantity, $unitCost, $context);
+
+            // Units given back to a batch settle sales made below zero, oldest batch first.
+            $order = DB::table('cost_layers')->whereIn('id', array_keys($batches))->orderBy('received_at')->orderBy('id')->pluck('id');
+            foreach ($order as $layerId) {
+                $this->settleProvisional($shopId, $variation, (int) $layerId);
+            }
 
             return new StockChange($movement, $quantity, $totalCost, $costKnown);
         });

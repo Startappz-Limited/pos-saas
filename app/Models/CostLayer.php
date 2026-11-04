@@ -25,6 +25,9 @@ class CostLayer extends Model
 
     public const SOURCE_OPENING = 'opening';
 
+    /** Units given back by release() when their batch no longer exists (stage 10, step 3). */
+    public const SOURCE_RELEASE = 'release';
+
     protected $fillable = [
         'uuid',
         'business_id',

@@ -14,6 +14,9 @@ enum StockMovementType: string
     case TRANSFER_IN = 'transfer_in';
     case TRANSFER_OUT = 'transfer_out';
     case EXPIRED = 'expired';
+    // A consumer's stock given back (stage 10, step 3): a voided or deleted sale's lines.
+    case SALE_VOID = 'sale_void';
+    case SALE_DELETE = 'sale_delete';
 
     public function label(): string
     {
@@ -28,6 +31,8 @@ enum StockMovementType: string
             self::TRANSFER_IN => 'Transfer In',
             self::TRANSFER_OUT => 'Transfer Out',
             self::EXPIRED => 'Expired',
+            self::SALE_VOID => 'Sale Voided',
+            self::SALE_DELETE => 'Sale Deleted',
         };
     }
 
@@ -38,6 +43,8 @@ enum StockMovementType: string
             self::RETURN,
             self::ADJUSTMENT_ADD,
             self::TRANSFER_IN,
+            self::SALE_VOID,
+            self::SALE_DELETE,
         ]);
     }
 

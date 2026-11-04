@@ -773,7 +773,9 @@ is deployed.
       a message.
 
 ### 3. `StockLedger::release()`: give a consumer's stock back
-- [ ] New public method: `release(Model $consumer, StockMovementType $type, array $context = []): StockChange`.
+> **Done 4 November 2026** (`StockReleaseTest`). `release()` returns null when there is nothing to release, so a
+> second release changes nothing and writes no movement. Skipping voided sales when settling is step 4.
+- [x] New public method: `release(Model $consumer, StockMovementType $type, array $context = []): StockChange`.
       It undoes everything one consumer took, whatever the consumer is: it finds the allocations through
       `consumerKey()`, so a sale line, adjustment line or supplier-return line today, and stage 12's transfer
       lines, are released by the same code with no change to this method. In one transaction:
@@ -797,9 +799,9 @@ is deployed.
      re-costed. Voided sales are skipped (step 4). Stage 12's transfer cancel gets this unchanged, and stage 11c's
      batch details on movements record it.
   8. Push stock to the shop's online stores after commit, as `changeStock()` does.
-- [ ] `StockMovementType::SALE_VOID` and `SALE_DELETE` (additions), both listed in `isAddition()` (the enum lists
+- [x] `StockMovementType::SALE_VOID` and `SALE_DELETE` (additions), both listed in `isAddition()` (the enum lists
       every type in `isAddition()` or `isDeduction()`, checked 28 October 2026). `CostLayer::SOURCE_RELEASE`.
-- [ ] Unit tests on SQLite and MySQL:
+- [x] Unit tests on SQLite and MySQL:
   - a line taken from two batches goes back to both, in the right quantities;
   - a provisional line releases stock with no batch;
   - a mixed line (part batch, part provisional);
