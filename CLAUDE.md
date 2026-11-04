@@ -118,7 +118,8 @@ silently mixing patterns (see the skill's `CONFLICT:` protocol).
   binding read only the current business (another business's row is a 404, even for an owner). Rows
   written before have no business until `php artisan audit:backfill-business --apply`.
   **Audited models:** Sale, Product, User, CashRegister, Expense, StockAdjustment, Shop, Role,
-  CreditAccount, CreditTransaction, SaleReturn, Refund (add `use Auditable;` for more).
+  CreditAccount, CreditTransaction, SaleReturn, Refund, SyncIssue, and since stage 10 CashPayout, RefundDue
+  and SaleVoidRequest (add `use Auditable;` for more).
   **Authorization grants** (role/permission attach+detach) are audited via Spatie events —
   `config('permission.events_enabled')` is now `true` and `AuditAuthorizationChanges` listens; those are
   pivot writes, so no model event fires.
@@ -274,6 +275,13 @@ php artisan db:snapshot   # read-only snapshot of the .env database → storage/
 php artisan db:restore-snapshot FILE --database=rehearsal_testing --yes   # only into a _testing database
 php artisan migrate --database=rehearsal_testing   # rehearse migrations on the scratch database first
 php artisan migrate       # apply migrations to the .env database (UAT): the user runs this, after a snapshot
+# ⚠️ Deploy: `php artisan migrate`, then `php artisan permissions:sync`, never the reverse. The role
+# rollout backfill runs inside the migrations and must record removals (role_revoked_permissions)
+# before any sync, or a sync would give a business back a permission its owner took away (stage 10).
+php artisan permissions:sync   # PermissionSeeder then RoleSeeder; template grants reach every copy, minus recorded removals
+# Background work every environment needs (stage 10): `schedule:run` every minute (it runs the hourly
+# `approvals:remind`, which reminds approvers and expires void requests after 48h) and a queue worker
+# that includes `default` (approval and refund-owed notifications are queued there).
 # ⚠️ Since SaaS stage 1a the migrations are a clean baseline: their first migration REFUSES a database
 # that already has tables (DB_BASELINE_FORCE overrides). Pre-SaaS data crosses by the one-off import
 # into a freshly migrated database — the legacy database is only read (rehearse into import_testing):
@@ -370,10 +378,11 @@ per-policy super-admin bypasses. Treat `.claude/` as authoritative for Claude Co
   inclusive and exclusive pricing do not add up the same way. **Profit is net of VAT**:
   `total_profit = total_amount - tax_amount - total_cost`. Read
   [docs/vat.md](docs/vat.md) before touching tax, sale totals or invoice numbering.
-- **Invoice numbers** come from `InvoiceNumberService` (a gapless series per **register** in
-  `invoice_sequences`, `INV-{shop}-{register}-{year}-{n}`, unique per business), never `Str::random()`.
-  Pass the register the sale's cash session runs on (`$session->register_id`); none means the shop's
-  default register `R1`.
+- **Invoice numbers** come from `InvoiceNumberService`, never `Str::random()`: a till numbers in its
+  register's series (`INV-{shop}-{register}-{year}-{n}`); everything the server numbers (web POS, flat
+  API, online orders, abandoned carts) takes the shop's **web series** `nextWeb()`
+  (`INV-{shop}-W-{year}-{n}`, stage 10). Register codes are `R` + digits (`W` reserved). The year is the
+  shop's local date. Nothing may parse an invoice number: treat it as an opaque string.
 - **Money/stock**: amounts are `decimal(10,2)`; stock quantities are integers.
   **Since SaaS stage 1b every stock change goes through `StockLedger`** (`receive`, `consume`,
   `sellItem`, `setLevel`): it locks the `shop_variation` row, changes it by a delta, writes a
@@ -384,6 +393,24 @@ per-policy super-admin bypasses. Treat `.claude/` as authoritative for Claude Co
   the `CostingMethod` enum and `sale_item_stock_allocations` remain unused.
   **Read [pos-domain-rules](.claude/skills/pos-domain-rules/SKILL.md) before touching stock, cost,
   returns, credit, registers, or per-shop attribution.**
+- **Stage 10 rules** (details in [docs/saas/stages/10-stock-correctness-and-voids.md](docs/saas/stages/10-stock-correctness-and-voids.md)):
+  - **Every line takes stock from the selling shop** (the sale's shop), never the product's `shop_id`.
+  - **Voids release stock** (`StockLedger::release()`, `SALE_VOID`) and hand the money back (`VoidSale`,
+    `VoidRefunds`): cash from the voider's own open session (a till's void: that till's session), else a
+    refund owed (`refunds_due`); card, M-Pesa, bank and cheque are always owed; store money never.
+  - **Only `sales.void` voids**, within the business's void window (default: while the sale's register
+    session is open, never past the shop's midnight); past it 422 `void_window_closed`. Someone without it
+    requests a void (`sale_void_requests`).
+  - **Completed sales can't be deleted** (void them); only draft or pending sales with no payments are
+    deleted, and `Sale` soft-deletes: raw `sales` queries must add `whereNull('sales.deleted_at')`.
+  - **`sale_items.cost_known`** is false when any unit came from a batch with no cost.
+  - **Clerks hold no cost permission**; the flat API sends `cost_price: null` without `products.view-cost`.
+  - **Approvals** (adjustments, void requests, refunds owed) go through `App\Support\Approvals`: by
+    permission and shop access, never the requester (a sole owner excepted, with a note), notified,
+    first approver wins. Any new sale-triggered approval uses it.
+  - **New permissions** go in `PermissionSeeder` and the role grants, with a rollout test; removals from
+    roles are recorded in `role_revoked_permissions` (`RevokeTemplatePermissions`); `permissions:sync`
+    runs on deploy after the migrations.
 - **AI calls** go through `AiManager` (respect per-shop provider); **e-commerce/WhatsApp** go through their
   services + queued jobs, never inline HTTP in a controller. ⚠️ Only the `qwen` and `null` AI drivers are
   actually implemented — `openai`/`claude`/`gemini` are configured and offered in the UI but fall back to

@@ -927,6 +927,7 @@ stage file is the plan: [stages/10-stock-correctness-and-voids.md](stages/10-sto
 | 5d | 4 Nov | Invoice series: sales the server numbers (web POS, flat API via `RecordSale` with no till context, online orders, abandoned carts) take the shop's web series `INV-{shop}-W-{year}-{n}` (`nextWeb()`, series `w{shop}:{year}`); tills keep `INV-{shop}-{register}-{year}-{n}`; a till can't adopt a web number. `Register` codes must be `R` and digits (`W` reserved; the factory now makes `R` + digits). `invoices:report-series --business=<id>` (read-only). `SaleVatTest`'s and `AbandonedCartApiTest`'s numbering tests moved to the web series. **Checked 4 November 2026:** nothing outside `InvoiceNumberService` parses an invoice number (receipts, the PDF's file name slug, search, reports, exports, the till gap tracker and the fiscal signature treat it as an opaque string); app checklist item added. Every web-series claim runs inside the sale's transaction on the locked sequence row, so it is gapless and safe under concurrent saves (new MySQL case in `InvoiceNumberConcurrencyTest`, rolled-back saves included). **Fixed:** a series' year now follows the shop's local date (own timezone, else the business's, else Nairobi) for web, till and adjustment numbers; it used the server's clock, so a sale at 00:30 on 1 January in Nairobi took the old year, and a till's correct number could be refused near New Year. `InvoiceSeriesTest` (6) | (this commit) |
 | 6 | 4 Nov | `sale_items.cost_known` (default true; backfilled false for lines with an allocation of unknown cost, its own or its batch's, counts printed). `sellItem()` sets it from the change (an untracked product from whether it has a cost); settling below-zero units against a batch with no cost **keeps the provisional estimate** and marks the line; `settleProvisional()` (and so `release()`) recompute it. `sales:recompute-profit` treats an allocation from an uncosted batch as unknown, fills it and its batch from the cost entered, and writes `cost_known`. `Sale::scopeCostIncomplete()`; a "Cost incomplete" badge on the sale's lines and in the profit report, linking to Products → Purchase Costs. **Found:** `sales.profitReport` had no view (it failed when opened); a simple one is built; `sales.dailyReport` has none either, left as it is. `CostKnownTest` (4) | (this commit) |
 | 7 | 4 Nov | `sales:restock-voided --business=<id> [--apply]`: for each voided sale whose lines still hold allocations, `release()` (`SALE_VOID`); dry run by default, a second `--apply` changes nothing, no payouts or refunds owed (the report says so). `stock:orphaned-movements --business=<id>` (read-only): `SALE` movements whose sale row is gone (hard-deleted before this stage; soft-deleted sales never listed). `sales:report-cross-shop-lines` not built, as decided. `RepairCommandsTest` (2) | (this commit) |
+| 8 | 4 Nov | Housekeeping: CLAUDE.md gains the deploy order (`migrate`, then `permissions:sync`, never the reverse, with the reason), the background work (scheduler for `approvals:remind`, a queue worker on `default`), the stage 10 rules and the invoice series; pos-domain-rules gains the selling-shop rule (replacing per-product attribution), voids, deletes and payouts; `docs/flutter/09-products.md` corrected (`category_id` required, per the step 1f departure); the superseded note on `docs/implementation/21-stock-adjustments.md`; the "Planned" table below | (this commit) |
 
 ### Already true before the stage (checked 3 November 2026)
 
@@ -937,3 +938,16 @@ stage file is the plan: [stages/10-stock-correctness-and-voids.md](stages/10-sto
 - Steps 1f and 2 (hotfix `fix/api-authz`): the flat API's product writes and sale void and delete already check
   `ProductPolicy` and `SalePolicy`.
 
+### Planned after this stage
+
+The stock stages that follow (stage files in [stages/](stages/)); none started.
+
+| Stage | File | Branch | Depends on | Status |
+|---|---|---|---|---|
+| 11 | [11-units-quantities-and-batches.md](stages/11-units-quantities-and-batches.md) | `feat/stock-units-batches` | 10 | Planned |
+| 11b | [11b-prices-and-discounts.md](stages/11b-prices-and-discounts.md) | `feat/prices-and-discounts` | 11, 10 | Planned |
+| 11c | [11c-low-stock-alerts-and-snapshots.md](stages/11c-low-stock-alerts-and-snapshots.md) | `feat/low-stock-and-snapshots` | 11 | Planned |
+| 12 | [12-receiving-and-moving-stock.md](stages/12-receiving-and-moving-stock.md) | `feat/stock-receiving-transfers` | 11, 11c | Planned |
+| 13 | [13-stocktakes.md](stages/13-stocktakes.md) | `feat/stocktakes` | 12, 11 | Planned |
+| 14 | [14-returns-in-reports.md](stages/14-returns-in-reports.md) | `fix/returns-in-reports` | 10, 11, 12 | Planned; also takes the uncounted collected-cash gap (stage 10, step 4) |
+| 15 | [15-regulated-products.md](stages/15-regulated-products.md) | `feat/regulated-products` | 11, 12 | Planned |

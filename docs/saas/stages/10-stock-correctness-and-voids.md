@@ -1371,11 +1371,16 @@ is deployed.
       issue recorded. The orphaned list finds a deleted sale's movements.
 
 ### 8. Housekeeping
-- [ ] **The deploy order is written down** (a planned item, made when the stage ships): no deploy script exists
+> **Done 4 November 2026.** CLAUDE.md (deploy order, background work, the stage 10 rules, invoice series, audited
+> models), the pos-domain-rules skill (the selling-shop rule replaces per-product attribution; voids, deletes and
+> payouts), `docs/flutter/09-products.md` (with `category_id` **required**, the step 1f departure, not nullable as below),
+> the note on `docs/implementation/21-stock-adjustments.md` (worded for the 3 November decisions), and PROGRESS's
+> "Planned" table.
+- [x] **The deploy order is written down** (a planned item, made when the stage ships): no deploy script exists
       (checked 28 October 2026), so CLAUDE.md's "Commands" section gains "Deploy: `php artisan migrate`, then
       `php artisan permissions:sync`, never the reverse", with the reason (the role backfill runs inside the migrations
       and must record removals before any sync).
-- [ ] Note in [pos-domain-rules](../../../.claude/skills/pos-domain-rules/SKILL.md) and CLAUDE.md:
+- [x] Note in [pos-domain-rules](../../../.claude/skills/pos-domain-rules/SKILL.md) and CLAUDE.md:
   - the selling-shop rule;
   - voids release stock;
   - only `sales.void` voids, within the business's time limit (by default, while the sale's register session is
@@ -1385,9 +1390,9 @@ is deployed.
   - clerks hold no cost permission, and the flat API hides costs without `products.view-cost`;
   - new permissions go in `PermissionSeeder` and the role grants, and get a rollout test; removals from roles are
     recorded in `role_revoked_permissions`; `permissions:sync` runs on deploy.
-- [ ] `CostingService`, `CostingMethod` and `sale_item_stock_allocations` are removed in stage 11 (decided 27 October
+- [x] `CostingService`, `CostingMethod` and `sale_item_stock_allocations` are removed in stage 11 (decided 27 October
       2026), not here.
-- [ ] **`docs/flutter/09-products.md`, "Create Product" and "Update Product"** (the behaviour step 1f changes). Exact
+- [x] **`docs/flutter/09-products.md`, "Create Product" and "Update Product"** (the behaviour step 1f changes). Exact
       correction:
   - validation table: `sku` becomes "nullable, string, max:100, unique in the business"; `category_id` becomes
     "nullable, exists:categories,id"; `cost_price` becomes "nullable, numeric, min:0; saved only for someone holding
@@ -1402,7 +1407,7 @@ is deployed.
     online.";
   - "Show Product" and "List Products": "`cost_price` is `null` for someone without `products.view-cost` or
     `products.set-cost`; the key is always present."
-- [ ] **Note on `docs/implementation/21-stock-adjustments.md`**, under its title, once step 1g ships (why: the module
+- [x] **Note on `docs/implementation/21-stock-adjustments.md`**, under its title, once step 1g ships (why: the module
       is the pre-SaaS design, and its "requires approval" rule and "complete" step no longer describe the code):
       > **Superseded (stage 10, step 1g).** Built, with bugs fixed in stage 10: adjustments only moved the default
       > variation, recorded their figures at draft time, let the type and reason disagree, needed approval for every
@@ -1410,7 +1415,7 @@ is deployed.
       > numbers. Approval now needs a second person for loss, theft, damage, expiry or above a threshold; "returned to
       > supplier" is a purchase return. Batches, costs and units on adjustments are in stage 11; counts are stocktakes,
       > stage 13. Every finding and where it went: [TRACEABILITY-stock.md](../saas/stages/TRACEABILITY-stock.md).
-- [ ] **PROGRESS.md:** when this stage starts, its section is added, with a "Planned" table listing stages 11 to 15
+- [x] **PROGRESS.md:** when this stage starts, its section is added, with a "Planned" table listing stages 11 to 15
       (file, branch, depends on, status), as the definition of done requires.
 
 ## Contract (paired app changes)
