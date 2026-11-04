@@ -3,6 +3,8 @@
 @section('title', 'Sale Details')
 
 @section('content')
+    @include('sales.partials.void')
+
     @if (! empty($deletion))
         <div class="alert alert-danger" role="status" id="sale-deleted">
             <strong>{{ __('Deleted') }}</strong>:
@@ -44,6 +46,12 @@
                                     <a href="{{ route('sales.edit', $sale) }}" class="btn btn-soft-primary">
                                         <iconify-icon icon="solar:pen-linear" class="align-middle me-1"></iconify-icon> Edit
                                     </a>
+                                @endif
+                                @if ($voiding['show'] ?? false)
+                                    <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#voidSaleModal" id="void-sale-button">
+                                        <iconify-icon icon="solar:close-circle-bold-duotone" class="align-middle me-1" aria-hidden="true"></iconify-icon>
+                                        {{ __('Void sale') }}
+                                    </button>
                                 @endif
                                 <a href="{{ route('sales.index') }}" class="btn btn-soft-secondary">
                                     <iconify-icon icon="solar:arrow-left-linear" class="align-middle me-1"></iconify-icon>

@@ -140,6 +140,15 @@ final class VoidWindow
         return $shop?->localTimezone() ?? self::DEFAULT_TIMEZONE;
     }
 
+    /**
+     * The window that applies to the sale: the business's setting, with
+     * `session` becoming `end_of_day` for a sale with no session.
+     */
+    public function mode(Sale $sale): string|int
+    {
+        return $this->settingFor($sale);
+    }
+
     private function settingFor(Sale $sale): string|int
     {
         $shop = $sale->relationLoaded('shop') ? $sale->shop : $sale->shop()->withTrashed()->first();

@@ -28,6 +28,7 @@ use App\Models\User;
 use App\Rules\UniqueForTenant;
 use App\Services\InvoiceNumberService;
 use App\Services\Stock\StockLedger;
+use App\Support\Sales\VoidButton;
 use App\Support\Sync\SyncIssues;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Collection;
@@ -399,9 +400,14 @@ class SaleController extends Controller
         abort_if($sale->trashed() && ! $request->user()->can('sales.view-all'), 404);
         $this->authorize('view', $sale);
 
-        $sale->load(['customer', 'shop', 'items.product', 'items.variation', 'createdBy', 'source', 'deliveryCompany', 'payments.receiver']);
+        $sale->load(['customer', 'shop', 'items.product', 'items.variation', 'createdBy', 'source', 'deliveryCompany', 'payments.receiver', 'voider']);
 
-        return view('sales.show', ['sale' => $sale, 'deletion' => $sale->trashed() ? $this->deletion($sale) : null]);
+        return view('sales.show', [
+            'sale' => $sale,
+            'deletion' => $sale->trashed() ? $this->deletion($sale) : null,
+            // The Void button and its explanation (stage 10, step 5a).
+            'voiding' => $sale->trashed() || $sale->status === 'voided' ? null : app(VoidButton::class)->for($sale, $request->user()),
+        ]);
     }
 
     /**

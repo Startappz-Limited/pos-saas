@@ -118,6 +118,11 @@ class Sale extends Model
         return $this->hasMany(SaleReturn::class);
     }
 
+    public function voider(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'voided_by');
+    }
+
     public function payments(): HasMany
     {
         return $this->hasMany(SalePayment::class);

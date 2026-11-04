@@ -935,20 +935,23 @@ is deployed.
   - both on web and API.
 
 ### 5a. A Void button on the web sale page
-- [ ] On `sales.show`, a **"Void sale"** button (`btn-outline-danger`, with an icon and its text, never icon-only).
+> **Done 4 November 2026** (`VoidButtonTest`, `App\Support\Sales\VoidButton`). The confirmation's "which session pays"
+> choice is replaced by the decisions of 4 November: it says, per payment, whether the cash comes out of the sale's own
+> session, is paid back from the person's open register, or is listed as a refund owed.
+- [x] On `sales.show`, a **"Void sale"** button (`btn-outline-danger`, with an icon and its text, never icon-only).
       It is shown only when `@can('void', $sale)` passes: the permission, the time limit, no return that isn't
       rejected, and not
       already voided.
-- [ ] **When the button isn't available**, the page says why in one line instead:
+- [x] **When the button isn't available**, the page says why in one line instead:
   - "This sale's register session has closed, so it can't be voided. Use a return instead." (session), "This sale can
     only be voided on the day it was made. Use a return instead." (end of day), or "Voiding closed
     :time ago (limit :minutes minutes). Use a return instead." (minutes);
   - "This sale has a return, so it can't be voided." (for a return that isn't rejected); or
   - nothing, for people without the permission.
-- [ ] **While the window is open**, a muted line under the button says until when: "Can be voided until the register
+- [x] **While the window is open**, a muted line under the button says until when: "Can be voided until the register
       session closes (11:59 pm today at the latest)." (session), "Can be voided until 11:59 pm today." (end of day), or "Can be voided for another :minutes minutes." (minutes). Nothing is shown with no
       limit.
-- [ ] **Clicking opens a confirmation window** (BS5 modal, the danger style for destructive actions). It contains:
+- [x] **Clicking opens a confirmation window** (BS5 modal, the danger style for destructive actions). It contains:
   - **Title:** "Void this sale?"
   - **What happens**, as a short list:
     - "The sale is cancelled and no longer counts in sales, cost or profit reports.";
@@ -964,11 +967,11 @@ is deployed.
     choice of the shop's open sessions, each named by its register.
   - **Buttons:** "Cancel" and "Void sale" (`btn-danger`). The form has `@csrf` and `@honeypot`, and posts to
     `sales.void`.
-- [ ] After voiding, the page shows a success message ("Sale voided. :count items are back in stock."), and a
+- [x] After voiding, the page shows a success message ("Sale voided. :count items are back in stock."), and a
       "Voided" badge with who voided it, when and why.
-- [ ] **Accessibility:** the modal has a labelled title, focus moves to the reason field, Escape cancels, and the
+- [x] **Accessibility:** the modal has a labelled title, focus moves to the reason field, Escape cancels, and the
       first error gets focus.
-- [ ] **Tests:**
+- [x] **Tests:**
   - the button shows for a holder within the window;
   - it is hidden past the window, with the explanation shown;
   - it is hidden for a sale with a return that isn't rejected, and for someone without the permission; it shows for
