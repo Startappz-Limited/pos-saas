@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Actions\Sale\DeleteSale;
 use App\Actions\Sale\RecordSale;
 use App\Actions\Sale\RecordSalePayment;
 use App\Actions\Sale\SaleContext;
@@ -136,7 +137,8 @@ class SaleController extends Controller
 
         abort_unless(auth()->user()->canAccessShop($sale->shop_id), 403, __('This action is unauthorized.'));
 
-        $sale->delete();
+        // Only a draft or pending sale with no payments (stage 10, step 5); 422 with `code` otherwise.
+        app(DeleteSale::class)->execute($sale, auth()->user());
 
         return response()->json([
             'success' => true,

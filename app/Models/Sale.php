@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Sale extends Model
 {
@@ -18,6 +19,9 @@ class Sale extends Model
     use BelongsToBusiness;
     use BelongsToShop;
     use HasFactory;
+
+    // A deleted sale keeps its row, lines and invoice number (stage 10, step 5).
+    use SoftDeletes;
 
     protected $fillable = [
         'business_id',

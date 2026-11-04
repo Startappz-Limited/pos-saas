@@ -33,7 +33,7 @@ final class BusinessDirectory
             ->selectSub(DB::table('business_user')->selectRaw('count(*)')->whereColumn('business_user.business_id', 'businesses.id')
                 ->where('business_user.status', BusinessMembership::STATUS_ACTIVE), 'members_count')
             ->selectSub(DB::table('products')->selectRaw('count(*)')->whereColumn('products.business_id', 'businesses.id')->whereNull('products.deleted_at'), 'products_count')
-            ->selectSub(DB::table('sales')->selectRaw('count(*)')->whereColumn('sales.business_id', 'businesses.id')
+            ->selectSub(DB::table('sales')->whereNull('sales.deleted_at')->selectRaw('count(*)')->whereColumn('sales.business_id', 'businesses.id')
                 ->where('sales.created_at', '>=', now()->subDays(30)), 'sales_30_days')
             ->selectSub(DB::table('subscriptions')->join('plans', 'plans.id', '=', 'subscriptions.plan_id')->select('plans.name')
                 ->whereColumn('subscriptions.business_id', 'businesses.id')->limit(1), 'plan_name')

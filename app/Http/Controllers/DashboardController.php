@@ -59,7 +59,7 @@ class DashboardController extends Controller
         // under. A sale that mixes shops therefore counts toward each shop.
         if ($selectedShopId !== null) {
             $saleStats = DB::table('sale_items')
-                ->join('sales', 'sales.id', '=', 'sale_items.sale_id')
+                ->join('sales', 'sales.id', '=', 'sale_items.sale_id')->whereNull('sales.deleted_at')
                 ->tap(fn ($query) => $this->applyShopFilter($query, $user, $selectedShopId, 'sale_items.shop_id'))
                 ->selectRaw("
                     COALESCE(SUM(CASE WHEN sales.status = 'completed' AND sales.created_at BETWEEN ? AND ? THEN sale_items.line_total ELSE 0 END), 0) as current_sales,
@@ -71,7 +71,7 @@ class DashboardController extends Controller
                 ", $ranges)
                 ->first();
         } else {
-            $saleStatsQuery = DB::table('sales')->selectRaw("
+            $saleStatsQuery = DB::table('sales')->whereNull('sales.deleted_at')->selectRaw("
                 COALESCE(SUM(CASE WHEN status = 'completed' AND created_at BETWEEN ? AND ? THEN total_amount ELSE 0 END), 0) as current_sales,
                 COALESCE(SUM(CASE WHEN status = 'completed' AND created_at BETWEEN ? AND ? THEN total_cost ELSE 0 END), 0) as current_cost,
                 COUNT(CASE WHEN created_at BETWEEN ? AND ? THEN 1 END) as current_orders,
@@ -200,7 +200,7 @@ class DashboardController extends Controller
 
         // Top Selling Products
         $topProducts = DB::table('sale_items')
-            ->join('sales', 'sale_items.sale_id', '=', 'sales.id')
+            ->join('sales', 'sale_items.sale_id', '=', 'sales.id')->whereNull('sales.deleted_at')
             ->join('products', 'sale_items.product_id', '=', 'products.id')
             ->leftJoin('categories', 'products.category_id', '=', 'categories.id')
             ->select(
@@ -229,7 +229,7 @@ class DashboardController extends Controller
 
         // Sales by Category
         $categoryStats = DB::table('sale_items')
-            ->join('sales', 'sale_items.sale_id', '=', 'sales.id')
+            ->join('sales', 'sale_items.sale_id', '=', 'sales.id')->whereNull('sales.deleted_at')
             ->join('products', 'sale_items.product_id', '=', 'products.id')
             ->join('categories', 'products.category_id', '=', 'categories.id')
             ->select(
@@ -263,14 +263,14 @@ class DashboardController extends Controller
             // Item-level monthly revenue for the selected shop.
             $itemMonthExpression = $this->monthExpression('sales.created_at');
             $monthlySales = DB::table('sale_items')
-                ->join('sales', 'sales.id', '=', 'sale_items.sale_id')
+                ->join('sales', 'sales.id', '=', 'sale_items.sale_id')->whereNull('sales.deleted_at')
                 ->tap(fn ($query) => $this->applyShopFilter($query, $user, $selectedShopId, 'sale_items.shop_id'))
                 ->where('sales.created_at', '>=', $twelveMonthsAgo)
                 ->selectRaw("{$itemMonthExpression} as month, COALESCE(SUM(CASE WHEN sales.status = 'completed' THEN sale_items.line_total ELSE 0 END), 0) as total")
                 ->groupByRaw($itemMonthExpression)
                 ->pluck('total', 'month');
         } else {
-            $monthlySales = DB::table('sales')
+            $monthlySales = DB::table('sales')->whereNull('sales.deleted_at')
                 ->selectRaw("{$salesMonthExpression} as month, COALESCE(SUM(CASE WHEN status = 'completed' THEN total_amount ELSE 0 END), 0) as total")
                 ->where('created_at', '>=', $twelveMonthsAgo)
                 ->tap(fn ($query) => $this->applyShopFilter($query, $user, $selectedShopId))

@@ -888,22 +888,26 @@ is deployed.
   - an audit row records the void.
 
 ### 5. Deleting a sale
-- [ ] **A completed sale can't be deleted; it can only be voided** (decided). Web and API return 422
+> **Done 4 November 2026** (`DeleteSaleTest`; the part-paid pending void is in `VoidStockAndMoneyTest`). Only draft and
+> pending sales can be deleted (the literal reading: a voided or refunded sale is refused, "Only draft and pending
+> sales can be deleted."); refusals carry `code` (`sale_completed`, `sale_not_deletable`, `sale_has_payments`). No sales
+> view had a Delete action, so there was nothing to hide. Who deleted a sale comes from the audit trail (no column).
+- [x] **A completed sale can't be deleted; it can only be voided** (decided). Web and API return 422
       with "Completed sales can't be deleted. Void the sale instead."
-- [ ] A sale that isn't completed (draft or pending, such as a cash-on-delivery sale) and has no payments can still
+- [x] A sale that isn't completed (draft or pending, such as a cash-on-delivery sale) and has no payments can still
       be deleted, by the owner (step 2). Before deleting, its lines are released as in step 3 with `SALE_DELETE`, since
       stock is taken at creation for every status.
-- [ ] **A pending sale with payments can't be deleted** (decided 28 October 2026, ninth round; gap 25): 422 "This sale
+- [x] **A pending sale with payments can't be deleted** (decided 28 October 2026, ninth round; gap 25): 422 "This sale
       has payments. Void it instead." While it is pending it has no void window (step 2): someone holding `sales.void`
       (the owner by default) can void it at any time. Voiding it releases its stock, and its payments are handled as
       in step 4: cash is paid out of the open session (the voiding till's own, or on the web the one the person
       chooses), M-Pesa and card are a `refund_due`, and cash with no session open is a `refund_due`. The automatic
       void of online orders (step 5b) is unchanged.
-- [ ] **Soft deletes** (decided 28 October 2026): `Sale` uses `SoftDeletes` on the existing `sales.deleted_at` (nothing
+- [x] **Soft deletes** (decided 28 October 2026): `Sale` uses `SoftDeletes` on the existing `sales.deleted_at` (nothing
       sets it today; `VatReportService` already filters on it, checked 28 October 2026). A deleted sale keeps its row,
       its lines and its invoice number, which stays taken and is never issued again; it leaves every list, report and
       the pull; its movements always point at a row.
-- [ ] **What still sees a deleted sale** (checked 28 October 2026, gap 27):
+- [x] **What still sees a deleted sale** (checked 28 October 2026, gap 27):
   - `StockMovement::reference()` and the `sale()` relations of `SaleItem`, `SalePayment` and `SaleReturn` use
     `withTrashed()`, so a movement, line, payment or return always resolves its sale;
   - `StockLedger`'s reads by id (`DB::table('sales')`) already see it, so a release and a re-cost still work;
@@ -914,8 +918,8 @@ is deployed.
     `BusinessDirectory` and `AssignProductShopFromSales` gain `whereNull('sales.deleted_at')`, listed in the PR;
   - `sales.show` binds `withTrashed()` for someone holding `sales.view-all`, with a "Deleted" banner (who, when);
     anyone else gets a 404.
-- [ ] Remove or hide the "Delete" action for completed sales in the sales views. The server check is the guard.
-- [ ] Tests:
+- [x] Remove or hide the "Delete" action for completed sales in the sales views. The server check is the guard.
+- [x] Tests:
   - deleting a completed sale is refused and changes nothing;
   - deleting a pending sale returns its stock with a `SALE_DELETE` movement, and the sale is soft-deleted: gone from
     every list and report, its row, lines and invoice number kept, and the number never issued again;

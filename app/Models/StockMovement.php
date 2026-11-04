@@ -72,7 +72,8 @@ class StockMovement extends Model
 
     public function reference(): MorphTo
     {
-        return $this->morphTo('reference', 'reference_type', 'reference_uuid', 'uuid');
+        // A deleted sale still resolves (stage 10, step 5); other types are unaffected.
+        return $this->morphTo('reference', 'reference_type', 'reference_uuid', 'uuid')->withTrashed();
     }
 
     public function creator(): BelongsTo

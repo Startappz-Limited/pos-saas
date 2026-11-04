@@ -53,7 +53,8 @@ class SalePayment extends Model
 
     public function sale(): BelongsTo
     {
-        return $this->belongsTo(Sale::class);
+        // A deleted sale still resolves (stage 10, step 5).
+        return $this->belongsTo(Sale::class)->withTrashed();
     }
 
     /**

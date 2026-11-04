@@ -334,7 +334,8 @@ Route::middleware(['auth', 'business'])->group(function () {
     Route::post('abandoned-carts/{abandonedCart:uuid}/convert', [AbandonedCartController::class, 'convert'])->name('abandoned-carts.convert')->middleware('throttle:20,1');
     Route::post('abandoned-carts/{abandonedCart:uuid}/opt-out', [AbandonedCartController::class, 'optOut'])->name('abandoned-carts.optOut');
     Route::post('sales/delivery-companies', [SaleController::class, 'storeDeliveryCompany'])->name('sales.storeDeliveryCompany');
-    Route::get('sales/{sale:uuid}', [SaleController::class, 'show'])->name('sales.show');
+    // A deleted sale opens for holders of sales.view-all, with a banner (stage 10, step 5).
+    Route::get('sales/{sale:uuid}', [SaleController::class, 'show'])->name('sales.show')->withTrashed();
     Route::get('sales/{sale:uuid}/receipt', [SaleController::class, 'receipt'])->name('sales.receipt');
     Route::get('sales/{sale:uuid}/edit', [SaleController::class, 'edit'])->name('sales.edit');
     Route::put('sales/{sale:uuid}', [SaleController::class, 'update'])->name('sales.update');

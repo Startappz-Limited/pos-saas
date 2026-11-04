@@ -21,13 +21,25 @@ class BusinessRuleException extends RuntimeException
 {
     use LogsAsRefusal;
 
+    /** A machine-readable reason for the app (stage 10), sent as `code` on JSON. */
+    public ?string $errorCode = null;
+
+    public static function because(string $message, string $code): self
+    {
+        $exception = new self($message);
+        $exception->errorCode = $code;
+
+        return $exception;
+    }
+
     public function render(Request $request): JsonResponse|RedirectResponse
     {
         if ($request->expectsJson()) {
-            return response()->json([
+            return response()->json(array_filter([
                 'success' => false,
                 'message' => $this->getMessage(),
-            ], 422);
+                'code' => $this->errorCode,
+            ], fn ($value) => $value !== null), 422);
         }
 
         return back()->withInput()->with('error', $this->getMessage());

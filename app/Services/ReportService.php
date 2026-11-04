@@ -303,7 +303,7 @@ class ReportService
     protected function getTopProductsByMargin(array $filters, Carbon $startDate, Carbon $endDate)
     {
         $query = DB::table('sale_items')
-            ->join('sales', 'sales.id', '=', 'sale_items.sale_id')
+            ->join('sales', 'sales.id', '=', 'sale_items.sale_id')->whereNull('sales.deleted_at')
             ->join('products', 'products.id', '=', 'sale_items.product_id');
 
         $this->applySaleItemFilters($query, $filters, $startDate, $endDate);
@@ -332,7 +332,7 @@ class ReportService
     protected function getSalesByShopFromItems(array $filters, Carbon $startDate, Carbon $endDate)
     {
         $query = DB::table('sale_items')
-            ->join('sales', 'sales.id', '=', 'sale_items.sale_id');
+            ->join('sales', 'sales.id', '=', 'sale_items.sale_id')->whereNull('sales.deleted_at');
 
         $this->applySaleItemFilters($query, $filters, $startDate, $endDate);
 
@@ -404,7 +404,7 @@ class ReportService
 
     protected function getDailyTrend(array $filters, Carbon $startDate, Carbon $endDate): array
     {
-        $salesTrendQuery = DB::table('sales')
+        $salesTrendQuery = DB::table('sales')->whereNull('sales.deleted_at')
             ->whereDate('created_at', '>=', $startDate->toDateString())
             ->whereDate('created_at', '<=', $endDate->toDateString());
 

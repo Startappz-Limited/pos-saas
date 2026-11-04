@@ -3,6 +3,15 @@
 @section('title', 'Sale Details')
 
 @section('content')
+    @if (! empty($deletion))
+        <div class="alert alert-danger" role="status" id="sale-deleted">
+            <strong>{{ __('Deleted') }}</strong>:
+            {{ __('this sale was deleted :when:by. It stays in the records with its invoice number, which is never issued again.', [
+                'when' => $deletion['at']?->format('M d, Y H:i'),
+                'by' => $deletion['by'] ? ' '.__('by :name', ['name' => $deletion['by']]) : '',
+            ]) }}
+        </div>
+    @endif
 
     <div class="row">
         <div class="col-12">

@@ -29,7 +29,8 @@ Stage file: [10-stock-correctness-and-voids.md](./10-stock-correctness-and-voids
 - [ ] Shows `cost_price: null` without breaking product screens; hides cost fields by permission.
 - [ ] Handles 403 on product create, edit and delete; creates products only online; can't sell an unknown barcode
       offline.
-- [ ] Hides Delete on completed sales; handles the 422 if shown.
+- [ ] Hides Delete on completed sales; handles the 422 if shown (`code`: `sale_completed`, `sale_not_deletable`,
+      `sale_has_payments` with "This sale has payments. Void it instead."). A deleted sale is a 404.
 - [ ] Treats `invoice_number` as an opaque string (server-numbered sales now use the web series `INV-{shop}-W-…`).
 - [ ] Numbers offline sales only in its own register's series, from `last_invoice_number` at pairing.
 - [ ] Shows the till sync review's outcome for a held sale (accepted with its own number, or discarded).

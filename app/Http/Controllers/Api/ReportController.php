@@ -18,7 +18,7 @@ class ReportController extends Controller
         $date = $request->input('date', today()->toDateString());
         $shopId = auth()->user()->shop_id ?? Shop::first()?->id;
 
-        $statistics = (array) DB::table('sales')
+        $statistics = (array) DB::table('sales')->whereNull('sales.deleted_at')
             ->tap(fn ($query) => app(TenantContext::class)->restrictToShops($query, 'shop_id'))
             ->where('shop_id', $shopId)
             ->where('status', 'completed')
@@ -82,7 +82,7 @@ class ReportController extends Controller
 
         $topProducts = DB::table('sale_items')
             ->tap(fn ($query) => app(TenantContext::class)->restrictToShops($query, 'sales.shop_id'))
-            ->join('sales', 'sale_items.sale_id', '=', 'sales.id')
+            ->join('sales', 'sale_items.sale_id', '=', 'sales.id')->whereNull('sales.deleted_at')
             ->join('products', 'sale_items.product_id', '=', 'products.id')
             ->where('sales.shop_id', $shopId)
             ->where('sales.status', 'completed')
@@ -112,7 +112,7 @@ class ReportController extends Controller
             ->latest('created_at')
             ->paginate($request->input('per_page', 20));
 
-        $totals = (array) DB::table('sales')
+        $totals = (array) DB::table('sales')->whereNull('sales.deleted_at')
             ->tap(fn ($query) => app(TenantContext::class)->restrictToShops($query, 'shop_id'))
             ->where('shop_id', $shopId)
             ->whereIn('payment_status', ['unpaid', 'partial'])

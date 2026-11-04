@@ -141,6 +141,7 @@ class SalePolicy
     public function requestVoid(User $user, Sale $sale): bool
     {
         return $sale->status !== SaleStatus::VOIDED->value
+            && ! $sale->trashed()
             && $user->can('sales.create')
             && ! ($user->can('sales.void') || $user->can('sales.full-access'))
             && $user->canAccessShop($sale->shop_id);
