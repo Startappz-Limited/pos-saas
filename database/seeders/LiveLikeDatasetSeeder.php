@@ -408,6 +408,8 @@ class LiveLikeDatasetSeeder extends Seeder
                 'supplier_id' => $this->pick(Supplier::orderBy('id')->pluck('id')),
                 'purchase_order_id' => null,
                 'purchase_order_item_id' => null,
+                // The factory's Faker date reads the real clock, so two builds could differ.
+                'intake_date' => now()->toDateString(),
                 'received_by' => $this->managers[$shop->id]->id,
                 'completed_by' => $this->managers[$shop->id]->id,
             ]);

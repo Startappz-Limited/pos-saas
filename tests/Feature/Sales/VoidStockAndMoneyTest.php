@@ -279,3 +279,41 @@ it('lets a manager record petty cash out of an open session, with a reason; a ca
     expect((float) $this->till->fresh()->calculateExpectedBalance())->toBe(950.0);
     $this->actingAs($this->manager)->get(route('cash-registers.show', $this->till))->assertOk()->assertSee('Milk');
 });
+
+it('puts a void of 5 units taken from two batches (3 at 60, 2 at 70) back where they came from, and the next sale is costed at 60 again', function () {
+    // A fresh variation, so the beforeEach batch doesn't take part.
+    $product = Product::factory()->create(['shop_id' => $this->shop->id, 'stock_quantity' => 0]);
+    $variation = $product->defaultVariation;
+    $this->ledger->receive($this->shop->id, $variation, 3, 60, StockMovementType::INTAKE, ['received_at' => now()->subDays(2)]);
+    $this->ledger->receive($this->shop->id, $variation, 2, 70, StockMovementType::INTAKE, ['received_at' => now()->subDay()]);
+    $line = function (int $quantity) use ($product, $variation): SaleItem {
+        $sale = Sale::factory()->create(['shop_id' => $this->shop->id, 'register_id' => $this->till->id, 'status' => 'completed', 'completed_at' => now(), 'payment_method' => 'card', 'total_amount' => 100 * $quantity, 'paid_amount' => 0, 'tax_amount' => 0]);
+        $item = SaleItem::create([
+            'uuid' => (string) Str::uuid(), 'sale_id' => $sale->id, 'product_id' => $product->id, 'shop_id' => $this->shop->id,
+            'quantity' => $quantity, 'unit_price' => 100, 'line_total' => 100 * $quantity, 'taxable_amount' => 100 * $quantity, 'status' => 'completed',
+        ]);
+        $this->ledger->sellItem($item, $variation);
+
+        return $item->fresh();
+    };
+    $sold = $line(5);
+    expect($this->ledger->quantity($this->shop->id, $variation->id))->toBe(0);
+
+    ($this->void)($this->owner, $sold->sale)->assertOk();
+
+    $layers = DB::table('cost_layers')->where('variation_id', $variation->id)->orderBy('received_at')->pluck('remaining_quantity')->map(fn ($n) => (int) $n)->all();
+    expect($layers)->toBe([3, 2])
+        ->and($this->ledger->quantity($this->shop->id, $variation->id))->toBe(5)
+        ->and((float) $line(1)->unit_cost)->toBe(60.0);
+});
+
+it('refuses a second void, and stock moves only once', function () {
+    $sale = ($this->sell)();
+
+    ($this->void)($this->owner, $sale)->assertOk();
+    ($this->void)($this->owner, $sale->fresh())->assertForbidden();
+    $this->actingAs($this->owner)->post(route('sales.void', $sale), ['void_reason' => 'Again'])->assertForbidden();
+
+    expect(($this->stock)())->toBe(10)
+        ->and(DB::table('stock_movements')->where('movement_type', StockMovementType::SALE_VOID->value)->count())->toBe(1);
+});

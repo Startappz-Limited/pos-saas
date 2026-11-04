@@ -1539,143 +1539,208 @@ stage 11 makes them decimal.
 ## Acceptance criteria
 
 **Permissions (steps 0 and 1f)**
-- [ ] A business created before a permission was granted to its template gets it on the next `permissions:sync`.
-- [ ] A permission a business or the platform console took off a role stays off after `permissions:sync`.
-- [ ] Existing businesses have the Phase 5 and 7 permissions after the backfill; other absences are kept.
-- [ ] The backfill runs inside the migration that creates `role_revoked_permissions`, before `permissions:sync`; a
+- [x] A business created before a permission was granted to its template gets it on the next `permissions:sync`.
+      *Evidence:* `PermissionRolloutTest`: gives a copy a permission … granted to the template after (the race).
+- [x] A permission a business or the platform console took off a role stays off after `permissions:sync`.
+      *Evidence:* `PermissionRolloutTest`: keeps a permission a business took off …; keeps a permission the platform console took off a template off.
+- [x] Existing businesses have the Phase 5 and 7 permissions after the backfill; other absences are kept.
+      *Evidence:* `PermissionRolloutTest`: backfills … idempotent.
+- [x] The backfill runs inside the migration that creates `role_revoked_permissions`, before `permissions:sync`; a
       permission a business removed before this stage stays removed after a deploy in that order; this stage's new
       permissions are never recorded as revoked.
-- [ ] `Gate::before` lets only platform operators through.
-- [ ] A clerk never sees costs and can't set them, on the web or the flat API; the cashier and clerk templates hold
+      *Evidence:* `PermissionRolloutTest`: in the real deploy order, keeps a removal made by hand …
+- [x] `Gate::before` lets only platform operators through.
+      *Evidence:* `PermissionRolloutTest`: lets only platform operators through Gate::before, never a business owner.
+- [x] A clerk never sees costs and can't set them, on the web or the flat API; the cashier and clerk templates hold
       no cost permission; a role the owner gives a cost permission can.
-- [ ] The flat API's product endpoints need the product permissions; `cost_price` is `null` without
+      *Evidence:* `ClerkCostsTest` (9).
+- [x] The flat API's product endpoints need the product permissions; `cost_price` is `null` without
       `products.view-cost`, with the key kept.
-- [ ] The sync pull carries no cost field.
+      *Evidence:* `ClerkCostsTest`: sends cost_price as null …; refuses a cashier creating a product.
+- [x] The sync pull carries no cost field.
+      *Evidence:* `ClerkCostsTest`: sends no cost field in the till's sync pull.
 
 **Selling shop (step 1a)**
-- [ ] A sale at shop B takes shop B's stock and batches, whichever shop the product was first added in, on every
+- [x] A sale at shop B takes shop B's stock and batches, whichever shop the product was first added in, on every
       sale path; a till's sale is filed under the till's shop. The flat API's responses are unchanged.
-- [ ] Selling at a shop with no `shop_variation` row works and creates it.
-- [ ] A product that doesn't track stock moves no stock.
-- [ ] Reports count sales under the shop that made them.
-- [ ] A web or flat API sale below zero records a `negative_stock` issue the owner and manager see on the till sync
+      *Evidence:* `SellingShopTest` (web POS, flat API, till push, abandoned cart, online order); `FlatApiContractTest`.
+- [x] Selling at a shop with no `shop_variation` row works and creates it.
+      *Evidence:* `SellingShopTest`: sells at a shop with no stock row …
+- [x] A product that doesn't track stock moves no stock.
+      *Evidence:* `SellingShopTest`: moves no stock for a product that doesn't track stock.
+- [x] Reports count sales under the shop that made them.
+      *Evidence:* `SellingShopTest`: counts a cross-shop sale under the selling shop.
+- [x] A web or flat API sale below zero records a `negative_stock` issue the owner and manager see on the till sync
       review.
+      *Evidence:* `SellingShopTest`: records a negative_stock issue for a flat API sale below zero.
 
 **Stock adjustments (step 1g)**
-- [ ] An adjustment moves the variation it names; its figures are those at approval; the reason decides the
+- [x] An adjustment moves the variation it names; its figures are those at approval; the reason decides the
       direction; approving applies it; numbers are a series per shop.
+      *Evidence:* `StockAdjustmentsTest` (variation, figures at approval, direction, approve once, numbering).
 - [ ] The 16 approved-but-unapplied UAT adjustments are listed for the owner, not applied automatically.
-- [ ] Loss, theft, damage, expiry and adjustments at or above the threshold need a second person; the creator never
+      *Evidence:* **Open (UAT rehearsal):** `stock-adjustments:list-unapplied` is built and tested (`StockAdjustmentsTest`, `AdjustmentApprovalsTest`); the UAT count is checked at the rehearsal (rollout step 6).
+- [x] Loss, theft, damage, expiry and adjustments at or above the threshold need a second person; the creator never
       approves their own; "returned to supplier" is no longer an adjustment.
-- [ ] Adjustment numbers are a gapless series per shop and year, unique per shop.
-- [ ] An adjustment's value is Σ |quantity| × unit cost, so a +100/−100 recount above the threshold waits; a line of
+      *Evidence:* Revised 3 November 2026 (quality issue, giveaway and a recount lowering stock wait too; approve permission; sole-owner note). `StockAdjustmentsTest`, `AdjustmentApprovalsTest`.
+- [x] Adjustment numbers are a gapless series per shop and year, unique per shop.
+      *Evidence:* `StockAdjustmentsTest`: numbers … per shop; `InvoiceNumberConcurrencyTest` (MySQL, rollbacks); cancel keeps the number (`AdjustmentApprovalsTest`).
+- [x] An adjustment's value is Σ |quantity| × unit cost, so a +100/−100 recount above the threshold waits; a line of
       unknown cost waits for a second person; a found increase is costed at the shop's latest batch cost, else unknown.
+      *Evidence:* `StockAdjustmentsTest` (recount +100/−100, unknown cost, latest batch cost); `AdjustmentApprovalsTest` (gross, cumulative).
 
 **Products from the app (step 1f)**
-- [ ] Products are created from the app only online by holders of `products.create`; fields the API doesn't take are
+- [x] Products are created from the app only online by holders of `products.create`; fields the API doesn't take are
       refused, not dropped.
+      *Evidence:* `ClerkCostsTest`: refuses a product with variations … creates nothing; the app's side is a checklist item.
 
 **Voids (step 4)**
-- [ ] Voiding a sale of 5 units taken from two batches (3 at 60, 2 at 70) puts 3 back in the first batch and 2 in
+- [x] Voiding a sale of 5 units taken from two batches (3 at 60, 2 at 70) puts 3 back in the first batch and 2 in
       the second. Stock rises by 5, and the next sale is costed at 60 again.
-- [ ] Voiding a sale sold below zero raises stock and removes its provisional allocation. Stock arriving later
+      *Evidence:* `VoidStockAndMoneyTest`: puts a void of 5 units taken from two batches (3 at 60, 2 at 70) back …
+- [x] Voiding a sale sold below zero raises stock and removes its provisional allocation. Stock arriving later
       doesn't re-cost the voided sale.
-- [ ] Voiding twice is refused, and stock moves only once.
-- [ ] A sale with a return that isn't rejected can't be voided; one whose only return was rejected can.
-- [ ] The invariant holds after every case, on SQLite and MySQL.
+      *Evidence:* `StockReleaseTest`: releases a provisional line; `VoidStockAndMoneyTest`: never moves a sale voided before this stage.
+- [x] Voiding twice is refused, and stock moves only once.
+      *Evidence:* `VoidStockAndMoneyTest`: refuses a second void, and stock moves only once; `TillVoidTest` (pushed twice).
+- [x] A sale with a return that isn't rejected can't be voided; one whose only return was rejected can.
+      *Evidence:* `VoidStockAndMoneyTest`: refuses a void while a return isn't rejected …
+- [x] The invariant holds after every case, on SQLite and MySQL.
+      *Evidence:* `StockReleaseTest` checks it after each case; run on SQLite and MySQL.
 
 **Release (step 3)**
-- [ ] `release()` returns a consumer's units to the batches they came from, once, and writes `SALE_VOID` or
+- [x] `release()` returns a consumer's units to the batches they came from, once, and writes `SALE_VOID` or
       `SALE_DELETE`; it then settles waiting below-zero sales against those batches, and the invariant holds.
+      *Evidence:* `StockReleaseTest` (8).
 
 **Payouts (step 4)**
-- [ ] A manager holding `cash-registers.payout` records a petty-cash payout with a reason, and it lowers the session's
+- [x] A manager holding `cash-registers.payout` records a petty-cash payout with a reason, and it lowers the session's
       expected cash; a cashier without it can't.
-- [ ] A void's cash comes out of the voiding till's open session, or on the web the open session the person chooses;
+      *Evidence:* `VoidStockAndMoneyTest`: lets a manager record petty cash …
+- [x] A void's cash comes out of the voiding till's open session, or on the web the open session the person chooses;
       with none open it is a `refund_due`.
+      *Evidence:* Revised 4 November 2026: the till's session for a till void; on the web and flat API the voider's own open session, else a refund owed (no session choice). `VoidStockAndMoneyTest`, `TillVoidTest`.
 
 **Deletes (step 5)**
-- [ ] A completed sale can't be deleted on web or API.
-- [ ] Deleting a pending sale returns its stock first (`SALE_DELETE`) and soft-deletes it; its invoice number stays
+- [x] A completed sale can't be deleted on web or API.
+      *Evidence:* `DeleteSaleTest`: refuses to delete a completed sale …
+- [x] Deleting a pending sale returns its stock first (`SALE_DELETE`) and soft-deletes it; its invoice number stays
       taken; `stock:orphaned-movements` never lists it.
-- [ ] A pending sale with payments can't be deleted, and can be voided at any time while pending; only the owner
+      *Evidence:* `DeleteSaleTest`: deletes a pending sale …; `RepairCommandsTest`: never a soft-deleted one's.
+- [x] A pending sale with payments can't be deleted, and can be voided at any time while pending; only the owner
       deletes by default.
-- [ ] A deleted sale still resolves from its movements, lines, payments and returns, and leaves every list, report and
+      *Evidence:* `DeleteSaleTest`: refuses to delete a pending sale with a payment …; lets only someone holding sales.delete …
+- [x] A deleted sale still resolves from its movements, lines, payments and returns, and leaves every list, report and
       dashboard.
+      *Evidence:* `DeleteSaleTest`: … leaves a deleted sale out of lists and reports …
 
 **Web Void button (step 5a)**
-- [ ] The sale page shows a clearly labelled "Void sale" button within the window. Its confirmation explains what
+- [x] The sale page shows a clearly labelled "Void sale" button within the window. Its confirmation explains what
       voiding does and when to use a return instead, and needs a reason.
-- [ ] Past the window, or with a return that isn't rejected, the page explains why the button isn't there.
+      *Evidence:* `VoidButtonTest`.
+- [x] Past the window, or with a return that isn't rejected, the page explains why the button isn't there.
+      *Evidence:* `VoidButtonTest`: hides the button past the window and says why; hides it for a sale with a return …
 
 **Online cancellations (step 5b)**
-- [ ] An online order cancelled before dispatch voids its sale once and restores stock, a pending cash-on-delivery
+- [x] An online order cancelled before dispatch voids its sale once and restores stock, a pending cash-on-delivery
       sale included. One cancelled after dispatch flags the sale for a return instead.
+      *Evidence:* `StoreCancellationTest` (10), under the decisions of 4 November 2026.
 
 **Voids from the till (step 5c)**
-- [ ] A till voids a sale through `/api/v1`, and offline through the push, under the same permission, time limit
+- [x] A till voids a sale through `/api/v1`, and offline through the push, under the same permission, time limit
       and rules as the web; an offline void is judged by its `recorded_at`, and refused if the person may not void.
-- [ ] A void pushed before its sale is `pending` and applied once the sale arrives; a void pushed twice releases
+      *Evidence:* `TillVoidTest`, `ApiV1VoidContractTest`.
+- [x] A void pushed before its sale is `pending` and applied once the sale arrives; a void pushed twice releases
       stock once; a void of a sale voided elsewhere is a no-op; a void of a sale returned since is refused and on
       the review.
-- [ ] Every till of the shop learns of a void, wherever it was made, and gets the restored stock, on its next pull.
-- [ ] `voidable` and `voidable_until` are the same for everyone; `voidable` is false when the sale can't be voided,
+      *Evidence:* `TillVoidTest` (offline).
+- [x] Every till of the shop learns of a void, wherever it was made, and gets the restored stock, on its next pull.
+      *Evidence:* `TillVoidTest`: sends another till of the shop the void and the restored stock.
+- [x] `voidable` and `voidable_until` are the same for everyone; `voidable` is false when the sale can't be voided,
       and a pending sale with payments is voidable with no `voidable_until`.
-- [ ] A confirmed M-Pesa payment never brings a voided sale back; it is a `refund_due` (`source = late_payment`).
-- [ ] Voiding a sale paid by M-Pesa or card is a `refund_due` (`source = void`) with the method and reference.
-- [ ] A void after the sale's cash session closed leaves that session as counted, and pays the cash out of the
+      *Evidence:* `TillVoidTest`: gives the same voidable to the cashier and the owner …
+- [x] A confirmed M-Pesa payment never brings a voided sale back; it is a `refund_due` (`source = late_payment`).
+      *Evidence:* `HeldItemsTest`: owes an M-Pesa payment confirmed for a sale voided meanwhile.
+- [x] Voiding a sale paid by M-Pesa or card is a `refund_due` (`source = void`) with the method and reference.
+      *Evidence:* `VoidStockAndMoneyTest`: owes card, M-Pesa, bank transfer and cheque payments …
+- [x] A void after the sale's cash session closed leaves that session as counted, and pays the cash out of the
       voiding till's open session, or on the web the open session the person chooses (or records a `refund_due` when
       none is open).
-- [ ] The server knows how many unsynced items each till holds; re-pairing a till that holds some needs a
+      *Evidence:* Revised 4 November 2026 (no session choice on the web). `VoidStockAndMoneyTest`, `TillVoidTest` (closed-session correction).
+- [x] The server knows how many unsynced items each till holds; re-pairing a till that holds some needs a
       confirmation and is audited; any held or stuck outbox item can be discarded on the till, and that is reviewed
       and audited.
-- [ ] Every push refusal carries a `disposition`, and each code has exactly one class.
-- [ ] A held item is accepted with the till's own invoice number, or discarded, on the review, once, audited, and the
+      *Evidence:* `SyncDispositionsTest`; `HeldItemsTest`: lets a till discard its own items …
+- [x] Every push refusal carries a `disposition`, and each code has exactly one class.
+      *Evidence:* `SyncDispositionsTest`.
+- [x] A held item is accepted with the till's own invoice number, or discarded, on the review, once, audited, and the
       till clears it; a duplicate payment becomes a `refund_due` and is dropped.
-- [ ] `invoice_number_taken` and a web-series number from a till can only be discarded.
-- [ ] A void recorded outside any lease is held, accepted only within the void window at the server's time.
-- [ ] Discarding a `sale` or `sale_payment` item needs `sales.void`; other discards need `sync-issues.discard` (owner
+      *Evidence:* `HeldItemsTest`: holds a sale recorded outside its lease …; owes a payment pushed for a sale already paid once …
+- [x] `invoice_number_taken` and a web-series number from a till can only be discarded.
+      *Evidence:* `HeldItemsTest`.
+- [x] A void recorded outside any lease is held, accepted only within the void window at the server's time.
+      *Evidence:* `HeldItemsTest`: holds a void recorded outside its lease …
+- [x] Discarding a `sale` or `sale_payment` item needs `sales.void`; other discards need `sync-issues.discard` (owner
       and manager).
-- [ ] An `invoice_number_taken` sale that happened is re-rung as a new web sale, linked to the till's number, audited.
-- [ ] A re-rung sale keeps the till's `client_uuid`: items queued behind it apply to it, and a re-push of the original
+      *Evidence:* `HeldItemsTest`: needs sales.void to discard a sale …; lets a till discard its own items …
+- [x] An `invoice_number_taken` sale that happened is re-rung as a new web sale, linked to the till's number, audited.
+      *Evidence:* `HeldItemsTest`.
+- [x] A re-rung sale keeps the till's `client_uuid`: items queued behind it apply to it, and a re-push of the original
       answers `discarded` and creates nothing.
-- [ ] A `refund_due` is marked refunded once, audited, with a payout for cash, until stage 14 replaces it.
-- [ ] Each validation rule on a pushed sale is resolved as its group in step 5c says.
-- [ ] Every request carries `X-App-Version`; an older app gets Phase 7's codes and shapes (the replay test).
+      *Evidence:* `HeldItemsTest`.
+- [x] A `refund_due` is marked refunded once, audited, with a payout for cash, until stage 14 replaces it.
+      *Evidence:* Revised 4 November 2026 (payers hold `sales.void` or `refunds.approve`; cash from their own open session). `VoidStockAndMoneyTest`.
+- [x] Each validation rule on a pushed sale is resolved as its group in step 5c says.
+      *Evidence:* `HeldItemsTest`: resolves validation failures by their group (one rule from each group, as the step's tests ask).
+- [x] Every request carries `X-App-Version`; an older app gets Phase 7's codes and shapes (the replay test).
+      *Evidence:* `SyncDispositionsTest` (the app side is a checklist item).
 
 **Permissions and time limit (step 2)**
-- [ ] Void and delete through the API need `sales.void` / `sales.delete`, as on the web.
-- [ ] By default only the owner can void. A role the owner gives `sales.void` can void. `sales.edit-all` alone
+- [x] Void and delete through the API need `sales.void` / `sales.delete`, as on the web.
+      *Evidence:* `VoidPermissionAndWindowTest`, `DeleteSaleTest`, `FlatApiWriteAuthorizationTest`.
+- [x] By default only the owner can void. A role the owner gives `sales.void` can void. `sales.edit-all` alone
       can't. `permissions:sync` doesn't give it back to managers.
-- [ ] By default a sale can be voided while its register session is open, never past the end of the day it was made
+      *Evidence:* `VoidPermissionAndWindowTest` (who; the migration).
+- [x] By default a sale can be voided while its register session is open, never past the end of the day it was made
       in the shop's timezone (the end of the day for a sale with no session), for the owner too. A business's choice of
       the end of the day, its own number of minutes (up to 24 hours), or "No time limit", applies to that business
       only. Anyone with `settings.update` can change it. A pending sale has no window until it is completed.
+      *Evidence:* Revised 3 November 2026: changing the limit is owner-only (not `settings.update` alone). `VoidPermissionAndWindowTest`.
 
 **Costs (step 6)**
-- [ ] A line costed from a batch with no cost is marked `cost_known = false` and flagged on the sale page and the
+- [x] A line costed from a batch with no cost is marked `cost_known = false` and flagged on the sale page and the
       profit report.
-- [ ] Settling below-zero sales against a batch with no cost keeps the estimate.
+      *Evidence:* `CostKnownTest`.
+- [x] Settling below-zero sales against a batch with no cost keeps the estimate.
+      *Evidence:* `CostKnownTest`.
 
 **Repair (step 7)**
-- [ ] `sales:restock-voided` restores old voided sales once, with a dry run first.
-- [ ] `stock:orphaned-movements` lists movements of sales hard-deleted before this stage.
+- [x] `sales:restock-voided` restores old voided sales once, with a dry run first.
+      *Evidence:* `RepairCommandsTest`.
+- [x] `stock:orphaned-movements` lists movements of sales hard-deleted before this stage.
+      *Evidence:* `RepairCommandsTest`.
 
 **Invoice series, contract and checks (step 5d and the contract)**
-- [ ] The flat API contract test passes. A void, delete or product refusal is a new 403/422; how the app shows it is
+- [x] The flat API contract test passes. A void, delete or product refusal is a new 403/422; how the app shows it is
       an app check (the checklist).
-- [ ] Tills and the web never share an invoice series (step 5d): two tills' same sequence numbers don't collide; a
+      *Evidence:* `FlatApiContractTest` (full suites).
+- [x] Tills and the web never share an invoice series (step 5d): two tills' same sequence numbers don't collide; a
       web sale and a till sale can't collide; existing numbers are untouched.
-- [ ] Pint, the full SQLite and MySQL suites, and the isolation suite pass. New routes or commands appear in
+      *Evidence:* `InvoiceSeriesTest`, `InvoiceNumberConcurrencyTest`.
+- [x] Pint, the full SQLite and MySQL suites, and the isolation suite pass. New routes or commands appear in
       `ResourceMatrixTest` where they apply, `POST /api/v1/sales/{uuid}/void` included.
-- [ ] `ApiV1VoidContractTest` pins the online void's success and refusals (`void_window_closed`, `sale_has_returns`,
+      *Evidence:* See "Test results" in [docs/pr/stage-10.md](../../pr/stage-10.md); matrix rows for every new web, flat API and `/api/v1` route.
+- [x] `ApiV1VoidContractTest` pins the online void's success and refusals (`void_window_closed`, `sale_has_returns`,
       `sale_already_voided`, 403); the v1 contract test passes with its fixtures unchanged.
-- [ ] The app's recorded requests (pushes and pulls without step 5c, and the flat API calls in the contract
+      *Evidence:* `ApiV1VoidContractTest`; `ApiV1ContractTest` passes unchanged.
+- [x] The app's recorded requests (pushes and pulls without step 5c, and the flat API calls in the contract
       fixtures) still succeed against the new server.
+      *Evidence:* `FlatApiContractTest`, `ApiV1ContractTest`, `LiveLikeDatasetTest` and the Phase 7 sync tests pass unchanged; the app itself is checked in its own release.
 
 **Housekeeping (step 8)**
-- [ ] The domain rules and CLAUDE.md say what this stage changed, and step 8's planned document items (the app's
+- [x] The domain rules and CLAUDE.md say what this stage changed, and step 8's planned document items (the app's
       products document, the module 21 note, the deploy order) are done when the stage ships.
+      *Evidence:* Step 8 (commit `2283e25`).
 
 ## Risks
 
