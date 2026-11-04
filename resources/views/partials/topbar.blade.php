@@ -102,7 +102,7 @@
                                         @elseif (! empty($item->data['reminder']))
                                             {{ __('Still waiting: :title', ['title' => $item->data['title'] ?? '']) }}
                                         @else
-                                            {{ __('Approval needed: :title', ['title' => $item->data['title'] ?? '']) }}
+                                            {{ ($item->data['prompt'] ?? null) ?: __('Approval needed') }}: {{ $item->data['title'] ?? '' }}
                                         @endif
                                     </p>
                                     <p class="mb-0 text-muted small">{{ $item->data['summary'] ?? '' }}</p>

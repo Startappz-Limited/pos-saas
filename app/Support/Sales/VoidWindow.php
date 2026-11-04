@@ -37,17 +37,15 @@ final class VoidWindow
 
     public const DEFAULT_TIMEZONE = 'Africa/Nairobi';
 
+    public const RETURNS_REFUSAL = 'This sale has returns. Process the return instead.';
+
     /**
-     * Temporary (decided 3 November 2026): until step 4 refunds what a voided
-     * sale took, a pending sale with payments can't be voided or asked about.
+     * Whether the sale has a return that isn't rejected (stage 10, step 4): it
+     * can't be voided then.
      */
-    public const PAYMENTS_REFUSAL = 'This sale has payments. It can\'t be voided until refunds are supported.';
-
-    public static function pendingWithPayments(Sale $sale): bool
+    public static function hasOpenReturns(Sale $sale): bool
     {
-        $status = $sale->status instanceof \BackedEnum ? $sale->status->value : $sale->status;
-
-        return $status === 'pending' && ((float) $sale->paid_amount > 0 || $sale->payments()->exists());
+        return $sale->returns()->where('status', '!=', 'rejected')->exists();
     }
 
     /**

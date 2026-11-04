@@ -39,6 +39,9 @@ Stage file: [10-stock-correctness-and-voids.md](./10-stock-correctness-and-voids
       (`POST /api/void-requests/{uuid}/approve`) or rejects with a `rejection_reason`, and handles the 422 when it was
       settled or expired (48 hours). The backend sends no push: the app shows the list, and approvers also get an
       email and the web's notification.
+- [ ] A void answers `money` (`paid_out`: cash the person hands back from their own open register; `refunds_due`: money
+      owed back, listed on the web's Refunds owed). The app tells the cashier to hand the paid-out cash back, and that
+      the rest is owed. 422 `sale_has_returns` ("This sale has returns. Process the return instead.").
 - [ ] A void outside the window answers 422 `void_window_closed` with the time-limit message (no longer 403) on
       `POST /api/sales/{uuid}/void`; 403 means no permission. The app shows the message.
 - [ ] Stock adjustments, if the app makes them: no longer offers "Returned to supplier" (a purchase return now), and

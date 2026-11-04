@@ -565,11 +565,12 @@ class SaleController extends Controller
             'void_reason' => 'required|string|max:255',
         ]);
 
-        app(VoidSale::class)->execute($sale, $validated['void_reason'], $request->user());
+        $result = app(VoidSale::class)->execute($sale, $validated['void_reason'], $request->user());
+        $message = VoidSale::summary($result);
 
         return $request->expectsJson()
-            ? response()->json(['success' => true, 'message' => __('Sale voided successfully.'), 'data' => $sale->fresh()])
-            : redirect()->back()->with('success', __('Sale voided successfully.'));
+            ? response()->json(['success' => true, 'message' => $message, 'data' => $sale->fresh(), 'money' => VoidSale::money($result)])
+            : redirect()->back()->with('success', $message);
     }
 
     /**

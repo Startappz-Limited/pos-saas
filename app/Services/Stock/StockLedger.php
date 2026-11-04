@@ -457,6 +457,7 @@ class StockLedger
     /**
      * A new layer first covers units sold below zero, oldest first: those
      * allocations take the layer's cost, and their sales are re-costed.
+     * Voided sales are skipped.
      */
     private function settleProvisional(int $shopId, ProductVariation $variation, int $layerId): void
     {
@@ -466,6 +467,10 @@ class StockLedger
 
         $pending = DB::table('cost_allocations')
             ->where('shop_id', $shopId)->where('variation_id', $variation->id)->where('is_provisional', true)
+            // A voided sale's units never take arriving stock (stage 10, step 4): a sale
+            // voided before this stage still has its allocations.
+            ->where(fn ($query) => $query->whereNull('sale_item_id')->orWhereNotIn('sale_item_id', DB::table('sale_items')
+                ->join('sales', 'sales.id', '=', 'sale_items.sale_id')->where('sales.status', 'voided')->select('sale_items.id')))
             ->orderBy('allocated_at')->orderBy('id')
             ->lockForUpdate()
             ->get();

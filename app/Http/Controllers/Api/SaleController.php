@@ -200,12 +200,14 @@ class SaleController extends Controller
             'void_reason' => ['required', 'string', 'max:255'],
         ]);
 
-        app(VoidSale::class)->execute($sale, $validated['void_reason'], $request->user());
+        $result = app(VoidSale::class)->execute($sale, $validated['void_reason'], $request->user());
 
         return response()->json([
             'success' => true,
-            'message' => 'Sale voided successfully.',
+            'message' => VoidSale::summary($result),
             'data' => $sale,
+            // What happened to the money (stage 10, step 4): paid out of the voider's session, or owed.
+            'money' => VoidSale::money($result),
         ]);
     }
 

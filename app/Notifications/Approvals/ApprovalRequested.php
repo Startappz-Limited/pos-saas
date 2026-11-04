@@ -36,7 +36,9 @@ class ApprovalRequested extends Notification implements ShouldQueue
     public function toMail(object $notifiable): MailMessage
     {
         return (new MailMessage)
-            ->subject(($this->reminder ? __('Still waiting: :title', ['title' => $this->subject->title]) : __('Approval needed: :title', ['title' => $this->subject->title])))
+            ->subject($this->reminder
+                ? __('Still waiting: :title', ['title' => $this->subject->title])
+                : ($this->subject->prompt ?? __('Approval needed')).': '.$this->subject->title)
             ->line($this->subject->summary)
             ->line(__('Requested by :name.', ['name' => $this->subject->requestedBy]))
             ->action(__('Review'), $this->subject->url)

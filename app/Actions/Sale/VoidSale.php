@@ -3,24 +3,48 @@
 namespace App\Actions\Sale;
 
 use App\Actions\SettleCreditSalePayment;
+use App\Enums\StockMovementType;
+use App\Models\CashPayout;
+use App\Models\RefundDue;
 use App\Models\Sale;
 use App\Models\User;
+use App\Services\Stock\StockLedger;
+use App\Support\Sales\VoidRefunds;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Voids a sale: what the web and flat API void did inline, shared with an
- * approved void request (stage 10, step 2). Marks it voided, releases the debt
- * a credit sale created, and recalculates its session's totals. Who may void,
- * and until when, is the caller's check (SalePolicy::void, or the request's
- * own window). Stock and cash on a void are step 4.
+ * Voids a sale (stage 10, steps 2 and 4): shared by the web and flat API void
+ * and an approved void request. In one transaction it gives every line's
+ * stock back (StockLedger::release), hands back the money the sale took
+ * (VoidRefunds: cash out of the voider's own session, else a refund owed),
+ * marks it voided and releases the debt a credit sale created; then its
+ * session's totals are recalculated if the session is still open. Line and sale cost and profit stay as
+ * sold: reports leave the sale out by its status. Who may void, and until
+ * when, is the caller's check (SalePolicy::void, or the request's own window).
  */
 class VoidSale
 {
-    public function __construct(private SettleCreditSalePayment $credit) {}
+    public function __construct(
+        private SettleCreditSalePayment $credit,
+        private StockLedger $ledger,
+        private VoidRefunds $refunds,
+    ) {}
 
-    public function execute(Sale $sale, string $reason, User $by): Sale
+    /**
+     * @param  bool  $approvedRequest  voided by approving a request: cash is owed, never paid out at once
+     * @return array{payouts: list<CashPayout>, refunds: list<RefundDue>, units: int}
+     */
+    public function execute(Sale $sale, string $reason, User $by, bool $approvedRequest = false): array
     {
-        DB::transaction(function () use ($sale, $reason, $by): void {
+        $result = DB::transaction(function () use ($sale, $reason, $by, $approvedRequest): array {
+            $units = 0;
+            foreach ($sale->items()->orderBy('id')->get() as $item) {
+                $units += $this->ledger->release($item, StockMovementType::SALE_VOID, ['reference' => $sale, 'user_id' => $by->id, 'notes' => "Sale {$sale->invoice_number} voided."])?->quantity ?? 0;
+            }
+
+            // Before the status changes: what it took, and whether its session counted it.
+            $money = $this->refunds->settle($sale, $by, $approvedRequest);
+
             $sale->update([
                 'status' => 'voided',
                 'voided_at' => now(),
@@ -31,12 +55,49 @@ class VoidSale
             // Release the debt a voided credit sale created, or the customer
             // keeps owing for a sale that no longer exists.
             $this->credit->reverse($sale, $reason);
+
+            return [...$money, 'units' => $units];
         });
 
-        if ($sale->register_id) {
-            $sale->register?->updateSalesTotals();
+        // An open session drops the sale from its totals; a closed one was counted
+        // and reconciled, so it stays as it was (its cash was paid out or is owed).
+        if ($sale->register_id && $sale->register?->status === 'open') {
+            $sale->register->updateSalesTotals();
         }
 
-        return $sale;
+        return $result;
+    }
+
+    /**
+     * The success message: the stock back, and what became of the money.
+     *
+     * @param  array{payouts: list<CashPayout>, refunds: list<RefundDue>, units: int}  $result
+     */
+    public static function summary(array $result): string
+    {
+        $lines = [trans_choice('{0} Sale voided.|{1} Sale voided. 1 item is back in stock.|[2,*] Sale voided. :count items are back in stock.', $result['units'], ['count' => $result['units']])];
+        $paid = array_sum(array_map(fn ($payout): float => (float) $payout->amount, $result['payouts']));
+        if ($paid > 0) {
+            $lines[] = __('Hand :amount in cash back to the customer from your register.', ['amount' => number_format($paid, 2)]);
+        }
+        if ($result['refunds'] !== []) {
+            $lines[] = trans_choice('{1} A refund is owed to the customer and has been listed for payment.|[2,*] :count refunds are owed to the customer and have been listed for payment.', count($result['refunds']), ['count' => count($result['refunds'])]);
+        }
+
+        return implode(' ', $lines);
+    }
+
+    /**
+     * @param  array{payouts: list<CashPayout>, refunds: list<RefundDue>, units: int}  $result
+     * @return array{paid_out: list<array{uuid: string, amount: string}>, refunds_due: list<array{uuid: string, method: string, amount: string, reference: ?string}>}
+     */
+    public static function money(array $result): array
+    {
+        return [
+            'paid_out' => array_map(fn ($payout): array => ['uuid' => (string) $payout->uuid, 'amount' => number_format((float) $payout->amount, 2, '.', '')], $result['payouts']),
+            'refunds_due' => array_map(fn ($refund): array => [
+                'uuid' => (string) $refund->uuid, 'method' => $refund->method, 'amount' => number_format((float) $refund->amount, 2, '.', ''), 'reference' => $refund->reference,
+            ], $result['refunds']),
+        ];
     }
 }

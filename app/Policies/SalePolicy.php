@@ -109,9 +109,10 @@ class SalePolicy
 
     /**
      * Whether the user can void the sale now (stage 10, step 2): only
-     * `sales.void` (or `sales.full-access`) allows it (403 otherwise), and only
-     * inside the business's void window, which holds the owner too: past it
-     * the refusal is 422 with the time-limit message.
+     * `sales.void` (or `sales.full-access`) allows it (403 otherwise), never
+     * with a return that isn't rejected (422 `sale_has_returns`, step 4), and
+     * only inside the business's void window, which holds the owner too: past
+     * it the refusal is 422 with the time-limit message.
      */
     public function void(User $user, Sale $sale): Response|bool
     {
@@ -121,9 +122,8 @@ class SalePolicy
             return false;
         }
 
-        // Until step 4 refunds payments on a void (decided 3 November 2026).
-        if (VoidWindow::pendingWithPayments($sale)) {
-            return Response::denyWithStatus(422, VoidWindow::PAYMENTS_REFUSAL, 'sale_has_payments');
+        if (VoidWindow::hasOpenReturns($sale)) {
+            return Response::denyWithStatus(422, __(VoidWindow::RETURNS_REFUSAL), 'sale_has_returns');
         }
 
         $window = app(VoidWindow::class);

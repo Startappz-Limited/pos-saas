@@ -166,9 +166,22 @@ class CashRegister extends Model
         return $this->status === 'closed';
     }
 
+    /**
+     * Cash taken out of the session (stage 10, step 4): void refunds, refunds
+     * owed paid later, petty cash.
+     */
+    public function payouts(): HasMany
+    {
+        return $this->hasMany(CashPayout::class, 'cash_register_id');
+    }
+
+    /**
+     * Opening balance and cash sales, less the session's payouts (stage 10,
+     * step 4).
+     */
     public function calculateExpectedBalance(): float
     {
-        return $this->opening_balance + $this->total_cash_sales;
+        return round((float) $this->opening_balance + (float) $this->total_cash_sales - (float) $this->payouts()->sum('amount'), 2);
     }
 
     public function calculateVariance(): float

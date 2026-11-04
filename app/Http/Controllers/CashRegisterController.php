@@ -51,7 +51,7 @@ class CashRegisterController extends Controller
      */
     public function show(CashRegister $cashRegister): View
     {
-        $cashRegister->load(['user', 'closedBy', 'sales.customer', 'expenses.category']);
+        $cashRegister->load(['user', 'closedBy', 'sales.customer', 'expenses.category', 'payouts.creator', 'payouts.sale']);
 
         return view('cash-registers.show', compact('cashRegister'));
     }

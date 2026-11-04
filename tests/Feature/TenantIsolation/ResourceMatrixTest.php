@@ -19,6 +19,7 @@ use App\Models\PaymentRequest;
 use App\Models\PlatformPayment;
 use App\Models\PricingRule;
 use App\Models\PurchaseOrder;
+use App\Models\RefundDue;
 use App\Models\Register;
 use App\Models\Role;
 use App\Models\SaleVoidRequest;
@@ -89,6 +90,7 @@ function recordOfB(TwoBusinesses $fixture, string $resource): Model
         'suppliers' => $b->supplier,
         'sync-issues' => SyncIssue::create(['type' => SyncIssue::POSSIBLE_DUPLICATE_CUSTOMER, 'key' => 'customer:b', 'details' => ['customer' => (string) $b->customer->uuid, 'duplicate_of' => (string) $b->customer->uuid]]),
         'users' => $b->cashier,
+        'refunds-due' => RefundDue::create(['shop_id' => $b->sale->shop_id, 'sale_id' => $b->sale->id, 'source' => 'void', 'method' => 'mobile_money', 'amount' => 100, 'reference' => 'B-1', 'status' => 'pending']),
         'void-requests' => SaleVoidRequest::factory()->create(['sale_id' => $b->sale->id, 'shop_id' => $b->sale->shop_id, 'requested_by' => $b->cashier->id]),
     });
 }
@@ -99,7 +101,7 @@ const WEB_RESOURCES = [
     'attributes' => ['show', 'update', 'destroy'],
     'baileys.sessions' => ['show', 'destroy'],
     'campaigns' => ['show', 'update', 'destroy'],
-    'cash-registers' => ['show'],
+    'cash-registers' => ['show', 'payouts.store'],
     'categories' => ['show', 'update', 'destroy'],
     'credit-accounts' => ['show', 'update', 'destroy'],
     'customers' => ['show', 'update', 'destroy'],
@@ -120,8 +122,9 @@ const WEB_RESOURCES = [
     'users' => ['show', 'update', 'destroy', 'till-pin.reset', 'till-pin.unlock'],
     'invites' => ['resend', 'destroy', 'role'],
     'sync-issues' => ['resolve', 'merge'],
-    // Void requests (stage 10, step 2).
+    // Void requests (stage 10, step 2) and refunds owed (step 4).
     'void-requests' => ['approve', 'reject', 'cancel'],
+    'refunds-due' => ['pay'],
 ];
 
 /** Resource => the actions its flat API routes offer on one record. */

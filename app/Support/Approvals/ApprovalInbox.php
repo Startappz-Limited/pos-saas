@@ -2,6 +2,7 @@
 
 namespace App\Support\Approvals;
 
+use App\Models\RefundDue;
 use App\Models\SaleVoidRequest;
 use App\Models\StockAdjustment;
 use App\Models\User;
@@ -27,6 +28,7 @@ final class ApprovalInbox
     private const KINDS = [
         'stock_adjustment' => StockAdjustment::class,
         'void_request' => SaleVoidRequest::class,
+        'refund_due' => RefundDue::class,
     ];
 
     /**

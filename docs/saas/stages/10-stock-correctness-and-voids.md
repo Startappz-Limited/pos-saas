@@ -216,6 +216,30 @@ Decisions of 26, 27 and 28 October 2026, for steps 0 to 8. Each step says which 
 earlier ones where they differ (the Revisions list says which). The decisions of 3 November 2026 (below, first) replace
 any earlier text they contradict.
 
+- **Decisions of 4 November 2026 (step 4, money on a void):**
+  - **Approving a void and paying money out are separate.** Cash the sale's own open session counted leaves it by
+    recalculation (the sale no longer counts). Any other cash is paid out at once **only from the voider's own open
+    session in the shop**; otherwise (an approved void request, a flat API or web void by someone with no open session
+    of their own, no session open) it becomes a **cash refund owed**. Cash is never taken from someone else's session
+    automatically. Same rule on the web, the flat API and void-request approval. This replaces step 4's "a web void asks
+    the person to choose among the shop's open sessions".
+  - **Card, M-Pesa, bank transfer and cheque payments** each become a refund owed with their method and reference. A
+    cheque's refund can be settled as "cheque returned" (an uncleared cheque) as well as paid.
+  - **A voided credit sale:** payments made on it are refunded by their method under these rules; the credit reversal
+    clears what the customer still owed. "Credit" is not money received and never creates a refund.
+  - **Refunds owed** (`refunds_due`): a list per business and shop for owners and payers (Sales → Refunds owed);
+    marking one paid or settled records the method, reference and, for cash, the payer's own open session, from which
+    it is paid out then (refused with none: "Open your register to pay a cash refund."); audited. M-Pesa refunds are
+    made outside the system and only recorded (a reference is required). Payers are those holding `sales.void` or
+    **`refunds.approve`** (the existing refund-approval permission: owner and manager templates; the cashier's
+    `sales.refund` is not enough), with access to the shop. They are notified when one is created, under the shared
+    notification rule. Step 5c's `refund_due` sources (`late_payment`, `duplicate_payment`) use the same table.
+  - **Noted, not fixed here:** payments collected after the sale (credit collections, M-Pesa at the till, deposits)
+    aren't tied to a session (`sale_payments` has no session column), and a session's expected cash counts only
+    completed cash sales by their total, so cash collected later never appears in any drawer's expected cash.
+    Proposed fix: stage 14 (returns and refunds in reports), which already reworks session cash for refunds:
+    `sale_payments.cash_register_id` set from the collector's open session, and `calculateExpectedBalance()` counting
+    a session's cash payments rather than its cash sales' totals, with a backfill for open sessions only.
 - **Decisions of 3 November 2026 (during implementation, steps 1g and 2):**
   - **Approval by permission, with notifications (shared by stock adjustments and void requests):**
     - approvers are the active members of the business who hold the approve permission there
@@ -814,15 +838,18 @@ is deployed.
   - a released line's `shop_variation.updated_at` moves on, and a till's next pull carries the restored stock.
 
 ### 4. Voiding gives stock back
-- [ ] Web and API `void` call `release()` for every line, inside the existing transaction, before the credit
+> **Done 4 November 2026** under the decisions of 4 November (see "Decisions that apply"): no session choice on the
+> web; the voider's own session or a refund owed. The temporary refusal of paid pending sales is removed.
+> `VoidStockAndMoneyTest`.
+- [x] Web and API `void` call `release()` for every line, inside the existing transaction, before the credit
       reversal.
-- [ ] Line and sale cost and profit are left as they were sold. The sale is excluded from reports by its status.
+- [x] Line and sale cost and profit are left as they were sold. The sale is excluded from reports by its status.
       The figures stay for the audit trail and the voided-sales list.
-- [ ] `settleProvisional()` skips allocations whose sale is voided. This is needed as a second guard for sales
+- [x] `settleProvisional()` skips allocations whose sale is voided. This is needed as a second guard for sales
       voided before this stage, because their allocations still exist.
-- [ ] **A sale with a return that isn't rejected can't be voided** (decided): 422 with "This sale has returns.
+- [x] **A sale with a return that isn't rejected can't be voided** (decided): 422 with "This sale has returns.
       Process the return instead."
-- [ ] **Cash on a void:**
+- [x] **Cash on a void:**
   - **The sale's session is open:** its totals are recalculated (`updateSalesTotals()`), on web as well as API (web
     doesn't do this today), so the cash leaves its expected cash.
   - **The sale's session is closed:** it was counted and reconciled, so it is left as it is (no recalculation; its
@@ -837,13 +864,13 @@ is deployed.
     default `session` window (step 2) a sale's own session is open while it can be voided, so this applies to the other
     windows and to sales with no session.
   - Card and M-Pesa payments are never paid out of a drawer: they are a `refund_due` (step 5c).
-- [ ] **eTIMS:** nothing fiscal is produced in this stage. Once eTIMS is on, a void of a signed invoice issues a credit
+- [x] **eTIMS:** nothing fiscal is produced in this stage. Once eTIMS is on, a void of a signed invoice issues a credit
       note; see [stage 22](./22-etims.md), step 3.
-- [ ] **Payouts on the session page:** a session lists its payouts (amount, reason, the sale if any, who). Someone
+- [x] **Payouts on the session page:** a session lists its payouts (amount, reason, the sale if any, who). Someone
       holding `cash-registers.payout` (new: the owner and the manager template, through step 0's rollout) can record
       a payout by hand for petty cash, with a reason required; it lowers the open session's expected cash and is
       audited. Stage 14's cash refunds are payouts too.
-- [ ] Tests:
+- [x] Tests:
   - void restores stock and batches, on web and API;
   - a voided sale no longer moves when stock arrives;
   - void refused while a return exists;
@@ -1020,7 +1047,8 @@ is deployed.
   - both are about time and the sale's state only, so they are the same for everyone; the app combines `voidable`
     with the signed-in person's `sales.void` from the staff list to show or hide its Void button. Neither exists in
     the code yet (checked 28 October 2026: `SaleReceipt` carries no void field), so no Phase 7 app reads them.
-- [ ] **One refund issue type, `refund_due`**, on the till sync review, carrying a `source` (`void` or
+- [ ] **One refund issue type, `refund_due`** (built in step 4 as the `refunds_due` table and the Refunds owed list,
+      not a sync issue; 5c adds the till sources and links the review to it), on the till sync review, carrying a `source` (`void` or
       `late_payment`), the `method`, the amount and the payment reference:
   - `source = void`: voiding a sale with M-Pesa or card payments records one per payment, until stage 14 brings
     refunds; so does a cash void with no open session to pay out of (step 4);

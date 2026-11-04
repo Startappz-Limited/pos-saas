@@ -17,6 +17,8 @@ final class ApprovalSubject
         public readonly string $summary,
         public readonly string $url,
         public readonly string $requestedBy,
+        // What the notification asks for; "Approval needed" when null.
+        public readonly ?string $prompt = null,
     ) {}
 
     /**
@@ -32,6 +34,7 @@ final class ApprovalSubject
             'summary' => $this->summary,
             'url' => $this->url,
             'requested_by' => $this->requestedBy,
+            'prompt' => $this->prompt,
         ];
     }
 }

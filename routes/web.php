@@ -15,6 +15,7 @@ use App\Http\Controllers\BusinessSettingsController;
 use App\Http\Controllers\BusinessSwitchController;
 use App\Http\Controllers\CalendarController;
 use App\Http\Controllers\CampaignController;
+use App\Http\Controllers\CashPayoutController;
 use App\Http\Controllers\CashRegisterController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\CreditAccountController;
@@ -43,6 +44,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PurchaseOrderController;
 use App\Http\Controllers\PurchaseReturnController;
 use App\Http\Controllers\RefundController;
+use App\Http\Controllers\RefundDueController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\ReturnController;
 use App\Http\Controllers\RoleController;
@@ -298,6 +300,10 @@ Route::middleware(['auth', 'business'])->group(function () {
     Route::get('cash-registers/{cashRegister:uuid}', [CashRegisterController::class, 'show'])->name('cash-registers.show');
     Route::get('cash-registers/{cashRegister:uuid}/close', [CashRegisterController::class, 'closeForm'])->name('cash-registers.close-form');
     Route::post('cash-registers/{cashRegister:uuid}/close', [CashRegisterController::class, 'close'])->name('cash-registers.close')->middleware('throttle:5,1');
+    // Cash out of a session, and refunds owed after voids (stage 10, step 4).
+    Route::post('cash-registers/{cashRegister:uuid}/payouts', [CashPayoutController::class, 'store'])->name('cash-registers.payouts.store')->middleware('throttle:10,1');
+    Route::get('refunds-due', [RefundDueController::class, 'index'])->name('refunds-due.index');
+    Route::post('refunds-due/{refundDue}/pay', [RefundDueController::class, 'pay'])->name('refunds-due.pay')->middleware('throttle:10,1');
 
     // Sales & Transactions Routes (UUID-secured, rate-limited)
     Route::get('sales', [SaleController::class, 'index'])->name('sales.index');
