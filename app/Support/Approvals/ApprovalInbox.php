@@ -2,6 +2,7 @@
 
 namespace App\Support\Approvals;
 
+use App\Models\Alert;
 use App\Models\RefundDue;
 use App\Models\SaleVoidRequest;
 use App\Models\StockAdjustment;
@@ -29,6 +30,8 @@ final class ApprovalInbox
         'stock_adjustment' => StockAdjustment::class,
         'void_request' => SaleVoidRequest::class,
         'refund_due' => RefundDue::class,
+        // A sale flagged for review (stage 10, step 5b): open until the alert is resolved.
+        'sale_review' => Alert::class,
     ];
 
     /**
@@ -77,6 +80,9 @@ final class ApprovalInbox
     public function isPending(string $kind, string $uuid): bool
     {
         $model = self::KINDS[$kind] ?? null;
+        if ($model === Alert::class) {
+            return Alert::query()->where('uuid', $uuid)->where('is_resolved', false)->exists();
+        }
 
         return $model !== null && $model::query()->where('uuid', $uuid)->value('status') === 'pending';
     }

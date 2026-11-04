@@ -32,6 +32,8 @@ enum AlertType: string
     case ORDER_NOTE = 'order_note';
     case ORDER_REMINDER = 'order_reminder';
     case ORDER_STATUS_CHANGED = 'order_status_changed';
+    // A sale to check by hand: an online order cancelled after dispatch, unrefunded or part-refunded (stage 10, step 5b)
+    case SALE_REVIEW = 'sale_review';
 
     // Abandoned carts (timeline of a website cart)
     case CART_ACTIVITY = 'cart_activity';
@@ -66,6 +68,7 @@ enum AlertType: string
             self::ORDER_NOTE => 'Order Note',
             self::ORDER_REMINDER => 'Order Reminder',
             self::ORDER_STATUS_CHANGED => 'Order Status Changed',
+            self::SALE_REVIEW => 'Sale Needs Review',
             self::CART_ACTIVITY => 'Cart Activity',
             self::CART_NOTE => 'Cart Note',
             self::CART_REMINDER => 'Cart Reminder',
@@ -93,6 +96,7 @@ enum AlertType: string
             self::ORDER_REMINDER => AlertSeverity::MEDIUM,
             self::ORDER_NOTE => AlertSeverity::LOW,
             self::ORDER_STATUS_CHANGED => AlertSeverity::LOW,
+            self::SALE_REVIEW => AlertSeverity::HIGH,
 
             self::CART_REMINDER => AlertSeverity::MEDIUM,
             self::CART_NOTE, self::CART_ACTIVITY => AlertSeverity::LOW,

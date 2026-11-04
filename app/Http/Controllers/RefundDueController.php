@@ -4,6 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Exceptions\BusinessRuleException;
 use App\Models\RefundDue;
+use App\Models\Sale;
+use App\Support\Approvals\ApprovalInbox;
+use App\Support\Sales\StoreCancellations;
 use App\Support\Sales\VoidRefunds;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -32,6 +35,37 @@ class RefundDueController extends Controller
             'status' => $status,
             'ownSessionShops' => fn (int $shopId): bool => $this->refunds->ownSession($request->user(), $shopId) !== null,
         ]);
+    }
+
+    /**
+     * The owner records a refund owed for a voided online sale the store
+     * reported no refund for (stage 10, step 5b; decided 4 November 2026).
+     * Never twice for money already recorded as refunded in the store.
+     */
+    public function storeForSale(Request $request, Sale $sale): RedirectResponse
+    {
+        abort_unless($request->user()->isBusinessOwner() && $sale->status === 'voided' && $sale->ecommerceOrder !== null, 403);
+
+        if (RefundDue::query()->where('sale_id', $sale->id)->where('resolution', 'refunded_in_store')->exists()) {
+            return back()->with('error', __('The store already refunded this sale.'));
+        }
+
+        $paid = app(StoreCancellations::class)->facts($sale->ecommerceOrder)['paid'];
+        $validated = $request->validate([
+            'amount' => ['required', 'numeric', 'min:0.01', 'max:'.max($paid, 0.01)],
+            'method' => ['required', Rule::in(RefundDue::METHODS)],
+            'reference' => ['nullable', 'string', 'max:255'],
+            'notes' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $refund = RefundDue::create([
+            'shop_id' => $sale->shop_id, 'sale_id' => $sale->id, 'source' => 'store_cancellation', 'method' => $validated['method'],
+            'amount' => round((float) $validated['amount'], 2), 'reference' => $validated['reference'] ?? null, 'status' => 'pending',
+            'notes' => $validated['notes'] ?? null, 'created_by' => $request->user()->id,
+        ]);
+        app(ApprovalInbox::class)->request($this->refunds->subject($refund), $this->refunds->payersOf($refund, $request->user()));
+
+        return back()->with('success', __('Refund owed recorded and listed for payment.'));
     }
 
     public function pay(Request $request, RefundDue $refundDue): RedirectResponse

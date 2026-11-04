@@ -304,6 +304,7 @@ Route::middleware(['auth', 'business'])->group(function () {
     Route::post('cash-registers/{cashRegister:uuid}/payouts', [CashPayoutController::class, 'store'])->name('cash-registers.payouts.store')->middleware('throttle:10,1');
     Route::get('refunds-due', [RefundDueController::class, 'index'])->name('refunds-due.index');
     Route::post('refunds-due/{refundDue}/pay', [RefundDueController::class, 'pay'])->name('refunds-due.pay')->middleware('throttle:10,1');
+    Route::post('sales/{sale:uuid}/refunds-due', [RefundDueController::class, 'storeForSale'])->name('sales.refunds-due.store')->middleware('throttle:10,1');
 
     // Sales & Transactions Routes (UUID-secured, rate-limited)
     Route::get('sales', [SaleController::class, 'index'])->name('sales.index');

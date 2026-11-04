@@ -216,6 +216,25 @@ Decisions of 26, 27 and 28 October 2026, for steps 0 to 8. Each step says which 
 earlier ones where they differ (the Revisions list says which). The decisions of 3 November 2026 (below, first) replace
 any earlier text they contradict.
 
+- **Decisions of 4 November 2026 (step 5b, online orders cancelled in the store):**
+  - **A POS refund owed is never created for money taken through the store** (on any void, automatic or by a
+    person). On an automatic void of a cancelled online order, the store payment is marked **"refunded in store"** (a
+    settled entry on Refunds owed, with the store's refund reference when sent), audited, so nobody creates a POS
+    refund owed for it later.
+  - **Payments recorded in the POS itself** (for example M-Pesa collected by hand on cash on delivery) follow step 4
+    and become refunds owed (an automatic void has no person and no register, so cash is owed too).
+  - **Paid in the store but no refund reported** (common for manual methods such as bank transfer in WooCommerce): the
+    sale is voided, no refund owed is created, the sale is flagged, and the owners are notified under the shared rule:
+    "Order cancelled but no refund recorded in the store. Check whether the customer was refunded." The owner can
+    create a refund owed from the sale page.
+  - **A partial cancellation or partial refund in the store** (some lines cancelled, or less than the paid amount
+    refunded, whether or not the order is cancelled): the sale is **not voided**; it is flagged for review and the
+    owners are notified under the shared rule.
+  - **Already dispatched** (and a sale with a return that isn't rejected): flagged and the shop's staff alerted, as
+    step 5b says; not voided.
+  - Today both integrations record every online order as cash on delivery and unpaid (`payment_method = 'cod'`,
+    checked 4 November 2026), so whether the store took payment, and what it refunded, is read from the order's
+    `platform_data` (WooCommerce `date_paid` and `refunds`; Shopify `financial_status` and `refunds[].transactions`).
 - **Decisions of 4 November 2026 (step 4, money on a void):**
   - **Approving a void and paying money out are separate.** Cash the sale's own open session counted leaves it by
     recalculation (the sale no longer counts). Any other cash is paid out at once **only from the voider's own open
@@ -981,28 +1000,33 @@ is deployed.
   - a successful void shows the badge.
 
 ### 5b. Void automatically when an online order is cancelled before dispatch
-- [ ] When the WooCommerce or Shopify order sync (webhook or pull) moves an order to `cancelled`, and the order
+> **Done 4 November 2026** (`StoreCancellationTest`, `App\Support\Sales\StoreCancellations`), under the decisions
+> of 4 November (see "Decisions that apply"): store money is never a POS refund owed (marked refunded in store, or the
+> sale flagged when the store reports no refund); part refunds and part cancellations are flagged, not voided. The
+> flag is an `alerts` row (`sale_review`) on the sale, shown on its page until marked checked; owners are notified for
+> the unrefunded and partial cases.
+- [x] When the WooCommerce or Shopify order sync (webhook or pull) moves an order to `cancelled`, and the order
       has a converted sale that isn't voided, the sale is voided with `release()` and the credit reversal, as in
       step 4.
-- [ ] **"Before dispatch"** means the store hadn't fulfilled the order when it was cancelled:
+- [x] **"Before dispatch"** means the store hadn't fulfilled the order when it was cancelled:
   - WooCommerce: the order's previous status was `pending`, `processing` or `on-hold`, not `completed`.
   - Shopify: `fulfillment_status` was not `fulfilled` or `partial`.
-- [ ] **It's a system action:** it doesn't need `sales.void` and isn't held to the time limit, because the decision
+- [x] **It's a system action:** it doesn't need `sales.void` and isn't held to the time limit, because the decision
       was taken in the store.
-- [ ] **Pending sales too:** a cash-on-delivery order becomes a `pending` sale that holds stock (checked 28 October
+- [x] **Pending sales too:** a cash-on-delivery order becomes a `pending` sale that holds stock (checked 28 October
       2026, `ConvertEcommerceOrderToSale`), so a cancelled COD order voids its pending sale the same way, releasing its
       stock. `voidable` and `voidable_until` (step 5c) govern voids by people at the till and on the web; this
       automatic void doesn't read them.
   - `voided_by` is NULL.
   - `void_reason` is "Order cancelled in :store (order :number)."
   - The audit row records it as automatic.
-- [ ] **It is not voided automatically** when the order was already dispatched, or when the sale has a return that
+- [x] **It is not voided automatically** when the order was already dispatched, or when the sale has a return that
       isn't rejected.
       Instead the sale is flagged ("The online order was cancelled after dispatch. Check whether the goods came
       back, and process a return.") and the shop's staff are notified in the app's alerts.
-- [ ] **Done once:** a repeated or late webhook for the same cancellation changes nothing (the sale is already
+- [x] **Done once:** a repeated or late webhook for the same cancellation changes nothing (the sale is already
       voided). It runs for the order's business, in the queued job, with the tenant context set.
-- [ ] **Tests:**
+- [x] **Tests:**
   - a cancelled `processing` WooCommerce order voids its sale and restores stock; a cancelled cash-on-delivery order
     voids its pending sale and restores its stock;
   - a cancelled `completed` order doesn't void, and flags the sale instead;

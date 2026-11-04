@@ -27,7 +27,9 @@ use Illuminate\Support\Facades\DB;
  * - card, M-Pesa, bank transfer and cheque payments each become a refund owed,
  *   with their method and reference;
  * - "credit" is not money received and never creates a refund (the credit
- *   reversal clears what the customer still owed).
+ *   reversal clears what the customer still owed);
+ * - money taken through an online store (a converted order that wasn't cash
+ *   on delivery) is never a POS refund owed: the store refunds it (step 5b).
  *
  * A refund owed is paid later by someone holding `sales.void` or
  * `refunds.approve` with access to the shop: cash out of their own open
@@ -53,7 +55,9 @@ final class VoidRefunds
         $parts = [];
 
         $withSale = round((float) $sale->paid_amount - (float) $payments->sum('amount'), 2);
-        if ($withSale > 0) {
+        // Paid in the online store: refunded there, never by the POS (decided 4 November 2026).
+        $order = $sale->ecommerceOrder;
+        if ($withSale > 0 && ! ($order !== null && ! $order->is_cod)) {
             $parts[] = [
                 'method' => (string) $sale->payment_method,
                 'amount' => $withSale,
@@ -84,10 +88,11 @@ final class VoidRefunds
      * @param  bool  $approvedRequest  an approved void request: cash is never paid out at once
      * @return array{payouts: list<CashPayout>, refunds: list<RefundDue>}
      */
-    public function settle(Sale $sale, User $by, bool $approvedRequest = false): array
+    public function settle(Sale $sale, ?User $by, bool $approvedRequest = false): array
     {
         $sessionOpen = $sale->register_id !== null && $sale->register?->status === 'open';
-        $own = $approvedRequest ? null : $this->ownSession($by, (int) $sale->shop_id);
+        // No person (an automatic void) has no session of their own: cash is owed.
+        $own = $approvedRequest || $by === null ? null : $this->ownSession($by, (int) $sale->shop_id);
         $payouts = [];
         $refunds = [];
 
@@ -99,7 +104,7 @@ final class VoidRefunds
                 if ($own !== null) {
                     $payouts[] = CashPayout::create([
                         'shop_id' => $sale->shop_id, 'cash_register_id' => $own->id, 'amount' => $part['amount'],
-                        'reason' => __('Void of sale :invoice', ['invoice' => $sale->invoice_number]), 'sale_id' => $sale->id, 'created_by' => $by->id,
+                        'reason' => __('Void of sale :invoice', ['invoice' => $sale->invoice_number]), 'sale_id' => $sale->id, 'created_by' => $by?->id,
                     ]);
 
                     continue;
@@ -109,7 +114,7 @@ final class VoidRefunds
             $refunds[] = RefundDue::create([
                 'shop_id' => $sale->shop_id, 'sale_id' => $sale->id, 'sale_payment_id' => $part['sale_payment_id'],
                 'source' => RefundDue::SOURCE_VOID, 'method' => $part['method'], 'amount' => $part['amount'],
-                'reference' => $part['reference'], 'status' => 'pending', 'created_by' => $by->id,
+                'reference' => $part['reference'], 'status' => 'pending', 'created_by' => $by?->id,
             ]);
         }
 

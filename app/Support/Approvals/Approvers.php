@@ -34,6 +34,17 @@ final class Approvers
     }
 
     /**
+     * The business's active owners (stage 10, step 5b: told about a sale to review).
+     *
+     * @return Collection<int, User>
+     */
+    public function owners(): Collection
+    {
+        return User::query()->whereBusinessStatus(UserStatus::ACTIVE)->where('status', UserStatus::ACTIVE)->orderBy('id')->get()
+            ->filter(fn (User $user): bool => $user->isBusinessOwner())->values();
+    }
+
+    /**
      * Whether $user may approve a request they made: an owner holding the
      * permission, with nobody else eligible.
      *

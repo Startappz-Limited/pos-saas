@@ -8,6 +8,7 @@ use App\Models\EcommerceOrderItem;
 use App\Models\Product;
 use App\Models\ProductEcommerceSync;
 use App\Models\Shop;
+use App\Support\Sales\StoreCancellations;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -596,6 +597,9 @@ GRAPHQL;
     public function upsertOrder(Shop $shop, array $apiOrder): EcommerceOrder
     {
         $mapped = $this->mapToLocal($apiOrder);
+        // The status before this update: a cancellation is judged against it (stage 10, step 5b).
+        $previousStatus = EcommerceOrder::withTrashed()->where('shop_id', $shop->id)->where('platform', 'shopify')
+            ->where('platform_order_id', (string) $apiOrder['id'])->first()?->status;
 
         $order = EcommerceOrder::withTrashed()->updateOrCreate(
             [
@@ -614,6 +618,8 @@ GRAPHQL;
         }
 
         $this->syncLineItems($order, $apiOrder['line_items'] ?? [], $shop);
+
+        StoreCancellations::afterSync($order, $previousStatus);
 
         return $order;
     }

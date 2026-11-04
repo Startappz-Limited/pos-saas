@@ -4,6 +4,7 @@
 
 @section('content')
     @include('sales.partials.void')
+    @include('sales.partials.review')
 
     @if (! empty($deletion))
         <div class="alert alert-danger" role="status" id="sale-deleted">

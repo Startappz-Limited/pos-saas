@@ -111,6 +111,7 @@ class RefundDue extends Model
             'mobile_money' => __('M-Pesa'),
             'bank_transfer' => __('Bank transfer'),
             'cheque' => __('Cheque'),
+            'store' => __('Online store'),
             default => (string) $this->method,
         };
     }

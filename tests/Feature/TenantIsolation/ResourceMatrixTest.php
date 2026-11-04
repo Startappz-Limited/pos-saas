@@ -112,7 +112,7 @@ const WEB_RESOURCES = [
     'products' => ['show', 'update', 'destroy'],
     'purchase-orders' => ['show', 'update', 'destroy'],
     'roles' => ['show', 'edit', 'update', 'destroy', 'permissions', 'updatePermissions', 'reset', 'active'],
-    'sales' => ['show', 'update', 'destroy', 'void-requests.store'],
+    'sales' => ['show', 'update', 'destroy', 'void-requests.store', 'refunds-due.store'],
     'shops' => ['show', 'update', 'destroy'],
     // show: SocialAccountController::show doesn't exist (already on main).
     'social-accounts' => ['update', 'destroy'],

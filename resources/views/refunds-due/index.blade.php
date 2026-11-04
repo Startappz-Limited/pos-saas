@@ -11,7 +11,7 @@
     </div>
 
     <ul class="nav nav-tabs mb-3">
-        @foreach (['pending' => __('Owed'), 'paid' => __('Paid'), 'settled' => __('Cheques returned')] as $key => $label)
+        @foreach (['pending' => __('Owed'), 'paid' => __('Paid'), 'settled' => __('Settled')] as $key => $label)
             <li class="nav-item">
                 <a class="nav-link @if ($status === $key) active @endif" href="{{ route('refunds-due.index', ['status' => $key]) }}" @if ($status === $key) aria-current="page" @endif>{{ $label }}</a>
             </li>
@@ -75,8 +75,12 @@
                                             <span class="text-muted">{{ __('Owed') }}</span>
                                         @endcan
                                     @else
-                                        {{ $refund->resolution === 'cheque_returned' ? __('Cheque returned') : __('Paid') }}
-                                        {{ __('by :name, :when', ['name' => $refund->resolver?->name ?? '—', 'when' => $refund->resolved_at?->format('M d, Y H:i')]) }}
+                                        {{ match ($refund->resolution) {
+                                            'cheque_returned' => __('Cheque returned'),
+                                            'refunded_in_store' => __('Refunded in the online store'),
+                                            default => __('Paid'),
+                                        } }}
+                                        {{ __('by :name, :when', ['name' => $refund->resolver?->name ?? __('the store'), 'when' => $refund->resolved_at?->format('M d, Y H:i')]) }}
                                         @if ($refund->resolved_reference)
                                             <br><small class="text-muted">{{ $refund->resolved_reference }}</small>
                                         @endif

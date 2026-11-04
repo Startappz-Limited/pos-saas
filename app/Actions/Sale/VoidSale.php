@@ -31,15 +31,16 @@ class VoidSale
     ) {}
 
     /**
+     * @param  ?User  $by  who voided it; null for an automatic void (step 5b)
      * @param  bool  $approvedRequest  voided by approving a request: cash is owed, never paid out at once
      * @return array{payouts: list<CashPayout>, refunds: list<RefundDue>, units: int}
      */
-    public function execute(Sale $sale, string $reason, User $by, bool $approvedRequest = false): array
+    public function execute(Sale $sale, string $reason, ?User $by, bool $approvedRequest = false): array
     {
         $result = DB::transaction(function () use ($sale, $reason, $by, $approvedRequest): array {
             $units = 0;
             foreach ($sale->items()->orderBy('id')->get() as $item) {
-                $units += $this->ledger->release($item, StockMovementType::SALE_VOID, ['reference' => $sale, 'user_id' => $by->id, 'notes' => "Sale {$sale->invoice_number} voided."])?->quantity ?? 0;
+                $units += $this->ledger->release($item, StockMovementType::SALE_VOID, ['reference' => $sale, 'user_id' => $by?->id, 'notes' => "Sale {$sale->invoice_number} voided."])?->quantity ?? 0;
             }
 
             // Before the status changes: what it took, and whether its session counted it.
@@ -48,7 +49,8 @@ class VoidSale
             $sale->update([
                 'status' => 'voided',
                 'voided_at' => now(),
-                'voided_by' => $by->id,
+                // NULL for an automatic void (an online order cancelled in its store, step 5b).
+                'voided_by' => $by?->id,
                 'void_reason' => $reason,
             ]);
 
