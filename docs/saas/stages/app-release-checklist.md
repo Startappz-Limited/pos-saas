@@ -25,6 +25,9 @@ Stage file: [10-stock-correctness-and-voids.md](./10-stock-correctness-and-voids
       sale). Handles status `pending` with `sale_not_synced` on a `sale_void` (keeps it and sends it again). Shows a void's
       `money` (`paid_out` from the till's drawer; `refunds_due`).
 - [ ] Clears items listed in the pull's `resolved_items`, and items answered `applied` or `discarded`.
+- [ ] Pushes `outbox_item_discarded` (`item_type`, `client_uuid`, `reason`, `discarded_by`, the raw `item`) when a manager
+      discards a stuck item, and one for each item queued behind a discarded sale; handles `forbidden` (drop) and
+      `already_applied`.
 - [ ] Lets a manager holding `sync-issues.discard` (from the staff list) discard a held or stuck item with a reason
       (`outbox_item_discarded`), with the items queued behind it; offers discarding a held sale or a payment only to
       someone holding `sales.void`; never offers "accept" at the till.

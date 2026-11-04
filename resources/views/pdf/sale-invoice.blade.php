@@ -347,6 +347,10 @@
                 <div>
                     <span class="info-label">Invoice Number:</span>
                     <span class="info-value">{{ $sale->invoice_number }}</span>
+                    @if (! empty($sale->sync_flags['rerung']['invoice_number']))
+                        {{-- A held till sale re-rung on the server (stage 10, step 5c): the customer's receipt has the till's number. --}}
+                        <br><span class="info-value">{{ __('Re-rung from till receipt :number', ['number' => $sale->sync_flags['rerung']['invoice_number']]) }}</span>
+                    @endif
                 </div>
                 <div>
                     <span class="info-label">Date:</span>

@@ -121,7 +121,8 @@ const WEB_RESOURCES = [
     'suppliers' => ['show', 'update', 'destroy'],
     'users' => ['show', 'update', 'destroy', 'till-pin.reset', 'till-pin.unlock'],
     'invites' => ['resend', 'destroy', 'role'],
-    'sync-issues' => ['resolve', 'merge'],
+    // Held till items' resolutions (stage 10, step 5c).
+    'sync-issues' => ['resolve', 'merge', 'accept', 'discard', 'rerung'],
     // Void requests (stage 10, step 2) and refunds owed (step 4).
     'void-requests' => ['approve', 'reject', 'cancel'],
     'refunds-due' => ['pay'],

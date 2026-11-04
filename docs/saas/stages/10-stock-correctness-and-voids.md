@@ -1053,7 +1053,12 @@ is deployed.
 > **Built in parts (4 November 2026).** Part 1 (`TillVoidTest`, `ApiV1VoidContractTest`): the online void, the
 > `sale_void` push item (with the `pending` status and `sale_not_synced`), the till-session payouts and closed-session
 > corrections decided on 4 November, `voidable`/`voidable_until` on the receipt, `sale_voids` and `pending_removal` in the
-> pull, the `void_refused` issue, and the matrix rows. Parts 2 and 3 follow; their items are ticked as they are built.
+> pull, the `void_refused` issue, and the matrix rows. Part 2 (`SyncDispositionsTest`): dispositions, the `*_not_synced`
+> codes, `LegacyRefusals`, `X-App-Version`, `outbox_count` and the re-pairing check. Part 3 (`HeldItemsTest`): held
+> items on the till sync review (`held_item`, accept with the fix each code allows, discard, "discard and record as a new
+> web sale" with `nextWeb()` brought forward from step 5d), receipts' `outcome` and the pull's `resolved_items`,
+> `outbox_item_discarded`, `sales.sync_flags`, and the `refunds_due` sources `duplicate_payment` and `late_payment`.
+> Done 4 November 2026.
 - [x] **Online:** `POST /api/v1/sales/{uuid}/void` (`reason` required), through `SalePolicy::void` (permission,
       `VoidWindow` checked at the current time, no return that isn't rejected, not already voided) and the same void
       action as the web
@@ -1095,7 +1100,7 @@ is deployed.
   - both are about time and the sale's state only, so they are the same for everyone; the app combines `voidable`
     with the signed-in person's `sales.void` from the staff list to show or hide its Void button. Neither exists in
     the code yet (checked 28 October 2026: `SaleReceipt` carries no void field), so no Phase 7 app reads them.
-- [ ] **One refund issue type, `refund_due`** (built in step 4 as the `refunds_due` table and the Refunds owed list,
+- [x] **One refund issue type, `refund_due`** (built in step 4 as the `refunds_due` table and the Refunds owed list,
       not a sync issue; 5c adds the till sources and links the review to it), on the till sync review, carrying a `source` (`void` or
       `late_payment`), the `method`, the amount and the payment reference:
   - `source = void`: voiding a sale with M-Pesa or card payments records one per payment, until stage 14 brings
@@ -1122,7 +1127,7 @@ is deployed.
     as `pending`. If someone holding `sales.void` discards the sale, its queued void and payments are discarded with
     it, each with its own `outbox_item_discarded`.
   - **A void whose sale is gone** (the till lost it) is discarded the same way.
-- [ ] **One discard for every stuck outbox item:** a new push item `outbox_item_discarded` (`item_type`: `sale`,
+- [x] **One discard for every stuck outbox item:** a new push item `outbox_item_discarded` (`item_type`: `sale`,
       `sale_void`, `sale_payment`, `customer`, `cash_session`, `till_sign_in`, `mpesa_code`, and any type a later
       stage adds; the discarded item's `client_uuid`; `reason`; `discarded_by`, who must hold `sync-issues.discard`).
       It is
@@ -1148,7 +1153,7 @@ is deployed.
   item first", not a fault: they become `customer_not_synced`, `sale_not_synced` and `cash_session_not_synced`
   (`ApiErrorCode`), status `pending`, disposition `retry`. `disposition` is an addition; the `status` of every
   other Phase 7 refusal is unchanged.
-- [ ] **Accepting a held item** (decided): every held refusal records a `held_item` issue on the till sync review
+- [x] **Accepting a held item** (decided): every held refusal records a `held_item` issue on the till sync review
       with the raw item, its code and message. Its resolutions:
   - **Accept** (`sync-issues.accept`, new: the owner and the manager template, through step 0's rollout): the server
     applies the item as the till sent it, through the same handler, with the fix the code needs:
@@ -1196,7 +1201,7 @@ is deployed.
     The next pull also lists it in a new `resolved_items` section (`client_uuid`, `outcome`, `result`), so a till that
     no longer pushes it still clears it.
   - Audited either way; neither can be done twice (the issue's status and the receipt are checked under a lock).
-- [ ] **Which validation errors can be corrected** (decided). A pushed sale passes through Phase 7's `SaleHandler`
+- [x] **Which validation errors can be corrected** (decided). A pushed sale passes through Phase 7's `SaleHandler`
       (lease, the customer by client uuid), `StoreSaleRequest` (its rules, the credit-customer check, the discount
       check, the variation check), `PushPeople` (the cashier) and `RecordSale`, checked 27 October 2026. Each rule is
       in exactly one group; the review screen offers exactly what the group allows:
@@ -1226,8 +1231,8 @@ is deployed.
 
   Stage 11 adds `fractional_quantity` (accepted on the push, flagged) and `unknown_unit` (discard only); stage 11b's
   price checks never refuse a pushed sale.
-- [ ] **The flags** are recorded on the sale (`sales.sync_flags`, JSON) and on the issue, and shown on the sale page.
-- [ ] **A payment pushed for a sale already paid** (decided): `PaymentHandler` records a `refund_due` with
+- [x] **The flags** are recorded on the sale (`sales.sync_flags`, JSON) and on the issue, and shown on the sale page.
+- [x] **A payment pushed for a sale already paid** (decided): `PaymentHandler` records a `refund_due` with
       `source = duplicate_payment` (amount, method, reference, the sale) and answers `refused` with
       `sale_already_paid`, disposition **drop**, so the till clears it. The money is on the review as owed back.
 - [x] **The app's version** (decided): every push, pull and pairing request sends `X-App-Version` (semantic version).
@@ -1239,11 +1244,11 @@ is deployed.
       → `validation_failed`, `sale_not_synced` and `cash_session_not_synced` → `not_found`, status `pending` →
       `refused`, and no `disposition`. A `sale_void` or `outbox_item_discarded` can't come from such an app. The
       minimum version for each feature is in "Contract".
-- [ ] **Housekeeping:** the route gets its rows in `TenantIsolation/ResourceMatrixTest` (another business's sale is a
+- [x] **Housekeeping:** the route gets its rows in `TenantIsolation/ResourceMatrixTest` (another business's sale is a
       404; a till of another shop is a 404). The v1 contract test records only sign-in and parameter-free GETs, so
       a new `ApiV1VoidContractTest` pins the shape and status of each refusal (`void_window_closed`,
       `sale_has_returns`, `sale_already_voided`, 403) and of a successful void.
-- [ ] Tests:
+- [x] Tests:
   - an online and an offline void release stock as the web's does;
   - a sale and its void both recorded offline on Monday and pushed on Tuesday are accepted; a void recorded on
     Tuesday for Monday's sale is refused `void_window_closed`;

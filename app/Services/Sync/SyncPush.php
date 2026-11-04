@@ -4,13 +4,16 @@ namespace App\Services\Sync;
 
 use App\Enums\ApiErrorCode;
 use App\Exceptions\SubscriptionInactive;
+use App\Models\RefundDue;
 use App\Models\Register;
+use App\Models\SyncIssue;
 use App\Models\SyncPushReceipt;
 use App\Models\User;
 use App\Services\Billing\Entitlements;
 use App\Services\Sync\Push\CashSessionHandler;
 use App\Services\Sync\Push\CustomerHandler;
 use App\Services\Sync\Push\MpesaCodeHandler;
+use App\Services\Sync\Push\OutboxItemDiscardedHandler;
 use App\Services\Sync\Push\PaymentHandler;
 use App\Services\Sync\Push\PushHandler;
 use App\Services\Sync\Push\PushItem;
@@ -19,6 +22,7 @@ use App\Services\Sync\Push\PushRefused;
 use App\Services\Sync\Push\SaleHandler;
 use App\Services\Sync\Push\SaleVoidHandler;
 use App\Services\Sync\Push\TillSignInHandler;
+use App\Support\Sales\VoidRefunds;
 use App\Support\Sync\Dispositions;
 use App\Support\Sync\SyncIssues;
 use Illuminate\Database\UniqueConstraintViolationException;
@@ -58,6 +62,8 @@ class SyncPush
         'mpesa_code' => MpesaCodeHandler::class,
         // A void recorded at the till (stage 10, step 5c).
         'sale_void' => SaleVoidHandler::class,
+        // A till abandons an outbox item (stage 10, step 5c).
+        'outbox_item_discarded' => OutboxItemDiscardedHandler::class,
     ];
 
     /**
@@ -70,9 +76,61 @@ class SyncPush
             $result = $this->apply($register, $user, $raw);
             // What the till does with it (stage 10, step 5c).
             $disposition = Dispositions::for((string) $result['status'], $result['code'] ?? null);
+            if ($disposition === Dispositions::HOLD) {
+                $this->hold($register, $raw, $result);
+            }
 
             return $disposition === null ? $result : [...$result, 'disposition' => $disposition];
         }, $items);
+    }
+
+    /**
+     * A held item goes on the till sync review with the raw item, its code and
+     * message, for a manager to accept or discard (stage 10, step 5c). Once per
+     * client uuid: pushing it again doesn't add another.
+     *
+     * @param  array<string, mixed>  $raw
+     * @param  array<string, mixed>  $result
+     */
+    private function hold(Register $register, array $raw, array $result): void
+    {
+        app(SyncIssues::class)->record(SyncIssue::HELD_ITEM, 'held:'.$raw['client_uuid'], [
+            'client_uuid' => $raw['client_uuid'],
+            'item_type' => $raw['type'],
+            'recorded_at' => $raw['recorded_at'],
+            'item' => $raw['data'] ?? [],
+            'code' => $result['code'] ?? null,
+            'message' => $result['message'] ?? null,
+            'errors' => $result['errors'] ?? null,
+            'till' => $register->code,
+            'pushed_by' => $raw['pushed_by'] ?? null,
+        ], $register);
+    }
+
+    /**
+     * Applies a held item a manager accepted on the review (stage 10, step 5c),
+     * through its own handler with $accept standing in for the checks it
+     * failed, and records it `accepted`, so the till's next push of it answers
+     * `applied`. Throws what the handler throws.
+     *
+     * @param  array{client_uuid: string, type: string, recorded_at: string, data?: array<string, mixed>}  $raw
+     * @param  array<string, mixed>  $accept
+     * @return array<string, mixed> the handler's result
+     */
+    public function applyAccepted(Register $register, User $user, array $raw, array $accept): array
+    {
+        $handler = self::HANDLERS[$raw['type']] ?? throw new \InvalidArgumentException('Unknown item type.');
+        $item = new PushItem($raw['client_uuid'], $raw['type'], Carbon::parse($raw['recorded_at']), $raw['data'] ?? [], $register, $user, $accept);
+
+        return DB::transaction(function () use ($handler, $item, $register): array {
+            $result = app($handler)->handle($item);
+            SyncPushReceipt::create([
+                'register_id' => $register->id, 'client_uuid' => $item->clientUuid, 'type' => $item->type,
+                'result' => $result, 'outcome' => SyncPushReceipt::ACCEPTED, 'applied_at' => now(),
+            ]);
+
+            return $result;
+        });
     }
 
     /**
@@ -85,7 +143,12 @@ class SyncPush
 
         $done = SyncPushReceipt::query()->where('client_uuid', $raw['client_uuid'])->first();
         if ($done !== null) {
-            return [...$base, 'status' => 'duplicate', 'result' => $done->result];
+            // Settled on the till sync review (stage 10, step 5c): the till clears it either way.
+            return match ($done->outcome) {
+                SyncPushReceipt::DISCARDED => [...$base, 'status' => 'discarded', 'result' => $done->result],
+                SyncPushReceipt::ACCEPTED => [...$base, 'status' => 'applied', 'result' => $done->result],
+                default => [...$base, 'status' => 'duplicate', 'result' => $done->result],
+            };
         }
 
         $handler = self::HANDLERS[$raw['type']] ?? null;
@@ -121,6 +184,13 @@ class SyncPush
             // Outside the rolled-back transaction, so the issue is kept for review.
             if ($e->issue !== null) {
                 app(SyncIssues::class)->record($e->issue['type'], $e->issue['key'], $e->issue['details'], $register);
+            }
+            // Money owed back, kept although the item isn't (stage 10, step 5c).
+            if ($e->refund !== null) {
+                $refund = RefundDue::query()->firstOrCreate(['source' => $e->refund['source'], 'reference' => $e->refund['reference'], 'sale_id' => $e->refund['sale_id']], [...$e->refund, 'shop_id' => $register->shop_id, 'status' => 'pending']);
+                if ($refund->wasRecentlyCreated) {
+                    app(VoidRefunds::class)->notifyPayers($refund);
+                }
             }
 
             return [...$base, 'status' => 'refused', 'code' => $e->errorCode->value, 'message' => $e->getMessage(), 'errors' => $e->errors];

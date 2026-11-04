@@ -1,3 +1,25 @@
+@if (! empty($sale->sync_flags))
+    {{-- How a held till sale was accepted (stage 10, step 5c). --}}
+    <div class="alert alert-info" role="status" id="sale-sync-flags">
+        @if (! empty($sale->sync_flags['rerung']['invoice_number']))
+            <p class="mb-1">{{ __('Re-rung from till receipt :number: the till\'s number was already taken, so this sale was recorded on the server with a web number.', ['number' => $sale->sync_flags['rerung']['invoice_number']]) }}</p>
+        @endif
+        @php
+            $labels = [
+                'accepted_outside_lease' => __('accepted outside the till\'s trading lease'),
+                'accepted_invalid_series' => __('accepted with a number outside the till\'s series'),
+                'large_line' => __('a line above the usual limits'),
+                'large_amount' => __('an amount above the usual limits'),
+                'bad_email' => __('the customer\'s email left out, as it wasn\'t an email'),
+                'text_shortened' => __('long text shortened'),
+            ];
+            $shown = collect($sale->sync_flags)->keys()->intersect(array_keys($labels));
+        @endphp
+        @if ($shown->isNotEmpty())
+            <p class="mb-0">{{ __('Accepted from the till as recorded: :flags.', ['flags' => $shown->map(fn ($flag) => $labels[$flag])->implode('; ')]) }}</p>
+        @endif
+    </div>
+@endif
 {{--
     A sale flagged for review (stage 10, step 5b): an online order cancelled after
     dispatch, unrefunded or part-refunded in its store. Shown until resolved; the owner

@@ -35,7 +35,12 @@ final class PaymentHandler implements PushHandler
             ->first() ?? throw new PushPending(ApiErrorCode::SaleNotSynced, __('No such sale in this shop yet. Push the sale before its payment.'));
 
         if ($sale->payment_status === 'paid') {
-            throw new PushRefused(ApiErrorCode::SaleAlreadyPaid, __('This sale is already fully paid.'));
+            // The money is owed back (stage 10, step 5c); nothing for the till to keep.
+            throw new PushRefused(ApiErrorCode::SaleAlreadyPaid, __('This sale is already fully paid.'), null, null, [
+                'source' => 'duplicate_payment', 'sale_id' => $sale->id, 'method' => $data['payment_method'],
+                'amount' => round((float) $data['amount'], 2), 'reference' => $data['reference'] ?? $item->clientUuid,
+                'notes' => __('Paid at the till for a sale already paid.'),
+            ]);
         }
 
         $cashier = $this->people->staff($data['cashier'] ?? null, $item);

@@ -141,6 +141,10 @@ Route::middleware(['auth', 'business'])->group(function () {
     Route::get('sync-issues', [SyncIssueController::class, 'index'])->name('sync-issues.index');
     Route::post('sync-issues/{syncIssue:uuid}/resolve', [SyncIssueController::class, 'resolve'])->name('sync-issues.resolve');
     Route::post('sync-issues/{syncIssue:uuid}/merge', [SyncIssueController::class, 'merge'])->name('sync-issues.merge');
+    // Held till items (stage 10, step 5c).
+    Route::post('sync-issues/{syncIssue:uuid}/accept', [SyncIssueController::class, 'accept'])->name('sync-issues.accept')->middleware('throttle:10,1');
+    Route::post('sync-issues/{syncIssue:uuid}/discard', [SyncIssueController::class, 'discard'])->name('sync-issues.discard')->middleware('throttle:10,1');
+    Route::post('sync-issues/{syncIssue:uuid}/rerung', [SyncIssueController::class, 'rerung'])->name('sync-issues.rerung')->middleware('throttle:10,1');
 
     // The business's data: exports and closure (stage 3; owners only).
     Route::get('business/integrations', [BusinessIntegrationController::class, 'edit'])->name('business.integrations.edit');

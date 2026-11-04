@@ -13,6 +13,7 @@ use App\Models\Sale;
 use App\Models\ShopVariation;
 use App\Models\StockAdjustmentItem;
 use App\Models\SyncDeletion;
+use App\Models\SyncPushReceipt;
 use App\Models\TillPin;
 use App\Models\User;
 use App\Support\Tenancy\TenantContext;
@@ -48,7 +49,7 @@ use Illuminate\Support\Collection;
 class SyncPull
 {
     /** The paged entities, in the order the till should apply them. */
-    public const ENTITIES = ['categories', 'products', 'variations', 'pricing_rules', 'customers', 'stock', 'payment_requests', 'sale_voids'];
+    public const ENTITIES = ['categories', 'products', 'variations', 'pricing_rules', 'customers', 'stock', 'payment_requests', 'sale_voids', 'resolved_items'];
 
     /** Entities paged by a column other than `updated_at`. */
     private const PAGED_BY = ['sale_voids' => 'voided_at'];
@@ -229,6 +230,13 @@ class SyncPull
                 // the till warns when it sells into them; stock is never held.
                 'pending_removal' => $this->pendingRemoval[(int) $stock->variation_id] ?? 0,
                 'updated_at' => $stock->updated_at?->toIso8601String(),
+            ]],
+            // Held or stuck items settled on the server (stage 10, step 5c): the till clears them.
+            'resolved_items' => [SyncPushReceipt::query()->where('sync_push_receipts.register_id', $register->id)->whereIn('outcome', [SyncPushReceipt::ACCEPTED, SyncPushReceipt::DISCARDED]), fn (SyncPushReceipt $receipt): array => [
+                'client_uuid' => $receipt->client_uuid,
+                'type' => $receipt->type,
+                'outcome' => $receipt->outcome,
+                'result' => $receipt->result,
             ]],
             'sale_voids' => [Sale::query()->where('sales.shop_id', $register->shop_id)->where('sales.status', 'voided'), fn (Sale $sale): array => [
                 'uuid' => $sale->uuid,

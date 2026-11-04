@@ -93,6 +93,28 @@
                                                 <div><a href="{{ route('sales.show', $sale) }}">{{ $sale->invoice_number }}</a></div>
                                             @endif
                                             @break
+                                        @case(\App\Models\SyncIssue::HELD_ITEM)
+                                            {{ __('A :type the till recorded :when was refused (:code): :message', [
+                                                'type' => str_replace('_', ' ', $details['item_type'] ?? ''),
+                                                'when' => isset($details['recorded_at']) ? \Illuminate\Support\Carbon::parse($details['recorded_at'])->toDayDateTimeString() : '?',
+                                                'code' => $details['code'] ?? '?', 'message' => $details['message'] ?? '',
+                                            ]) }}
+                                            @if (! empty($details['item']['invoice_number']))
+                                                <div class="text-muted">{{ __('Till receipt :number', ['number' => $details['item']['invoice_number']]) }}</div>
+                                            @endif
+                                            @if ($options = $held->get($issue->id))
+                                                <div class="text-muted">{{ $options['reason'] }}</div>
+                                            @endif
+                                            @break
+                                        @case(\App\Models\SyncIssue::VOID_REFUSED)
+                                            {{ __(':person voided sale :invoice at till :till (:when), but the sale had a return since, so the void wasn\'t applied. Reason given: :reason', [
+                                                'person' => $details['person'] ?? '?', 'invoice' => $details['invoice_number'] ?? '?', 'till' => $details['till'] ?? '?',
+                                                'when' => isset($details['recorded_at']) ? \Illuminate\Support\Carbon::parse($details['recorded_at'])->toDayDateTimeString() : '?', 'reason' => $details['reason'] ?? '',
+                                            ]) }}
+                                            @break
+                                        @case(\App\Models\SyncIssue::OUTBOX_ITEM_DISCARDED)
+                                            {{ __(':person discarded a :type at till :till: :reason', ['person' => $details['person'] ?? '?', 'type' => str_replace('_', ' ', $details['item_type'] ?? ''), 'till' => $details['till'] ?? '?', 'reason' => $details['reason'] ?? '']) }}
+                                            @break
                                     @endswitch
                                 </td>
                                 <td class="text-nowrap small">{{ $issue->created_at->diffForHumans() }}</td>
@@ -100,6 +122,8 @@
                                     @if ($showResolved)
                                         <span class="small">{{ __(ucfirst((string) $issue->resolution)) }}</span>
                                         <div class="text-muted small">{{ $issue->resolvedBy?->name ?? __('by the server') }}, {{ $issue->resolved_at?->diffForHumans() }}</div>
+                                    @elseif ($issue->type === \App\Models\SyncIssue::HELD_ITEM && $held->has($issue->id))
+                                        @include('sync-issues.partials.held', ['options' => $held->get($issue->id)])
                                     @else
                                         @can('resolve', $issue)
                                             <div class="d-flex flex-column flex-sm-row justify-content-end gap-2">

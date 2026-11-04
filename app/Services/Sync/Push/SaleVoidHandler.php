@@ -42,7 +42,9 @@ final class SaleVoidHandler implements PushHandler
             'voided_by' => ['nullable', 'uuid'],
         ])->validate();
 
-        if (! $this->leases->covers($item->register->id, $item->recordedAt)) {
+        // Accepted outside its lease (step 5c): only within the window at the server's time.
+        $outsideLease = $item->accepting('skip_lease');
+        if (! $outsideLease && ! $this->leases->covers($item->register->id, $item->recordedAt)) {
             throw new PushRefused(ApiErrorCode::OutsideTradingLease, __('This void was recorded outside the time this till was allowed to trade offline.'));
         }
 
@@ -71,8 +73,9 @@ final class SaleVoidHandler implements PushHandler
             ]);
         }
 
-        if (! $this->window->allows($sale, $item->recordedAt)) {
-            throw new PushRefused(ApiErrorCode::VoidWindowClosed, $this->window->refusal($sale, $item->recordedAt));
+        $judgedAt = $outsideLease ? now() : $item->recordedAt;
+        if (! $this->window->allows($sale, $judgedAt)) {
+            throw new PushRefused(ApiErrorCode::VoidWindowClosed, $this->window->refusal($sale, $judgedAt));
         }
 
         $result = $this->void->execute($sale, $data['reason'], $person, till: $item->register, recordedAt: $item->recordedAt);

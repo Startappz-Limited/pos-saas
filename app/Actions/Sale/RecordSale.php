@@ -124,9 +124,12 @@ class RecordSale
                 'customer_tax_pin' => $validated['customer_tax_pin']
                     ?? ($validated['customer_id'] ?? null ? Customer::find($validated['customer_id'])?->tax_pin : null),
                 'delivery_company_id' => $validated['delivery_company_id'] ?? null,
-                'invoice_number' => $context->invoiceNumber !== null
-                    ? $this->adoptInvoiceNumber($shopId, (int) $activeRegister->register_id, $context->invoiceNumber, $at, $adoption)
-                    : app(InvoiceNumberService::class)->next($shop ?? $shopId, $activeRegister->register_id),
+                'invoice_number' => match (true) {
+                    $context->invoiceNumber !== null && $context->invoiceAsGiven => $context->invoiceNumber,
+                    $context->invoiceNumber !== null => $this->adoptInvoiceNumber($shopId, (int) $activeRegister->register_id, $context->invoiceNumber, $at, $adoption),
+                    $context->webSeries => app(InvoiceNumberService::class)->nextWeb($shop ?? $shopId, $at),
+                    default => app(InvoiceNumberService::class)->next($shop ?? $shopId, $activeRegister->register_id),
+                },
                 'sale_type' => 'regular',
                 'subtotal' => $totals->subtotal,
                 'discount_amount' => $totals->discountAmount,

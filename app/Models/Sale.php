@@ -67,6 +67,8 @@ class Sale extends Model
         // The till it was voided at, and when the till recorded it (stage 10, step 5c).
         'voided_register_id',
         'void_recorded_at',
+        // How a held till sale was accepted (stage 10, step 5c).
+        'sync_flags',
         'created_by',
     ];
 
@@ -74,6 +76,7 @@ class Sale extends Model
         'completed_at' => 'datetime',
         'voided_at' => 'datetime',
         'void_recorded_at' => 'datetime',
+        'sync_flags' => 'array',
         'is_cod' => 'boolean',
         'tax_inclusive' => 'boolean',
         'tax_breakdown' => 'array',

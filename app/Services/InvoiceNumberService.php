@@ -151,6 +151,42 @@ class InvoiceNumberService
      * `adj:{year}`. Call within the adjustment's transaction, so a failed save
      * gives the number back.
      */
+    /**
+     * The next number in the shop's web series (stage 10, step 5d):
+     * `INV-{shop}-W-{year}-{n}`, series key `w{shop}:{year}`, for sales the
+     * server numbers (the web POS, the flat API, online orders, abandoned carts,
+     * a re-rung till sale). `W` is never a register code (codes are `R` and
+     * digits), so a web number can't collide with a till's.
+     */
+    public function nextWeb(Shop|int $shop, ?CarbonInterface $at = null): string
+    {
+        $shopId = $shop instanceof Shop ? (int) $shop->id : $shop;
+        $period = $this->period($at);
+        $number = $this->claimInSeries($shopId, self::webSeries($shopId, $period), "shop {$shopId}'s web sales");
+
+        return $this->format(DB::table('shops')->where('id', $shopId)->value('code'), self::WEB_CODE, $period, $number);
+    }
+
+    public const WEB_CODE = 'W';
+
+    public static function webSeries(int $shopId, string $period): string
+    {
+        return "w{$shopId}:{$period}";
+    }
+
+    /**
+     * Whether $invoiceNumber is in a shop's web series (a till may never use one).
+     */
+    public function isWebNumber(int $shopId, string $invoiceNumber): bool
+    {
+        $separator = (string) config('invoicing.separator', '-');
+        // A marker that can't occur in a number, cut off to leave `INV-{shop}-W`.
+        $probe = $this->format(DB::table('shops')->where('id', $shopId)->value('code'), self::WEB_CODE, 'YEAR', 1);
+        $stem = substr($probe, 0, (int) strpos($probe, $separator.'YEAR'));
+
+        return str_starts_with($invoiceNumber, $stem.$separator);
+    }
+
     public function nextAdjustment(Shop|int $shop, ?CarbonInterface $at = null): string
     {
         $shop = $shop instanceof Shop ? $shop : Shop::query()->findOrFail($shop);

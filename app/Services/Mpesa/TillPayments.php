@@ -5,12 +5,14 @@ namespace App\Services\Mpesa;
 use App\Actions\Sale\RecordSalePayment;
 use App\Contracts\MpesaGateway;
 use App\Models\PaymentRequest;
+use App\Models\RefundDue;
 use App\Models\Register;
 use App\Models\Sale;
 use App\Models\Shop;
 use App\Models\SyncIssue;
 use App\Models\User;
 use App\Support\PhoneNumber;
+use App\Support\Sales\VoidRefunds;
 use App\Support\Sync\SyncIssues;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Carbon;
@@ -204,6 +206,21 @@ class TillPayments
         $sale = $request->sale_client_uuid === null ? null : Sale::query()->where('client_uuid', $request->sale_client_uuid)->first();
 
         if ($request->status !== PaymentRequest::CONFIRMED || $request->applied_at !== null || $sale === null) {
+            return;
+        }
+
+        // A voided sale takes no payment (stage 10, step 5c): the money is owed back.
+        if ($sale->status === 'voided') {
+            $claimed = PaymentRequest::query()->whereKey($request->id)->where('status', PaymentRequest::CONFIRMED)->whereNull('applied_at')
+                ->update(['applied_at' => now(), 'sale_id' => $sale->id]);
+            if ($claimed === 1) {
+                $refund = RefundDue::query()->firstOrCreate(['source' => 'late_payment', 'reference' => $request->mpesa_receipt ?? $request->uuid, 'sale_id' => $sale->id], [
+                    'shop_id' => $sale->shop_id, 'method' => 'mobile_money', 'amount' => round((float) ($request->paid_amount ?? $request->amount), 2), 'status' => 'pending',
+                    'notes' => __('M-Pesa confirmed after the sale was voided.'),
+                ]);
+                app(VoidRefunds::class)->notifyPayers($refund);
+            }
+
             return;
         }
 

@@ -232,6 +232,14 @@ final class VoidRefunds
     }
 
     /**
+     * Tells the people who may pay it that a refund is owed (the shared rule).
+     */
+    public function notifyPayers(RefundDue $refund, ?User $except = null): void
+    {
+        $this->inbox->request($this->subject($refund), $this->payersOf($refund, $except));
+    }
+
+    /**
      * The person's own open session in the shop, if they have one.
      */
     public function ownSession(User $user, int $shopId): ?CashRegister
