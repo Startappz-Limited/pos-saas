@@ -3,6 +3,18 @@
 @section('title', 'Sale Details')
 
 @section('content')
+    @include('sales.partials.void')
+    @include('sales.partials.review')
+
+    @if (! empty($deletion))
+        <div class="alert alert-danger" role="status" id="sale-deleted">
+            <strong>{{ __('Deleted') }}</strong>:
+            {{ __('this sale was deleted :when:by. It stays in the records with its invoice number, which is never issued again.', [
+                'when' => $deletion['at']?->format('M d, Y H:i'),
+                'by' => $deletion['by'] ? ' '.__('by :name', ['name' => $deletion['by']]) : '',
+            ]) }}
+        </div>
+    @endif
 
     <div class="row">
         <div class="col-12">
@@ -35,6 +47,12 @@
                                     <a href="{{ route('sales.edit', $sale) }}" class="btn btn-soft-primary">
                                         <iconify-icon icon="solar:pen-linear" class="align-middle me-1"></iconify-icon> Edit
                                     </a>
+                                @endif
+                                @if ($voiding['show'] ?? false)
+                                    <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#voidSaleModal" id="void-sale-button">
+                                        <iconify-icon icon="solar:close-circle-bold-duotone" class="align-middle me-1" aria-hidden="true"></iconify-icon>
+                                        {{ __('Void sale') }}
+                                    </button>
                                 @endif
                                 <a href="{{ route('sales.index') }}" class="btn btn-soft-secondary">
                                     <iconify-icon icon="solar:arrow-left-linear" class="align-middle me-1"></iconify-icon>
@@ -222,6 +240,9 @@
                                             <td>
                                                 <div class="fw-medium">{{ $item->product->name }}</div>
                                                 <small class="text-muted">SKU: {{ $item->product->sku }}</small>
+                                                @if (! $item->cost_known)
+                                                    @include('sales.partials.cost-incomplete')
+                                                @endif
                                             </td>
                                             <td>
                                                 @if ($item->variation)
@@ -334,6 +355,8 @@
                             <p class="text-muted mb-0">{{ $sale->notes }}</p>
                         </div>
                     @endif
+
+                    @include('sales.partials.void-request')
 
                     <!-- Payment History -->
                     @if ($sale->payments->count() > 0)

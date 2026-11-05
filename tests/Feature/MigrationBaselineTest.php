@@ -33,6 +33,10 @@ const INTENDED_COLUMN_CHANGES = [
     // reference is cleared instead (Phase 1 schema).
     'cash_registers.user_id' => 'nullable',
     'expense_approval_history.user_id' => 'nullable',
+    // Written when stock moves, not when a draft line is added; existing values
+    // are kept (stage 10, step 1g).
+    'stock_adjustment_items.quantity_before' => 'nullable',
+    'stock_adjustment_items.quantity_after' => 'nullable',
 ];
 
 /**

@@ -1,4 +1,14 @@
 # Module 21: Stock Adjustments
+
+> **Superseded (stage 10, step 1g).** Built, with bugs fixed in stage 10: adjustments only moved the default
+> variation, recorded their figures at draft time, let the type and reason disagree, needed approval for every
+> reason (the `requiresApproval()` below is never called) and then a separate "complete", and used random
+> numbers. Now a creator holding `stock-adjustments.approve` applies on saving; loss, theft, damage, expiry, quality
+> issues, giveaways, a recount that lowers stock, an unknown cost, or a value at or above the owner's threshold (one
+> person's day at a shop counted together) wait for a second person, who is notified; approving applies the stock;
+> adjustments are cancelled, never deleted, and keep their numbers (`ADJ-{shop}-{year}-{n}`); "returned to
+> supplier" is a purchase return. Batches, costs and units on adjustments are in stage 11; counts are stocktakes,
+> stage 13. Every finding and where it went: [TRACEABILITY-stock.md](../saas/stages/TRACEABILITY-stock.md).
 ## Stock Taking & Sales Management System
 
 > **Important:** This module follows the guidelines defined in `.ai/general/` folder.

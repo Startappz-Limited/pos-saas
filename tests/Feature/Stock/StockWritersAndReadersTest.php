@@ -78,6 +78,7 @@ describe('writers', function () {
 
     it('applies stock adjustments to the shop, up as a layer and down from the oldest layers', function () {
         $this->ledger->receive($this->shop->id, $this->variation, 3, 10, StockMovementType::INTAKE);
+        // Signed lines, applied in one step by approving (stage 10, step 1g).
         $adjust = function (string $type, int $quantity) {
             $adjustment = StockAdjustment::create([
                 'uuid' => (string) Str::uuid(), 'adjustment_number' => 'ADJ-'.Str::random(5), 'shop_id' => $this->shop->id,
@@ -85,10 +86,11 @@ describe('writers', function () {
             ]);
             StockAdjustmentItem::create([
                 'uuid' => (string) Str::uuid(), 'stock_adjustment_id' => $adjustment->id, 'product_id' => $this->product->id,
-                'shop_id' => $this->shop->id, 'quantity_before' => 0, 'quantity_change' => $quantity, 'quantity_after' => 0,
+                'shop_id' => $this->shop->id, 'quantity_change' => $type === 'increase' ? $quantity : -$quantity,
             ]);
 
-            return app(StockAdjustmentService::class)->completeAdjustment($adjustment->fresh());
+            // Approved by a second person (stage 10, step 1g).
+            return app(StockAdjustmentService::class)->approveAdjustment($adjustment->fresh(), User::factory()->create()->id);
         };
 
         $adjust('increase', 4);
@@ -97,7 +99,7 @@ describe('writers', function () {
         // 3 at 10, then 4 at the latest layer's cost (10); 5 taken oldest first.
         expect($this->ledger->quantity($this->shop->id, $this->variation->id))->toBe(2)
             ->and(layers())->toBe([['intake', 10.0, 0], ['adjustment', 10.0, 2]])
-            ->and(fn () => $adjust('decrease', 3))->toThrow(Exception::class, 'negative stock');
+            ->and(fn () => $adjust('decrease', 3))->toThrow(Exception::class, 'below zero');
     });
 
     it('ships a purchase return from its own intake\'s layer first', function () {

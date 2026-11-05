@@ -15,6 +15,7 @@ use App\Http\Controllers\BusinessSettingsController;
 use App\Http\Controllers\BusinessSwitchController;
 use App\Http\Controllers\CalendarController;
 use App\Http\Controllers\CampaignController;
+use App\Http\Controllers\CashPayoutController;
 use App\Http\Controllers\CashRegisterController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\CreditAccountController;
@@ -27,6 +28,7 @@ use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\InventorySnapshotController;
 use App\Http\Controllers\InvitationController;
 use App\Http\Controllers\LowStockAlertController;
+use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\Platform\BusinessController as PlatformBusinessController;
 use App\Http\Controllers\Platform\DashboardController as PlatformDashboardController;
@@ -42,10 +44,12 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PurchaseOrderController;
 use App\Http\Controllers\PurchaseReturnController;
 use App\Http\Controllers\RefundController;
+use App\Http\Controllers\RefundDueController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\ReturnController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\SaleController;
+use App\Http\Controllers\SaleVoidRequestController;
 use App\Http\Controllers\ShopController;
 use App\Http\Controllers\ShopMpesaController;
 use App\Http\Controllers\SocialAccountController;
@@ -137,6 +141,10 @@ Route::middleware(['auth', 'business'])->group(function () {
     Route::get('sync-issues', [SyncIssueController::class, 'index'])->name('sync-issues.index');
     Route::post('sync-issues/{syncIssue:uuid}/resolve', [SyncIssueController::class, 'resolve'])->name('sync-issues.resolve');
     Route::post('sync-issues/{syncIssue:uuid}/merge', [SyncIssueController::class, 'merge'])->name('sync-issues.merge');
+    // Held till items (stage 10, step 5c).
+    Route::post('sync-issues/{syncIssue:uuid}/accept', [SyncIssueController::class, 'accept'])->name('sync-issues.accept')->middleware('throttle:10,1');
+    Route::post('sync-issues/{syncIssue:uuid}/discard', [SyncIssueController::class, 'discard'])->name('sync-issues.discard')->middleware('throttle:10,1');
+    Route::post('sync-issues/{syncIssue:uuid}/rerung', [SyncIssueController::class, 'rerung'])->name('sync-issues.rerung')->middleware('throttle:10,1');
 
     // The business's data: exports and closure (stage 3; owners only).
     Route::get('business/integrations', [BusinessIntegrationController::class, 'edit'])->name('business.integrations.edit');
@@ -296,6 +304,11 @@ Route::middleware(['auth', 'business'])->group(function () {
     Route::get('cash-registers/{cashRegister:uuid}', [CashRegisterController::class, 'show'])->name('cash-registers.show');
     Route::get('cash-registers/{cashRegister:uuid}/close', [CashRegisterController::class, 'closeForm'])->name('cash-registers.close-form');
     Route::post('cash-registers/{cashRegister:uuid}/close', [CashRegisterController::class, 'close'])->name('cash-registers.close')->middleware('throttle:5,1');
+    // Cash out of a session, and refunds owed after voids (stage 10, step 4).
+    Route::post('cash-registers/{cashRegister:uuid}/payouts', [CashPayoutController::class, 'store'])->name('cash-registers.payouts.store')->middleware('throttle:10,1');
+    Route::get('refunds-due', [RefundDueController::class, 'index'])->name('refunds-due.index');
+    Route::post('refunds-due/{refundDue}/pay', [RefundDueController::class, 'pay'])->name('refunds-due.pay')->middleware('throttle:10,1');
+    Route::post('sales/{sale:uuid}/refunds-due', [RefundDueController::class, 'storeForSale'])->name('sales.refunds-due.store')->middleware('throttle:10,1');
 
     // Sales & Transactions Routes (UUID-secured, rate-limited)
     Route::get('sales', [SaleController::class, 'index'])->name('sales.index');
@@ -326,7 +339,8 @@ Route::middleware(['auth', 'business'])->group(function () {
     Route::post('abandoned-carts/{abandonedCart:uuid}/convert', [AbandonedCartController::class, 'convert'])->name('abandoned-carts.convert')->middleware('throttle:20,1');
     Route::post('abandoned-carts/{abandonedCart:uuid}/opt-out', [AbandonedCartController::class, 'optOut'])->name('abandoned-carts.optOut');
     Route::post('sales/delivery-companies', [SaleController::class, 'storeDeliveryCompany'])->name('sales.storeDeliveryCompany');
-    Route::get('sales/{sale:uuid}', [SaleController::class, 'show'])->name('sales.show');
+    // A deleted sale opens for holders of sales.view-all, with a banner (stage 10, step 5).
+    Route::get('sales/{sale:uuid}', [SaleController::class, 'show'])->name('sales.show')->withTrashed();
     Route::get('sales/{sale:uuid}/receipt', [SaleController::class, 'receipt'])->name('sales.receipt');
     Route::get('sales/{sale:uuid}/edit', [SaleController::class, 'edit'])->name('sales.edit');
     Route::put('sales/{sale:uuid}', [SaleController::class, 'update'])->name('sales.update');
@@ -335,6 +349,12 @@ Route::middleware(['auth', 'business'])->group(function () {
     Route::get('sales/completed/list', [SaleController::class, 'completed'])->name('sales.completed');
     Route::post('sales/{sale:uuid}/complete', [SaleController::class, 'complete'])->name('sales.complete');
     Route::post('sales/{sale:uuid}/void', [SaleController::class, 'void'])->name('sales.void')->middleware('throttle:5,1');
+    // Void requests: asked by someone without sales.void, settled by someone with it (stage 10, step 2).
+    Route::post('sales/{sale:uuid}/void-requests', [SaleVoidRequestController::class, 'store'])->name('sales.void-requests.store')->middleware('throttle:5,1');
+    Route::get('void-requests', [SaleVoidRequestController::class, 'index'])->name('void-requests.index');
+    Route::post('void-requests/{voidRequest}/approve', [SaleVoidRequestController::class, 'approve'])->name('void-requests.approve')->middleware('throttle:5,1');
+    Route::post('void-requests/{voidRequest}/reject', [SaleVoidRequestController::class, 'reject'])->name('void-requests.reject');
+    Route::post('void-requests/{voidRequest}/cancel', [SaleVoidRequestController::class, 'cancel'])->name('void-requests.cancel');
     Route::post('sales/{sale:uuid}/collect-payment', [SaleController::class, 'collectPayment'])->name('sales.collectPayment');
     Route::get('sales/{sale:uuid}/payments', [SaleController::class, 'getPayments'])->name('sales.getPayments');
     Route::get('sales/report/daily', [SaleController::class, 'dailyReport'])->name('sales.dailyReport');
@@ -446,6 +466,10 @@ Route::middleware(['auth', 'business'])->group(function () {
 
     // Dashboard Routes
     Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
+
+    // In-app notifications: approval requests, reminders and outcomes (stage 10).
+    Route::get('notifications/{notification}/open', [NotificationController::class, 'open'])->name('notifications.open');
+    Route::post('notifications/read-all', [NotificationController::class, 'readAll'])->name('notifications.read-all');
     Route::post('dashboard/widgets', [DashboardController::class, 'addWidget'])->name('dashboard.addWidget');
     Route::put('dashboard/widgets/{widget}', [DashboardController::class, 'updateWidget'])->name('dashboard.updateWidget');
     Route::delete('dashboard/widgets/{widget}', [DashboardController::class, 'removeWidget'])->name('dashboard.removeWidget');
@@ -488,10 +512,11 @@ Route::middleware(['auth', 'business'])->group(function () {
     // snapshotted onto sale_items at sale time. See .claude/skills/pos-domain-rules.
 
     // Stock Adjustment Routes
-    Route::resource('stock-adjustments', StockAdjustmentController::class);
+    // No destroy: an adjustment is cancelled and keeps its number (stage 10, step 1g).
+    Route::resource('stock-adjustments', StockAdjustmentController::class)->except('destroy');
+    Route::post('stock-adjustments/{stockAdjustment}/cancel', [StockAdjustmentController::class, 'cancel'])->name('stock-adjustments.cancel');
     Route::post('stock-adjustments/{stockAdjustment}/approve', [StockAdjustmentController::class, 'approve'])->name('stock-adjustments.approve');
     Route::post('stock-adjustments/{stockAdjustment}/reject', [StockAdjustmentController::class, 'reject'])->name('stock-adjustments.reject');
-    Route::post('stock-adjustments/{stockAdjustment}/complete', [StockAdjustmentController::class, 'complete'])->name('stock-adjustments.complete');
 });
 
 require __DIR__.'/auth.php';

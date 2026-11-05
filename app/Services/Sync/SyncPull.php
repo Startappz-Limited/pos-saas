@@ -9,8 +9,11 @@ use App\Models\PricingRule;
 use App\Models\Product;
 use App\Models\ProductVariation;
 use App\Models\Register;
+use App\Models\Sale;
 use App\Models\ShopVariation;
+use App\Models\StockAdjustmentItem;
 use App\Models\SyncDeletion;
+use App\Models\SyncPushReceipt;
 use App\Models\TillPin;
 use App\Models\User;
 use App\Support\Tenancy\TenantContext;
@@ -27,8 +30,10 @@ use Illuminate\Support\Collection;
  *
  * - Paged entities, each in `(updated_at, id)` order and at most `$limit` rows
  *   a pull: categories, products, variations, pricing rules, customers, the
- *   stock and shop prices of the till's own shop, and its shop's M-Pesa
- *   payment requests (so an offline till learns what became of an STK Push).
+ *   stock and shop prices of the till's own shop (with the units pending
+ *   adjustments would remove, stage 10, step 5c), its shop's M-Pesa payment
+ *   requests (so an offline till learns what became of an STK Push), and its
+ *   shop's sales voided since, wherever voided (`sale_voids`, by `voided_at`).
  * - Deletions (deletes and soft deletes) from `sync_deletions`, in the same
  *   way. The till drops these first, then applies the changed rows: a deleted
  *   record is never among them, and a restored one comes back as changed.
@@ -44,7 +49,13 @@ use Illuminate\Support\Collection;
 class SyncPull
 {
     /** The paged entities, in the order the till should apply them. */
-    public const ENTITIES = ['categories', 'products', 'variations', 'pricing_rules', 'customers', 'stock', 'payment_requests'];
+    public const ENTITIES = ['categories', 'products', 'variations', 'pricing_rules', 'customers', 'stock', 'payment_requests', 'sale_voids', 'resolved_items'];
+
+    /** Entities paged by a column other than `updated_at`. */
+    private const PAGED_BY = ['sale_voids' => 'voided_at'];
+
+    /** @var array<int, int> units pending stock-adjustment decreases would remove, by variation */
+    private array $pendingRemoval = [];
 
     public function __construct(private TenantContext $tenant) {}
 
@@ -57,10 +68,11 @@ class SyncPull
         $next = new SyncCursor($cursor->positions, $cursor->fingerprints);
         $data = [];
         $hasMore = false;
+        $this->pendingRemoval = $this->pendingRemovals($register);
 
         foreach (self::ENTITIES as $entity) {
             [$query, $present] = $this->entity($entity, $register);
-            [$rows, $more, $position] = $this->page($query, $cursor->position($entity), $horizon, $limit, 'updated_at');
+            [$rows, $more, $position] = $this->page($query, $cursor->position($entity), $horizon, $limit, self::PAGED_BY[$entity] ?? 'updated_at');
 
             $data[$entity] = $rows->map($present)->values()->all();
             $hasMore = $hasMore || $more;
@@ -214,9 +226,43 @@ class SyncPull
                 'selling_price' => self::money($stock->selling_price),
                 'wholesale_price' => self::money($stock->wholesale_price),
                 'is_active' => (bool) $stock->is_active,
+                // Units pending loss, damage or other decreases would remove (stage 10, step 5c):
+                // the till warns when it sells into them; stock is never held.
+                'pending_removal' => $this->pendingRemoval[(int) $stock->variation_id] ?? 0,
                 'updated_at' => $stock->updated_at?->toIso8601String(),
             ]],
+            // Held or stuck items settled on the server (stage 10, step 5c): the till clears them.
+            'resolved_items' => [SyncPushReceipt::query()->where('sync_push_receipts.register_id', $register->id)->whereIn('outcome', [SyncPushReceipt::ACCEPTED, SyncPushReceipt::DISCARDED]), fn (SyncPushReceipt $receipt): array => [
+                'client_uuid' => $receipt->client_uuid,
+                'type' => $receipt->type,
+                'outcome' => $receipt->outcome,
+                'result' => $receipt->result,
+            ]],
+            'sale_voids' => [Sale::query()->where('sales.shop_id', $register->shop_id)->where('sales.status', 'voided'), fn (Sale $sale): array => [
+                'uuid' => $sale->uuid,
+                'client_uuid' => $sale->client_uuid,
+                'voided_at' => $sale->voided_at?->toIso8601String(),
+                'void_recorded_at' => $sale->void_recorded_at?->toIso8601String(),
+                'reason' => $sale->void_reason,
+            ]],
         };
+    }
+
+    /**
+     * Units pending stock-adjustment decreases would remove at the till's
+     * shop, by variation.
+     *
+     * @return array<int, int>
+     */
+    private function pendingRemovals(Register $register): array
+    {
+        return StockAdjustmentItem::query()
+            ->whereHas('stockAdjustment', fn ($query) => $query->where('status', 'pending'))
+            ->where('shop_id', $register->shop_id)->where('quantity_change', '<', 0)->whereNotNull('variation_id')
+            ->get(['variation_id', 'quantity_change'])
+            ->groupBy('variation_id')
+            ->map(fn ($lines): int => (int) -$lines->sum('quantity_change'))
+            ->all();
     }
 
     /**

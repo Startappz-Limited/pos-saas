@@ -48,6 +48,9 @@ class Register extends Model
             'last_synced_at' => 'datetime',
             'sync_overdue_warned_at' => 'datetime',
             'last_invoice_number' => 'integer',
+            'outbox_count' => 'integer',
+            'outbox_reported_at' => 'datetime',
+            'app_version_reported_at' => 'datetime',
         ];
     }
 
@@ -56,6 +59,14 @@ class Register extends Model
         static::creating(function (self $register): void {
             if (empty($register->uuid)) {
                 $register->uuid = (string) Str::uuid();
+            }
+        });
+
+        // A register's code is R and digits (stage 10, step 5d): `W` names the shop's web
+        // series, so a till's number and a web number can never collide.
+        static::saving(function (self $register): void {
+            if (! preg_match('/^R\d+$/', (string) $register->code)) {
+                throw new \InvalidArgumentException("A register code is R followed by digits; '{$register->code}' isn't (W is reserved for web sales).");
             }
         });
     }

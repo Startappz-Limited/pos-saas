@@ -19,6 +19,12 @@
 
 ## Revisions
 
+**Implementation decisions (3 November 2026).** Made while building steps 1g and 2 on `fix/stock-voids-fifo`; they
+replace the earlier text where they differ, and are listed under "Decisions that apply" (3 November 2026): approval by
+permission with notifications (shared by adjustments and voids), stricter adjustment rules, owner-only limits, void
+requests, 422 for a closed window, the shop's timezone on its form, and a temporary refusal for pending sales with
+payments until step 4.
+
 **Split from the combined stage (27 October 2026).** "Stock Intake, Products and FIFO Integrity" became three
 stages, because it mixed bug fixes in code that exists today with two new foundations (units and decimal
 quantities, then receiving and transfers on top of them), and the decisions of 27 October changed the foundations:
@@ -207,7 +213,112 @@ permission, checked 28 October 2026).
 ## Decisions that apply
 
 Decisions of 26, 27 and 28 October 2026, for steps 0 to 8. Each step says which apply; later rounds' decisions replace
-earlier ones where they differ (the Revisions list says which).
+earlier ones where they differ (the Revisions list says which). The decisions of 3 November 2026 (below, first) replace
+any earlier text they contradict.
+
+- **Decisions of 4 November 2026 (step 5c, voids at the till):**
+  - **The till's session pays** a cash payout for a void made at that till, whoever signs in to void (the stage's
+    rule, kept for tills). The 4 November rule for the web, the flat API and void requests is unchanged (the voider's
+    own open session, else a refund owed).
+  - The payout is recorded in that session with the voider's name and the invoice, and appears in the session's totals
+    and close report ("Cash paid out by :name (void of :invoice)").
+  - **Offline voids:** the payout belongs to the session that was open at the till at the void's recorded time. If that
+    session was already closed on the server when the void syncs, its totals are corrected (the payout recorded in it,
+    its expected balance and variance recalculated) with an audit note, and the owners are told under the shared
+    notification rule; the payout is never moved to another session silently. If the till had no open session at the
+    void's time, the cash becomes a refund owed.
+  - **Paying any refund owed** uses one rule: `sales.void` or `refunds.approve`; a cash refund owed is paid from the
+    payer's own open session.
+- **Decisions of 4 November 2026 (step 5b, online orders cancelled in the store):**
+  - **A POS refund owed is never created for money taken through the store** (on any void, automatic or by a
+    person). On an automatic void of a cancelled online order, the store payment is marked **"refunded in store"** (a
+    settled entry on Refunds owed, with the store's refund reference when sent), audited, so nobody creates a POS
+    refund owed for it later.
+  - **Payments recorded in the POS itself** (for example M-Pesa collected by hand on cash on delivery) follow step 4
+    and become refunds owed (an automatic void has no person and no register, so cash is owed too).
+  - **Paid in the store but no refund reported** (common for manual methods such as bank transfer in WooCommerce): the
+    sale is voided, no refund owed is created, the sale is flagged, and the owners are notified under the shared rule:
+    "Order cancelled but no refund recorded in the store. Check whether the customer was refunded." The owner can
+    create a refund owed from the sale page.
+  - **A partial cancellation or partial refund in the store** (some lines cancelled, or less than the paid amount
+    refunded, whether or not the order is cancelled): the sale is **not voided**; it is flagged for review and the
+    owners are notified under the shared rule.
+  - **Already dispatched** (and a sale with a return that isn't rejected): flagged and the shop's staff alerted, as
+    step 5b says; not voided.
+  - Today both integrations record every online order as cash on delivery and unpaid (`payment_method = 'cod'`,
+    checked 4 November 2026), so whether the store took payment, and what it refunded, is read from the order's
+    `platform_data` (WooCommerce `date_paid` and `refunds`; Shopify `financial_status` and `refunds[].transactions`).
+- **Decisions of 4 November 2026 (step 4, money on a void):**
+  - **Approving a void and paying money out are separate.** Cash the sale's own open session counted leaves it by
+    recalculation (the sale no longer counts). Any other cash is paid out at once **only from the voider's own open
+    session in the shop**; otherwise (an approved void request, a flat API or web void by someone with no open session
+    of their own, no session open) it becomes a **cash refund owed**. Cash is never taken from someone else's session
+    automatically. Same rule on the web, the flat API and void-request approval. This replaces step 4's "a web void asks
+    the person to choose among the shop's open sessions".
+  - **Card, M-Pesa, bank transfer and cheque payments** each become a refund owed with their method and reference. A
+    cheque's refund can be settled as "cheque returned" (an uncleared cheque) as well as paid.
+  - **A voided credit sale:** payments made on it are refunded by their method under these rules; the credit reversal
+    clears what the customer still owed. "Credit" is not money received and never creates a refund.
+  - **Refunds owed** (`refunds_due`): a list per business and shop for owners and payers (Sales → Refunds owed);
+    marking one paid or settled records the method, reference and, for cash, the payer's own open session, from which
+    it is paid out then (refused with none: "Open your register to pay a cash refund."); audited. M-Pesa refunds are
+    made outside the system and only recorded (a reference is required). Payers are those holding `sales.void` or
+    **`refunds.approve`** (the existing refund-approval permission: owner and manager templates; the cashier's
+    `sales.refund` is not enough), with access to the shop. They are notified when one is created, under the shared
+    notification rule. Step 5c's `refund_due` sources (`late_payment`, `duplicate_payment`) use the same table.
+  - **Noted, not fixed here:** payments collected after the sale (credit collections, M-Pesa at the till, deposits)
+    aren't tied to a session (`sale_payments` has no session column), and a session's expected cash counts only
+    completed cash sales by their total, so cash collected later never appears in any drawer's expected cash.
+    Proposed fix: stage 14 (returns and refunds in reports), which already reworks session cash for refunds:
+    `sale_payments.cash_register_id` set from the collector's open session, and `calculateExpectedBalance()` counting
+    a session's cash payments rather than its cash sales' totals, with a backfill for open sessions only.
+- **Decisions of 3 November 2026 (during implementation, steps 1g and 2):**
+  - **Approval by permission, with notifications (shared by stock adjustments and void requests):**
+    - approvers are the active members of the business who hold the approve permission there
+      (`stock-adjustments.approve`, or `sales.void` for voids) and may work in the request's shop; never a role name;
+      the owner can give the permission to anyone;
+    - nobody approves their own request, except an owner when no other member is eligible: they approve with a
+      required note, audited and flagged "self-approved" (a filter on the adjustments list); non-owners never do;
+    - when a request is made, every eligible approver but its creator is notified (in the app under the topbar's
+      bell, and by email; queued, sent once the request is saved; no push: the backend has none); the first approval
+      or rejection settles it and the others' notifications are marked resolved; approving and rejecting are audited;
+      rejecting needs a reason; the creator is told the outcome;
+    - a request still pending after 24 hours gets one reminder to its approvers and is listed on the owner's
+      dashboard (`approvals:remind`, hourly);
+    - a pending request whose creator leaves stays pending and listed, never applies by itself, and the owner can
+      settle it.
+  - **Stock adjustments (step 1g):**
+    - `stock-adjustments.create` and `stock-adjustments.approve` are separate: a creator holding approve applies on
+      saving where the rules allow; a creator without it always waits. Owner and manager templates hold approve
+      (add-only rollout through `GrantTemplatePermissions`, audited);
+    - always wait, whatever the value: lost, stolen, damaged, expired, **quality issue, promotional giveaway**, and a
+      **recount with any line lowering stock**. Apply on saving (known cost, under the threshold): found, a recount
+      that only raises stock, and "other";
+    - the threshold stays "at or above waits" (exactly KES 5,000 waits); the value is gross (Σ |quantity| × cost, never
+      netted), and **cumulative**: one person's auto-applied adjustments at one shop on one shop-local day count
+      together;
+    - **changing the threshold is owner-only** (not `settings.update` alone), audited;
+    - **cancel replaces delete**: a pending adjustment is cancelled (status `cancelled`) and keeps its number, so the
+      series has no gaps; an applied, rejected or cancelled adjustment can't be edited or cancelled, full access
+      included;
+    - a pending decrease doesn't hold stock: the till keeps selling it, and **the till shows a non-blocking warning
+      "N units pending removal"**, built where the till's stock display is touched (step 5c); stock is never held.
+  - **Voids (step 2):**
+    - `sales.void` stays off the manager template; the revocation keeps it on a manager copy whose owner gave it on
+      purpose, as the audit trail shows (an attach by a person who isn't a platform operator);
+    - **changing the void time limit (including "no limit") is owner-only**, audited;
+    - **a void refused because the window has passed answers 422** `void_window_closed` with the time-limit message
+      (a browser form goes back with the message); 403 stays for no permission. Web and flat API;
+    - **void requests:** someone with `sales.create` and without `sales.void` asks, with a reason, inside the window;
+      eligible approvers (holding `sales.void`, with access to the shop, not the requester) are notified under the
+      shared rule and approve or reject on the web or the app; approval voids the sale, with the window checked at
+      the request's time, so an approval up to **48 hours** after a timely request still voids it; after that the
+      request expires and the requester is told. Holders of `sales.void` void directly;
+    - **the shop's timezone** is on the shop form and flat API (optional IANA zone; else the business's, else
+      Africa/Nairobi);
+    - **temporary, until step 4 ships the refund rule:** a pending sale with payments can't be voided, nor a void of it
+      requested: 422 "This sale has payments. It can't be voided until refunds are supported." (`sale_has_payments`).
+      Step 4 removes the refusal and its tests.
 
 - **Context (27 October 2026):** there are no customers yet; the system is being set up for new businesses,
   including pharmacies, agro-vets and wholesalers. The existing businesses on UAT are kept, so every change to
@@ -569,6 +680,8 @@ is deployed.
       holding `products.create` creates a simple product with a `status`.
 
 ### 1g. Stock adjustments: fix what is wrong today (legacy design review)
+> **Revised 3 November 2026** (see "Decisions that apply"): approval by permission with notifications, stricter
+> reasons, a cumulative and owner-only threshold, and cancel instead of delete. Done; see PROGRESS.
 - [ ] **By variation:** `stock_adjustment_items.variation_id` (foreign key; required for a product with variations,
       the default variation for one without). The form and `StoreStockAdjustmentRequest` (used by the controller,
       which validates inline today) pick a variation; the service adjusts that one. Existing items get the default
@@ -632,6 +745,9 @@ is deployed.
       numbers are gapless per shop and two businesses' don't collide; another business's adjustment is a 404.
 
 ### 2. Who can void and delete, and for how long
+> **Revised 3 November 2026** (see "Decisions that apply"): void requests, 422 for a closed window, an owner-only
+> limit, deliberate grants kept, the shop's timezone on its form, and a temporary refusal for pending sales with
+> payments until step 4. Done; see PROGRESS.
 - [ ] **API checks:** `Api\SaleController::void` calls `$this->authorize('void', $sale)`; `::destroy` calls
       `$this->authorize('delete', $sale)`, so web and API apply the same policy. Refusals stay
       `{success: false, message}` with 403 (flat API shape).
@@ -713,7 +829,9 @@ is deployed.
       a message.
 
 ### 3. `StockLedger::release()`: give a consumer's stock back
-- [ ] New public method: `release(Model $consumer, StockMovementType $type, array $context = []): StockChange`.
+> **Done 4 November 2026** (`StockReleaseTest`). `release()` returns null when there is nothing to release, so a
+> second release changes nothing and writes no movement. Skipping voided sales when settling is step 4.
+- [x] New public method: `release(Model $consumer, StockMovementType $type, array $context = []): StockChange`.
       It undoes everything one consumer took, whatever the consumer is: it finds the allocations through
       `consumerKey()`, so a sale line, adjustment line or supplier-return line today, and stage 12's transfer
       lines, are released by the same code with no change to this method. In one transaction:
@@ -737,9 +855,9 @@ is deployed.
      re-costed. Voided sales are skipped (step 4). Stage 12's transfer cancel gets this unchanged, and stage 11c's
      batch details on movements record it.
   8. Push stock to the shop's online stores after commit, as `changeStock()` does.
-- [ ] `StockMovementType::SALE_VOID` and `SALE_DELETE` (additions), both listed in `isAddition()` (the enum lists
+- [x] `StockMovementType::SALE_VOID` and `SALE_DELETE` (additions), both listed in `isAddition()` (the enum lists
       every type in `isAddition()` or `isDeduction()`, checked 28 October 2026). `CostLayer::SOURCE_RELEASE`.
-- [ ] Unit tests on SQLite and MySQL:
+- [x] Unit tests on SQLite and MySQL:
   - a line taken from two batches goes back to both, in the right quantities;
   - a provisional line releases stock with no batch;
   - a mixed line (part batch, part provisional);
@@ -752,15 +870,18 @@ is deployed.
   - a released line's `shop_variation.updated_at` moves on, and a till's next pull carries the restored stock.
 
 ### 4. Voiding gives stock back
-- [ ] Web and API `void` call `release()` for every line, inside the existing transaction, before the credit
+> **Done 4 November 2026** under the decisions of 4 November (see "Decisions that apply"): no session choice on the
+> web; the voider's own session or a refund owed. The temporary refusal of paid pending sales is removed.
+> `VoidStockAndMoneyTest`.
+- [x] Web and API `void` call `release()` for every line, inside the existing transaction, before the credit
       reversal.
-- [ ] Line and sale cost and profit are left as they were sold. The sale is excluded from reports by its status.
+- [x] Line and sale cost and profit are left as they were sold. The sale is excluded from reports by its status.
       The figures stay for the audit trail and the voided-sales list.
-- [ ] `settleProvisional()` skips allocations whose sale is voided. This is needed as a second guard for sales
+- [x] `settleProvisional()` skips allocations whose sale is voided. This is needed as a second guard for sales
       voided before this stage, because their allocations still exist.
-- [ ] **A sale with a return that isn't rejected can't be voided** (decided): 422 with "This sale has returns.
+- [x] **A sale with a return that isn't rejected can't be voided** (decided): 422 with "This sale has returns.
       Process the return instead."
-- [ ] **Cash on a void:**
+- [x] **Cash on a void:**
   - **The sale's session is open:** its totals are recalculated (`updateSalesTotals()`), on web as well as API (web
     doesn't do this today), so the cash leaves its expected cash.
   - **The sale's session is closed:** it was counted and reconciled, so it is left as it is (no recalculation; its
@@ -775,13 +896,13 @@ is deployed.
     default `session` window (step 2) a sale's own session is open while it can be voided, so this applies to the other
     windows and to sales with no session.
   - Card and M-Pesa payments are never paid out of a drawer: they are a `refund_due` (step 5c).
-- [ ] **eTIMS:** nothing fiscal is produced in this stage. Once eTIMS is on, a void of a signed invoice issues a credit
+- [x] **eTIMS:** nothing fiscal is produced in this stage. Once eTIMS is on, a void of a signed invoice issues a credit
       note; see [stage 22](./22-etims.md), step 3.
-- [ ] **Payouts on the session page:** a session lists its payouts (amount, reason, the sale if any, who). Someone
+- [x] **Payouts on the session page:** a session lists its payouts (amount, reason, the sale if any, who). Someone
       holding `cash-registers.payout` (new: the owner and the manager template, through step 0's rollout) can record
       a payout by hand for petty cash, with a reason required; it lowers the open session's expected cash and is
       audited. Stage 14's cash refunds are payouts too.
-- [ ] Tests:
+- [x] Tests:
   - void restores stock and batches, on web and API;
   - a voided sale no longer moves when stock arrives;
   - void refused while a return exists;
@@ -799,22 +920,26 @@ is deployed.
   - an audit row records the void.
 
 ### 5. Deleting a sale
-- [ ] **A completed sale can't be deleted; it can only be voided** (decided). Web and API return 422
+> **Done 4 November 2026** (`DeleteSaleTest`; the part-paid pending void is in `VoidStockAndMoneyTest`). Only draft and
+> pending sales can be deleted (the literal reading: a voided or refunded sale is refused, "Only draft and pending
+> sales can be deleted."); refusals carry `code` (`sale_completed`, `sale_not_deletable`, `sale_has_payments`). No sales
+> view had a Delete action, so there was nothing to hide. Who deleted a sale comes from the audit trail (no column).
+- [x] **A completed sale can't be deleted; it can only be voided** (decided). Web and API return 422
       with "Completed sales can't be deleted. Void the sale instead."
-- [ ] A sale that isn't completed (draft or pending, such as a cash-on-delivery sale) and has no payments can still
+- [x] A sale that isn't completed (draft or pending, such as a cash-on-delivery sale) and has no payments can still
       be deleted, by the owner (step 2). Before deleting, its lines are released as in step 3 with `SALE_DELETE`, since
       stock is taken at creation for every status.
-- [ ] **A pending sale with payments can't be deleted** (decided 28 October 2026, ninth round; gap 25): 422 "This sale
+- [x] **A pending sale with payments can't be deleted** (decided 28 October 2026, ninth round; gap 25): 422 "This sale
       has payments. Void it instead." While it is pending it has no void window (step 2): someone holding `sales.void`
       (the owner by default) can void it at any time. Voiding it releases its stock, and its payments are handled as
       in step 4: cash is paid out of the open session (the voiding till's own, or on the web the one the person
       chooses), M-Pesa and card are a `refund_due`, and cash with no session open is a `refund_due`. The automatic
       void of online orders (step 5b) is unchanged.
-- [ ] **Soft deletes** (decided 28 October 2026): `Sale` uses `SoftDeletes` on the existing `sales.deleted_at` (nothing
+- [x] **Soft deletes** (decided 28 October 2026): `Sale` uses `SoftDeletes` on the existing `sales.deleted_at` (nothing
       sets it today; `VatReportService` already filters on it, checked 28 October 2026). A deleted sale keeps its row,
       its lines and its invoice number, which stays taken and is never issued again; it leaves every list, report and
       the pull; its movements always point at a row.
-- [ ] **What still sees a deleted sale** (checked 28 October 2026, gap 27):
+- [x] **What still sees a deleted sale** (checked 28 October 2026, gap 27):
   - `StockMovement::reference()` and the `sale()` relations of `SaleItem`, `SalePayment` and `SaleReturn` use
     `withTrashed()`, so a movement, line, payment or return always resolves its sale;
   - `StockLedger`'s reads by id (`DB::table('sales')`) already see it, so a release and a re-cost still work;
@@ -825,8 +950,8 @@ is deployed.
     `BusinessDirectory` and `AssignProductShopFromSales` gain `whereNull('sales.deleted_at')`, listed in the PR;
   - `sales.show` binds `withTrashed()` for someone holding `sales.view-all`, with a "Deleted" banner (who, when);
     anyone else gets a 404.
-- [ ] Remove or hide the "Delete" action for completed sales in the sales views. The server check is the guard.
-- [ ] Tests:
+- [x] Remove or hide the "Delete" action for completed sales in the sales views. The server check is the guard.
+- [x] Tests:
   - deleting a completed sale is refused and changes nothing;
   - deleting a pending sale returns its stock with a `SALE_DELETE` movement, and the sale is soft-deleted: gone from
     every list and report, its row, lines and invoice number kept, and the number never issued again;
@@ -842,20 +967,23 @@ is deployed.
   - both on web and API.
 
 ### 5a. A Void button on the web sale page
-- [ ] On `sales.show`, a **"Void sale"** button (`btn-outline-danger`, with an icon and its text, never icon-only).
+> **Done 4 November 2026** (`VoidButtonTest`, `App\Support\Sales\VoidButton`). The confirmation's "which session pays"
+> choice is replaced by the decisions of 4 November: it says, per payment, whether the cash comes out of the sale's own
+> session, is paid back from the person's open register, or is listed as a refund owed.
+- [x] On `sales.show`, a **"Void sale"** button (`btn-outline-danger`, with an icon and its text, never icon-only).
       It is shown only when `@can('void', $sale)` passes: the permission, the time limit, no return that isn't
       rejected, and not
       already voided.
-- [ ] **When the button isn't available**, the page says why in one line instead:
+- [x] **When the button isn't available**, the page says why in one line instead:
   - "This sale's register session has closed, so it can't be voided. Use a return instead." (session), "This sale can
     only be voided on the day it was made. Use a return instead." (end of day), or "Voiding closed
     :time ago (limit :minutes minutes). Use a return instead." (minutes);
   - "This sale has a return, so it can't be voided." (for a return that isn't rejected); or
   - nothing, for people without the permission.
-- [ ] **While the window is open**, a muted line under the button says until when: "Can be voided until the register
+- [x] **While the window is open**, a muted line under the button says until when: "Can be voided until the register
       session closes (11:59 pm today at the latest)." (session), "Can be voided until 11:59 pm today." (end of day), or "Can be voided for another :minutes minutes." (minutes). Nothing is shown with no
       limit.
-- [ ] **Clicking opens a confirmation window** (BS5 modal, the danger style for destructive actions). It contains:
+- [x] **Clicking opens a confirmation window** (BS5 modal, the danger style for destructive actions). It contains:
   - **Title:** "Void this sale?"
   - **What happens**, as a short list:
     - "The sale is cancelled and no longer counts in sales, cost or profit reports.";
@@ -871,11 +999,11 @@ is deployed.
     choice of the shop's open sessions, each named by its register.
   - **Buttons:** "Cancel" and "Void sale" (`btn-danger`). The form has `@csrf` and `@honeypot`, and posts to
     `sales.void`.
-- [ ] After voiding, the page shows a success message ("Sale voided. :count items are back in stock."), and a
+- [x] After voiding, the page shows a success message ("Sale voided. :count items are back in stock."), and a
       "Voided" badge with who voided it, when and why.
-- [ ] **Accessibility:** the modal has a labelled title, focus moves to the reason field, Escape cancels, and the
+- [x] **Accessibility:** the modal has a labelled title, focus moves to the reason field, Escape cancels, and the
       first error gets focus.
-- [ ] **Tests:**
+- [x] **Tests:**
   - the button shows for a holder within the window;
   - it is hidden past the window, with the explanation shown;
   - it is hidden for a sale with a return that isn't rejected, and for someone without the permission; it shows for
@@ -885,28 +1013,33 @@ is deployed.
   - a successful void shows the badge.
 
 ### 5b. Void automatically when an online order is cancelled before dispatch
-- [ ] When the WooCommerce or Shopify order sync (webhook or pull) moves an order to `cancelled`, and the order
+> **Done 4 November 2026** (`StoreCancellationTest`, `App\Support\Sales\StoreCancellations`), under the decisions
+> of 4 November (see "Decisions that apply"): store money is never a POS refund owed (marked refunded in store, or the
+> sale flagged when the store reports no refund); part refunds and part cancellations are flagged, not voided. The
+> flag is an `alerts` row (`sale_review`) on the sale, shown on its page until marked checked; owners are notified for
+> the unrefunded and partial cases.
+- [x] When the WooCommerce or Shopify order sync (webhook or pull) moves an order to `cancelled`, and the order
       has a converted sale that isn't voided, the sale is voided with `release()` and the credit reversal, as in
       step 4.
-- [ ] **"Before dispatch"** means the store hadn't fulfilled the order when it was cancelled:
+- [x] **"Before dispatch"** means the store hadn't fulfilled the order when it was cancelled:
   - WooCommerce: the order's previous status was `pending`, `processing` or `on-hold`, not `completed`.
   - Shopify: `fulfillment_status` was not `fulfilled` or `partial`.
-- [ ] **It's a system action:** it doesn't need `sales.void` and isn't held to the time limit, because the decision
+- [x] **It's a system action:** it doesn't need `sales.void` and isn't held to the time limit, because the decision
       was taken in the store.
-- [ ] **Pending sales too:** a cash-on-delivery order becomes a `pending` sale that holds stock (checked 28 October
+- [x] **Pending sales too:** a cash-on-delivery order becomes a `pending` sale that holds stock (checked 28 October
       2026, `ConvertEcommerceOrderToSale`), so a cancelled COD order voids its pending sale the same way, releasing its
       stock. `voidable` and `voidable_until` (step 5c) govern voids by people at the till and on the web; this
       automatic void doesn't read them.
   - `voided_by` is NULL.
   - `void_reason` is "Order cancelled in :store (order :number)."
   - The audit row records it as automatic.
-- [ ] **It is not voided automatically** when the order was already dispatched, or when the sale has a return that
+- [x] **It is not voided automatically** when the order was already dispatched, or when the sale has a return that
       isn't rejected.
       Instead the sale is flagged ("The online order was cancelled after dispatch. Check whether the goods came
       back, and process a return.") and the shop's staff are notified in the app's alerts.
-- [ ] **Done once:** a repeated or late webhook for the same cancellation changes nothing (the sale is already
+- [x] **Done once:** a repeated or late webhook for the same cancellation changes nothing (the sale is already
       voided). It runs for the order's business, in the queued job, with the tenant context set.
-- [ ] **Tests:**
+- [x] **Tests:**
   - a cancelled `processing` WooCommerce order voids its sale and restores stock; a cancelled cash-on-delivery order
     voids its pending sale and restores its stock;
   - a cancelled `completed` order doesn't void, and flags the sale instead;
@@ -917,13 +1050,22 @@ is deployed.
     `syncInProgress` guard).
 
 ### 5c. Voids from the till: `/api/v1` and offline
-- [ ] **Online:** `POST /api/v1/sales/{uuid}/void` (`reason` required), through `SalePolicy::void` (permission,
+> **Built in parts (4 November 2026).** Part 1 (`TillVoidTest`, `ApiV1VoidContractTest`): the online void, the
+> `sale_void` push item (with the `pending` status and `sale_not_synced`), the till-session payouts and closed-session
+> corrections decided on 4 November, `voidable`/`voidable_until` on the receipt, `sale_voids` and `pending_removal` in the
+> pull, the `void_refused` issue, and the matrix rows. Part 2 (`SyncDispositionsTest`): dispositions, the `*_not_synced`
+> codes, `LegacyRefusals`, `X-App-Version`, `outbox_count` and the re-pairing check. Part 3 (`HeldItemsTest`): held
+> items on the till sync review (`held_item`, accept with the fix each code allows, discard, "discard and record as a new
+> web sale" with `nextWeb()` brought forward from step 5d), receipts' `outcome` and the pull's `resolved_items`,
+> `outbox_item_discarded`, `sales.sync_flags`, and the `refunds_due` sources `duplicate_payment` and `late_payment`.
+> Done 4 November 2026.
+- [x] **Online:** `POST /api/v1/sales/{uuid}/void` (`reason` required), through `SalePolicy::void` (permission,
       `VoidWindow` checked at the current time, no return that isn't rejected, not already voided) and the same void
       action as the web
       (step 4). Refusals carry codes, added to `ApiErrorCode`: `void_window_closed`, `sale_has_returns`,
       `sale_already_voided`, and 403 `forbidden` without `sales.void`. A register-bound token reaches only its shop's
       sales. The sale records the till (`voided_register_id`).
-- [ ] **Offline:** a new push item `sale_void` with its own `client_uuid` (`sale` uuid or `sale_client_uuid`,
+- [x] **Offline:** a new push item `sale_void` with its own `client_uuid` (`sale` uuid or `sale_client_uuid`,
       `reason`, `voided_by`). The till checks the person's `sales.void` from the staff list; the server checks it
       again. The time limit is judged by `VoidWindow` at the item's `recorded_at`, which must lie inside a lease the
       till was given. **A `sale_void` recorded outside any lease** is refused `outside_trading_lease`, class **hold**
@@ -931,21 +1073,24 @@ is deployed.
       a manager rather than dropped. Accepting it applies the void only if `VoidWindow` allows it at the server's
       current time and the sale has no return that isn't rejected; otherwise it can only be discarded. Released and audited as an online void, with the till (`voided_register_id`) and the recorded
       time (`void_recorded_at`; `voided_at` stays the server's time).
-- [ ] **Order and a sale not yet on the server:** push items are applied in the order sent, so a void after its
+- [x] **Order and a sale not yet on the server:** push items are applied in the order sent, so a void after its
       sale in the same push finds it. A `sale_void` whose sale is unknown (later in the same push, or not pushed
       yet) gets a new result status, `pending` ("not yet applied"). Nothing is kept, no receipt is written, and the
       till sends it again with its next push. It is not refused.
-- [ ] **Once only, and races:**
+- [x] **Once only, and races:**
   - the push's once-per-`client_uuid` rule applies: a void pushed twice is applied once and releases stock once;
   - a void for a sale already voided elsewhere (the web, another till, an online cancellation) is `applied` as a
     no-op, with `result.already_voided = true`, so the till clears it;
   - a void for a sale that has had a return since (one that isn't rejected) is `refused` (`sale_has_returns`) and goes on the till sync review
     as a new `void_refused` issue (the till, the person, the recorded time and the reason), so a manager sees the
     void that didn't happen.
-- [ ] **Telling the tills:** the pull gains `sale_voids`, the shop's sales voided since the cursor (`uuid`,
+- [x] **Pending removals at the till** (decided 3 November 2026): the pull's `stock` carries, per variation, the units
+      that pending stock-adjustment decreases would remove (`pending_removal`), and the till shows a non-blocking
+      warning "N units pending removal" when it sells into them. Stock is never held.
+- [x] **Telling the tills:** the pull gains `sale_voids`, the shop's sales voided since the cursor (`uuid`,
       `client_uuid`, `voided_at`, `void_recorded_at`, `reason`), so every till of the shop marks them, wherever the
       void was made. The restored stock reaches the tills through the pull's `stock` section (step 3).
-- [ ] **When voiding is possible** (decided 28 October 2026, tenth round): `/api/v1` sale and receipt responses carry
+- [x] **When voiding is possible** (decided 28 October 2026, tenth round): `/api/v1` sale and receipt responses carry
       `voidable` (true or false) and `voidable_until`:
   - `voidable` is true when the sale can be voided now: completed and inside its window, or pending with payments
     (no window, step 2); false when it has a return that isn't rejected, is voided, is past its window, or is pending
@@ -955,7 +1100,8 @@ is deployed.
   - both are about time and the sale's state only, so they are the same for everyone; the app combines `voidable`
     with the signed-in person's `sales.void` from the staff list to show or hide its Void button. Neither exists in
     the code yet (checked 28 October 2026: `SaleReceipt` carries no void field), so no Phase 7 app reads them.
-- [ ] **One refund issue type, `refund_due`**, on the till sync review, carrying a `source` (`void` or
+- [x] **One refund issue type, `refund_due`** (built in step 4 as the `refunds_due` table and the Refunds owed list,
+      not a sync issue; 5c adds the till sources and links the review to it), on the till sync review, carrying a `source` (`void` or
       `late_payment`), the `method`, the amount and the payment reference:
   - `source = void`: voiding a sale with M-Pesa or card payments records one per payment, until stage 14 brings
     refunds; so does a cash void with no open session to pay out of (step 4);
@@ -963,12 +1109,13 @@ is deployed.
     (an STK request still pending at the void, or a code matched later) is left unapplied and recorded as one.
   - **Closing it, until stage 14** (decided 28 October 2026, ninth round; gap 29): a "Mark refunded" action on the
     review records the method, reference, amount, who and when, in the issue's details, and resolves it
-    (`resolution = refunded`, `resolved_at`, `resolved_by`); an open issue has no resolution. It needs
-    `cash-registers.payout` for cash, and `sync-issues.accept` for any other method. For cash it also records a
-    payout in an open session the person chooses (step 4); with none open it is refused ("Open the register to pay a
-    cash refund."). Audited; done once (the issue is checked under a lock). [Stage 14](./14-returns-in-reports.md),
+    (`resolution = refunded`, `resolved_at`, `resolved_by`); an open issue has no resolution. **Revised 4 November
+    2026:** paying any refund owed uses one rule: someone holding `sales.void` or `refunds.approve` with access to
+    the shop; a cash refund owed is paid from **the payer's own open session**; with none open it is refused ("Open
+    your register to pay a cash refund."). Audited; done once (the issue is checked under a lock). [Stage 14](./14-returns-in-reports.md),
     step 6, replaces it: a refund processed for the issue resolves it.
-- [ ] **A till that would lose unsynced work** (a reinstall, a lost device, signing out, re-pairing):
+- [x] **A till that would lose unsynced work** (part 2: `outbox_count`, the overdue warning and the re-pairing check;
+      the held-sale and lost-sale discards are part 3) (a reinstall, a lost device, signing out, re-pairing):
   - **The server knows what a till holds:** every push and pull sends `outbox_count` (unsynced items on the till);
     the server keeps it on the register (`outbox_count`, `outbox_reported_at`), shows it in the register list, and
     adds it to the overdue-sync warning ("Till R2 hasn't synced for 26 hours and holds 41 unsynced items").
@@ -980,7 +1127,7 @@ is deployed.
     as `pending`. If someone holding `sales.void` discards the sale, its queued void and payments are discarded with
     it, each with its own `outbox_item_discarded`.
   - **A void whose sale is gone** (the till lost it) is discarded the same way.
-- [ ] **One discard for every stuck outbox item:** a new push item `outbox_item_discarded` (`item_type`: `sale`,
+- [x] **One discard for every stuck outbox item:** a new push item `outbox_item_discarded` (`item_type`: `sale`,
       `sale_void`, `sale_payment`, `customer`, `cash_session`, `till_sign_in`, `mpesa_code`, and any type a later
       stage adds; the discarded item's `client_uuid`; `reason`; `discarded_by`, who must hold `sync-issues.discard`).
       It is
@@ -995,7 +1142,7 @@ is deployed.
       are discarded with it under the same rule. A manager can still accept a held sale, or re-ring one whose number
       was taken (below). A discard of an item the server has already applied is applied as a no-op
       (`result.already_applied`), so the till clears it.
-- [ ] **Every refusal has one class.** Each push result that isn't `applied` or `duplicate` gains `disposition`:
+- [x] **Every refusal has one class.** Each push result that isn't `applied` or `duplicate` gains `disposition`:
   - `retry` (transient): the till keeps the item and sends it again with the next push;
   - `drop` (final): the till removes the item and shows why;
   - `hold` (final, kept for a person): the till keeps the item, marked, until a manager **accepts** it on the server
@@ -1006,7 +1153,7 @@ is deployed.
   item first", not a fault: they become `customer_not_synced`, `sale_not_synced` and `cash_session_not_synced`
   (`ApiErrorCode`), status `pending`, disposition `retry`. `disposition` is an addition; the `status` of every
   other Phase 7 refusal is unchanged.
-- [ ] **Accepting a held item** (decided): every held refusal records a `held_item` issue on the till sync review
+- [x] **Accepting a held item** (decided): every held refusal records a `held_item` issue on the till sync review
       with the raw item, its code and message. Its resolutions:
   - **Accept** (`sync-issues.accept`, new: the owner and the manager template, through step 0's rollout): the server
     applies the item as the till sent it, through the same handler, with the fix the code needs:
@@ -1054,7 +1201,7 @@ is deployed.
     The next pull also lists it in a new `resolved_items` section (`client_uuid`, `outcome`, `result`), so a till that
     no longer pushes it still clears it.
   - Audited either way; neither can be done twice (the issue's status and the receipt are checked under a lock).
-- [ ] **Which validation errors can be corrected** (decided). A pushed sale passes through Phase 7's `SaleHandler`
+- [x] **Which validation errors can be corrected** (decided). A pushed sale passes through Phase 7's `SaleHandler`
       (lease, the customer by client uuid), `StoreSaleRequest` (its rules, the credit-customer check, the discount
       check, the variation check), `PushPeople` (the cashier) and `RecordSale`, checked 27 October 2026. Each rule is
       in exactly one group; the review screen offers exactly what the group allows:
@@ -1084,24 +1231,24 @@ is deployed.
 
   Stage 11 adds `fractional_quantity` (accepted on the push, flagged) and `unknown_unit` (discard only); stage 11b's
   price checks never refuse a pushed sale.
-- [ ] **The flags** are recorded on the sale (`sales.sync_flags`, JSON) and on the issue, and shown on the sale page.
-- [ ] **A payment pushed for a sale already paid** (decided): `PaymentHandler` records a `refund_due` with
+- [x] **The flags** are recorded on the sale (`sales.sync_flags`, JSON) and on the issue, and shown on the sale page.
+- [x] **A payment pushed for a sale already paid** (decided): `PaymentHandler` records a `refund_due` with
       `source = duplicate_payment` (amount, method, reference, the sale) and answers `refused` with
       `sale_already_paid`, disposition **drop**, so the till clears it. The money is on the review as owed back.
-- [ ] **The app's version** (decided): every push, pull and pairing request sends `X-App-Version` (semantic version).
+- [x] **The app's version** (decided): every push, pull and pairing request sends `X-App-Version` (semantic version).
       Phase 7 sends none. The server stores the latest per register (`registers.app_version`,
       `app_version_reported_at`) and shows it in the register list. A request without the header is treated as an app
       before this stage.
-- [ ] **Old apps get the codes they know** (decided): `App\Support\Sync\LegacyRefusals` rewrites a push result for an
+- [x] **Old apps get the codes they know** (decided): `App\Support\Sync\LegacyRefusals` rewrites a push result for an
       app older than this stage's minimum version (`config('sync.min_version.dispositions')`): `customer_not_synced`
       → `validation_failed`, `sale_not_synced` and `cash_session_not_synced` → `not_found`, status `pending` →
       `refused`, and no `disposition`. A `sale_void` or `outbox_item_discarded` can't come from such an app. The
       minimum version for each feature is in "Contract".
-- [ ] **Housekeeping:** the route gets its rows in `TenantIsolation/ResourceMatrixTest` (another business's sale is a
+- [x] **Housekeeping:** the route gets its rows in `TenantIsolation/ResourceMatrixTest` (another business's sale is a
       404; a till of another shop is a 404). The v1 contract test records only sign-in and parameter-free GETs, so
       a new `ApiV1VoidContractTest` pins the shape and status of each refusal (`void_window_closed`,
       `sale_has_returns`, `sale_already_voided`, 403) and of a successful void.
-- [ ] Tests:
+- [x] Tests:
   - an online and an offline void release stock as the web's does;
   - a sale and its void both recorded offline on Monday and pushed on Tuesday are accepted; a void recorded on
     Tuesday for Monday's sale is refused `void_window_closed`;
@@ -1134,9 +1281,9 @@ is deployed.
     `sync-issues.accept` can't;
   - a payment queued behind a re-rung sale applies to the new sale; a void queued behind it voids the new sale under
     the void rules; the original sale item pushed again answers `discarded` and creates nothing;
-  - a `refund_due` marked refunded is resolved once and audited; a cash one records a payout in the chosen session
-    and is refused with no open session; a cashier without `cash-registers.payout` can't mark a cash one, and someone
-    without `sync-issues.accept` can't mark an M-Pesa one;
+  - a `refund_due` marked refunded is resolved once and audited; a cash one records a payout in the payer's own open
+    session and is refused with none; someone holding neither `sales.void` nor `refunds.approve` can't mark one (revised
+    4 November 2026);
   - a till's sale numbered in the web series (`INV-{shop}-W-…`) is refused and can't be accepted, only discarded;
   - a `sale_void` recorded outside any lease is held (`outside_trading_lease`); accepted, it voids the sale when the
     window allows it now and there is no return that isn't rejected; otherwise only discard is offered;
@@ -1152,72 +1299,88 @@ is deployed.
     header) and gets Phase 7's codes and shapes (`validation_failed`, `not_found`, `refused`, no `disposition`).
 
 ### 5d. Invoice series: tills and the web never share one
-- [ ] **What Phase 7 does today** (checked 27 October 2026): `InvoiceNumberService` keeps one series per register
+> **Done 4 November 2026** (`InvoiceSeriesTest`; `nextWeb()` itself came with step 5c's re-ringing). The web POS,
+> `RecordSale` with no till context (the flat API), online orders and abandoned carts take `nextWeb()`; a till's sale with
+> no number keeps its register's series. `Register` refuses a code that isn't `R` and digits (UAT: every register is `R1`,
+> read-only check 4 November 2026). `invoices:report-series --business=<id>` (read-only) lists each shop's series.
+> The year of every series follows the shop's local date (fixed 4 November 2026; it used the server's clock). Nothing
+> outside `InvoiceNumberService` parses an invoice number (checked 4 November 2026).
+- [x] **What Phase 7 does today** (checked 27 October 2026): `InvoiceNumberService` keeps one series per register
       and year (`invoice_sequences`, series key `r{register}:{year}`), formatted `INV-{shop}-{register}-{year}-{n}`;
       `next()` claims the next number under a row lock; `adopt()` takes a till's offline number when it is in that
       register's series, moves the series on past it and records gaps. **Every sale path numbers from its cash
       session's register:** the web POS (`SaleController::store`), `RecordSale` (flat API and push), online orders and
       abandoned carts. Each shop has one register (`R1`), so web sales and a paired till's offline sales draw on the
       same series, and a web sale can take a number the till has already printed offline.
-- [ ] **Tills keep their register's series, unchanged in form** (`INV-{shop}-{register}-{year}-{n}`, e.g.
+- [x] **Tills keep their register's series, unchanged in form** (`INV-{shop}-{register}-{year}-{n}`, e.g.
       `INV-NRB-R2-2026-000145`): a till numbers only from its own register, so two tills issuing the same sequence
       number differ by register code. The year stays in the number (today's form, which the app in shops already
       produces).
-- [ ] **Web and online sales take a per-shop web series:** `INV-{shop}-W-{year}-{n}` (series key `w{shop}:{year}`),
+- [x] **Web and online sales take a per-shop web series:** `INV-{shop}-W-{year}-{n}` (series key `w{shop}:{year}`),
       claimed by `InvoiceNumberService::nextWeb($shop)`, used by the web POS, the flat API (`RecordSale` without a till
       context), online orders and abandoned carts. The cash session still belongs to its register; only the number's
       series changes. **`W` can never be a register code** (register codes are validated `R` + digits; `W` is
       reserved), so a web number and a till number can't collide.
-- [ ] **Old apps keep working, without clashes:** the app in shops sells through the flat API, which the server
+- [x] **Old apps keep working, without clashes:** the app in shops sells through the flat API, which the server
       numbers, so its new sales take web numbers; a till app that numbers offline (Phase 7's contract) numbers in its
       register's series, which no server path draws on any more. No app change is needed; the series a register
       issues is told to the till at pairing as today (`last_invoice_number`). `adopt()` refuses a number in the web
       series (`invalid_invoice_number`), and such a sale is never accepted later (discard only, step 5c). Whether the app treats the number as an opaque string is an app check
       ([app-release-checklist.md](./app-release-checklist.md#stage-10)).
-- [ ] **Existing sales keep their numbers.** Only new numbers use the web series. UAT (read-only, 27 October 2026):
+- [x] **Existing sales keep their numbers.** Only new numbers use the web series. UAT (read-only, 27 October 2026):
       1,503 sales, all in their shop's `R1` series but one (not `INV-…`); one register per shop; no paired till.
       `invoices:report-series --business=<id>` (read-only) counts numbers per shop and series before and after.
-- [ ] Tests: two tills of one shop issue sequence number 145 and both are recorded (`…-R1-…-000145`,
+- [x] Tests: two tills of one shop issue sequence number 145 and both are recorded (`…-R1-…-000145`,
       `…-R2-…-000145`); an accepted held sale keeps its number; a web sale and a till sale made at the same moment
       can't collide (`W` vs `R1`); a till can't adopt a web-series number; an old-app sale through the flat API and a
       till sale in the register series can't collide; existing numbers are untouched.
 
 ### 6. Mark lines whose cost isn't fully known
-- [ ] Migration: `sale_items.cost_known` boolean, default true. It records whether every unit was costed from a
+> **Done 4 November 2026** (`CostKnownTest`). An allocation counts as unknown when its own cost is NULL or its batch's is
+> (`StockLedger::lineCostKnown()`), so `sales:recompute-profit` now fills both cases. **Found:** the profit report
+> (`sales.profitReport`) had no view and failed when opened; a simple one was built to carry the badge. The daily
+> report (`sales.dailyReport`) has none either and is left as it is (nothing links to it).
+- [x] Migration: `sale_items.cost_known` boolean, default true. It records whether every unit was costed from a
       batch with a cost, or from a known estimate.
-- [ ] `sellItem()` sets it from `StockChange::$costKnown`. `settleProvisional()` and `release()` recompute it from
+- [x] `sellItem()` sets it from `StockChange::$costKnown`. `settleProvisional()` and `release()` recompute it from
       the line's remaining allocations (stage 12's `recostLayer()` does too).
-- [ ] When settling against a batch with no cost, **keep the provisional estimate** as the allocation's cost and
+- [x] When settling against a batch with no cost, **keep the provisional estimate** as the allocation's cost and
       mark the line `cost_known = false`, rather than replacing the estimate with NULL (decided).
-- [ ] `Sale::scopeCostIncomplete()` (sales with any line not known). Show a "cost incomplete" badge on the sale
+- [x] `Sale::scopeCostIncomplete()` (sales with any line not known). Show a "cost incomplete" badge on the sale
       page and in the profit report, linking to Products → Purchase Costs (stage 12 links to the GRN waiting for
       costs when the batch came from one).
-- [ ] Backfill in the migration: `cost_known = false` for lines with an allocation whose `unit_cost` is NULL.
+- [x] Backfill in the migration: `cost_known = false` for lines with an allocation whose `unit_cost` is NULL.
       Count the lines before and after.
-- [ ] Tests: a line from a cost-unknown batch is marked; entering the cost and re-costing clears it (with
+- [x] Tests: a line from a cost-unknown batch is marked; entering the cost and re-costing clears it (with
       `sales:recompute-profit`); the badge shows.
 
 ### 7. Repair sales voided and deleted before this stage
-- [ ] `php artisan sales:restock-voided --business=<id>` (`RunsForBusiness`), kept for the UAT businesses' voided
+> **Done 4 November 2026** (`RepairCommandsTest`).
+- [x] `php artisan sales:restock-voided --business=<id>` (`RunsForBusiness`), kept for the UAT businesses' voided
       sales (none on 27 October 2026; any voided before this stage is deployed). For every voided sale whose lines
       still have allocations, it runs `release()` (dry run by default; `--apply` writes). It reports per sale: the
       lines, the units, the shops.
-- [ ] `php artisan stock:orphaned-movements --business=<id>` (read-only) lists `SALE` movements whose sale row no
+- [x] `php artisan stock:orphaned-movements --business=<id>` (read-only) lists `SALE` movements whose sale row no
       longer exists, so the business can correct stock by hand for sales hard-deleted before this stage. Sales
       deleted after it are soft-deleted (step 5), so their rows remain and they are never listed. Their
       allocations are gone, so nothing can be released automatically.
-- [ ] **Old voids keep their money as it was:** `sales:restock-voided` gives back stock only. It records no payouts
+- [x] **Old voids keep their money as it was:** `sales:restock-voided` gives back stock only. It records no payouts
       and no `refund_due` issues: those sales' sessions were counted at the time. The report says so.
-- [ ] `sales:report-cross-shop-lines` is **not** built (removed 27 October 2026; step 1a).
-- [ ] Tests on fixtures: an old voided sale is restored once (a second `--apply` changes nothing), with no payout or
+- [x] `sales:report-cross-shop-lines` is **not** built (removed 27 October 2026; step 1a).
+- [x] Tests on fixtures: an old voided sale is restored once (a second `--apply` changes nothing), with no payout or
       issue recorded. The orphaned list finds a deleted sale's movements.
 
 ### 8. Housekeeping
-- [ ] **The deploy order is written down** (a planned item, made when the stage ships): no deploy script exists
+> **Done 4 November 2026.** CLAUDE.md (deploy order, background work, the stage 10 rules, invoice series, audited
+> models), the pos-domain-rules skill (the selling-shop rule replaces per-product attribution; voids, deletes and
+> payouts), `docs/flutter/09-products.md` (with `category_id` **required**, the step 1f departure, not nullable as below),
+> the note on `docs/implementation/21-stock-adjustments.md` (worded for the 3 November decisions), and PROGRESS's
+> "Planned" table.
+- [x] **The deploy order is written down** (a planned item, made when the stage ships): no deploy script exists
       (checked 28 October 2026), so CLAUDE.md's "Commands" section gains "Deploy: `php artisan migrate`, then
       `php artisan permissions:sync`, never the reverse", with the reason (the role backfill runs inside the migrations
       and must record removals before any sync).
-- [ ] Note in [pos-domain-rules](../../../.claude/skills/pos-domain-rules/SKILL.md) and CLAUDE.md:
+- [x] Note in [pos-domain-rules](../../../.claude/skills/pos-domain-rules/SKILL.md) and CLAUDE.md:
   - the selling-shop rule;
   - voids release stock;
   - only `sales.void` voids, within the business's time limit (by default, while the sale's register session is
@@ -1227,9 +1390,9 @@ is deployed.
   - clerks hold no cost permission, and the flat API hides costs without `products.view-cost`;
   - new permissions go in `PermissionSeeder` and the role grants, and get a rollout test; removals from roles are
     recorded in `role_revoked_permissions`; `permissions:sync` runs on deploy.
-- [ ] `CostingService`, `CostingMethod` and `sale_item_stock_allocations` are removed in stage 11 (decided 27 October
+- [x] `CostingService`, `CostingMethod` and `sale_item_stock_allocations` are removed in stage 11 (decided 27 October
       2026), not here.
-- [ ] **`docs/flutter/09-products.md`, "Create Product" and "Update Product"** (the behaviour step 1f changes). Exact
+- [x] **`docs/flutter/09-products.md`, "Create Product" and "Update Product"** (the behaviour step 1f changes). Exact
       correction:
   - validation table: `sku` becomes "nullable, string, max:100, unique in the business"; `category_id` becomes
     "nullable, exists:categories,id"; `cost_price` becomes "nullable, numeric, min:0; saved only for someone holding
@@ -1244,7 +1407,7 @@ is deployed.
     online.";
   - "Show Product" and "List Products": "`cost_price` is `null` for someone without `products.view-cost` or
     `products.set-cost`; the key is always present."
-- [ ] **Note on `docs/implementation/21-stock-adjustments.md`**, under its title, once step 1g ships (why: the module
+- [x] **Note on `docs/implementation/21-stock-adjustments.md`**, under its title, once step 1g ships (why: the module
       is the pre-SaaS design, and its "requires approval" rule and "complete" step no longer describe the code):
       > **Superseded (stage 10, step 1g).** Built, with bugs fixed in stage 10: adjustments only moved the default
       > variation, recorded their figures at draft time, let the type and reason disagree, needed approval for every
@@ -1252,7 +1415,7 @@ is deployed.
       > numbers. Approval now needs a second person for loss, theft, damage, expiry or above a threshold; "returned to
       > supplier" is a purchase return. Batches, costs and units on adjustments are in stage 11; counts are stocktakes,
       > stage 13. Every finding and where it went: [TRACEABILITY-stock.md](../saas/stages/TRACEABILITY-stock.md).
-- [ ] **PROGRESS.md:** when this stage starts, its section is added, with a "Planned" table listing stages 11 to 15
+- [x] **PROGRESS.md:** when this stage starts, its section is added, with a "Planned" table listing stages 11 to 15
       (file, branch, depends on, status), as the definition of done requires.
 
 ## Contract (paired app changes)
@@ -1376,143 +1539,208 @@ stage 11 makes them decimal.
 ## Acceptance criteria
 
 **Permissions (steps 0 and 1f)**
-- [ ] A business created before a permission was granted to its template gets it on the next `permissions:sync`.
-- [ ] A permission a business or the platform console took off a role stays off after `permissions:sync`.
-- [ ] Existing businesses have the Phase 5 and 7 permissions after the backfill; other absences are kept.
-- [ ] The backfill runs inside the migration that creates `role_revoked_permissions`, before `permissions:sync`; a
+- [x] A business created before a permission was granted to its template gets it on the next `permissions:sync`.
+      *Evidence:* `PermissionRolloutTest`: gives a copy a permission … granted to the template after (the race).
+- [x] A permission a business or the platform console took off a role stays off after `permissions:sync`.
+      *Evidence:* `PermissionRolloutTest`: keeps a permission a business took off …; keeps a permission the platform console took off a template off.
+- [x] Existing businesses have the Phase 5 and 7 permissions after the backfill; other absences are kept.
+      *Evidence:* `PermissionRolloutTest`: backfills … idempotent.
+- [x] The backfill runs inside the migration that creates `role_revoked_permissions`, before `permissions:sync`; a
       permission a business removed before this stage stays removed after a deploy in that order; this stage's new
       permissions are never recorded as revoked.
-- [ ] `Gate::before` lets only platform operators through.
-- [ ] A clerk never sees costs and can't set them, on the web or the flat API; the cashier and clerk templates hold
+      *Evidence:* `PermissionRolloutTest`: in the real deploy order, keeps a removal made by hand …
+- [x] `Gate::before` lets only platform operators through.
+      *Evidence:* `PermissionRolloutTest`: lets only platform operators through Gate::before, never a business owner.
+- [x] A clerk never sees costs and can't set them, on the web or the flat API; the cashier and clerk templates hold
       no cost permission; a role the owner gives a cost permission can.
-- [ ] The flat API's product endpoints need the product permissions; `cost_price` is `null` without
+      *Evidence:* `ClerkCostsTest` (9).
+- [x] The flat API's product endpoints need the product permissions; `cost_price` is `null` without
       `products.view-cost`, with the key kept.
-- [ ] The sync pull carries no cost field.
+      *Evidence:* `ClerkCostsTest`: sends cost_price as null …; refuses a cashier creating a product.
+- [x] The sync pull carries no cost field.
+      *Evidence:* `ClerkCostsTest`: sends no cost field in the till's sync pull.
 
 **Selling shop (step 1a)**
-- [ ] A sale at shop B takes shop B's stock and batches, whichever shop the product was first added in, on every
+- [x] A sale at shop B takes shop B's stock and batches, whichever shop the product was first added in, on every
       sale path; a till's sale is filed under the till's shop. The flat API's responses are unchanged.
-- [ ] Selling at a shop with no `shop_variation` row works and creates it.
-- [ ] A product that doesn't track stock moves no stock.
-- [ ] Reports count sales under the shop that made them.
-- [ ] A web or flat API sale below zero records a `negative_stock` issue the owner and manager see on the till sync
+      *Evidence:* `SellingShopTest` (web POS, flat API, till push, abandoned cart, online order); `FlatApiContractTest`.
+- [x] Selling at a shop with no `shop_variation` row works and creates it.
+      *Evidence:* `SellingShopTest`: sells at a shop with no stock row …
+- [x] A product that doesn't track stock moves no stock.
+      *Evidence:* `SellingShopTest`: moves no stock for a product that doesn't track stock.
+- [x] Reports count sales under the shop that made them.
+      *Evidence:* `SellingShopTest`: counts a cross-shop sale under the selling shop.
+- [x] A web or flat API sale below zero records a `negative_stock` issue the owner and manager see on the till sync
       review.
+      *Evidence:* `SellingShopTest`: records a negative_stock issue for a flat API sale below zero.
 
 **Stock adjustments (step 1g)**
-- [ ] An adjustment moves the variation it names; its figures are those at approval; the reason decides the
+- [x] An adjustment moves the variation it names; its figures are those at approval; the reason decides the
       direction; approving applies it; numbers are a series per shop.
+      *Evidence:* `StockAdjustmentsTest` (variation, figures at approval, direction, approve once, numbering).
 - [ ] The 16 approved-but-unapplied UAT adjustments are listed for the owner, not applied automatically.
-- [ ] Loss, theft, damage, expiry and adjustments at or above the threshold need a second person; the creator never
+      *Evidence:* **Open (UAT rehearsal):** `stock-adjustments:list-unapplied` is built and tested (`StockAdjustmentsTest`, `AdjustmentApprovalsTest`); the UAT count is checked at the rehearsal (rollout step 6).
+- [x] Loss, theft, damage, expiry and adjustments at or above the threshold need a second person; the creator never
       approves their own; "returned to supplier" is no longer an adjustment.
-- [ ] Adjustment numbers are a gapless series per shop and year, unique per shop.
-- [ ] An adjustment's value is Σ |quantity| × unit cost, so a +100/−100 recount above the threshold waits; a line of
+      *Evidence:* Revised 3 November 2026 (quality issue, giveaway and a recount lowering stock wait too; approve permission; sole-owner note). `StockAdjustmentsTest`, `AdjustmentApprovalsTest`.
+- [x] Adjustment numbers are a gapless series per shop and year, unique per shop.
+      *Evidence:* `StockAdjustmentsTest`: numbers … per shop; `InvoiceNumberConcurrencyTest` (MySQL, rollbacks); cancel keeps the number (`AdjustmentApprovalsTest`).
+- [x] An adjustment's value is Σ |quantity| × unit cost, so a +100/−100 recount above the threshold waits; a line of
       unknown cost waits for a second person; a found increase is costed at the shop's latest batch cost, else unknown.
+      *Evidence:* `StockAdjustmentsTest` (recount +100/−100, unknown cost, latest batch cost); `AdjustmentApprovalsTest` (gross, cumulative).
 
 **Products from the app (step 1f)**
-- [ ] Products are created from the app only online by holders of `products.create`; fields the API doesn't take are
+- [x] Products are created from the app only online by holders of `products.create`; fields the API doesn't take are
       refused, not dropped.
+      *Evidence:* `ClerkCostsTest`: refuses a product with variations … creates nothing; the app's side is a checklist item.
 
 **Voids (step 4)**
-- [ ] Voiding a sale of 5 units taken from two batches (3 at 60, 2 at 70) puts 3 back in the first batch and 2 in
+- [x] Voiding a sale of 5 units taken from two batches (3 at 60, 2 at 70) puts 3 back in the first batch and 2 in
       the second. Stock rises by 5, and the next sale is costed at 60 again.
-- [ ] Voiding a sale sold below zero raises stock and removes its provisional allocation. Stock arriving later
+      *Evidence:* `VoidStockAndMoneyTest`: puts a void of 5 units taken from two batches (3 at 60, 2 at 70) back …
+- [x] Voiding a sale sold below zero raises stock and removes its provisional allocation. Stock arriving later
       doesn't re-cost the voided sale.
-- [ ] Voiding twice is refused, and stock moves only once.
-- [ ] A sale with a return that isn't rejected can't be voided; one whose only return was rejected can.
-- [ ] The invariant holds after every case, on SQLite and MySQL.
+      *Evidence:* `StockReleaseTest`: releases a provisional line; `VoidStockAndMoneyTest`: never moves a sale voided before this stage.
+- [x] Voiding twice is refused, and stock moves only once.
+      *Evidence:* `VoidStockAndMoneyTest`: refuses a second void, and stock moves only once; `TillVoidTest` (pushed twice).
+- [x] A sale with a return that isn't rejected can't be voided; one whose only return was rejected can.
+      *Evidence:* `VoidStockAndMoneyTest`: refuses a void while a return isn't rejected …
+- [x] The invariant holds after every case, on SQLite and MySQL.
+      *Evidence:* `StockReleaseTest` checks it after each case; run on SQLite and MySQL.
 
 **Release (step 3)**
-- [ ] `release()` returns a consumer's units to the batches they came from, once, and writes `SALE_VOID` or
+- [x] `release()` returns a consumer's units to the batches they came from, once, and writes `SALE_VOID` or
       `SALE_DELETE`; it then settles waiting below-zero sales against those batches, and the invariant holds.
+      *Evidence:* `StockReleaseTest` (8).
 
 **Payouts (step 4)**
-- [ ] A manager holding `cash-registers.payout` records a petty-cash payout with a reason, and it lowers the session's
+- [x] A manager holding `cash-registers.payout` records a petty-cash payout with a reason, and it lowers the session's
       expected cash; a cashier without it can't.
-- [ ] A void's cash comes out of the voiding till's open session, or on the web the open session the person chooses;
+      *Evidence:* `VoidStockAndMoneyTest`: lets a manager record petty cash …
+- [x] A void's cash comes out of the voiding till's open session, or on the web the open session the person chooses;
       with none open it is a `refund_due`.
+      *Evidence:* Revised 4 November 2026: the till's session for a till void; on the web and flat API the voider's own open session, else a refund owed (no session choice). `VoidStockAndMoneyTest`, `TillVoidTest`.
 
 **Deletes (step 5)**
-- [ ] A completed sale can't be deleted on web or API.
-- [ ] Deleting a pending sale returns its stock first (`SALE_DELETE`) and soft-deletes it; its invoice number stays
+- [x] A completed sale can't be deleted on web or API.
+      *Evidence:* `DeleteSaleTest`: refuses to delete a completed sale …
+- [x] Deleting a pending sale returns its stock first (`SALE_DELETE`) and soft-deletes it; its invoice number stays
       taken; `stock:orphaned-movements` never lists it.
-- [ ] A pending sale with payments can't be deleted, and can be voided at any time while pending; only the owner
+      *Evidence:* `DeleteSaleTest`: deletes a pending sale …; `RepairCommandsTest`: never a soft-deleted one's.
+- [x] A pending sale with payments can't be deleted, and can be voided at any time while pending; only the owner
       deletes by default.
-- [ ] A deleted sale still resolves from its movements, lines, payments and returns, and leaves every list, report and
+      *Evidence:* `DeleteSaleTest`: refuses to delete a pending sale with a payment …; lets only someone holding sales.delete …
+- [x] A deleted sale still resolves from its movements, lines, payments and returns, and leaves every list, report and
       dashboard.
+      *Evidence:* `DeleteSaleTest`: … leaves a deleted sale out of lists and reports …
 
 **Web Void button (step 5a)**
-- [ ] The sale page shows a clearly labelled "Void sale" button within the window. Its confirmation explains what
+- [x] The sale page shows a clearly labelled "Void sale" button within the window. Its confirmation explains what
       voiding does and when to use a return instead, and needs a reason.
-- [ ] Past the window, or with a return that isn't rejected, the page explains why the button isn't there.
+      *Evidence:* `VoidButtonTest`.
+- [x] Past the window, or with a return that isn't rejected, the page explains why the button isn't there.
+      *Evidence:* `VoidButtonTest`: hides the button past the window and says why; hides it for a sale with a return …
 
 **Online cancellations (step 5b)**
-- [ ] An online order cancelled before dispatch voids its sale once and restores stock, a pending cash-on-delivery
+- [x] An online order cancelled before dispatch voids its sale once and restores stock, a pending cash-on-delivery
       sale included. One cancelled after dispatch flags the sale for a return instead.
+      *Evidence:* `StoreCancellationTest` (10), under the decisions of 4 November 2026.
 
 **Voids from the till (step 5c)**
-- [ ] A till voids a sale through `/api/v1`, and offline through the push, under the same permission, time limit
+- [x] A till voids a sale through `/api/v1`, and offline through the push, under the same permission, time limit
       and rules as the web; an offline void is judged by its `recorded_at`, and refused if the person may not void.
-- [ ] A void pushed before its sale is `pending` and applied once the sale arrives; a void pushed twice releases
+      *Evidence:* `TillVoidTest`, `ApiV1VoidContractTest`.
+- [x] A void pushed before its sale is `pending` and applied once the sale arrives; a void pushed twice releases
       stock once; a void of a sale voided elsewhere is a no-op; a void of a sale returned since is refused and on
       the review.
-- [ ] Every till of the shop learns of a void, wherever it was made, and gets the restored stock, on its next pull.
-- [ ] `voidable` and `voidable_until` are the same for everyone; `voidable` is false when the sale can't be voided,
+      *Evidence:* `TillVoidTest` (offline).
+- [x] Every till of the shop learns of a void, wherever it was made, and gets the restored stock, on its next pull.
+      *Evidence:* `TillVoidTest`: sends another till of the shop the void and the restored stock.
+- [x] `voidable` and `voidable_until` are the same for everyone; `voidable` is false when the sale can't be voided,
       and a pending sale with payments is voidable with no `voidable_until`.
-- [ ] A confirmed M-Pesa payment never brings a voided sale back; it is a `refund_due` (`source = late_payment`).
-- [ ] Voiding a sale paid by M-Pesa or card is a `refund_due` (`source = void`) with the method and reference.
-- [ ] A void after the sale's cash session closed leaves that session as counted, and pays the cash out of the
+      *Evidence:* `TillVoidTest`: gives the same voidable to the cashier and the owner …
+- [x] A confirmed M-Pesa payment never brings a voided sale back; it is a `refund_due` (`source = late_payment`).
+      *Evidence:* `HeldItemsTest`: owes an M-Pesa payment confirmed for a sale voided meanwhile.
+- [x] Voiding a sale paid by M-Pesa or card is a `refund_due` (`source = void`) with the method and reference.
+      *Evidence:* `VoidStockAndMoneyTest`: owes card, M-Pesa, bank transfer and cheque payments …
+- [x] A void after the sale's cash session closed leaves that session as counted, and pays the cash out of the
       voiding till's open session, or on the web the open session the person chooses (or records a `refund_due` when
       none is open).
-- [ ] The server knows how many unsynced items each till holds; re-pairing a till that holds some needs a
+      *Evidence:* Revised 4 November 2026 (no session choice on the web). `VoidStockAndMoneyTest`, `TillVoidTest` (closed-session correction).
+- [x] The server knows how many unsynced items each till holds; re-pairing a till that holds some needs a
       confirmation and is audited; any held or stuck outbox item can be discarded on the till, and that is reviewed
       and audited.
-- [ ] Every push refusal carries a `disposition`, and each code has exactly one class.
-- [ ] A held item is accepted with the till's own invoice number, or discarded, on the review, once, audited, and the
+      *Evidence:* `SyncDispositionsTest`; `HeldItemsTest`: lets a till discard its own items …
+- [x] Every push refusal carries a `disposition`, and each code has exactly one class.
+      *Evidence:* `SyncDispositionsTest`.
+- [x] A held item is accepted with the till's own invoice number, or discarded, on the review, once, audited, and the
       till clears it; a duplicate payment becomes a `refund_due` and is dropped.
-- [ ] `invoice_number_taken` and a web-series number from a till can only be discarded.
-- [ ] A void recorded outside any lease is held, accepted only within the void window at the server's time.
-- [ ] Discarding a `sale` or `sale_payment` item needs `sales.void`; other discards need `sync-issues.discard` (owner
+      *Evidence:* `HeldItemsTest`: holds a sale recorded outside its lease …; owes a payment pushed for a sale already paid once …
+- [x] `invoice_number_taken` and a web-series number from a till can only be discarded.
+      *Evidence:* `HeldItemsTest`.
+- [x] A void recorded outside any lease is held, accepted only within the void window at the server's time.
+      *Evidence:* `HeldItemsTest`: holds a void recorded outside its lease …
+- [x] Discarding a `sale` or `sale_payment` item needs `sales.void`; other discards need `sync-issues.discard` (owner
       and manager).
-- [ ] An `invoice_number_taken` sale that happened is re-rung as a new web sale, linked to the till's number, audited.
-- [ ] A re-rung sale keeps the till's `client_uuid`: items queued behind it apply to it, and a re-push of the original
+      *Evidence:* `HeldItemsTest`: needs sales.void to discard a sale …; lets a till discard its own items …
+- [x] An `invoice_number_taken` sale that happened is re-rung as a new web sale, linked to the till's number, audited.
+      *Evidence:* `HeldItemsTest`.
+- [x] A re-rung sale keeps the till's `client_uuid`: items queued behind it apply to it, and a re-push of the original
       answers `discarded` and creates nothing.
-- [ ] A `refund_due` is marked refunded once, audited, with a payout for cash, until stage 14 replaces it.
-- [ ] Each validation rule on a pushed sale is resolved as its group in step 5c says.
-- [ ] Every request carries `X-App-Version`; an older app gets Phase 7's codes and shapes (the replay test).
+      *Evidence:* `HeldItemsTest`.
+- [x] A `refund_due` is marked refunded once, audited, with a payout for cash, until stage 14 replaces it.
+      *Evidence:* Revised 4 November 2026 (payers hold `sales.void` or `refunds.approve`; cash from their own open session). `VoidStockAndMoneyTest`.
+- [x] Each validation rule on a pushed sale is resolved as its group in step 5c says.
+      *Evidence:* `HeldItemsTest`: resolves validation failures by their group (one rule from each group, as the step's tests ask).
+- [x] Every request carries `X-App-Version`; an older app gets Phase 7's codes and shapes (the replay test).
+      *Evidence:* `SyncDispositionsTest` (the app side is a checklist item).
 
 **Permissions and time limit (step 2)**
-- [ ] Void and delete through the API need `sales.void` / `sales.delete`, as on the web.
-- [ ] By default only the owner can void. A role the owner gives `sales.void` can void. `sales.edit-all` alone
+- [x] Void and delete through the API need `sales.void` / `sales.delete`, as on the web.
+      *Evidence:* `VoidPermissionAndWindowTest`, `DeleteSaleTest`, `FlatApiWriteAuthorizationTest`.
+- [x] By default only the owner can void. A role the owner gives `sales.void` can void. `sales.edit-all` alone
       can't. `permissions:sync` doesn't give it back to managers.
-- [ ] By default a sale can be voided while its register session is open, never past the end of the day it was made
+      *Evidence:* `VoidPermissionAndWindowTest` (who; the migration).
+- [x] By default a sale can be voided while its register session is open, never past the end of the day it was made
       in the shop's timezone (the end of the day for a sale with no session), for the owner too. A business's choice of
       the end of the day, its own number of minutes (up to 24 hours), or "No time limit", applies to that business
       only. Anyone with `settings.update` can change it. A pending sale has no window until it is completed.
+      *Evidence:* Revised 3 November 2026: changing the limit is owner-only (not `settings.update` alone). `VoidPermissionAndWindowTest`.
 
 **Costs (step 6)**
-- [ ] A line costed from a batch with no cost is marked `cost_known = false` and flagged on the sale page and the
+- [x] A line costed from a batch with no cost is marked `cost_known = false` and flagged on the sale page and the
       profit report.
-- [ ] Settling below-zero sales against a batch with no cost keeps the estimate.
+      *Evidence:* `CostKnownTest`.
+- [x] Settling below-zero sales against a batch with no cost keeps the estimate.
+      *Evidence:* `CostKnownTest`.
 
 **Repair (step 7)**
-- [ ] `sales:restock-voided` restores old voided sales once, with a dry run first.
-- [ ] `stock:orphaned-movements` lists movements of sales hard-deleted before this stage.
+- [x] `sales:restock-voided` restores old voided sales once, with a dry run first.
+      *Evidence:* `RepairCommandsTest`.
+- [x] `stock:orphaned-movements` lists movements of sales hard-deleted before this stage.
+      *Evidence:* `RepairCommandsTest`.
 
 **Invoice series, contract and checks (step 5d and the contract)**
-- [ ] The flat API contract test passes. A void, delete or product refusal is a new 403/422; how the app shows it is
+- [x] The flat API contract test passes. A void, delete or product refusal is a new 403/422; how the app shows it is
       an app check (the checklist).
-- [ ] Tills and the web never share an invoice series (step 5d): two tills' same sequence numbers don't collide; a
+      *Evidence:* `FlatApiContractTest` (full suites).
+- [x] Tills and the web never share an invoice series (step 5d): two tills' same sequence numbers don't collide; a
       web sale and a till sale can't collide; existing numbers are untouched.
-- [ ] Pint, the full SQLite and MySQL suites, and the isolation suite pass. New routes or commands appear in
+      *Evidence:* `InvoiceSeriesTest`, `InvoiceNumberConcurrencyTest`.
+- [x] Pint, the full SQLite and MySQL suites, and the isolation suite pass. New routes or commands appear in
       `ResourceMatrixTest` where they apply, `POST /api/v1/sales/{uuid}/void` included.
-- [ ] `ApiV1VoidContractTest` pins the online void's success and refusals (`void_window_closed`, `sale_has_returns`,
+      *Evidence:* See "Test results" in [docs/pr/stage-10.md](../../pr/stage-10.md); matrix rows for every new web, flat API and `/api/v1` route.
+- [x] `ApiV1VoidContractTest` pins the online void's success and refusals (`void_window_closed`, `sale_has_returns`,
       `sale_already_voided`, 403); the v1 contract test passes with its fixtures unchanged.
-- [ ] The app's recorded requests (pushes and pulls without step 5c, and the flat API calls in the contract
+      *Evidence:* `ApiV1VoidContractTest`; `ApiV1ContractTest` passes unchanged.
+- [x] The app's recorded requests (pushes and pulls without step 5c, and the flat API calls in the contract
       fixtures) still succeed against the new server.
+      *Evidence:* `FlatApiContractTest`, `ApiV1ContractTest`, `LiveLikeDatasetTest` and the Phase 7 sync tests pass unchanged; the app itself is checked in its own release.
 
 **Housekeeping (step 8)**
-- [ ] The domain rules and CLAUDE.md say what this stage changed, and step 8's planned document items (the app's
+- [x] The domain rules and CLAUDE.md say what this stage changed, and step 8's planned document items (the app's
       products document, the module 21 note, the deploy order) are done when the stage ships.
+      *Evidence:* Step 8 (commit `2283e25`).
 
 ## Risks
 
@@ -1610,9 +1838,13 @@ stage 11 makes them decimal.
    `stock-adjustments:list-unapplied` for each business. **The owner applies or rejects each listed adjustment on its
    page**, through the one-step approval (a second person where step 1g requires one). Nothing is applied by a
    command.
-8. **Server before app:** deploy the server first. Every sync change is an addition, so the app in shops ignores
+8. **Background work (step 1g follow-up and step 2):** the scheduler must run `approvals:remind` hourly (it is in
+   `routes/console.php`; `schedule:run` must run every minute), and a queue worker must be running for approval
+   notifications (queued on `default`; the worker's `--queue=` list must include it). Without them nobody is
+   reminded, void requests never expire, and no approval email or in-app notification is delivered.
+9. **Server before app:** deploy the server first. Every sync change is an addition, so the app in shops ignores
    `sale_voids`, `voidable` and `voidable_until`, and never sends `sale_void`.
-9. Check the server, on the rehearsal, against the app's recorded requests: the Phase 7 sync tests run unchanged;
+10. Check the server, on the rehearsal, against the app's recorded requests: the Phase 7 sync tests run unchanged;
    the recorded pushes and pulls, and the flat API contract fixtures, succeed; the replay test (no `X-App-Version`)
    gets Phase 7's codes. How the app itself behaves is checked in its own release
    ([app-release-checklist.md](./app-release-checklist.md#stage-10)), whose date isn't set.

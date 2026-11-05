@@ -23,5 +23,9 @@ final class SaleContext
         public readonly ?int $soldBy = null,
         // Paid by M-Pesa at the till, confirmed later: recorded unpaid until then.
         public readonly bool $awaitingPayment = false,
+        // A held till sale accepted with an unusual number (stage 10, step 5c): kept as the till gave it.
+        public readonly bool $invoiceAsGiven = false,
+        // Number it in the shop's web series (stage 10, steps 5c and 5d): a re-rung till sale.
+        public readonly bool $webSeries = false,
     ) {}
 }

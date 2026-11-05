@@ -5,11 +5,11 @@ namespace App\Services\Sync\Push;
 use App\Actions\Sale\RecordSale;
 use App\Actions\Sale\SaleContext;
 use App\Enums\ApiErrorCode;
+use App\Http\Requests\HeldSaleRequest;
 use App\Http\Requests\StoreSaleRequest;
 use App\Models\CashRegister;
 use App\Models\Customer;
 use App\Models\Sale;
-use App\Models\StockMovement;
 use App\Models\SyncIssue;
 use App\Services\Mpesa\TillPayments;
 use App\Services\Sync\TradingLease;
@@ -37,7 +37,7 @@ final class SaleHandler implements PushHandler
 
     public function handle(PushItem $item): array
     {
-        if (! $this->leases->covers($item->register->id, $item->recordedAt)) {
+        if (! $item->accepting('skip_lease') && ! $this->leases->covers($item->register->id, $item->recordedAt)) {
             throw new PushRefused(ApiErrorCode::OutsideTradingLease, __('This sale was recorded outside the time this till was allowed to trade offline.'));
         }
 
@@ -47,7 +47,8 @@ final class SaleHandler implements PushHandler
             // A customer merged into another since (decision 4.9) leads to the one kept.
             $named = Customer::query()->withTrashed()->where('client_uuid', $data['customer_client_uuid'])->first(['id', 'merged_into_id']);
             $data['customer_id'] = ($named?->merged_into_id ?? $named?->id)
-                ?? throw new PushRefused(ApiErrorCode::ValidationFailed, __('The sale\'s customer has not been synced.'), ['customer_client_uuid' => [__('Push the customer before the sale.')]]);
+                // Push the other item first (stage 10, step 5c): pending, sent again; Phase 7's apps get validation_failed.
+                ?? throw new PushPending(ApiErrorCode::CustomerNotSynced, __('The sale\'s customer has not been synced. Push the customer before the sale.'));
         }
 
         $validated = $this->validated($data, $item);
@@ -66,6 +67,8 @@ final class SaleHandler implements PushHandler
                 invoiceNumber: isset($data['invoice_number']) ? (string) $data['invoice_number'] : null,
                 soldBy: $cashier->id,
                 awaitingPayment: (bool) ($data['awaiting_mpesa'] ?? false),
+                invoiceAsGiven: $item->accepting('invoice_as_given'),
+                webSeries: $item->accepting('web_series'),
             ));
         } catch (InvalidArgumentException $e) {
             throw new PushRefused(ApiErrorCode::InvalidInvoiceNumber, $e->getMessage(), ['invoice_number' => [$e->getMessage()]]);
@@ -87,6 +90,12 @@ final class SaleHandler implements PushHandler
 
         $sale = $recorded->sale;
         $flags = [];
+        // How a held sale was accepted (stage 10, step 5c), kept on the sale.
+        // Keyed by flag: `accepted_outside_lease` => true, `rerung` => the till's number and client uuid.
+        if (! empty($item->accept['flags'])) {
+            $flagged = collect($item->accept['flags'])->mapWithKeys(fn ($value, $key) => is_string($key) ? [$key => $value] : [$value => true])->all();
+            $sale->forceFill(['sync_flags' => $flagged])->save();
+        }
 
         // An M-Pesa payment confirmed before the sale arrived is recorded now.
         if ((bool) ($data['awaiting_mpesa'] ?? false)) {
@@ -103,9 +112,8 @@ final class SaleHandler implements PushHandler
             $this->issues->record(SyncIssue::IMPLAUSIBLE_TIME, 'sale:'.$sale->uuid, [...$about, 'received_at' => now()->toIso8601String()], $item->register);
         }
         // Sold below zero: the ledger let it through and costed it provisionally.
-        if (StockMovement::query()->where('reference_uuid', $sale->uuid)->where('quantity_after', '<', 0)->exists()) {
+        if ($this->issues->recordNegativeStock($sale, $item->register, $about)) {
             $flags[] = 'negative_stock';
-            $this->issues->record(SyncIssue::NEGATIVE_STOCK, 'sale:'.$sale->uuid, $about, $item->register);
         }
         if ($recorded->overCreditLimit) {
             $flags[] = 'over_credit_limit';
@@ -128,7 +136,8 @@ final class SaleHandler implements PushHandler
      */
     private function validated(array $data, PushItem $item): array
     {
-        $request = StoreSaleRequest::createFrom(Request::create('/', 'POST', $data));
+        $class = $item->accepting('as_recorded') ? HeldSaleRequest::class : StoreSaleRequest::class;
+        $request = $class::createFrom(Request::create('/', 'POST', $data));
         $request->setContainer(app())->setRedirector(app('redirect'));
         $request->setUserResolver(fn () => $item->user);
         $request->validateResolved();

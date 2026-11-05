@@ -39,6 +39,8 @@ class StoreShopRequest extends FormRequest
             'state' => ['nullable', 'string', 'max:100'],
             'country' => ['nullable', 'string', 'max:100'],
             'postal_code' => ['nullable', 'string', 'max:20'],
+            // The shop's day (void windows, the day's adjustments); blank uses the business's (stage 10).
+            'timezone' => ['nullable', 'timezone:all'],
             'latitude' => ['nullable', 'numeric', 'between:-90,90'],
             'longitude' => ['nullable', 'numeric', 'between:-180,180'],
             'status' => ['nullable', Rule::enum(ShopStatus::class)],

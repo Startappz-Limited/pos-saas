@@ -22,5 +22,13 @@ final class PushItem
         public readonly array $data,
         public readonly Register $register,
         public readonly User $user,
+        // A held item accepted on the till sync review (stage 10, step 5c): which checks the
+        // manager's acceptance stands in for (`skip_lease`, `invoice_as_given`, `as_recorded`).
+        public readonly array $accept = [],
     ) {}
+
+    public function accepting(string $option): bool
+    {
+        return (bool) ($this->accept[$option] ?? false);
+    }
 }

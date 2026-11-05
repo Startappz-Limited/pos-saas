@@ -6,6 +6,7 @@ use App\Enums\AdjustmentReason;
 use App\Enums\AdjustmentType;
 use App\Models\Concerns\Auditable;
 use App\Models\Concerns\BelongsToShop;
+use App\Services\InvoiceNumberService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -26,10 +27,17 @@ class StockAdjustment extends Model
         'reason',
         'notes',
         'status',
+        'auto_applied',
         'created_by',
         'approved_by',
         'approved_at',
+        'self_approved',
+        'approval_note',
+        'cost_value',
+        'reminded_at',
         'rejection_reason',
+        'cancelled_by',
+        'cancelled_at',
     ];
 
     protected function casts(): array
@@ -38,6 +46,11 @@ class StockAdjustment extends Model
             'type' => AdjustmentType::class,
             'reason' => AdjustmentReason::class,
             'approved_at' => 'datetime',
+            'auto_applied' => 'boolean',
+            'self_approved' => 'boolean',
+            'cost_value' => 'decimal:2',
+            'reminded_at' => 'datetime',
+            'cancelled_at' => 'datetime',
         ];
     }
 
@@ -47,8 +60,9 @@ class StockAdjustment extends Model
             if (empty($adjustment->uuid)) {
                 $adjustment->uuid = (string) Str::uuid();
             }
+            // A gapless series per shop and year (stage 10, step 1g).
             if (empty($adjustment->adjustment_number)) {
-                $adjustment->adjustment_number = 'ADJ-'.strtoupper(Str::random(8));
+                $adjustment->adjustment_number = app(InvoiceNumberService::class)->nextAdjustment((int) $adjustment->shop_id);
             }
         });
     }
@@ -77,6 +91,11 @@ class StockAdjustment extends Model
     public function approver(): BelongsTo
     {
         return $this->belongsTo(User::class, 'approved_by');
+    }
+
+    public function canceller(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'cancelled_by');
     }
 
     // Scopes
@@ -121,19 +140,24 @@ class StockAdjustment extends Model
         return $this->status === 'rejected';
     }
 
-    public function canBeApproved(): bool
+    public function isCancelled(): bool
     {
-        return $this->isPending();
+        return $this->status === 'cancelled';
     }
 
-    public function canBeCompleted(): bool
+    /**
+     * Approving applies the stock in the same step (stage 10, step 1g). An
+     * "approved" adjustment is one approved before that, whose stock never moved:
+     * it is applied or rejected from its page, like a pending one.
+     */
+    public function canBeApproved(): bool
     {
-        return $this->isApproved();
+        return $this->isPending() || $this->isApproved();
     }
 
     public function canBeRejected(): bool
     {
-        return $this->isPending();
+        return $this->isPending() || $this->isApproved();
     }
 
     public function getTotalQuantityChangeAttribute(): int

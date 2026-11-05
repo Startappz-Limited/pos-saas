@@ -31,7 +31,9 @@ use Illuminate\Support\Str;
  *   re-costing those sales;
  * - consume(): stock out (sale, write-off, purchase return) takes layers
  *   oldest first; a shortfall is allocated provisionally at the last known
- *   cost and stock goes negative (offline sales are always accepted, 4.5).
+ *   cost and stock goes negative (offline sales are always accepted, 4.5);
+ * - release(): gives back everything one consumer took (a voided or deleted
+ *   sale's line), into the batches it came from (stage 10, step 3).
  *
  * Callers have already authorised the shop: queries here filter by the given
  * shop and variation explicitly rather than through the viewer's scopes, so a
@@ -128,6 +130,86 @@ class StockLedger
     }
 
     /**
+     * Gives back everything one consumer took (stage 10, step 3): a sale line,
+     * adjustment line or supplier-return line, found through consumerKey(), so
+     * any consumer releases through this one method. Settled units go back into
+     * the batch they came from (a new `release` batch at their cost if it no
+     * longer exists), so FIFO order and cost stay exact; provisional units come
+     * back with no batch. Stock rises by the total, one movement of $type is
+     * written at the weighted cost released, the allocations are deleted (their
+     * history is in the movement and the audit log), and the batches given
+     * units then settle waiting below-zero sales, oldest first. The consumer's
+     * own cost figures are left as they were. Nothing to release (already
+     * released, or never consumed) gives null and changes nothing.
+     *
+     * @param  array{reference?: Model|null, notes?: string|null, user_id?: int|null}  $context
+     */
+    public function release(Model $consumer, StockMovementType $type, array $context = []): ?StockChange
+    {
+        [$consumerType, $consumerId] = $this->consumerKey($consumer);
+
+        return DB::transaction(function () use ($consumerType, $consumerId, $type, $context): ?StockChange {
+            $first = DB::table('cost_allocations')->where('consumer_type', $consumerType)->where('consumer_id', $consumerId)
+                ->orderBy('id')->first(['shop_id', 'product_id', 'variation_id']);
+            if ($first === null) {
+                return null;
+            }
+
+            $shopId = (int) $first->shop_id;
+            $variation = (new ProductVariation)->forceFill(['id' => (int) $first->variation_id, 'product_id' => (int) $first->product_id]);
+            $before = $this->lockStock($shopId, $variation);
+
+            $allocations = DB::table('cost_allocations')->where('consumer_type', $consumerType)->where('consumer_id', $consumerId)
+                ->where('shop_id', $shopId)->where('variation_id', $variation->id)
+                ->orderBy('id')->lockForUpdate()->get();
+
+            $quantity = 0;
+            $totalCost = 0.0;
+            $costKnown = true;
+            $batches = [];
+
+            foreach ($allocations as $allocation) {
+                $units = (int) $allocation->quantity_allocated;
+                $cost = $allocation->unit_cost === null ? null : (float) $allocation->unit_cost;
+                $quantity += $units;
+                $totalCost += $units * (float) $cost;
+                $costKnown = $costKnown && $cost !== null;
+
+                if ($allocation->is_provisional) {
+                    continue; // stock comes back with no batch, as it left
+                }
+
+                $layerId = $allocation->cost_layer_id === null ? null : (int) $allocation->cost_layer_id;
+                if ($layerId !== null && DB::table('cost_layers')->where('id', $layerId)->lockForUpdate()->exists()) {
+                    DB::table('cost_layers')->where('id', $layerId)->update([
+                        'remaining_quantity' => DB::raw('remaining_quantity + '.$units),
+                        'consumed_at' => null,
+                        'updated_at' => now(),
+                    ]);
+                } else {
+                    $layerId = $this->createLayer($shopId, $variation, $units, $cost, ['source_type' => CostLayer::SOURCE_RELEASE, 'source_id' => $consumerId]);
+                }
+                $batches[$layerId] = true;
+            }
+
+            DB::table('cost_allocations')->whereIn('id', $allocations->pluck('id'))->delete();
+            $this->changeStock($shopId, $variation, $quantity);
+
+            $totalCost = round($totalCost, 2);
+            $unitCost = $quantity > 0 && $costKnown ? round($totalCost / $quantity, 2) : null;
+            $movement = $this->recordMovement($shopId, $variation, $type, $quantity, $before, $before + $quantity, $unitCost, $context);
+
+            // Units given back to a batch settle sales made below zero, oldest batch first.
+            $order = DB::table('cost_layers')->whereIn('id', array_keys($batches))->orderBy('received_at')->orderBy('id')->pluck('id');
+            foreach ($order as $layerId) {
+                $this->settleProvisional($shopId, $variation, (int) $layerId);
+            }
+
+            return new StockChange($movement, $quantity, $totalCost, $costKnown);
+        });
+    }
+
+    /**
      * Moves a shop's stock of a variation to $target (a figure set on a
      * product or variation): the difference is received at the fallback cost
      * or written off, oldest layers first.
@@ -148,14 +230,26 @@ class StockLedger
     /**
      * Takes a sale line's stock from its shop and sets its cost and profit
      * from the layers it consumed. Call recostSale() once all lines are done.
+     * A product that doesn't track stock moves nothing (stage 10, step 1a): no
+     * movement, no allocation; its line is costed at the variation's cost.
      */
-    public function sellItem(SaleItem $item, ProductVariation $variation, array $context = []): StockChange
+    public function sellItem(SaleItem $item, ProductVariation $variation, array $context = []): ?StockChange
     {
-        // A line's own shop (its product's), else its sale's: converted online
-        // orders record no shop on their lines.
+        if (! $this->tracksStock($variation)) {
+            $cost = $variation->cost_price ?? ($variation->is_default ? DB::table('products')->where('id', $variation->product_id)->value('cost_price') : null);
+            $this->applyItemCost($item->id, round((int) $item->quantity * (float) $cost, 2));
+            DB::table('sale_items')->where('id', $item->id)->update(['cost_known' => $cost !== null]);
+
+            return null;
+        }
+
+        // The selling shop, recorded on the line (stage 10, step 1a), else its sale's:
+        // converted online orders record no shop on their lines.
         $shopId = (int) ($item->shop_id ?? DB::table('sales')->where('id', $item->sale_id)->value('shop_id'));
         $change = $this->consume($shopId, $variation, (int) $item->quantity, StockMovementType::SALE, $item, ['reference' => $context['reference'] ?? $item->sale, ...$context]);
         $this->applyItemCost($item->id, $change->totalCost);
+        // Whether every unit's cost is known (stage 10, step 6).
+        DB::table('sale_items')->where('id', $item->id)->update(['cost_known' => $change->costKnown]);
 
         return $change;
     }
@@ -174,6 +268,65 @@ class StockLedger
             ?? ($variation->is_default ? DB::table('products')->where('id', $variation->product_id)->value('cost_price') : null);
 
         return $cost === null ? null : (float) $cost;
+    }
+
+    /**
+     * What taking $quantity of a variation from a shop would cost now, per unit,
+     * without taking it (stage 10, step 1g: an adjustment's value before it is
+     * applied): the batches oldest first, then the fallback cost for a
+     * shortfall, as consume() would. Null when any unit's cost is unknown.
+     */
+    public function costToConsume(int $shopId, ProductVariation $variation, int $quantity): ?float
+    {
+        $quantity = abs($quantity);
+        $needed = $quantity;
+        $total = 0.0;
+
+        foreach (DB::table('cost_layers')->where('shop_id', $shopId)->where('variation_id', $variation->id)->where('remaining_quantity', '>', 0)
+            ->orderBy('received_at')->orderBy('id')->get(['remaining_quantity', 'unit_cost']) as $layer) {
+            if ($needed <= 0) {
+                break;
+            }
+            if ($layer->unit_cost === null) {
+                return null;
+            }
+            $take = min($needed, (int) $layer->remaining_quantity);
+            $total += $take * (float) $layer->unit_cost;
+            $needed -= $take;
+        }
+
+        if ($needed > 0) {
+            $fallback = $this->fallbackCost($shopId, $variation);
+            if ($fallback === null) {
+                return null;
+            }
+            $total += $needed * $fallback;
+        }
+
+        return $quantity > 0 ? round($total / $quantity, 2) : null;
+    }
+
+    /**
+     * The cost of the latest batch of a variation at a shop that has one, or
+     * null: what found stock is received at (stage 10, step 1g; stage 13 does the
+     * same for stocktake surpluses), never a cost_price nobody entered for it.
+     */
+    public function latestBatchCost(int $shopId, ProductVariation $variation): ?float
+    {
+        $cost = DB::table('cost_layers')->where('shop_id', $shopId)->where('variation_id', $variation->id)
+            ->whereNotNull('unit_cost')->orderByDesc('received_at')->orderByDesc('id')->value('unit_cost');
+
+        return $cost === null ? null : (float) $cost;
+    }
+
+    /**
+     * Moves the shop's stock row of a variation on (its `updated_at`) without
+     * changing stock, so tills pull it again (stage 10, step 5c: a pending
+     * adjustment decrease changes the units it shows as pending removal).
+     */
+    public function touch(int $shopId, int $variationId): void
+    {
+        DB::table('shop_variation')->where('shop_id', $shopId)->where('variation_id', $variationId)->update(['updated_at' => now()]);
     }
 
     /**
@@ -212,6 +365,11 @@ class StockLedger
     }
 
     // --- internals -----------------------------------------------------------
+
+    private function tracksStock(ProductVariation $variation): bool
+    {
+        return (bool) (DB::table('products')->where('id', $variation->product_id)->value('track_stock') ?? true);
+    }
 
     /**
      * Locks the shop's stock row for the variation, creating it at zero when
@@ -312,6 +470,7 @@ class StockLedger
     /**
      * A new layer first covers units sold below zero, oldest first: those
      * allocations take the layer's cost, and their sales are re-costed.
+     * Voided sales are skipped.
      */
     private function settleProvisional(int $shopId, ProductVariation $variation, int $layerId): void
     {
@@ -321,6 +480,10 @@ class StockLedger
 
         $pending = DB::table('cost_allocations')
             ->where('shop_id', $shopId)->where('variation_id', $variation->id)->where('is_provisional', true)
+            // A voided sale's units never take arriving stock (stage 10, step 4): a sale
+            // voided before this stage still has its allocations.
+            ->where(fn ($query) => $query->whereNull('sale_item_id')->orWhereNotIn('sale_item_id', DB::table('sale_items')
+                ->join('sales', 'sales.id', '=', 'sale_items.sale_id')->where('sales.status', 'voided')->select('sale_items.id')))
             ->orderBy('allocated_at')->orderBy('id')
             ->lockForUpdate()
             ->get();
@@ -332,10 +495,13 @@ class StockLedger
                 break;
             }
             $take = min($available, (int) $allocation->quantity_allocated);
+            // A batch with no cost keeps the provisional estimate (stage 10, step 6):
+            // the line is marked cost unknown instead of dropping to no cost.
+            $settledCost = $cost ?? ($allocation->unit_cost === null ? null : (float) $allocation->unit_cost);
             $settled = [
                 'cost_layer_id' => $layerId,
-                'unit_cost' => $cost,
-                'total_cost' => $cost === null ? null : round($take * $cost, 2),
+                'unit_cost' => $settledCost,
+                'total_cost' => $settledCost === null ? null : round($take * $settledCost, 2),
                 'is_provisional' => false,
                 'settled_at' => now(),
                 'updated_at' => now(),
@@ -370,8 +536,23 @@ class StockLedger
         foreach ($recost->unique() as $saleItemId) {
             $total = round((float) DB::table('cost_allocations')->where('sale_item_id', $saleItemId)->sum('total_cost'), 2);
             $this->applyItemCost($saleItemId, $total);
+            DB::table('sale_items')->where('id', $saleItemId)->update(['cost_known' => $this->lineCostKnown($saleItemId)]);
             $this->recostSale((int) DB::table('sale_items')->where('id', $saleItemId)->value('sale_id'));
         }
+    }
+
+    /**
+     * Whether every unit of a sale line has a known cost (stage 10, step 6):
+     * no allocation with no cost, or from a batch with no cost.
+     */
+    public function lineCostKnown(int $saleItemId): bool
+    {
+        return ! DB::table('cost_allocations')
+            ->leftJoin('cost_layers', 'cost_layers.id', '=', 'cost_allocations.cost_layer_id')
+            ->where('cost_allocations.sale_item_id', $saleItemId)
+            ->where(fn ($query) => $query->whereNull('cost_allocations.unit_cost')
+                ->orWhere(fn ($layer) => $layer->whereNotNull('cost_allocations.cost_layer_id')->whereNull('cost_layers.unit_cost')))
+            ->exists();
     }
 
     /**

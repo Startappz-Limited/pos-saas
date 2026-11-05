@@ -19,37 +19,41 @@
                     </div>
                     <div class="d-flex gap-2">
                         @can('approve', $stockAdjustment)
-                            <form action="{{ route('stock-adjustments.approve', $stockAdjustment) }}" method="POST"
-                                class="d-inline">
-                                @csrf
-                                <button type="submit" class="btn btn-success"
-                                    onclick="return confirm('Approve this adjustment?')">
-                                    <iconify-icon icon="solar:check-circle-bold-duotone"
-                                        class="align-middle me-1"></iconify-icon>
-                                    Approve
+                            @if ($stockAdjustment->created_by === auth()->id())
+                                <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#selfApproveModal">
+                                    <iconify-icon icon="solar:check-circle-bold-duotone" class="align-middle me-1" aria-hidden="true"></iconify-icon>
+                                    {{ __('Approve your own') }}
                                 </button>
-                            </form>
+                            @else
+                                <form action="{{ route('stock-adjustments.approve', $stockAdjustment) }}" method="POST"
+                                    class="d-inline">
+                                    @csrf
+                                    <button type="submit" class="btn btn-success"
+                                        onclick="return confirm(@js(__('Approve this adjustment and update the stock?')))">
+                                        <iconify-icon icon="solar:check-circle-bold-duotone"
+                                            class="align-middle me-1" aria-hidden="true"></iconify-icon>
+                                        {{ __('Approve & Apply') }}
+                                    </button>
+                                </form>
+                            @endif
                         @endcan
 
-                        @can('complete', $stockAdjustment)
-                            <form action="{{ route('stock-adjustments.complete', $stockAdjustment) }}" method="POST"
-                                class="d-inline">
-                                @csrf
-                                <button type="submit" class="btn btn-primary"
-                                    onclick="return confirm('Complete this adjustment and update inventory?')">
-                                    <iconify-icon icon="solar:box-bold-duotone"
-                                        class="align-middle me-1"></iconify-icon>
-                                    Complete & Apply
-                                </button>
-                            </form>
-                        @endcan
-
-                        @if ($stockAdjustment->isPending())
+                        @can('update', $stockAdjustment)
                             <a href="{{ route('stock-adjustments.edit', $stockAdjustment) }}" class="btn btn-soft-primary">
-                                <iconify-icon icon="solar:pen-2-broken" class="align-middle me-1"></iconify-icon>
-                                Edit
+                                <iconify-icon icon="solar:pen-2-broken" class="align-middle me-1" aria-hidden="true"></iconify-icon>
+                                {{ __('Edit') }}
                             </a>
-                        @endif
+                        @endcan
+
+                        @can('cancel', $stockAdjustment)
+                            <form action="{{ route('stock-adjustments.cancel', $stockAdjustment) }}" method="POST" class="d-inline">
+                                @csrf
+                                <button type="submit" class="btn btn-soft-secondary"
+                                    onclick="return confirm(@js(__('Cancel this adjustment? It keeps its number and moves no stock.')))">
+                                    {{ __('Cancel adjustment') }}
+                                </button>
+                            </form>
+                        @endcan
 
                         @can('reject', $stockAdjustment)
                             <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#rejectModal">
@@ -62,6 +66,20 @@
                 </div>
             </div>
         </div>
+
+        @if ($stockAdjustment->isPending() || $stockAdjustment->isApproved())
+            <div class="alert alert-warning" role="status">
+                @if ($stockAdjustment->isApproved())
+                    {{ __('Approved before approving applied the stock: its stock was never changed. Approve it to apply it now, at today\'s stock, or reject it.') }}
+                @elseif ($stockAdjustment->created_by === auth()->id() && auth()->user()->can('approve', $stockAdjustment))
+                    {{ __('Nobody else in the business can approve this adjustment, so as the owner you may approve your own, with a note. It will be marked self-approved.') }}
+                @elseif ($stockAdjustment->created_by === auth()->id())
+                    {{ __('This adjustment waits for someone else holding the approve permission. They have been notified. You can\'t approve your own.') }}
+                @else
+                    {{ __('This adjustment waits for approval. Approving it applies the stock.') }}
+                @endif
+            </div>
+        @endif
 
         <div class="row">
             <!-- Main Content -->
@@ -76,11 +94,19 @@
                                 'approved' => 'info',
                                 'completed' => 'success',
                                 'rejected' => 'danger',
+                                'cancelled' => 'secondary',
                             ];
                             $color = $statusColors[$stockAdjustment->status] ?? 'secondary';
                         @endphp
-                        <span class="badge bg-{{ $color }}-subtle text-{{ $color }} fs-13">
-                            {{ ucfirst($stockAdjustment->status) }}
+                        <span>
+                            <span class="badge bg-{{ $color }}-subtle text-{{ $color }} fs-13">
+                                {{ __(ucfirst($stockAdjustment->status)) }}
+                            </span>
+                            @if ($stockAdjustment->self_approved)
+                                <span class="badge bg-warning-subtle text-warning fs-13">{{ __('Self-approved') }}</span>
+                            @elseif ($stockAdjustment->auto_applied)
+                                <span class="badge bg-light text-body fs-13">{{ __('Applied on saving') }}</span>
+                            @endif
                         </span>
                     </div>
                     <div class="card-body">
@@ -90,22 +116,12 @@
                                     <tr>
                                         <td class="text-muted" style="width: 150px;">Type:</td>
                                         <td class="fw-medium">
-                                            @if($stockAdjustment->type->value === 'increase')
-                                                <span class="badge bg-success-subtle text-success">
-                                                    <iconify-icon icon="solar:arrow-up-bold" class="align-middle"></iconify-icon>
-                                                    Increase
-                                                </span>
-                                            @else
-                                                <span class="badge bg-danger-subtle text-danger">
-                                                    <iconify-icon icon="solar:arrow-down-bold" class="align-middle"></iconify-icon>
-                                                    Decrease
-                                                </span>
-                                            @endif
+                                            @include('stock-adjustments._type', ['type' => $stockAdjustment->type])
                                         </td>
                                     </tr>
                                     <tr>
                                         <td class="text-muted">Reason:</td>
-                                        <td class="text-capitalize">{{ str_replace('_', ' ', $stockAdjustment->reason->value) }}</td>
+                                        <td>{{ __($stockAdjustment->reason->label()) }}</td>
                                     </tr>
                                     <tr>
                                         <td class="text-muted">Shop:</td>
@@ -144,6 +160,13 @@
                             </div>
                         @endif
 
+                        @if ($stockAdjustment->approval_note)
+                            <div class="mt-3 p-3 bg-warning-subtle rounded">
+                                <strong>{{ __('Self-approval note:') }}</strong>
+                                <p class="mb-0 mt-1">{{ $stockAdjustment->approval_note }}</p>
+                            </div>
+                        @endif
+
                         @if ($stockAdjustment->rejection_reason)
                             <div class="mt-3 p-3 bg-danger-subtle rounded">
                                 <strong class="text-danger">Rejection Reason:</strong>
@@ -163,11 +186,19 @@
                             <table class="table align-middle mb-0">
                                 <thead class="table-light">
                                     <tr>
-                                        <th>Product</th>
-                                        <th class="text-center">Before</th>
-                                        <th class="text-center">Change</th>
-                                        <th class="text-center">After</th>
-                                        <th>Notes</th>
+                                        <th>{{ __('Product') }}</th>
+                                        @if ($stockAdjustment->isCompleted())
+                                            <th class="text-center">{{ __('Before') }}</th>
+                                        @else
+                                            <th class="text-center">{{ __('Stock now') }}</th>
+                                        @endif
+                                        <th class="text-center">{{ __('Change') }}</th>
+                                        @if ($stockAdjustment->isCompleted())
+                                            <th class="text-center">{{ __('After') }}</th>
+                                        @else
+                                            <th class="text-end">{{ __('Unit cost') }}</th>
+                                        @endif
+                                        <th>{{ __('Notes') }}</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -179,18 +210,40 @@
                                                         {{ $item->product->name }}
                                                     </a>
                                                 @else
-                                                    <span class="text-muted">Product Deleted</span>
+                                                    <span class="text-muted">{{ __('Product Deleted') }}</span>
+                                                @endif
+                                                @if ($item->variation && ! $item->variation->is_default)
+                                                    <small class="d-block text-muted">{{ $item->variation->name }}</small>
                                                 @endif
                                             </td>
-                                            <td class="text-center">{{ number_format($item->quantity_before) }}</td>
+                                            @if ($stockAdjustment->isCompleted())
+                                                <td class="text-center">{{ $item->quantity_before === null ? '—' : number_format($item->quantity_before) }}</td>
+                                            @else
+                                                <td class="text-center">{{ $item->variation_id ? number_format($ledger->quantity($item->shop_id, $item->variation_id)) : '—' }}</td>
+                                            @endif
                                             <td class="text-center">
-                                                @if($stockAdjustment->type->value === 'increase')
+                                                @if ($item->quantity_change > 0)
                                                     <span class="text-success">+{{ number_format($item->quantity_change) }}</span>
                                                 @else
-                                                    <span class="text-danger">-{{ number_format($item->quantity_change) }}</span>
+                                                    <span class="text-danger">−{{ number_format(abs($item->quantity_change)) }}</span>
                                                 @endif
                                             </td>
-                                            <td class="text-center fw-medium">{{ number_format($item->quantity_after) }}</td>
+                                            @if ($stockAdjustment->isCompleted())
+                                                <td class="text-center fw-medium">{{ $item->quantity_after === null ? '—' : number_format($item->quantity_after) }}</td>
+                                            @else
+                                                @php($unitCost = $item->product ? $approval->unitCost($item) : null)
+                                                <td class="text-end">
+                                                    @if ($unitCost === null)
+                                                        <span class="badge bg-warning-subtle text-warning">{{ __('Cost unknown') }}</span>
+                                                    @else
+                                                        @can('viewCost', App\Models\Product::class)
+                                                            {{ number_format($unitCost, 2) }}
+                                                        @else
+                                                            <span class="text-muted">{{ __('Known') }}</span>
+                                                        @endcan
+                                                    @endif
+                                                </td>
+                                            @endif
                                             <td>
                                                 @if ($item->item_notes)
                                                     <small class="text-muted">{{ $item->item_notes }}</small>
@@ -225,13 +278,13 @@
                             <span class="text-muted">Total Items</span>
                             <span class="fw-medium">{{ $stockAdjustment->items->count() }}</span>
                         </div>
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <span class="text-muted">{{ __('Units added') }}</span>
+                            <span class="fw-medium text-success">+{{ number_format($stockAdjustment->items->where('quantity_change', '>', 0)->sum('quantity_change')) }}</span>
+                        </div>
                         <div class="d-flex justify-content-between align-items-center">
-                            <span class="text-muted">Total Quantity Change</span>
-                            @if($stockAdjustment->type->value === 'increase')
-                                <span class="fw-medium text-success">+{{ number_format($stockAdjustment->total_quantity_change) }}</span>
-                            @else
-                                <span class="fw-medium text-danger">-{{ number_format($stockAdjustment->total_quantity_change) }}</span>
-                            @endif
+                            <span class="text-muted">{{ __('Units removed') }}</span>
+                            <span class="fw-medium text-danger">−{{ number_format(abs($stockAdjustment->items->where('quantity_change', '<', 0)->sum('quantity_change'))) }}</span>
                         </div>
                     </div>
                 </div>
@@ -281,8 +334,8 @@
                                         </span>
                                     </div>
                                     <div class="flex-grow-1 ms-3">
-                                        <h6 class="mb-1">Completed</h6>
-                                        <p class="text-muted mb-0 fs-13">Inventory updated</p>
+                                        <h6 class="mb-1">{{ __('Applied') }}</h6>
+                                        <p class="text-muted mb-0 fs-13">{{ __('Stock updated') }}</p>
                                     </div>
                                 </li>
                             @endif
@@ -322,9 +375,10 @@
                         </div>
                         <div class="modal-body">
                             <div class="mb-3">
-                                <label for="rejection_reason" class="form-label">Rejection Reason</label>
-                                <textarea class="form-control" id="rejection_reason" name="rejection_reason" rows="3"
-                                    placeholder="Enter reason for rejection (optional)"></textarea>
+                                <label for="rejection_reason" class="form-label">{{ __('Rejection Reason') }} <span class="text-danger">*</span></label>
+                                <textarea class="form-control @error('rejection_reason') is-invalid @enderror" id="rejection_reason" name="rejection_reason" rows="3" maxlength="500" required
+                                    placeholder="{{ __('Why is it rejected? Its creator is told.') }}"></textarea>
+                                @error('rejection_reason')<div class="invalid-feedback">{{ $message }}</div>@enderror
                             </div>
                         </div>
                         <div class="modal-footer">
@@ -337,3 +391,31 @@
         </div>
     @endcan
 @endsection
+
+    @can('approve', $stockAdjustment)
+        @if ($stockAdjustment->created_by === auth()->id())
+            <div class="modal fade" id="selfApproveModal" tabindex="-1" aria-labelledby="selfApproveModalLabel" aria-hidden="true">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <form action="{{ route('stock-adjustments.approve', $stockAdjustment) }}" method="POST">
+                            @csrf
+                            <div class="modal-header">
+                                <h5 class="modal-title" id="selfApproveModalLabel">{{ __('Approve your own adjustment') }}</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ __('Close') }}"></button>
+                            </div>
+                            <div class="modal-body">
+                                <p class="text-muted">{{ __('Nobody else in the business can approve it. It will be marked self-approved and audited.') }}</p>
+                                <label for="approval_note" class="form-label">{{ __('Why are you approving it yourself?') }} <span class="text-danger">*</span></label>
+                                <textarea class="form-control @error('approval_note') is-invalid @enderror" id="approval_note" name="approval_note" rows="3" maxlength="500" required></textarea>
+                                @error('approval_note')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-light" data-bs-dismiss="modal">{{ __('Cancel') }}</button>
+                                <button type="submit" class="btn btn-success">{{ __('Approve & Apply') }}</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        @endif
+    @endcan

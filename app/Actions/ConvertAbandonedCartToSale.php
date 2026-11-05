@@ -104,7 +104,8 @@ class ConvertAbandonedCartToSale
                 'walk_in_customer_email' => $cart->customer_email,
                 'customer_tax_pin' => $customer?->tax_pin,
                 'delivery_company_id' => $data['delivery_company_id'] ?? null,
-                'invoice_number' => $this->invoiceNumbers->next($shop, $register->register_id),
+                // The shop's web series (stage 10, step 5d).
+                'invoice_number' => $this->invoiceNumbers->nextWeb($shop),
                 'sale_type' => 'regular',
                 'subtotal' => $totals->subtotal,
                 'discount_amount' => $totals->discountAmount,
@@ -138,7 +139,7 @@ class ConvertAbandonedCartToSale
                     'uuid' => (string) Str::uuid(),
                     'sale_id' => $sale->id,
                     'product_id' => $product->id,
-                    'shop_id' => $product->shop_id ?? $shop->id,
+                    'shop_id' => $shop->id,
                     'variation_id' => $variation?->id,
                     'quantity' => $item['quantity'],
                     'unit_price' => $item['price'],

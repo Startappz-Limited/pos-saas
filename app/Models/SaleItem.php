@@ -29,12 +29,15 @@ class SaleItem extends Model
         'total_cost',
         'profit',
         'profit_margin',
+        // Every unit costed from a batch with a cost, or a known estimate (stage 10, step 6).
+        'cost_known',
         'status',
     ];
 
     protected function casts(): array
     {
         return [
+            'cost_known' => 'boolean',
             'tax_class' => TaxClass::class,
             'tax_rate' => 'decimal:3',
             'tax_amount' => 'decimal:2',
@@ -44,7 +47,8 @@ class SaleItem extends Model
 
     public function sale(): BelongsTo
     {
-        return $this->belongsTo(Sale::class);
+        // A deleted sale still resolves (stage 10, step 5).
+        return $this->belongsTo(Sale::class)->withTrashed();
     }
 
     public function product(): BelongsTo

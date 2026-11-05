@@ -152,11 +152,8 @@ class ConvertEcommerceOrderToSale
                 'walk_in_customer_phone' => $order->customer_phone,
                 'walk_in_customer_email' => $order->customer_email,
                 'delivery_company_id' => $data['delivery_company_id'] ?? null,
-                'invoice_number' => app(InvoiceNumberService::class)->next(
-                    $shopId,
-                    // The till the session runs on numbers the sale.
-                    DB::table('cash_registers')->where('id', $registerId)->value('register_id'),
-                ),
+                // The shop's web series (stage 10, step 5d).
+                'invoice_number' => app(InvoiceNumberService::class)->nextWeb($shopId),
                 'sale_type' => 'regular',
                 'subtotal' => $subtotal,
                 'discount_amount' => $discountAmount,
@@ -214,6 +211,8 @@ class ConvertEcommerceOrderToSale
                     'uuid' => (string) Str::uuid(),
                     'sale_id' => $sale->id,
                     'product_id' => $productId,
+                    // The selling shop: the order's (stage 10, step 1a).
+                    'shop_id' => $order->shop_id,
                     'variation_id' => $variationId,
                     'quantity' => $quantity,
                     'unit_price' => $unitPrice,

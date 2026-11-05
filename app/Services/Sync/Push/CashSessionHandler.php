@@ -47,7 +47,7 @@ final class CashSessionHandler implements PushHandler
         }
 
         $session = CashRegister::query()->where('client_uuid', $data['session'])->where('register_id', $item->register->id)->first()
-            ?? throw new PushRefused(ApiErrorCode::NotFound, __('No such cash session on this till. Push its opening first.'));
+            ?? throw new PushPending(ApiErrorCode::CashSessionNotSynced, __('No such cash session on this till yet. Push its opening first.'));
 
         if ($session->isClosed()) {
             return ['session_uuid' => $session->uuid, 'status' => 'closed', 'flags' => ['already_closed']];

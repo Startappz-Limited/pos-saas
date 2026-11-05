@@ -23,9 +23,11 @@ use App\Models\Product;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseReturn;
 use App\Models\Refund;
+use App\Models\RefundDue;
 use App\Models\Role;
 use App\Models\SalePayment;
 use App\Models\SaleReturn;
+use App\Models\SaleVoidRequest;
 use App\Models\Shop;
 use App\Models\SocialAccount;
 use App\Models\StockAdjustment;
@@ -215,6 +217,8 @@ final class Sidebar
                     self::link(__('Payments'), 'payments.index', self::canList(SalePayment::class), ['payments.*']),
                     self::link(__('Returns'), 'returns.index', self::canList(SaleReturn::class), ['returns.*']),
                     self::link(__('Refunds'), 'refunds.index', self::canList(Refund::class), ['refunds.*']),
+                    self::link(__('Refunds owed'), 'refunds-due.index', self::canList(RefundDue::class), ['refunds-due.*']),
+                    self::link(__('Void requests'), 'void-requests.index', self::canList(SaleVoidRequest::class), ['void-requests.*']),
                     self::link(__('Website orders'), 'ecommerce-orders.index', self::canList(EcommerceOrder::class), ['ecommerce-orders.*']),
                     self::link(__('Abandoned carts'), 'abandoned-carts.index', self::canList(AbandonedCart::class), ['abandoned-carts.*']),
                 ]),

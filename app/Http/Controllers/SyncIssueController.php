@@ -5,8 +5,12 @@ namespace App\Http\Controllers;
 use App\Actions\Customer\MergeCustomers;
 use App\Exceptions\BusinessRuleException;
 use App\Models\Customer;
+use App\Models\DeliveryCompany;
 use App\Models\Sale;
+use App\Models\SaleSource;
 use App\Models\SyncIssue;
+use App\Models\User;
+use App\Support\Sync\HeldItems;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -37,7 +41,19 @@ class SyncIssueController extends Controller
         $sales = Sale::query()->whereIn('uuid', $issues->getCollection()->pluck('details.sale')->merge($issues->getCollection()->pluck('details.existing_sale'))->filter())
             ->get(['id', 'uuid', 'invoice_number'])->keyBy(fn (Sale $sale) => (string) $sale->uuid);
 
+        // Held till items (stage 10, step 5c): what each can be resolved by, and the lists a correction picks from.
+        $heldItems = app(HeldItems::class);
+        $held = $issues->getCollection()->where('type', SyncIssue::HELD_ITEM)->mapWithKeys(fn (SyncIssue $issue) => [$issue->id => $heldItems->options($issue)]);
+        $needsLists = $held->contains(fn (array $options) => $options['corrections'] !== []);
+
         return view('sync-issues.index', [
+            'held' => $held,
+            'lists' => $needsLists ? [
+                'customers' => Customer::query()->orderBy('name')->limit(500)->get(['id', 'name', 'phone', 'customer_type']),
+                'sources' => SaleSource::query()->orderBy('name')->get(['id', 'name']),
+                'deliveryCompanies' => DeliveryCompany::query()->orderBy('name')->get(['id', 'name']),
+                'staff' => User::query()->inCurrentBusiness()->orderBy('name')->get(['id', 'uuid', 'name']),
+            ] : [],
             'issues' => $issues,
             'customers' => $customers,
             'sales' => $sales,
@@ -57,6 +73,74 @@ class SyncIssueController extends Controller
         $syncIssue->update(['resolved_at' => now(), 'resolved_by' => $request->user()->id, 'resolution' => $resolution]);
 
         return back()->with('success', $resolution === 'kept' ? __('Both customers kept.') : __('Marked as checked.'));
+    }
+
+    /**
+     * Applies a held till item, with the corrections the review offers
+     * (stage 10, step 5c); needs `sync-issues.accept`.
+     */
+    public function accept(SyncIssue $syncIssue, Request $request, HeldItems $held): RedirectResponse
+    {
+        abort_unless($request->user()->can('sync-issues.accept') && $syncIssue->type === SyncIssue::HELD_ITEM, 403);
+
+        $corrections = $request->validate([
+            'customer_id' => ['nullable', 'exists:customers,id'],
+            'walk_in_customer_name' => ['nullable', 'string', 'max:255'],
+            'walk_in_customer_phone' => ['nullable', 'string', 'max:20'],
+            'payment_method' => ['nullable', 'in:cash,card,bank_transfer,mobile_money,credit'],
+            'source_id' => ['nullable', 'exists:sale_sources,id'],
+            'delivery_location' => ['nullable', 'string', 'max:1000'],
+            'delivery_company_id' => ['nullable', 'exists:delivery_companies,id'],
+            'customer_tax_pin' => ['nullable', 'string', 'max:32'],
+            'cashier' => ['nullable', 'uuid'],
+            'variations' => ['nullable', 'array'],
+            'variations.*' => ['nullable', 'exists:product_variations,id'],
+        ]);
+
+        try {
+            $held->accept($syncIssue, $request->user(), array_filter($corrections, fn ($value) => $value !== null));
+        } catch (BusinessRuleException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return back()->with('success', __('Accepted and applied. The till clears it at its next sync.'));
+    }
+
+    /**
+     * Discards a held till item with a reason; a sale or payment needs `sales.void`.
+     */
+    public function discard(SyncIssue $syncIssue, Request $request, HeldItems $held): RedirectResponse
+    {
+        abort_unless($syncIssue->type === SyncIssue::HELD_ITEM && $held->mayDiscard($request->user(), $syncIssue), 403);
+        $validated = $request->validate(['reason' => ['required', 'string', 'max:500']]);
+
+        try {
+            $held->discard($syncIssue, $request->user(), $validated['reason']);
+        } catch (BusinessRuleException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return back()->with('success', __('Discarded. The till clears it at its next sync.'));
+    }
+
+    /**
+     * "Discard and record as a new web sale" for a sale whose till number was taken.
+     */
+    public function rerung(SyncIssue $syncIssue, Request $request, HeldItems $held): RedirectResponse
+    {
+        abort_unless($request->user()->can('sync-issues.accept') && $syncIssue->type === SyncIssue::HELD_ITEM, 403);
+
+        try {
+            $outcome = $held->rerung($syncIssue, $request->user());
+        } catch (BusinessRuleException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        $sale = Sale::query()->where('uuid', $outcome['new_sale'] ?? '')->first();
+
+        return $sale !== null
+            ? redirect()->route('sales.show', $sale)->with('success', __('Recorded as web sale :invoice. The till\'s item is discarded.', ['invoice' => $sale->invoice_number]))
+            : back()->with('success', __('Recorded as a new web sale.'));
     }
 
     /**

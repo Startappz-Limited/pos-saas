@@ -50,6 +50,9 @@ Schedule::command('businesses:erase-closed')->dailyAt('02:30')->name('erase-clos
 // Subscription reminders, closure warnings and lapse closures (Phase 4).
 Schedule::command('billing:sweep')->dailyAt('03:00')->name('sweep-subscriptions')->withoutOverlapping();
 
+// Approval requests pending for 24 hours: one reminder to their approvers (stage 10).
+Schedule::command('approvals:remind')->hourly()->name('remind-pending-approvals')->withoutOverlapping();
+
 // Paired tills that haven't synced for a day: their owners are told (Phase 7).
 Schedule::command('sync:warn-overdue')->hourly()->name('warn-overdue-tills')->withoutOverlapping();
 

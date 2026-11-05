@@ -61,6 +61,9 @@ View, create, update, and manage product catalog from the mobile app.
 
 ## Show Product
 
+`cost_price` (on the product, its variations and its shop rows) is `null` for someone without `products.view-cost` or
+`products.set-cost`; the key is always present. The same holds for List Products (stage 10, step 1f).
+
 `GET /api/products/{uuid}`
 
 Returns full product details with variations and shop pricing.
@@ -166,11 +169,9 @@ Returns full product details with variations and shop pricing.
   "stock_quantity": 100,
   "reorder_level": 20,
   "track_stock": true,
-  "has_variations": false,
   "unit": "set",
   "status": "active",
-  "notes": null,
-  "variations": []
+  "notes": null
 }
 ```
 
@@ -179,30 +180,25 @@ Returns full product details with variations and shop pricing.
 | Field | Rules |
 |-------|-------|
 | `name` | required, string, max:255 |
-| `sku` | required, string, max:100, unique |
+| `sku` | nullable, string, max:100, unique in the business |
 | `barcode` | nullable, string, max:100 |
 | `description` | nullable, string |
-| `category_id` | required, exists:categories,id |
+| `category_id` | required, exists:categories,id (the column can't be empty; stage 10, step 1f) |
 | `supplier_id` | nullable, exists:suppliers,id |
-| `cost_price` | required, numeric, min:0 |
+| `cost_price` | nullable, numeric, min:0; saved only for someone holding `products.set-cost`, otherwise the product is created with an unknown cost |
 | `selling_price` | required, numeric, min:0 |
 | `wholesale_price` | nullable, numeric, min:0 |
 | `stock_quantity` | required, integer, min:0 |
 | `reorder_level` | nullable, integer, min:0 |
 | `track_stock` | boolean |
-| `has_variations` | boolean |
 | `unit` | nullable, string, max:50 |
-| `status` | required, in: `active`, `inactive`, `out_of_stock`, `discontinued` |
+| `status` | nullable, in: `active`, `inactive`, `out_of_stock`, `discontinued` (stage 11 removes `out_of_stock`) |
 | `notes` | nullable, string |
-| `variations` | array (if `has_variations` is true) |
-| `variations.*.name` | required, string |
-| `variations.*.sku` | required, string, unique |
-| `variations.*.barcode` | nullable, string |
-| `variations.*.cost_price` | required, numeric, min:0 |
-| `variations.*.selling_price` | required, numeric, min:0 |
-| `variations.*.wholesale_price` | nullable, numeric, min:0 |
-| `variations.*.stock_quantity` | required, integer, min:0 |
-| `variations.*.attributes` | nullable, array |
+
+Products with variations are created on the web. Sending `variations`, or `has_variations: true`, answers 422 and
+creates nothing. Creating, editing and deleting a product need `products.create`, `products.update` and
+`products.delete` (403 otherwise); the app creates products only online. On update, a `cost_price` that differs from the
+stored one needs `products.set-cost` (403 "You can't set purchase costs."); sending the same cost back is no change.
 
 ### Success Response `201`
 

@@ -408,6 +408,8 @@ class LiveLikeDatasetSeeder extends Seeder
                 'supplier_id' => $this->pick(Supplier::orderBy('id')->pluck('id')),
                 'purchase_order_id' => null,
                 'purchase_order_item_id' => null,
+                // The factory's Faker date reads the real clock, so two builds could differ.
+                'intake_date' => now()->toDateString(),
                 'received_by' => $this->managers[$shop->id]->id,
                 'completed_by' => $this->managers[$shop->id]->id,
             ]);
@@ -429,7 +431,8 @@ class LiveLikeDatasetSeeder extends Seeder
                 ]],
             ], $this->managers[$shop->id]->id);
 
-            if ($i % 5 !== 0) {
+            // Found stock and small recounts are applied on saving (stage 10, step 1g).
+            if ($i % 5 !== 0 && $adjustment->isPending()) {
                 $adjustments->approveAdjustment($adjustment, $this->owner->id);
             }
         }

@@ -69,7 +69,7 @@
                             <div class="row">
                                 <div class="col-md-12">
                                     <div class="mb-3">
-                                        <label for="shop_id" class="form-label">Owning Shop <span class="text-danger">*</span></label>
+                                        <label for="shop_id" class="form-label">{{ __('First stocked at') }} <span class="text-danger">*</span></label>
                                         <select class="form-select @error('shop_id') is-invalid @enderror"
                                             id="shop_id" name="shop_id" required>
                                             <option value="">Select Shop</option>

@@ -5,7 +5,9 @@ namespace App\Actions\Platform;
 use App\Enums\AuditEvent;
 use App\Events\AuditableEvent;
 use App\Models\Role;
+use App\Support\Authorization\RoleRevocations;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Spatie\Permission\PermissionRegistrar;
 
 /**
@@ -38,12 +40,15 @@ final class GrantTemplatePermissions
         }
 
         $roles = DB::table('roles')->where('id', $template)->orWhere('template_id', $template)->get(['id', 'uuid', 'business_id']);
+        // The 2 November 2026 migrations run before `role_revoked_permissions` exists.
+        $revocations = Schema::hasTable('role_revoked_permissions');
         $gained = [];
 
-        DB::transaction(function () use ($roles, $ids, &$gained): void {
+        DB::transaction(function () use ($roles, $ids, $revocations, &$gained): void {
             foreach ($roles as $role) {
+                // Held, or taken off on purpose (stage 10, step 0): neither is granted.
                 $held = DB::table('role_has_permissions')->where('role_id', $role->id)->whereIn('permission_id', $ids->values())
-                    ->pluck('permission_id')->map(fn ($id): int => (int) $id)->all();
+                    ->pluck('permission_id')->merge($revocations ? RoleRevocations::ids((int) $role->id) : [])->map(fn ($id): int => (int) $id)->all();
                 $missing = $ids->reject(fn ($id): bool => in_array((int) $id, $held, true));
 
                 if ($missing->isEmpty()) {

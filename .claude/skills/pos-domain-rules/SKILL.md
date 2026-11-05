@@ -52,6 +52,20 @@ base query).
 Guardrails already encoded in policy, not schema: `SalePolicy::update()` restricts edits to a time window
 after creation, and deletion is admin-only. Preserve those when adding sale mutations.
 
+**Voids and deletes (stage 10):**
+- **Only `sales.void` voids** (the owner by default), inside the business's void window (`VoidWindow`:
+  `session` by default, `end_of_day`, minutes or `none`, in the shop's timezone); past it 422
+  `void_window_closed`; a sale with a return that isn't rejected can't be voided (422 `sale_has_returns`).
+  Someone without `sales.void` requests a void (`SaleVoidRequest`, valid 48 hours).
+- **A void releases stock** (`StockLedger::release()` per line, `SALE_VOID`) and hands the money back
+  (`VoidSale` → `VoidRefunds`): cash the sale's own open session counted leaves it by recalculation; other
+  cash comes out of the voider's own open session (a till's void: the till's session at that time), else it
+  is a refund owed; card, M-Pesa, bank transfer and cheque are refunds owed; credit never; money taken
+  through an online store is never a POS refund owed. A closed session is never recalculated.
+- **Completed sales can't be deleted**; a draft or pending sale with no payments is deleted by the owner:
+  its lines are released (`SALE_DELETE`) and the sale is soft-deleted (row, lines and number kept).
+- An online order cancelled before dispatch voids its sale automatically (`StoreCancellations`).
+
 ## How stock is mutated (since SaaS stage 1b)
 
 Stock lives **per shop and per variation** in `shop_variation` (`(shop_id, variation_id)`); every product
@@ -88,24 +102,19 @@ made **before** stage 1b have no `StockMovement` rows, so the ledger is complete
 - `CostingService`, the `CostingMethod` enum and `sale_item_stock_allocations` remain **unused**.
 - Design and settled cases: [docs/saas/fifo-analysis.md](../../../docs/saas/fifo-analysis.md).
 
-## 🔴 Per-line shop attribution
+## 🔴 Per-line shop attribution: the selling shop (stage 10, step 1a)
 
-A single sale can contain products belonging to different shops. Attribution is therefore **per line, not
-per sale**: `sale_items.shop_id` is set from the **product's owning shop**, and revenue/profit reports
-aggregate from items (`ReportService::getSalesByShopFromItems()`), not from `sales.shop_id`.
-
-This is recent, deliberate work (the `shop_id` column on `sale_items`, the `AssignProductShopFromSales`
-and `BackfillShopProductPivot` commands) and it is locked in by
+Every line of a sale takes its stock from, and is attributed to, **the shop that sold it**: `sale_items.shop_id`
+is the sale's shop on every path (web POS, flat API, till push, online orders, abandoned carts), never the
+product's `shop_id` (which only says where the product was first stocked). Revenue and profit by shop still
+aggregate from `sale_items` (`ReportService::getSalesByShopFromItems()`), which now holds the selling shop.
+Locked in by [tests/Feature/Stock/SellingShopTest.php](../../../tests/Feature/Stock/SellingShopTest.php) and
 [tests/Feature/SalePerShopAttributionTest.php](../../../tests/Feature/SalePerShopAttributionTest.php).
 
 Rules:
-- When you add a sale line anywhere, set `sale_items.shop_id` from the product's shop — not from the
-  sale header, and not from the acting user's shop.
-- When you write a per-shop revenue or profit report, aggregate **from `sale_items`**. Grouping `sales`
-  by `shop_id` gives the wrong answer for mixed-shop sales, and will quietly disagree with the existing
-  dashboard.
-- `sales.shop_id` still means "where the transaction was rung up" — both columns are meaningful, so don't
-  collapse them.
+- When you add a sale line anywhere, set `sale_items.shop_id` to the sale's (selling) shop.
+- A sale below zero is recorded and flagged (`negative_stock` on the till sync review).
+- A product that doesn't track stock (`track_stock = false`) moves no stock and is costed at its cost.
 
 ## Returns and refunds
 
@@ -147,8 +156,9 @@ A credit sale is a `completed` sale with `payment_status` of `unpaid`/`partial` 
 Despite its name, `CashRegister` (`cash_registers`) is a **cash session**. Since SaaS stage 1b every
 session runs on a `Register` (a till; `cash_registers.register_id`), and every shop has a default register
 `R1` created with the shop. `openRegister()`/`getActiveRegister()` take a register and default to `R1`,
-so the legacy calls land there. Each register numbers its invoices in its own series
-(`InvoiceNumberService::next($shop, $session->register_id)`).
+so the legacy calls land there. A till numbers its invoices in its register's series
+(`InvoiceNumberService::next($shop, $session->register_id)`); everything the server numbers takes the shop's
+web series (`nextWeb()`, `INV-{shop}-W-{year}-{n}`, stage 10). Never parse an invoice number.
 
 `CashRegister` carries `opening_balance`, `closing_balance`, `expected_balance`, `variance`, plus
 `closing_notes`, and has both `sales()` and `expenses()` relations. Expenses can be **paid out of the
@@ -163,6 +173,12 @@ Rules:
   before changing register maths.
 - Close operations are throttled (`throttle:5,1`) and policy-gated. A register should not be closable
   twice.
+- **Payouts (stage 10):** cash taken out of a session is a `CashPayout` (a void's cash, a refund owed paid
+  later, petty cash by `cash-registers.payout` with a reason); `calculateExpectedBalance()` subtracts them.
+  A payout for an offline void that synced after its session closed stays in that session, whose expected
+  balance and variance are recalculated with an audit note and flagged to the owners.
+- ⚠️ Payments collected after the sale (`sale_payments`) carry no session, so collected cash never appears in
+  a drawer's expected cash (noted for stage 14).
 
 ## Pricing resolution
 

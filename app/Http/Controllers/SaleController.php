@@ -5,10 +5,14 @@ namespace App\Http\Controllers;
 use App\Actions\CalculateSaleTotals;
 use App\Actions\GenerateSaleInvoicePdf;
 use App\Actions\RecordCreditSale;
+use App\Actions\Sale\DeleteSale;
+use App\Actions\Sale\VoidSale;
 use App\Actions\SendSaleNotifications;
 use App\Actions\SettleCreditSalePayment;
+use App\Enums\AuditEvent;
 use App\Http\Requests\StoreSaleRequest;
 use App\Jobs\SyncOrderStatusJob;
+use App\Models\AuditLog;
 use App\Models\CashRegister;
 use App\Models\Category;
 use App\Models\Customer;
@@ -24,6 +28,8 @@ use App\Models\User;
 use App\Rules\UniqueForTenant;
 use App\Services\InvoiceNumberService;
 use App\Services\Stock\StockLedger;
+use App\Support\Sales\VoidButton;
+use App\Support\Sync\SyncIssues;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
@@ -33,7 +39,9 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response as HttpResponse;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
@@ -84,7 +92,7 @@ class SaleController extends Controller
 
         $sales = $query->paginate(20);
 
-        $statisticsQuery = DB::table('sales')
+        $statisticsQuery = DB::table('sales')->whereNull('sales.deleted_at')
             ->selectRaw('COUNT(*) as total')
             ->selectRaw("COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed")
             ->selectRaw("COUNT(CASE WHEN status = 'pending' THEN 1 END) as pending")
@@ -279,7 +287,8 @@ class SaleController extends Controller
                 'customer_tax_pin' => $validated['customer_tax_pin']
                     ?? ($validated['customer_id'] ?? null ? Customer::find($validated['customer_id'])?->tax_pin : null),
                 'delivery_company_id' => $validated['delivery_company_id'] ?? null,
-                'invoice_number' => app(InvoiceNumberService::class)->next($shop ?? $shopId, $activeRegister->register_id),
+                // The shop's web series (stage 10, step 5d): never a till's register series.
+                'invoice_number' => app(InvoiceNumberService::class)->nextWeb($shop ?? $shopId),
                 'sale_type' => 'regular',
                 'subtotal' => $totals->subtotal,
                 'discount_amount' => $totals->discountAmount,
@@ -315,7 +324,7 @@ class SaleController extends Controller
                     'uuid' => (string) Str::uuid(),
                     'sale_id' => $sale->id,
                     'product_id' => $item['product_id'],
-                    'shop_id' => $product->shop_id ?? $shopId,
+                    'shop_id' => $shopId,
                     'variation_id' => $item['variation_id'] ?? null,
                     'quantity' => $item['quantity'],
                     'unit_price' => $item['price'],
@@ -346,6 +355,9 @@ class SaleController extends Controller
             $recordCreditSale->handle($sale);
 
             DB::commit();
+
+            // Sold below zero: on the till sync review (stage 10, step 1a).
+            app(SyncIssues::class)->recordNegativeStock($sale);
 
             // Send WhatsApp notifications to customer
             $this->sendSaleNotifications($sale);
@@ -383,13 +395,37 @@ class SaleController extends Controller
     /**
      * Display the specified sale.
      */
-    public function show(Sale $sale): View
+    public function show(Request $request, Sale $sale): View
     {
+        // A deleted sale is kept (stage 10, step 5): it opens only for someone holding sales.view-all.
+        abort_if($sale->trashed() && ! $request->user()->can('sales.view-all'), 404);
         $this->authorize('view', $sale);
 
-        $sale->load(['customer', 'shop', 'items.product', 'items.variation', 'createdBy', 'source', 'deliveryCompany', 'payments.receiver']);
+        $sale->load(['customer', 'shop', 'items.product', 'items.variation', 'createdBy', 'source', 'deliveryCompany', 'payments.receiver', 'voider']);
 
-        return view('sales.show', compact('sale'));
+        return view('sales.show', [
+            'sale' => $sale,
+            'deletion' => $sale->trashed() ? $this->deletion($sale) : null,
+            // The Void button and its explanation (stage 10, step 5a).
+            'voiding' => $sale->trashed() || $sale->status === 'voided' ? null : app(VoidButton::class)->for($sale, $request->user()),
+        ]);
+    }
+
+    /**
+     * Who deleted the sale, from the audit trail; unknown when it can't be read.
+     *
+     * @return array{by: ?string, at: ?Carbon}
+     */
+    private function deletion(Sale $sale): array
+    {
+        try {
+            $row = AuditLog::query()->where('auditable_type', Sale::class)->where('auditable_id', $sale->id)
+                ->where('event', AuditEvent::DELETED)->latest('id')->first();
+        } catch (\Throwable) {
+            $row = null;
+        }
+
+        return ['by' => $row?->user_name, 'at' => $sale->deleted_at];
     }
 
     /**
@@ -461,15 +497,19 @@ class SaleController extends Controller
     /**
      * Remove the specified sale from storage.
      */
-    public function destroy(Sale $sale): RedirectResponse
+    /**
+     * Deletes a draft or pending sale with no payments (stage 10, step 5);
+     * anything else is refused with the reason (BusinessRuleException).
+     */
+    public function destroy(Request $request, Sale $sale): RedirectResponse
     {
         $this->authorize('delete', $sale);
 
-        $sale->delete();
+        $units = app(DeleteSale::class)->execute($sale, $request->user());
 
         return redirect()
             ->route('sales.index')
-            ->with('success', 'Sale deleted successfully.');
+            ->with('success', trans_choice('{0} Sale deleted.|{1} Sale deleted. 1 item is back in stock.|[2,*] Sale deleted. :count items are back in stock.', $units, ['count' => $units]));
     }
 
     /**
@@ -540,30 +580,31 @@ class SaleController extends Controller
     /**
      * Void a sale.
      */
-    public function void(Request $request, Sale $sale): RedirectResponse
+    /**
+     * Voids the sale (stage 10, step 2): 403 without `sales.void`; past the void
+     * window, the time-limit message (422 to a JSON request, back to the form
+     * otherwise).
+     */
+    public function void(Request $request, Sale $sale): RedirectResponse|JsonResponse
     {
-        $this->authorize('void', $sale);
+        $decision = Gate::inspect('void', $sale);
+        if ($decision->denied() && $decision->status() === 422) {
+            return $request->expectsJson()
+                ? response()->json(['success' => false, 'message' => $decision->message(), 'code' => $decision->code()], 422)
+                : back()->with('error', $decision->message());
+        }
+        $decision->authorize();
 
         $validated = $request->validate([
             'void_reason' => 'required|string|max:255',
         ]);
 
-        DB::transaction(function () use ($sale, $validated): void {
-            $sale->update([
-                'status' => 'voided',
-                'voided_at' => now(),
-                'voided_by' => auth()->id(),
-                'void_reason' => $validated['void_reason'],
-            ]);
+        $result = app(VoidSale::class)->execute($sale, $validated['void_reason'], $request->user());
+        $message = VoidSale::summary($result);
 
-            // Release the debt a voided credit sale created, or the customer
-            // keeps owing for a sale that no longer exists.
-            app(SettleCreditSalePayment::class)->reverse($sale, $validated['void_reason']);
-        });
-
-        return redirect()
-            ->back()
-            ->with('success', 'Sale voided successfully.');
+        return $request->expectsJson()
+            ? response()->json(['success' => true, 'message' => $message, 'data' => $sale->fresh(), 'money' => VoidSale::money($result)])
+            : redirect()->back()->with('success', $message);
     }
 
     /**
@@ -580,7 +621,7 @@ class SaleController extends Controller
             ->whereDate('completed_at', $today)
             ->latest('completed_at');
 
-        $statisticsQuery = DB::table('sales')
+        $statisticsQuery = DB::table('sales')->whereNull('sales.deleted_at')
             ->where('status', 'completed')
             ->whereDate('completed_at', $today)
             ->selectRaw('COALESCE(SUM(total_amount), 0) as total_sales')
@@ -604,13 +645,17 @@ class SaleController extends Controller
         $startDate = $request->input('start_date', now()->startOfMonth());
         $endDate = $request->input('end_date', now()->endOfMonth());
 
+        $this->authorize('viewAny', Sale::class);
+
         $salesQuery = Sale::with(['customer', 'shop'])
             ->visibleTo($user)
             ->where('status', 'completed')
             ->whereBetween('completed_at', [$startDate, $endDate])
+            // Lines whose cost isn't fully known (stage 10, step 6).
+            ->withExists(['items as cost_incomplete' => fn ($query) => $query->where('cost_known', false)])
             ->latest('completed_at');
 
-        $statisticsQuery = DB::table('sales')
+        $statisticsQuery = DB::table('sales')->whereNull('sales.deleted_at')
             ->where('status', 'completed')
             ->whereBetween('completed_at', [$startDate, $endDate])
             ->selectRaw('COALESCE(SUM(total_amount), 0) as total_sales')

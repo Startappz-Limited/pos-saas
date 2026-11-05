@@ -169,6 +169,11 @@
                                             <td class="text-end text-success">+
                                                 {{ format_currency($cashRegister->total_cash_sales) }}</td>
                                         </tr>
+                                        <tr>
+                                            <td class="fw-medium bg-light">{{ __('Payouts:') }}</td>
+                                            <td class="text-end text-danger">−
+                                                {{ format_currency($cashRegister->payouts->sum('amount')) }}</td>
+                                        </tr>
                                         <tr class="table-primary">
                                             <td class="fw-semibold">Expected Balance:</td>
                                             <td class="text-end fw-semibold">
@@ -221,6 +226,9 @@
                             </div>
                         </div>
                     @endif
+
+                    <!-- Payouts (stage 10, step 4) -->
+                    @include('cash-registers.partials.payouts')
 
                     <!-- Sales List -->
                     @if ($cashRegister->sales->count() > 0)

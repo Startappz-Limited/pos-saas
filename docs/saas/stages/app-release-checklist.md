@@ -2,7 +2,7 @@
 
 Created 27 October 2026 (sixth round); stage 10a's section added and stage 10's discard item updated in the eighth round (28 October 2026), and again in the
 ninth and tenth (28 October 2026) and in stage 10a's third and fourth revisions (29 October 2026), its fifth revision and the hotfix
-fix/api-authz (2 November 2026). The Flutter app's next release isn't scheduled, and the app isn't on this
+fix/api-authz (2 November 2026), and stage 10's implementation (3 November 2026). The Flutter app's next release isn't scheduled, and the app isn't on this
 machine (`MOBILE_APP_PATH` points nowhere). The server stays backward compatible with the app in shops through every
 stage (additions only, old fields kept, Phase 7's codes for apps without a new enough `X-App-Version`), and each
 stage's rollout checks **the server** against the app's recorded requests. Everything below checks **the app**, and is
@@ -14,13 +14,20 @@ server, tick it, and note the app version. `php artisan mobile:contract-diff` ru
 
 ## Stage 10
 Stage file: [10-stock-correctness-and-voids.md](./10-stock-correctness-and-voids.md).
-- [ ] Sends `X-App-Version` on every push, pull and pairing request.
+- [ ] Sends `X-App-Version` on every push, pull and pairing request. (The server reads dispositions and the `*_not_synced` codes only from versions at or
+      above `SYNC_MIN_VERSION_DISPOSITIONS`, set when this app ships.)
 - [ ] Follows `disposition` on push results: `retry` resends, `drop` removes and shows why, `hold` keeps the item marked.
 - [ ] Handles status `pending` and the codes `customer_not_synced`, `sale_not_synced`, `cash_session_not_synced`.
 - [ ] Handles the void flow: shows Void when `voidable` is true and the person holds `sales.void`; calls
       `POST /api/v1/sales/{uuid}/void` online; queues `sale_void` offline; reads `sale_voids` from the pull.
 - [ ] Handles the void refusals: `void_window_closed`, `sale_has_returns`, `sale_already_voided`, 403.
+- [ ] Shows a non-blocking warning "N units pending removal" when selling into `stock.pending_removal` (never blocks the
+      sale). Handles status `pending` with `sale_not_synced` on a `sale_void` (keeps it and sends it again). Shows a void's
+      `money` (`paid_out` from the till's drawer; `refunds_due`).
 - [ ] Clears items listed in the pull's `resolved_items`, and items answered `applied` or `discarded`.
+- [ ] Pushes `outbox_item_discarded` (`item_type`, `client_uuid`, `reason`, `discarded_by`, the raw `item`) when a manager
+      discards a stuck item, and one for each item queued behind a discarded sale; handles `forbidden` (drop) and
+      `already_applied`.
 - [ ] Lets a manager holding `sync-issues.discard` (from the staff list) discard a held or stuck item with a reason
       (`outbox_item_discarded`), with the items queued behind it; offers discarding a held sale or a payment only to
       someone holding `sales.void`; never offers "accept" at the till.
@@ -29,10 +36,29 @@ Stage file: [10-stock-correctness-and-voids.md](./10-stock-correctness-and-voids
 - [ ] Shows `cost_price: null` without breaking product screens; hides cost fields by permission.
 - [ ] Handles 403 on product create, edit and delete; creates products only online; can't sell an unknown barcode
       offline.
-- [ ] Hides Delete on completed sales; handles the 422 if shown.
-- [ ] Treats `invoice_number` as an opaque string (server-numbered sales now use the web series `INV-{shop}-W-…`).
+- [ ] Hides Delete on completed sales; handles the 422 if shown (`code`: `sale_completed`, `sale_not_deletable`,
+      `sale_has_payments` with "This sale has payments. Void it instead."). A deleted sale is a 404.
+- [ ] **Never assumes the invoice number's format:** treats `invoice_number` as an opaque string (no parsing of the shop,
+      register, year or sequence; no fixed length; search and display it as given). Server-numbered sales now use the web
+      series `INV-{shop}-W-{year}-{n}`, tills their register's `INV-{shop}-{register}-{year}-{n}`, and a business may set
+      its own prefix.
 - [ ] Numbers offline sales only in its own register's series, from `last_invoice_number` at pairing.
 - [ ] Shows the till sync review's outcome for a held sale (accepted with its own number, or discarded).
+- [ ] Void requests (step 2): someone without `sales.void` sees "Request void" instead of Void, sends
+      `POST /api/sales/{uuid}/void-request` with a `reason`, and shows the 422 message (window closed, already
+      requested); someone holding `sales.void` lists `GET /api/void-requests`, approves
+      (`POST /api/void-requests/{uuid}/approve`) or rejects with a `rejection_reason`, and handles the 422 when it was
+      settled or expired (48 hours). The backend sends no push: the app shows the list, and approvers also get an
+      email and the web's notification.
+- [ ] A void answers `money` (`paid_out`: cash the person hands back from their own open register; `refunds_due`: money
+      owed back, listed on the web's Refunds owed). The app tells the cashier to hand the paid-out cash back, and that
+      the rest is owed. 422 `sale_has_returns` ("This sale has returns. Process the return instead.").
+- [ ] A void outside the window answers 422 `void_window_closed` with the time-limit message (no longer 403) on
+      `POST /api/sales/{uuid}/void`; 403 means no permission. The app shows the message.
+- [ ] Stock adjustments, if the app makes them: no longer offers "Returned to supplier" (a purchase return now), and
+      shows the 422 on `reason` if an older build sends it; sends signed changes (`+` adds, `−` removes) that agree with
+      the reason, and a `variation_id` for a product with variations; expects one it makes to wait for an approver
+      unless its maker holds `stock-adjustments.approve` (step 1g follow-up).
 
 ## Stage 10a
 Stage file: [10a-access-and-tenancy.md](./10a-access-and-tenancy.md).

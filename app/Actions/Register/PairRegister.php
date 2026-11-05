@@ -2,6 +2,8 @@
 
 namespace App\Actions\Register;
 
+use App\Enums\AuditEvent;
+use App\Events\AuditableEvent;
 use App\Models\Register;
 use App\Models\RegisterPairing;
 use App\Models\User;
@@ -26,15 +28,30 @@ class PairRegister
     /**
      * @return array{register: Register, token: NewAccessToken, repaired: bool, previous_code: ?string}
      */
-    public function execute(Register $register, User $user, string $deviceId, ?string $deviceName, int $businessId): array
+    public function execute(Register $register, User $user, string $deviceId, ?string $deviceName, int $businessId, bool $confirmed = false): array
     {
-        return DB::transaction(function () use ($register, $user, $deviceId, $deviceName, $businessId): array {
+        return DB::transaction(function () use ($register, $user, $deviceId, $deviceName, $businessId, $confirmed): array {
             // Two managers pairing the same till at once queue here.
             $locked = Register::query()->whereKey($register->id)->lockForUpdate()->firstOrFail();
             $repaired = false;
             $previousCode = null;
 
             if ($locked->device_id !== null && $locked->device_id !== $deviceId) {
+                // The device replaced still held unsynced work (stage 10, step 5c): only when confirmed,
+                // and the count is audited, so the lost items are on record.
+                $unsynced = (int) $locked->outbox_count;
+                if ($unsynced > 0 && ! $confirmed) {
+                    throw new TillHasUnsyncedItems($unsynced, $locked->outbox_reported_at);
+                }
+                if ($unsynced > 0) {
+                    AuditableEvent::dispatch(
+                        auditableType: Register::class, auditableId: $locked->id, auditableUuid: (string) $locked->uuid, event: AuditEvent::UPDATED,
+                        newValues: ['repaired_with_unsynced_items' => $unsynced, 'outbox_reported_at' => $locked->outbox_reported_at?->toIso8601String(), 'previous_device' => $locked->device_id],
+                        userId: $user->id, userName: $user->name, userEmail: $user->email, shopId: (int) $locked->shop_id, tags: ['register', 'repaired', 'unsynced'], businessId: $businessId,
+                    );
+                }
+                $locked->forceFill(['outbox_count' => null, 'outbox_reported_at' => null]);
+
                 $repaired = true;
                 $previousCode = $locked->code;
 

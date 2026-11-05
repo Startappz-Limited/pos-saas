@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Actions\Sale\DeleteSale;
 use App\Actions\Sale\RecordSale;
 use App\Actions\Sale\RecordSalePayment;
+use App\Actions\Sale\SaleContext;
+use App\Actions\Sale\VoidSale;
 use App\Actions\SendSaleNotifications;
-use App\Actions\SettleCreditSalePayment;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreSaleRequest;
 use App\Jobs\SyncOrderStatusJob;
@@ -13,7 +15,7 @@ use App\Models\Sale;
 use App\Models\Shop;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 
 class SaleController extends Controller
 {
@@ -74,12 +76,13 @@ class SaleController extends Controller
         $this->authorize('create', Sale::class);
 
         $validated = $request->validated();
-        // Refuses a user with no shop, or one they can't act in, before anything is made.
-        $this->resolveShopId($request);
+        // Refuses a user with no shop, or one they can't act in, before anything is made. The sale
+        // and every line take this shop's stock, never a product's first shop (stage 10, step 1a).
+        $shopId = $this->resolveShopId($request);
 
         try {
             // Resolved here, not injected: the live-like dataset seeder calls store() directly.
-            $recorded = app(RecordSale::class)->execute($validated);
+            $recorded = app(RecordSale::class)->execute($validated, new SaleContext(shopId: $shopId));
         } catch (\Exception $e) {
             return $this->failed($e, __('Failed to create sale:'));
         }
@@ -134,7 +137,8 @@ class SaleController extends Controller
 
         abort_unless(auth()->user()->canAccessShop($sale->shop_id), 403, __('This action is unauthorized.'));
 
-        $sale->delete();
+        // Only a draft or pending sale with no payments (stage 10, step 5); 422 with `code` otherwise.
+        app(DeleteSale::class)->execute($sale, auth()->user());
 
         return response()->json([
             'success' => true,
@@ -180,9 +184,17 @@ class SaleController extends Controller
         ]);
     }
 
+    /**
+     * Voids the sale (stage 10, step 2): 403 without `sales.void`, 422 with the
+     * time-limit message past the void window.
+     */
     public function void(Request $request, Sale $sale): JsonResponse
     {
-        $this->authorize('void', $sale);
+        $decision = Gate::inspect('void', $sale);
+        if ($decision->denied() && $decision->status() === 422) {
+            return response()->json(['success' => false, 'message' => $decision->message(), 'code' => $decision->code()], 422);
+        }
+        $decision->authorize();
 
         abort_unless($request->user()->canAccessShop($sale->shop_id), 403, __('This action is unauthorized.'));
 
@@ -190,27 +202,14 @@ class SaleController extends Controller
             'void_reason' => ['required', 'string', 'max:255'],
         ]);
 
-        DB::transaction(function () use ($sale, $validated): void {
-            $sale->update([
-                'status' => 'voided',
-                'voided_at' => now(),
-                'voided_by' => auth()->id(),
-                'void_reason' => $validated['void_reason'],
-            ]);
-
-            // Release the debt a voided credit sale created, or the customer
-            // keeps owing for a sale that no longer exists.
-            app(SettleCreditSalePayment::class)->reverse($sale, $validated['void_reason']);
-        });
-
-        if ($sale->register_id) {
-            $sale->register?->updateSalesTotals();
-        }
+        $result = app(VoidSale::class)->execute($sale, $validated['void_reason'], $request->user());
 
         return response()->json([
             'success' => true,
-            'message' => 'Sale voided successfully.',
+            'message' => VoidSale::summary($result),
             'data' => $sale,
+            // What happened to the money (stage 10, step 4): paid out of the voider's session, or owed.
+            'money' => VoidSale::money($result),
         ]);
     }
 

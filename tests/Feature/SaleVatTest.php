@@ -223,6 +223,7 @@ describe('the API path', function () {
 
 describe('invoice numbering', function () {
     it('issues sequential numbers rather than random strings', function () {
+        // Sales the server numbers take the shop's web series (stage 10, step 5d).
         $product = vatProduct();
 
         foreach (range(1, 3) as $ignored) {
@@ -234,9 +235,9 @@ describe('invoice numbering', function () {
         $numbers = Sale::orderBy('id')->pluck('invoice_number')->all();
 
         expect($numbers)->toBe([
-            'INV-NRB-R1-'.now()->format('Y').'-000001',
-            'INV-NRB-R1-'.now()->format('Y').'-000002',
-            'INV-NRB-R1-'.now()->format('Y').'-000003',
+            'INV-NRB-W-'.now()->format('Y').'-000001',
+            'INV-NRB-W-'.now()->format('Y').'-000002',
+            'INV-NRB-W-'.now()->format('Y').'-000003',
         ]);
     });
 
@@ -258,14 +259,15 @@ describe('invoice numbering', function () {
             ->postJson('/api/sales', vatSalePayload($productA))
             ->assertCreated();
 
+        // The flat API sells at the shop it names (stage 10, step 1a), not the product's first shop.
         $this->actingAs($this->user, 'sanctum')
-            ->postJson('/api/sales', vatSalePayload($productB))
+            ->postJson('/api/sales', [...vatSalePayload($productB), 'shop_id' => $other->id])
             ->assertCreated();
 
         $year = now()->format('Y');
 
         expect(Sale::orderBy('id')->pluck('invoice_number')->all())
-            ->toBe(["INV-NRB-R1-{$year}-000001", "INV-MSA-R1-{$year}-000001"]);
+            ->toBe(["INV-NRB-W-{$year}-000001", "INV-MSA-W-{$year}-000001"]);
     });
 });
 

@@ -122,21 +122,28 @@ class RecomputeSaleProfit extends Command
         foreach ($sale->items as $item) {
             $source = $item->variation ?? $item->product;
             $current = $source?->cost_price !== null && (float) $source->cost_price > 0 ? (float) $source->cost_price : null;
-            $allocations = DB::table('cost_allocations')->where('sale_item_id', $item->id)
-                ->get(['id', 'cost_layer_id', 'quantity_allocated', 'unit_cost']);
+            // An allocation from a batch with no cost kept its provisional estimate (stage 10,
+            // step 6): it is unknown until the batch has a cost.
+            $allocations = DB::table('cost_allocations')
+                ->leftJoin('cost_layers', 'cost_layers.id', '=', 'cost_allocations.cost_layer_id')
+                ->where('cost_allocations.sale_item_id', $item->id)
+                ->get(['cost_allocations.id', 'cost_allocations.cost_layer_id', 'cost_allocations.quantity_allocated', 'cost_allocations.unit_cost', 'cost_layers.unit_cost as layer_cost']);
 
             if ($allocations->isNotEmpty()) {
                 // FIFO (stage 1b): the line costs what its layers cost. A layer
                 // whose cost was unknown takes the purchase cost entered since.
                 $lineCost = 0.0;
+                $known = true;
                 foreach ($allocations as $allocation) {
-                    $cost = $allocation->unit_cost !== null ? (float) $allocation->unit_cost : $current;
+                    $unknown = $allocation->unit_cost === null || ($allocation->cost_layer_id !== null && $allocation->layer_cost === null);
+                    $cost = $unknown ? $current : (float) $allocation->unit_cost;
                     if ($cost === null) {
                         if (! $zeroUnknown) {
                             return null;
                         }
                         $cost = 0.0;
-                    } elseif ($allocation->unit_cost === null) {
+                        $known = false;
+                    } elseif ($unknown) {
                         $fills[] = [$allocation, $cost];
                     }
                     $lineCost += (int) $allocation->quantity_allocated * $cost;
@@ -144,6 +151,7 @@ class RecomputeSaleProfit extends Command
                 $lineCost = round($lineCost, 2);
                 $unitCost = $item->quantity > 0 ? round($lineCost / $item->quantity, 2) : 0.0;
             } else {
+                $known = $current !== null;
                 // Sold before FIFO (or imported): the product's current cost.
                 if ($current === null) {
                     if (! $zeroUnknown) {
@@ -173,6 +181,7 @@ class RecomputeSaleProfit extends Command
                 'total_cost' => $lineCost,
                 'profit' => $profit,
                 'profit_margin' => $lineNet > 0 ? round(($profit / $lineNet) * 100, 2) : 0.0,
+                'cost_known' => $known,
             ];
 
             $totalCost += $lineCost;
@@ -187,7 +196,8 @@ class RecomputeSaleProfit extends Command
 
         $profitBefore = (float) $sale->total_profit;
         $changed = abs($profitBefore - $totalProfit) >= 0.01
-            || abs((float) $sale->total_cost - $totalCost) >= 0.01;
+            || abs((float) $sale->total_cost - $totalCost) >= 0.01
+            || collect($lines)->contains(fn (array $line): bool => (bool) $line['item']->cost_known !== $line['cost_known']);
 
         if (($changed || $fills !== []) && $apply) {
             DB::transaction(function () use ($sale, $lines, $totalCost, $totalProfit, $fills): void {
@@ -210,6 +220,7 @@ class RecomputeSaleProfit extends Command
                         'total_cost' => $line['total_cost'],
                         'profit' => $line['profit'],
                         'profit_margin' => $line['profit_margin'],
+                        'cost_known' => $line['cost_known'],
                     ])->save();
                 }
 

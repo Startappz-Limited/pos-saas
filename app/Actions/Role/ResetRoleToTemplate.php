@@ -4,6 +4,7 @@ namespace App\Actions\Role;
 
 use App\Enums\AuditEvent;
 use App\Models\Role;
+use App\Support\Authorization\RoleRevocations;
 use InvalidArgumentException;
 
 /**
@@ -19,6 +20,7 @@ class ResetRoleToTemplate
 
         $before = $copy->permissions()->pluck('name')->sort()->values()->all();
         $copy->syncPermissions($template->permissions()->pluck('permissions.id')->all());
+        RoleRevocations::clear((int) $copy->id);
         $after = $copy->permissions()->pluck('name')->sort()->values()->all();
 
         $copy->dispatchAuditEvent(AuditEvent::UPDATED, ['permissions' => $before], ['permissions' => $after, 'reset_to_default' => true]);

@@ -19,9 +19,12 @@ use App\Models\PaymentRequest;
 use App\Models\PlatformPayment;
 use App\Models\PricingRule;
 use App\Models\PurchaseOrder;
+use App\Models\RefundDue;
 use App\Models\Register;
 use App\Models\Role;
+use App\Models\SaleVoidRequest;
 use App\Models\SocialAccount;
+use App\Models\StockAdjustment;
 use App\Models\SyncIssue;
 use App\Services\Billing\AiCredits;
 use App\Support\Tenancy\BusinessLink;
@@ -83,9 +86,12 @@ function recordOfB(TwoBusinesses $fixture, string $resource): Model
         'sales' => $b->sale,
         'shops' => $b->shops[1],
         'social-accounts' => SocialAccount::factory()->create($shop),
+        'stock-adjustments' => StockAdjustment::factory()->create([...$shop, 'type' => 'decrease', 'reason' => 'damaged', 'status' => 'pending', 'created_by' => $b->cashier->id]),
         'suppliers' => $b->supplier,
         'sync-issues' => SyncIssue::create(['type' => SyncIssue::POSSIBLE_DUPLICATE_CUSTOMER, 'key' => 'customer:b', 'details' => ['customer' => (string) $b->customer->uuid, 'duplicate_of' => (string) $b->customer->uuid]]),
         'users' => $b->cashier,
+        'refunds-due' => RefundDue::create(['shop_id' => $b->sale->shop_id, 'sale_id' => $b->sale->id, 'source' => 'void', 'method' => 'mobile_money', 'amount' => 100, 'reference' => 'B-1', 'status' => 'pending']),
+        'void-requests' => SaleVoidRequest::factory()->create(['sale_id' => $b->sale->id, 'shop_id' => $b->sale->shop_id, 'requested_by' => $b->cashier->id]),
     });
 }
 
@@ -95,7 +101,7 @@ const WEB_RESOURCES = [
     'attributes' => ['show', 'update', 'destroy'],
     'baileys.sessions' => ['show', 'destroy'],
     'campaigns' => ['show', 'update', 'destroy'],
-    'cash-registers' => ['show'],
+    'cash-registers' => ['show', 'payouts.store'],
     'categories' => ['show', 'update', 'destroy'],
     'credit-accounts' => ['show', 'update', 'destroy'],
     'customers' => ['show', 'update', 'destroy'],
@@ -106,14 +112,20 @@ const WEB_RESOURCES = [
     'products' => ['show', 'update', 'destroy'],
     'purchase-orders' => ['show', 'update', 'destroy'],
     'roles' => ['show', 'edit', 'update', 'destroy', 'permissions', 'updatePermissions', 'reset', 'active'],
-    'sales' => ['show', 'update', 'destroy'],
+    'sales' => ['show', 'update', 'destroy', 'void-requests.store', 'refunds-due.store'],
     'shops' => ['show', 'update', 'destroy'],
     // show: SocialAccountController::show doesn't exist (already on main).
     'social-accounts' => ['update', 'destroy'],
+    // No destroy: adjustments are cancelled and keep their numbers (stage 10, step 1g).
+    'stock-adjustments' => ['show', 'update', 'cancel', 'approve', 'reject'],
     'suppliers' => ['show', 'update', 'destroy'],
     'users' => ['show', 'update', 'destroy', 'till-pin.reset', 'till-pin.unlock'],
     'invites' => ['resend', 'destroy', 'role'],
-    'sync-issues' => ['resolve', 'merge'],
+    // Held till items' resolutions (stage 10, step 5c).
+    'sync-issues' => ['resolve', 'merge', 'accept', 'discard', 'rerung'],
+    // Void requests (stage 10, step 2) and refunds owed (step 4).
+    'void-requests' => ['approve', 'reject', 'cancel'],
+    'refunds-due' => ['pay'],
 ];
 
 /** Resource => the actions its flat API routes offer on one record. */
@@ -128,10 +140,11 @@ const API_RESOURCES = [
     'expenses' => ['show', 'update', 'destroy'],
     'products' => ['show', 'update', 'destroy'],
     'purchase-orders' => ['show', 'update', 'destroy'],
-    'sales' => ['show', 'update', 'destroy'],
+    'sales' => ['show', 'update', 'destroy', 'void-requests.store'],
     'shops' => ['show', 'update', 'destroy'],
     'suppliers' => ['show', 'update', 'destroy'],
     'users' => ['show', 'update', 'destroy'],
+    'void-requests' => ['approve', 'reject', 'cancel'],
 ];
 
 /**
@@ -389,6 +402,20 @@ it('refuses business B\'s sale receipt to business A on /api/v1 (Phase 7)', func
 
     Till::freshRequest();
     $this->withToken($token)->getJson(route('api.v1.sales.receipt', $this->fixture->b->sale))->assertNotFound();
+});
+
+it('refuses business B\'s sale, and a sale of another shop, to a till\'s void on /api/v1 (stage 10, step 5c)', function () {
+    $a = $this->fixture->a;
+    $register = app(TenantContext::class)->run($a->business, fn () => Register::defaultFor($a->shops[0]->id));
+    app(TenantContext::class)->forget();
+    $token = Till::token($a->owner, $register);
+
+    Till::freshRequest();
+    $this->withToken($token)->postJson(route('api.v1.sales.void', $this->fixture->b->sale), ['reason' => 'x'])->assertNotFound();
+    // The fixture's sale is in A's second shop: a till of the first shop doesn't reach it.
+    Till::freshRequest();
+    $this->withToken($token)->postJson(route('api.v1.sales.void', $a->sale), ['reason' => 'x'])->assertNotFound();
+    expect(app(TenantContext::class)->run($a->business, fn () => $a->sale->fresh()->status))->not->toBe('voided');
 });
 
 it('refuses every platform console route to business A\'s owner (Phase 5)', function () {

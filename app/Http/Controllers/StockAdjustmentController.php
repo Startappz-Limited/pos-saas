@@ -3,11 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Enums\AdjustmentReason;
-use App\Enums\AdjustmentType;
+use App\Http\Requests\StoreStockAdjustmentRequest;
 use App\Models\Product;
 use App\Models\Shop;
 use App\Models\StockAdjustment;
+use App\Services\Stock\StockLedger;
 use App\Services\StockAdjustmentService;
+use App\Support\Stock\AdjustmentApproval;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -26,6 +28,7 @@ class StockAdjustmentController extends Controller
             status: $request->input('status'),
             type: $request->input('type'),
             shopId: $request->input('shop_id'),
+            selfApprovedOnly: $request->boolean('self_approved'),
         );
 
         $statistics = $this->stockAdjustmentService->getStatistics();
@@ -39,45 +42,37 @@ class StockAdjustmentController extends Controller
         $this->authorize('create', StockAdjustment::class);
 
         $shops = Shop::active()->select('id', 'name')->orderBy('name')->get();
-        $products = Product::active()->select('id', 'name')->orderBy('name')->get();
-        $adjustmentTypes = AdjustmentType::cases();
-        $adjustmentReasons = AdjustmentReason::cases();
+        $products = $this->adjustableProducts();
+        $adjustmentReasons = AdjustmentReason::offered();
 
-        return view('stock-adjustments.create', compact('shops', 'products', 'adjustmentTypes', 'adjustmentReasons'));
+        return view('stock-adjustments.create', compact('shops', 'products', 'adjustmentReasons'));
     }
 
-    public function store(Request $request): RedirectResponse
+    public function store(StoreStockAdjustmentRequest $request): RedirectResponse
     {
-        $this->authorize('create', StockAdjustment::class);
+        try {
+            $adjustment = $this->stockAdjustmentService->createAdjustment($request->validated(), $request->user()->id);
+        } catch (\Exception $e) {
+            return $this->failed($e);
+        }
 
-        $validated = $request->validate([
-            'shop_id' => 'required|exists:shops,id',
-            'type' => 'required|string|in:increase,decrease',
-            'reason' => 'required|string|in:'.implode(',', array_column(AdjustmentReason::cases(), 'value')),
-            'notes' => 'nullable|string|max:1000',
-            'items' => 'required|array|min:1',
-            'items.*.product_id' => 'required|exists:products,id',
-            'items.*.quantity_change' => 'required|integer|min:1',
-            'items.*.item_notes' => 'nullable|string|max:500',
-        ]);
-
-        $adjustment = $this->stockAdjustmentService->createAdjustment(
-            $validated,
-            $request->user()->id
-        );
-
+        // Applied at once unless it needs a second person (stage 10, step 1g).
         return redirect()
             ->route('stock-adjustments.show', $adjustment)
-            ->with('success', 'Stock adjustment created successfully.');
+            ->with('success', $adjustment->isCompleted()
+                ? __('Stock adjustment :number applied. Stock has been updated.', ['number' => $adjustment->adjustment_number])
+                : __('Stock adjustment :number saved. It waits for someone else to approve it.', ['number' => $adjustment->adjustment_number]));
     }
 
     public function show(StockAdjustment $stockAdjustment): View
     {
         $this->authorize('view', $stockAdjustment);
 
-        $stockAdjustment->load(['shop', 'creator', 'approver', 'items.product']);
+        $stockAdjustment->load(['shop', 'creator', 'approver', 'items.product', 'items.variation']);
+        $approval = app(AdjustmentApproval::class);
+        $ledger = app(StockLedger::class);
 
-        return view('stock-adjustments.show', compact('stockAdjustment'));
+        return view('stock-adjustments.show', compact('stockAdjustment', 'approval', 'ledger'));
     }
 
     public function edit(StockAdjustment $stockAdjustment): View|RedirectResponse
@@ -90,31 +85,18 @@ class StockAdjustmentController extends Controller
                 ->with('error', 'Only pending adjustments can be edited.');
         }
 
-        $stockAdjustment->load(['shop' => fn ($query) => $query->withTrashed(), 'items.product']);
+        $stockAdjustment->load(['shop' => fn ($query) => $query->withTrashed(), 'items.product', 'items.variation']);
         $shops = Shop::active()->select('id', 'name')->orderBy('name')->get();
-        $products = Product::active()->select('id', 'name')->orderBy('name')->get();
-        $adjustmentTypes = AdjustmentType::cases();
-        $adjustmentReasons = AdjustmentReason::cases();
+        $products = $this->adjustableProducts();
+        $adjustmentReasons = AdjustmentReason::offered();
 
-        return view('stock-adjustments.edit', compact('stockAdjustment', 'shops', 'products', 'adjustmentTypes', 'adjustmentReasons'));
+        return view('stock-adjustments.edit', compact('stockAdjustment', 'shops', 'products', 'adjustmentReasons'));
     }
 
-    public function update(Request $request, StockAdjustment $stockAdjustment): RedirectResponse
+    public function update(StoreStockAdjustmentRequest $request, StockAdjustment $stockAdjustment): RedirectResponse
     {
-        $this->authorize('update', $stockAdjustment);
-
-        $validated = $request->validate([
-            'type' => 'required|string|in:increase,decrease',
-            'reason' => 'required|string|in:'.implode(',', array_column(AdjustmentReason::cases(), 'value')),
-            'notes' => 'nullable|string|max:1000',
-            'items' => 'required|array|min:1',
-            'items.*.product_id' => 'required|exists:products,id',
-            'items.*.quantity_change' => 'required|integer|min:1',
-            'items.*.item_notes' => 'nullable|string|max:500',
-        ]);
-
         try {
-            $this->stockAdjustmentService->updateAdjustment($stockAdjustment, $validated);
+            $this->stockAdjustmentService->updateAdjustment($stockAdjustment, $request->validated());
 
             return redirect()
                 ->route('stock-adjustments.show', $stockAdjustment)
@@ -124,32 +106,39 @@ class StockAdjustmentController extends Controller
         }
     }
 
-    public function destroy(StockAdjustment $stockAdjustment): RedirectResponse
+    /**
+     * Withdraws a pending adjustment; it keeps its number (replaces deleting).
+     */
+    public function cancel(Request $request, StockAdjustment $stockAdjustment): RedirectResponse
     {
-        $this->authorize('delete', $stockAdjustment);
+        $this->authorize('cancel', $stockAdjustment);
 
         try {
-            $this->stockAdjustmentService->deleteAdjustment($stockAdjustment);
+            $this->stockAdjustmentService->cancelAdjustment($stockAdjustment, $request->user()->id);
 
-            return redirect()
-                ->route('stock-adjustments.index')
-                ->with('success', 'Stock adjustment deleted successfully.');
+            return redirect()->route('stock-adjustments.show', $stockAdjustment)->with('success', __('Stock adjustment cancelled. It keeps its number.'));
         } catch (\Exception $e) {
             return $this->failed($e);
         }
     }
 
+    /**
+     * Applies the adjustment. Its creator approves only as an owner whom nobody
+     * else could relieve, with a note (flagged self-approved).
+     */
     public function approve(Request $request, StockAdjustment $stockAdjustment): RedirectResponse
     {
         $this->authorize('approve', $stockAdjustment);
 
-        try {
-            $this->stockAdjustmentService->approveAdjustment(
-                $stockAdjustment,
-                $request->user()->id
-            );
+        $selfApproving = (int) $stockAdjustment->created_by === (int) $request->user()->id;
+        $validated = $request->validate([
+            'approval_note' => [$selfApproving ? 'required' : 'nullable', 'string', 'max:500'],
+        ], ['approval_note.required' => __('Say why you are approving your own adjustment.')]);
 
-            return back()->with('success', 'Stock adjustment approved successfully.');
+        try {
+            $this->stockAdjustmentService->approveAdjustment($stockAdjustment, $request->user()->id, $validated['approval_note'] ?? null);
+
+            return back()->with('success', __('Stock adjustment approved and applied. Stock has been updated.'));
         } catch (\Exception $e) {
             return $this->failed($e);
         }
@@ -160,32 +149,33 @@ class StockAdjustmentController extends Controller
         $this->authorize('reject', $stockAdjustment);
 
         $validated = $request->validate([
-            'rejection_reason' => 'nullable|string|max:500',
+            'rejection_reason' => ['required', 'string', 'max:500'],
         ]);
 
         try {
-            $this->stockAdjustmentService->rejectAdjustment(
-                $stockAdjustment,
-                $request->user()->id,
-                $validated['rejection_reason'] ?? null
-            );
+            $this->stockAdjustmentService->rejectAdjustment($stockAdjustment, $request->user()->id, $validated['rejection_reason']);
 
-            return back()->with('success', 'Stock adjustment rejected.');
+            return back()->with('success', __('Stock adjustment rejected.'));
         } catch (\Exception $e) {
             return $this->failed($e);
         }
     }
 
-    public function complete(Request $request, StockAdjustment $stockAdjustment): RedirectResponse
+    /**
+     * Active products with their named variations, for the line picker (stage 10,
+     * step 1g): ids and names only, since the page reaches clerks, who see no costs.
+     *
+     * @return array<int, array{id: int, name: string, variations: array<int, array{id: int, name: string}>}>
+     */
+    private function adjustableProducts(): array
     {
-        $this->authorize('complete', $stockAdjustment);
-
-        try {
-            $this->stockAdjustmentService->completeAdjustment($stockAdjustment);
-
-            return back()->with('success', 'Stock adjustment completed. Inventory has been updated.');
-        } catch (\Exception $e) {
-            return $this->failed($e);
-        }
+        return Product::active()
+            ->with(['variations' => fn ($query) => $query->where('is_default', false)->select('id', 'product_id', 'name')->orderBy('name')])
+            ->select('id', 'name')->orderBy('name')->get()
+            ->map(fn (Product $product): array => [
+                'id' => $product->id,
+                'name' => $product->name,
+                'variations' => $product->variations->map(fn ($variation): array => ['id' => $variation->id, 'name' => (string) $variation->name])->values()->all(),
+            ])->all();
     }
 }

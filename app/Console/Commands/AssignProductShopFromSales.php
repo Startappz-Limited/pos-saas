@@ -28,7 +28,7 @@ class AssignProductShopFromSales extends Command
         // Tally, per product, how many sale lines were sold under each shop,
         // plus the most recent sale date for tie-breaking.
         $tallyQuery = DB::table('sale_items')
-            ->join('sales', 'sales.id', '=', 'sale_items.sale_id')
+            ->join('sales', 'sales.id', '=', 'sale_items.sale_id')->whereNull('sales.deleted_at')
             ->tap(fn ($query) => app(TenantContext::class)->restrictToShops($query, 'sales.shop_id'))
             ->whereNotNull('sales.shop_id')
             ->selectRaw('sale_items.product_id')

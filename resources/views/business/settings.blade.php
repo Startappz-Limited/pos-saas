@@ -73,6 +73,58 @@
                         @error('logo')<div class="invalid-feedback">{{ $message }}</div>@enderror
                     </div>
 
+                    <h5 class="mt-4 mb-3">{{ __('Sales') }}</h5>
+                    @if (auth()->user()->isBusinessOwner())
+                    @php($voidChoice = old('void_window', is_int($voidWindow) ? 'minutes' : $voidWindow))
+                    <div class="row">
+                        <div class="col-md-8 mb-3">
+                            <label class="form-label" for="void_window">{{ __('How long a sale can be voided') }}</label>
+                            <select name="void_window" id="void_window" class="form-select @error('void_window') is-invalid @enderror">
+                                <option value="session" @selected($voidChoice === 'session')>{{ __('Until the register session closes (default)') }}</option>
+                                <option value="end_of_day" @selected($voidChoice === 'end_of_day')>{{ __('Until the end of the day') }}</option>
+                                <option value="minutes" @selected($voidChoice === 'minutes')>{{ __('A number of minutes') }}</option>
+                                <option value="none" @selected($voidChoice === 'none')>{{ __('No time limit') }}</option>
+                            </select>
+                            @error('void_window')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label" for="void_window_minutes">{{ __('Minutes') }}</label>
+                            <input type="number" name="void_window_minutes" id="void_window_minutes" min="1" max="1440" step="1"
+                                class="form-control @error('void_window_minutes') is-invalid @enderror"
+                                value="{{ old('void_window_minutes', is_int($voidWindow) ? $voidWindow : '') }}">
+                            @error('void_window_minutes')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+                    </div>
+                    @else
+                        <div class="mb-3">
+                            <label class="form-label" for="void_window_readonly">{{ __('How long a sale can be voided') }}</label>
+                            <input type="text" id="void_window_readonly" class="form-control" disabled
+                                value="{{ match (true) {
+                                    is_int($voidWindow) => __(':minutes minutes', ['minutes' => $voidWindow]),
+                                    $voidWindow === 'end_of_day' => __('Until the end of the day'),
+                                    $voidWindow === 'none' => __('No time limit'),
+                                    default => __('Until the register session closes (default)'),
+                                } }}">
+                            <div class="form-text">{{ __('Only the owner can change it.') }}</div>
+                        </div>
+                    @endif
+                    <div class="form-text mb-3">{{ __('The day is the shop\'s local day. Past the limit, use a return. The limit applies to the owner too.') }}</div>
+
+                    <h5 class="mt-4 mb-3">{{ __('Stock') }}</h5>
+                    <div class="mb-3">
+                        <label class="form-label" for="adjustment_approval_threshold">{{ __('Adjustment approval threshold') }}</label>
+                        @if (auth()->user()->isBusinessOwner())
+                            <input type="number" name="adjustment_approval_threshold" id="adjustment_approval_threshold" min="0" step="0.01"
+                                class="form-control @error('adjustment_approval_threshold') is-invalid @enderror"
+                                value="{{ old('adjustment_approval_threshold', $adjustmentThreshold) }}">
+                        @else
+                            <input type="text" id="adjustment_approval_threshold" class="form-control" value="{{ number_format($adjustmentThreshold, 2) }}" disabled>
+                            <div class="form-text">{{ __('Only the owner can change it.') }}</div>
+                        @endif
+                        <div class="form-text">{{ __('A stock adjustment worth this much or more at cost waits for a second person to approve it. Loss, theft, damage, expiry and unknown costs always do.') }}</div>
+                        @error('adjustment_approval_threshold')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                    </div>
+
                     <x-ui-button variant="primary" type="submit">{{ __('Save') }}</x-ui-button>
                 </form>
             </x-ui-card>

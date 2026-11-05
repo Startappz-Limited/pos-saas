@@ -16,6 +16,7 @@ use App\Http\Controllers\Api\PurchaseOrderController;
 use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\SaleController;
 use App\Http\Controllers\Api\SaleSourceController;
+use App\Http\Controllers\Api\SaleVoidRequestController;
 use App\Http\Controllers\Api\ShopController;
 use App\Http\Controllers\Api\SupplierController;
 use App\Http\Controllers\Api\UserController;
@@ -26,6 +27,7 @@ use App\Http\Controllers\Api\V1\BusinessController as V1BusinessController;
 use App\Http\Controllers\Api\V1\MpesaController as V1MpesaController;
 use App\Http\Controllers\Api\V1\ReceiptController as V1ReceiptController;
 use App\Http\Controllers\Api\V1\RegisterController as V1RegisterController;
+use App\Http\Controllers\Api\V1\SaleVoidController as V1SaleVoidController;
 use App\Http\Controllers\Api\V1\SyncController as V1SyncController;
 use App\Http\Controllers\Api\V1\TillPinController as V1TillPinController;
 use App\Http\Controllers\PlatformPaymentWebhookController;
@@ -82,6 +84,9 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
 
         // A sale's receipt for an ESC/POS printer (Phase 7).
         Route::get('/sales/{sale:uuid}/receipt', [V1ReceiptController::class, 'show'])->name('sales.receipt');
+        // A void at a till (stage 10, step 5c): register-bound tokens only, so its session pays.
+        Route::post('/sales/{sale:uuid}/void', [V1SaleVoidController::class, 'store'])
+            ->middleware([EnsureRegisterToken::class, 'throttle:destructive'])->name('sales.void');
 
         // M-Pesa at a paired till (Phase 7).
         Route::middleware(EnsureRegisterToken::class)->prefix('mpesa')->name('mpesa.')->group(function () {
@@ -191,6 +196,16 @@ Route::middleware(['auth:sanctum', 'business'])->group(function () {
         ->middleware('throttle:writes')->name('api.sales.collect-payment');
     Route::post('sales/{sale}/void', [SaleController::class, 'void'])
         ->middleware('throttle:destructive')->name('api.sales.void');
+    // Void requests (stage 10, step 2): approving one voids the sale, so it is throttled as a void.
+    Route::post('sales/{sale}/void-request', [SaleVoidRequestController::class, 'store'])
+        ->middleware('throttle:writes')->name('api.sales.void-requests.store');
+    Route::get('void-requests', [SaleVoidRequestController::class, 'index'])->name('api.void-requests.index');
+    Route::post('void-requests/{voidRequest}/approve', [SaleVoidRequestController::class, 'approve'])
+        ->middleware('throttle:destructive')->name('api.void-requests.approve');
+    Route::post('void-requests/{voidRequest}/reject', [SaleVoidRequestController::class, 'reject'])
+        ->middleware('throttle:writes')->name('api.void-requests.reject');
+    Route::post('void-requests/{voidRequest}/cancel', [SaleVoidRequestController::class, 'cancel'])
+        ->middleware('throttle:writes')->name('api.void-requests.cancel');
     Route::get('sales/{sale}/payments', [SaleController::class, 'payments'])->name('api.sales.payments');
 
     // store/destroy are declared separately so each gets its own limiter — passing
