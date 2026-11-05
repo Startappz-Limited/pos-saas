@@ -7,12 +7,13 @@ use App\Models\Product;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderItem;
 use App\Models\Shop;
+use App\Models\StockIntake;
 use App\Models\Supplier;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
- * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\StockIntake>
+ * @extends Factory<StockIntake>
  */
 class StockIntakeFactory extends Factory
 {
@@ -40,7 +41,6 @@ class StockIntakeFactory extends Factory
             'quantity_accepted' => $quantityAccepted,
             'quantity_rejected' => $quantityRejected,
             'unit' => 'pcs',
-            'quality_status' => fake()->randomElement(['excellent', 'good', 'acceptable']),
             'storage_location' => fake()->optional()->bothify('Warehouse-##'),
             'bin_location' => fake()->optional()->bothify('Bin-??-###'),
             'batch_number' => fake()->optional()->bothify('BATCH-########'),
@@ -91,7 +91,6 @@ class StockIntakeFactory extends Factory
             return [
                 'quantity_rejected' => $quantityRejected,
                 'quantity_accepted' => $quantityAccepted,
-                'quality_status' => fake()->randomElement(['poor', 'rejected']),
                 'quality_notes' => fake()->sentence(),
             ];
         });
@@ -105,7 +104,6 @@ class StockIntakeFactory extends Factory
             return [
                 'quantity_rejected' => 0,
                 'quantity_accepted' => $quantityReceived,
-                'quality_status' => 'excellent',
             ];
         });
     }

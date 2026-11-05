@@ -35,7 +35,6 @@ class StoreStockIntakeRequest extends FormRequest
             'quantity_accepted' => ['required', 'numeric', 'min:0'],
             'quantity_rejected' => ['required', 'numeric', 'min:0'],
             'unit' => ['nullable', 'string', 'max:50'],
-            'quality_status' => ['nullable', 'in:passed,partial,failed'],
             'quality_notes' => ['nullable', 'string'],
             'expiry_date' => ['nullable', 'date', 'after:today'],
             'notes' => ['nullable', 'string'],

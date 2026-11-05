@@ -230,15 +230,10 @@
                             <div class="col-md-6">
                                 <h6 class="text-muted">Quality Status</h6>
                                 @php
-                                    $qualityColors = [
-                                        'passed' => 'success',
-                                        'partial' => 'warning',
-                                        'failed' => 'danger',
-                                    ];
-                                    $qualityColor = $qualityColors[$stockIntake->quality_status] ?? 'secondary';
+                                    $qualityColor = $stockIntake->quality_status?->color() ?? 'secondary';
                                 @endphp
                                 <span class="badge bg-{{ $qualityColor }}-subtle text-{{ $qualityColor }} fs-13">
-                                    {{ ucfirst($stockIntake->quality_status ?? 'Not Set') }}
+                                    {{ $stockIntake->quality_status?->label() ?? __('Not Set') }}
                                 </span>
 
                                 @if ($stockIntake->quality_notes)
@@ -363,7 +358,7 @@
                         <div class="d-flex justify-content-between">
                             <span class="text-muted">Quality:</span>
                             <span class="badge bg-{{ $qualityColor }}-subtle text-{{ $qualityColor }}">
-                                {{ ucfirst($stockIntake->quality_status ?? 'N/A') }}
+                                {{ $stockIntake->quality_status?->label() ?? __('N/A') }}
                             </span>
                         </div>
                     </div>
