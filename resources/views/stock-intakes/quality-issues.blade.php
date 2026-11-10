@@ -100,18 +100,11 @@
                                             </td>
                                             <td>
                                                 @php
-                                                    $qualityColors = [
-                                                        'passed' => 'success',
-                                                        'partial' => 'warning',
-                                                        'failed' => 'danger',
-                                                        'poor' => 'danger',
-                                                        'rejected' => 'danger',
-                                                    ];
-                                                    $qColor = $qualityColors[$intake->quality_status] ?? 'secondary';
+                                                    $qColor = $intake->quality_status?->color() ?? 'secondary';
                                                 @endphp
                                                 <span
                                                     class="badge bg-{{ $qColor }}-subtle text-{{ $qColor }}">
-                                                    {{ ucfirst($intake->quality_status ?? 'N/A') }}
+                                                    {{ $intake->quality_status?->label() ?? __('N/A') }}
                                                 </span>
                                             </td>
                                             <td>

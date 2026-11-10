@@ -27,7 +27,6 @@ class UpdateStockIntakeRequest extends FormRequest
             'quantity_received' => ['sometimes', 'required', 'numeric', 'min:0.01'],
             'quantity_accepted' => ['sometimes', 'required', 'numeric', 'min:0'],
             'quantity_rejected' => ['sometimes', 'required', 'numeric', 'min:0'],
-            'quality_status' => ['nullable', 'in:excellent,good,acceptable,poor,rejected'],
             'quality_notes' => ['nullable', 'string'],
             'storage_location' => ['nullable', 'string', 'max:255'],
             'bin_location' => ['nullable', 'string', 'max:255'],

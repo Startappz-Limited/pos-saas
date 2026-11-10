@@ -253,20 +253,7 @@
                                     @enderror
                                 </div>
                                 <div class="col-md-6 mb-3">
-                                    <label class="form-label">Quality Status</label>
-                                    <select name="quality_status"
-                                        class="form-select @error('quality_status') is-invalid @enderror">
-                                        <option value="passed" {{ old('quality_status') === 'passed' ? 'selected' : '' }}>
-                                            Passed</option>
-                                        <option value="partial"
-                                            {{ old('quality_status') === 'partial' ? 'selected' : '' }}>Partial (Some
-                                            Issues)</option>
-                                        <option value="failed" {{ old('quality_status') === 'failed' ? 'selected' : '' }}>
-                                            Failed</option>
-                                    </select>
-                                    @error('quality_status')
-                                        <div class="invalid-feedback">{{ $message }}</div>
-                                    @enderror
+                                    @include('stock-intakes.partials.quality-status', ['accepted' => old('quantity_accepted', isset($purchaseOrderItem) ? $purchaseOrderItem->quantity_remaining : 0), 'rejected' => old('quantity_rejected', 0)])
                                 </div>
                             </div>
 
@@ -388,15 +375,33 @@
                 const qtyAccepted = document.querySelector('input[name="quantity_accepted"]');
                 const qtyRejected = document.querySelector('input[name="quantity_rejected"]');
 
+                // The quality status follows the quantities (StockIntakeQualityStatus::fromQuantities).
+                const qualityDisplay = document.getElementById('quality-status-display');
+
+                function showQualityStatus() {
+                    if (!qualityDisplay) {
+                        return;
+                    }
+                    const accepted = parseFloat(qtyAccepted.value) || 0;
+                    const rejected = parseFloat(qtyRejected.value) || 0;
+                    const status = JSON.parse(qualityDisplay.dataset.statuses)[rejected <= 0 ? 'passed' : (accepted > 0 ? 'partial' : 'failed')];
+                    const badge = qualityDisplay.querySelector('[data-quality-badge]');
+                    badge.className = `badge bg-${status.color}-subtle text-${status.color} fs-13`;
+                    badge.textContent = status.label;
+                }
+
                 function calculateRejected() {
                     const received = parseFloat(qtyReceived.value) || 0;
                     const accepted = parseFloat(qtyAccepted.value) || 0;
                     qtyRejected.value = Math.max(0, received - accepted);
+                    showQualityStatus();
                 }
 
                 if (qtyReceived && qtyAccepted && qtyRejected) {
                     qtyReceived.addEventListener('change', calculateRejected);
                     qtyAccepted.addEventListener('change', calculateRejected);
+                    qtyRejected.addEventListener('input', showQualityStatus);
+                    qtyAccepted.addEventListener('input', showQualityStatus);
                 }
 
                 // Handle PO item selection
@@ -410,6 +415,7 @@
                             qtyReceived.value = remaining;
                             qtyAccepted.value = remaining;
                             qtyRejected.value = 0;
+                            showQualityStatus();
                         }
                     });
                 }

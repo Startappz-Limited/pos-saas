@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\StockIntakeQualityStatus;
 use App\Enums\StockIntakeStatus;
 use App\Models\Concerns\BelongsToShop;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -57,6 +58,7 @@ class StockIntake extends Model
             'quantity_received' => 'decimal:2',
             'quantity_accepted' => 'decimal:2',
             'quantity_rejected' => 'decimal:2',
+            'quality_status' => StockIntakeQualityStatus::class,
             'quality_checks' => 'array',
             'expiry_date' => 'date',
             'received_at' => 'datetime',
@@ -75,6 +77,11 @@ class StockIntake extends Model
             if (empty($stockIntake->intake_number)) {
                 $stockIntake->intake_number = 'SI-'.strtoupper(Str::random(8));
             }
+        });
+
+        // Derived from the quantities on every save; whatever was set is overwritten.
+        static::saving(function (StockIntake $stockIntake) {
+            $stockIntake->quality_status = StockIntakeQualityStatus::fromQuantities($stockIntake->quantity_accepted, $stockIntake->quantity_rejected);
         });
     }
 

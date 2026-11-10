@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\PurchaseOrderStatus;
+use App\Enums\StockIntakeQualityStatus;
 use App\Enums\StockIntakeStatus;
 use App\Models\Product;
 use App\Models\PurchaseOrder;
@@ -291,7 +292,7 @@ test('withQualityIssues state creates intake with rejections', function () {
     $stockIntake = StockIntake::factory()->withQualityIssues()->create();
 
     expect($stockIntake->quantity_rejected)->toBeGreaterThan(0)
-        ->and($stockIntake->quality_status)->toBeIn(['poor', 'rejected']);
+        ->and($stockIntake->quality_status)->toBe(StockIntakeQualityStatus::PARTIAL);
 });
 
 test('excellentQuality state creates intake with no rejections', function () {
@@ -300,7 +301,7 @@ test('excellentQuality state creates intake with no rejections', function () {
     // decimal casts return strings; compare numerically.
     expect((float) $stockIntake->quantity_rejected)->toBe(0.0)
         ->and((float) $stockIntake->quantity_accepted)->toBe((float) $stockIntake->quantity_received)
-        ->and($stockIntake->quality_status)->toBe('excellent');
+        ->and($stockIntake->quality_status)->toBe(StockIntakeQualityStatus::PASSED);
 });
 
 test('example', function () {
