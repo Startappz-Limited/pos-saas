@@ -50,12 +50,15 @@ it('lists a legacy removal (inactive, no role) separately on a dry run, then bac
     $dryRun->expectsOutputToContain('Removed before this stage')->assertSuccessful();
 
     expect($membership->fresh()->removed_at)->toBeNull();
+    // The best date there is: the row's updated_at *before* --apply backfills
+    // removed_at (saving the row moves updated_at again, to now).
+    $updatedAtBeforeBackfill = $membership->fresh()->updated_at;
 
     $this->artisan('members:clean-removed', ['--business' => $this->business->id, '--apply' => true])->assertSuccessful();
 
     $membership->refresh();
     expect($membership->removed_at)->not->toBeNull()
-        ->and($membership->updated_at->equalTo($membership->removed_at))->toBeTrue();
+        ->and($membership->removed_at->equalTo($updatedAtBeforeBackfill))->toBeTrue();
 
     expect(TillPin::query()->where('user_id', $member->id)->exists())->toBeFalse()
         ->and($oldInvite->fresh()->revoked_at)->not->toBeNull()

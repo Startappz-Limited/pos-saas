@@ -417,10 +417,19 @@ class User extends Authenticatable
      * this isn't filtered by `ShopAccessScope` to the *viewer's* own shops,
      * so it answers correctly for someone else's row on the People page
      * however little of the shop list the viewer can themselves reach.
+     * Restricted to the current business (not the viewer's own shops): a
+     * shop belongs to one business, so joining to it and filtering by
+     * `shops.business_id` answers "has a shop *here*", which is the
+     * question the People page asks, regardless of which other businesses
+     * this person belongs to.
      */
     public function hasAnyShop(): bool
     {
-        return DB::table('shop_user')->where('user_id', $this->id)->exists();
+        $query = DB::table('shop_user')
+            ->join('shops', 'shops.id', '=', 'shop_user.shop_id')
+            ->where('shop_user.user_id', $this->id);
+
+        return app(TenantContext::class)->restrictToBusiness($query, 'shops.business_id')->exists();
     }
 
     public function hasShopRestrictions(): bool

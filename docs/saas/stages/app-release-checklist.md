@@ -73,7 +73,11 @@ Stage file: [10a-access-and-tenancy.md](./10a-access-and-tenancy.md).
       included, where some calls answered 200 or a generic 403 before: **403 `business_suspended`** when the business
       is suspended (as the flat API does), **403 `no_active_business`** otherwise (fifth revision, 2 November 2026).
       The app says which ("This business is suspended…" or "You are not a member of any active business."), then
-      signs out of `/api/v1` (sign-out still works).
+      signs out of `/api/v1` (sign-out still works). **Built, 10 November 2026:** the refusal also exempts
+      `GET /api/v1/businesses` and `POST /api/v1/businesses/{uuid}/switch`, so a token that just lost its business
+      can still list what else it reaches and move there, rather than being stuck until a fresh sign-in (narrowed
+      with the user; see the stage file's "Points to confirm"). The app should try that recovery path before
+      forcing a sign-out.
 
 ## Hotfix fix/api-authz
 Branch `fix/api-authz` (29 October to 2 November 2026), not a stage: the flat API's writes check the web's permissions,
