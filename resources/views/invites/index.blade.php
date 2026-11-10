@@ -28,14 +28,31 @@
                     @if ($shops->isNotEmpty())
                         <div class="mb-3">
                             <label class="form-label">{{ __('Shops') }}</label>
-                            @foreach ($shops as $shop)
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" name="shop_ids[]" value="{{ $shop->id }}"
-                                        id="invite_shop_{{ $shop->id }}" @checked(in_array($shop->id, old('shop_ids', [])))>
-                                    <label class="form-check-label" for="invite_shop_{{ $shop->id }}">{{ $shop->name }}</label>
-                                </div>
-                            @endforeach
-                            <div class="form-text">{{ __('Owners see every shop; everyone else only the shops given here.') }}</div>
+                            @if ($onFreeTrial)
+                                @foreach ($shops as $shop)
+                                    @if ($shop->id === $defaultShopId)
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" checked disabled>
+                                            <input type="hidden" name="shop_ids[]" value="{{ $shop->id }}">
+                                            <label class="form-check-label">{{ $shop->name }}</label>
+                                        </div>
+                                    @endif
+                                @endforeach
+                                <div class="form-text">{{ __('On the Free Trial, everyone works in the main shop.') }}</div>
+                            @else
+                                @foreach ($shops as $shop)
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="shop_ids[]" value="{{ $shop->id }}"
+                                            id="invite_shop_{{ $shop->id }}"
+                                            @checked(in_array($shop->id, old('shop_ids', $shops->count() === 1 ? [$shops->first()->id] : [])))>
+                                        <label class="form-check-label" for="invite_shop_{{ $shop->id }}">{{ $shop->name }}</label>
+                                    </div>
+                                @endforeach
+                                <div class="form-text">{{ __('Owners see every shop; everyone else only the shops given here.') }}</div>
+                            @endif
+                            @error('shop_ids')
+                                <div class="text-danger small">{{ $message }}</div>
+                            @enderror
                             @error('shop_ids.*')
                                 <div class="text-danger small">{{ $message }}</div>
                             @enderror

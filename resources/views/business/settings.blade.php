@@ -35,6 +35,18 @@
                     </div>
 
                     <div class="mb-3">
+                        <label class="form-label" for="default_shop_id">{{ __('Default shop') }}</label>
+                        <select name="default_shop_id" id="default_shop_id" class="form-select @error('default_shop_id') is-invalid @enderror">
+                            <option value="">{{ __('None') }}</option>
+                            @foreach ($shops as $shop)
+                                <option value="{{ $shop->id }}" @selected((string) old('default_shop_id', $business->default_shop_id) === (string) $shop->id)>{{ $shop->name }}</option>
+                            @endforeach
+                        </select>
+                        @error('default_shop_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        <div class="form-text">{{ __('The shop this business opens into. On the Free Trial, every member works here; on other tiers it is used for nothing.') }}</div>
+                    </div>
+
+                    <div class="mb-3">
                         <label class="form-label" for="invoice_prefix">{{ __('Invoice number prefix') }}</label>
                         <input type="text" name="invoice_prefix" id="invoice_prefix" maxlength="10"
                             class="form-control text-uppercase @error('invoice_prefix') is-invalid @enderror"

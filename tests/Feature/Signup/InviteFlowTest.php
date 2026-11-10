@@ -171,29 +171,31 @@ it('lets the admin change the role of a pending invite, within what they may giv
 
 it('counts pending invites against the staff limit and frees the seat on revoke', function () {
     limitStaffTo(activeStaff() + 1);
+    $shopIds = ['shop_ids' => [$this->a->shops[0]->id]];
 
-    invite(['email' => 'one@bravo-shop.co.ke'])->assertSessionHasNoErrors();
-    invite(['email' => 'two@bravo-shop.co.ke'])->assertSessionHas('error');
+    invite(['email' => 'one@bravo-shop.co.ke', ...$shopIds])->assertSessionHasNoErrors();
+    invite(['email' => 'two@bravo-shop.co.ke', ...$shopIds])->assertSessionHas('error');
 
     $invite = $this->tenant->run($this->a->business, fn () => BusinessInvite::firstOrFail());
     $this->tenant->forget();
     $this->actingAs($this->a->owner)->delete(route('invites.destroy', $invite));
 
-    invite(['email' => 'two@bravo-shop.co.ke'])->assertSessionHasNoErrors();
+    invite(['email' => 'two@bravo-shop.co.ke', ...$shopIds])->assertSessionHasNoErrors();
 });
 
 it('lets the same person be invited again without taking a second seat', function () {
     limitStaffTo(activeStaff() + 1);
+    $shopIds = ['shop_ids' => [$this->a->shops[0]->id]];
 
-    invite(['email' => 'one@bravo-shop.co.ke'])->assertSessionHasNoErrors();
-    invite(['email' => 'one@bravo-shop.co.ke'])->assertSessionHasNoErrors();
+    invite(['email' => 'one@bravo-shop.co.ke', ...$shopIds])->assertSessionHasNoErrors();
+    invite(['email' => 'one@bravo-shop.co.ke', ...$shopIds])->assertSessionHasNoErrors();
 
     expect($this->tenant->run($this->a->business, fn () => BusinessInvite::query()->pending()->count()))->toBe(1);
 });
 
 it('accepting uses the seat the invite held, not a second one', function () {
     limitStaffTo(activeStaff() + 1);
-    invite(['email' => 'one@bravo-shop.co.ke']);
+    invite(['email' => 'one@bravo-shop.co.ke', 'shop_ids' => [$this->a->shops[0]->id]]);
     $url = invitationLinkFor('one@bravo-shop.co.ke');
 
     $this->post($url.'/register', ['name' => 'One', 'password' => 'purple tractors drink warm milk', 'password_confirmation' => 'purple tractors drink warm milk'])

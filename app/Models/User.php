@@ -15,6 +15,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Contracts\Permission;
@@ -408,6 +409,18 @@ class User extends Authenticatable
         }
 
         return $this->shops()->pluck('shops.id')->map(fn ($shopId): int => (int) $shopId)->values();
+    }
+
+    /**
+     * Whether this person has any shop assigned, read from the pivot table
+     * directly (stage 10a, step 3): unlike `shops()`/`assignedShopIds()`,
+     * this isn't filtered by `ShopAccessScope` to the *viewer's* own shops,
+     * so it answers correctly for someone else's row on the People page
+     * however little of the shop list the viewer can themselves reach.
+     */
+    public function hasAnyShop(): bool
+    {
+        return DB::table('shop_user')->where('user_id', $this->id)->exists();
     }
 
     public function hasShopRestrictions(): bool

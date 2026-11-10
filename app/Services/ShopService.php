@@ -6,7 +6,9 @@ use App\Actions\Shop\CreateShopAction;
 use App\Actions\Shop\DeleteShopAction;
 use App\Actions\Shop\UpdateShopAction;
 use App\Enums\ShopStatus;
+use App\Exceptions\BusinessRuleException;
 use App\Models\Shop;
+use App\Support\Tenancy\TenantContext;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
@@ -16,7 +18,8 @@ class ShopService
     public function __construct(
         protected CreateShopAction $createAction,
         protected UpdateShopAction $updateAction,
-        protected DeleteShopAction $deleteAction
+        protected DeleteShopAction $deleteAction,
+        protected TenantContext $tenant
     ) {}
 
     public function getPaginated(array $filters = [], int $perPage = 15): LengthAwarePaginator
@@ -87,6 +90,12 @@ class ShopService
 
     public function deactivate(Shop $shop): bool
     {
+        $business = $this->tenant->business();
+
+        if ($business !== null && $business->default_shop_id === $shop->id && $business->onFreeTrial()) {
+            throw BusinessRuleException::because(__('This is the default shop on the Free Trial. Choose another default shop before deactivating it.'), 'default_shop_on_trial');
+        }
+
         return $shop->deactivate();
     }
 

@@ -55,6 +55,8 @@ class ShopController extends Controller
 
     public function show(Shop $shop): JsonResponse
     {
+        $this->authorize('view', $shop);
+
         $shop->load('manager');
 
         return response()->json([

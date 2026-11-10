@@ -189,7 +189,8 @@
                 </div>
             </div>
 
-            <!-- E-commerce Integrations -->
+            <!-- E-commerce Integrations (stage 10a: only someone who may update the shop) -->
+            @can('update', $shop)
             <div class="card">
                 <div class="card-header">
                     <h5 class="card-title mb-0">
@@ -314,8 +315,10 @@
                     @endif
                 </div>
             </div>
+            @endcan
 
-            <!-- Assigned Users -->
+            <!-- Assigned Users (stage 10a: only someone who may update the shop) -->
+            @can('update', $shop)
             <div class="card">
                 <div class="card-header border-bottom-dashed">
                     <div class="row align-items-center">
@@ -390,6 +393,7 @@
                     @endif
                 </div>
             </div>
+            @endcan
         </div>
 
         <!-- Sidebar -->

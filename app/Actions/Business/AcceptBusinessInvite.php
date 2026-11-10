@@ -87,10 +87,15 @@ class AcceptBusinessInvite
                     $user->assignRole($role);
                 }
 
-                // The joiner can't see any shop yet (default-deny), so only the
-                // business scope limits this: the invite's shops still in it.
-                $shopIds = Shop::query()->withoutGlobalScope(ShopAccessScope::class)
-                    ->whereIn('id', $invite->shop_ids ?? [])->pluck('id');
+                // On the Free Trial, every member gets the default shop,
+                // whatever the invite holds (stage 10a, step 3). Otherwise,
+                // the joiner can't see any shop yet (default-deny), so only
+                // the business scope limits this: the invite's shops still
+                // in it.
+                $shopIds = $invite->business->onFreeTrial()
+                    ? array_filter([$invite->business->default_shop_id])
+                    : Shop::query()->withoutGlobalScope(ShopAccessScope::class)
+                        ->whereIn('id', $invite->shop_ids ?? [])->pluck('id');
                 $user->shops()->syncWithoutDetaching($shopIds);
             });
 

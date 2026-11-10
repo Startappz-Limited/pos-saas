@@ -517,28 +517,30 @@ Checked against `main` after Phase 7 (`832f684`) and on UAT, 28 October 2026 (re
     `tests/Feature/Platform/ImpersonationTest.php` ("gives the operator exactly the user's permissions while
     impersonating"), which impersonation is scoped to one business by construction.
 
-### 3. Shops: viewing follows access, and the default shop on the Free Trial (gap 3)
-- [ ] **Viewing follows access** (decided). `ShopPolicy::viewAny` allows any member of the business; `view` allows
+### 3. Shops: viewing follows access, and the default shop on the Free Trial (gap 3) — done, `fix/access-tenancy`
+- [x] **Viewing follows access** (decided). `ShopPolicy::viewAny` allows any member of the business; `view` allows
       anyone who can reach the shop (`canAccessShop`). The list stays filtered by `ShopAccessScope`, so each person sees
       only their shops. Managing (create, update, delete, activate, staff assignments) keeps its permissions. On the
-      shop's page, integrations, M-Pesa details and the staff list show only to someone who may update the shop.
-      `shops.view` stays as a permission for roles a business wants to show more of, but no longer gates seeing one's
-      own shops. The web and the flat API then agree (the API's list stays as it is; `show` gains the same `view`
-      check).
-- [ ] **The shop delete confirmation** says "Its sales, stock and payment history are kept; the shop can't be
-      restored." (fourth revision; the flat API's authorization and the 5 pages' shop names shipped in hotfix
-      `fix/api-authz`). Other pages that read a shop through a relation still show nothing for a deleted one (they
-      guard with `?->` or `??`); naming it there is left to the page that needs it.
-- [ ] **The default shop:** `businesses.default_shop_id` (nullable foreign key), set to the first shop at sign-up
-      (`RegisterBusiness`). The owner can change it on the business settings page (`settings.update`, audited). **While
-      the business is on the Free Trial**, the default shop can't be deleted or deactivated until another is chosen;
-      on other tiers it is used for nothing and may be (decided). A return to the Free Trial makes its one remaining
-      shop the default (moved to [stage 21](./21-plans-billing-trial-banner.md), step 3). Existing businesses:
-      `php artisan businesses:set-default-shop --business=<id>|--all` (dry run; `--apply`) sets the oldest active shop
-      (`--all`: every business, whatever its status).
-- [ ] **The owner grants shop access on the invite** (decided). The invite form lists the business's shops; the person
-      accepting chooses nothing, and receives the invite's shops (as today).
-- [ ] **On the Free Trial, every member has the default shop** (decided; `Business::onFreeTrial()`, see "Decisions"):
+      shop's page, integrations and the staff list (this codebase has no separate M-Pesa section on `shops/show`; its
+      fields live on `shops/edit`, already behind `update`) show only to someone who may update the shop. `shops.view`
+      stays as a permission for roles a business wants to show more of, but no longer gates seeing one's own shops.
+      The web and the flat API then agree: the API's list stays as it is; `Api\ShopController::show` gained the same
+      `view` check (it had none before).
+- [x] **The shop delete confirmation** says "Delete this shop? Its sales, stock and payment history are kept; the
+      shop can't be restored." (`shops/index.blade.php`'s JS confirm; the flat API's authorization and the 5 pages'
+      shop names shipped in hotfix `fix/api-authz`).
+- [x] **The default shop:** `businesses.default_shop_id` (nullable integer, indexed, migrated — no DB foreign key:
+      see "Schema"), set to the first shop at
+      sign-up (`RegisterBusiness`). The owner can change it on the business settings page (new field, `settings.update`,
+      audited via `App\Support\Business\DefaultShopAudit`). **While the business is on the Free Trial**, the default
+      shop can't be deleted or deactivated until another is chosen (`DeleteShopAction`, `ShopService::deactivate()`,
+      `BusinessRuleException`); on other tiers it is unguarded. The return to the Free Trial is stage 21's, unbuilt
+      here. Existing businesses: `php artisan businesses:set-default-shop --business=<id>|--all` (dry run; `--apply`)
+      sets the oldest active shop (`--all`: every business, whatever its status, via the generic `RunsForBusiness`
+      support built in step 1).
+- [x] **The owner grants shop access on the invite** (decided, unchanged). The invite form lists the business's shops;
+      the person accepting chooses nothing, and receives the invite's shops.
+- [x] **On the Free Trial, every member has the default shop** (decided; `Business::onFreeTrial()`, see "Decisions"):
   - the invite form shows the default shop ticked and fixed ("On the Free Trial, everyone works in the main shop");
     the Free Trial allows one shop, so there is nothing else to choose;
   - accepting an invite while the business is on the Free Trial always assigns the default shop, whatever the invite
@@ -553,43 +555,50 @@ Checked against `main` after Phase 7 (`832f684`) and on UAT, 28 October 2026 (re
     `businesses:set-default-shop` and `users:grant-default-shop` cover what it imported (second revision);
   - once the business moves to another tier, assignments made on the Free Trial stay until the owner changes them on
     the People or shop staff page.
-- [ ] **Every other tier, its trial included** (decided): the owner sets on the invite which shop(s) the member has
-      access to; at least one is required for every role but the owner (the form refuses an empty choice: "Choose
-      the shops this person will work in."). When the business has one shop, it is pre-ticked on the invite form.
+- [x] **Every other tier, its trial included** (decided, narrowed with the user — see "Points to confirm"): the
+      owner sets on the invite which shop(s) the member has access to; at least one is required for every role but
+      the owner, **once the business has a real metered tier subscription** (`StoreBusinessInviteRequest`:
+      `shop_ids` `required|array|min:1` when `Entitlements::isMetered()` and not the Free Trial, and the role isn't
+      the owner's; "Choose the shops this person will work in."). A business with no subscription at all is
+      unmetered, not "on a tier," and stays optional, as it always has. When the business has one shop, it is
+      pre-ticked on the invite form.
 - *Moved (split, 2 November 2026):* `businesses:list-unsubscribed`, `businesses:close-orphaned` and removing deleted
   users' grants to [the Go-live stage](./24-go-live.md); `ChangeBusinessPlan`'s shop count and the Free Trial's one shop to [stage 21](./21-plans-billing-trial-banner.md), step 3.
-- [ ] **Existing members without a shop:**
-  - `php artisan users:list-without-shop --business=<id>` (read-only) lists every non-owner member with no shop;
-  - `php artisan users:grant-default-shop --business=<id>` (dry run; `--apply`) gives each member of a business on the
-    **Free Trial** its default shop, as the Free Trial rule says, and only lists members of businesses on any other
-    tier, for their owner to assign; UAT: business 12's manager (user 63) gets the default shop; the four accountants
-    of businesses 1 and 2 (a tier's trial, five shops each) are listed for their owners;
+- [x] **Existing members without a shop:**
+  - `php artisan users:list-without-shop --business=<id>|--all` (read-only) lists every non-owner member with no shop;
+  - `php artisan users:grant-default-shop --business=<id>|--all` (dry run; `--apply`) gives each member of a business
+    on the **Free Trial** its default shop, as the Free Trial rule says, and only lists members of businesses on any
+    other tier, for their owner to assign;
   - the People page shows "No shop yet" beside such a member, with a link to their edit form, where shops are
-    assigned; the link is shown to someone who may update that member (`UserPolicy::update`: `users.update`, and
-    allowed to manage them). The shop's staff page (`shops.update` and access to the shop) is the other way (checked
-    28 October 2026: `ShopController::updateUsers`).
-- [ ] Tests:
-  - a cashier, an inventory clerk and an accountant each list and open only their assigned shops, on the web and the
-    flat API; another shop of the business is a 404 to them; another business's shop is a 404;
-  - a member with no shop sees "You haven't been given a shop yet. Ask the owner." instead of an empty list;
-  - a cashier can't edit a shop or see its integrations and M-Pesa details; a manager with `shops.update` can;
-  - on the Free Trial, an invite with no shop gives the accepting person the default shop; the person picks nothing;
-    the form can't untick it;
-  - on a tier's trial and on a paid tier, an invite with no shop is refused; the member gets exactly the shops the
-    owner chose; a one-shop business ticks its shop;
-  - after moving from the Free Trial to a tier, the owner removes the default shop from a member, and the member no
-    longer sees it;
-  - on the Free Trial the default shop can't be deleted or deactivated until another is chosen; on a tier it can;
-    changing it is audited;
-  - a default shop set by billing code with no one signed in is audited as "System";
-  - the "No shop yet" link shows to a member who may update that person and opens their edit form; it isn't shown
-    to someone who may not;
-  - `users:grant-default-shop --all` and `users:list-without-shop --all` run for every active business;
-    `businesses:set-default-shop --all` and `members:clean-removed --all` also cover a suspended, a closing and a
-    pending-verification business;
-  - `Business::onFreeTrial()` is true on the `free-trial` plan and false on a tier's trial;
-  - `users:grant-default-shop` gives Free Trial businesses' members their default shop, changes nothing on a second
-    `--apply`, and only lists members of businesses on other tiers.
+    assigned; the link is shown to someone who may update that member (`UserPolicy::update`, unchanged). The
+    scope-independent `User::hasAnyShop()` reads the `shop_user` pivot directly, since `shops()`/`assignedShopIds()`
+    are filtered by `ShopAccessScope` to the *viewer's* own shops, which would misreport someone else's row. The
+    shop's staff page (`shops.update` and access to the shop) is the other way, unchanged.
+  - **UAT counts not re-checked here**: the rollout counts in this section (business 12, businesses 1/2) are from
+    28 October 2026 and belong to this stage's "Rollout" section, run at actual rollout, not at build time.
+- [x] Tests (`tests/Feature/Tenancy/ShopAccessAndDefaultShopTest.php`, 13 tests, 46 assertions, all passing; plus one
+      pre-existing `ShopTest` assertion updated to the new "any member" rule):
+  - a cashier lists and opens only their assigned shop, on the web and the flat API; another shop 404s (web) /
+    `403`s (flat API, since `Api\ShopController::show` is now authorized); another business's shop 404s;
+  - a member with no shop sees "You haven't been given a shop yet." instead of an empty list;
+  - a cashier can't edit a shop or see its integrations or staff list; a manager with `shops.update` can;
+  - on the Free Trial, an invite accepted gets the default shop whatever `shop_ids` the invite held (the Free
+    Trial's one-shop cap means there is nothing else to request in practice, enforced server-side regardless);
+  - on a tier, an invite with no shop is refused ("Choose the shops this person will work in."); one with a shop
+    gets exactly that shop; an owner invite needs none, on the Free Trial or not;
+  - on the Free Trial the sole default shop can't be deleted or deactivated; on a tier it can, and changing the
+    default shop is audited (tag `default_shop_id`);
+  - a default shop set by `businesses:set-default-shop` with no one signed in is audited with a null `user_id`
+    (shown everywhere as "System");
+  - the "No shop yet" link shows to a member who may update that person, not to one who may not;
+  - `Business::onFreeTrial()` is true on the `free-trial` plan, false on a tier's trial;
+  - `users:grant-default-shop` gives a Free Trial business's shopless member the default shop, is idempotent on a
+    second `--apply`, and only lists a tier business's shopless member for its owner.
+
+  **Not separately tested here** (not part of this step's new work, or moved elsewhere): "after moving from the
+  Free Trial to a tier, the owner removes the default shop from a member" is ordinary shop-staff management
+  (`ShopController::updateUsers`), unchanged by this stage; `--all`'s active-vs-every-status split was already
+  pinned generically in step 1's `CleanRemovedMembersTest`/`RunsForBusiness`, not repeated per command here.
 
 ## Contract
 
@@ -604,7 +613,7 @@ when the token's business can't be entered. App checks:
 
 | Change | Data carried across |
 |---|---|
-| `businesses.default_shop_id` (nullable foreign key) | `businesses:set-default-shop` sets the oldest active shop for existing businesses; the guard on deleting it applies on the Free Trial only |
+| `businesses.default_shop_id` (nullable integer, indexed — **not** a DB foreign key: `shops.business_id` and `shops.manager_id`/`users.default_business_id` already close a cycle back to `businesses`, which a real constraint here would extend to three tables; SQLite's schema builder refuses to rebuild a cyclic set ("Foreign keys form a cycle"), hit while building the test schema. A deleted shop is always soft-deleted, never hard, so the column is never left dangling.) | `businesses:set-default-shop` sets the oldest active shop for existing businesses; the guard on deleting it applies on the Free Trial only |
 | `business_user.removed_at` (nullable timestamp; third revision), set by `RemoveFromBusiness`, cleared only by `AcceptBusinessInvite` | Rows from before this stage stay null until `members:clean-removed --apply` sets it, from `updated_at`, on memberships that are `inactive` with no role (listed separately in the dry run first); it then clears what those removals left (till PINs, invites from before `removed_at`, default business, unbound tokens), each change audited |
 
 No other column (`business_closures.reason` is a string, so `orphaned` needs no migration): roles' business is already Spatie's team (`model_has_roles.business_id`).
@@ -708,7 +717,7 @@ Every acceptance criterion is ticked with evidence. The stage file and PROGRESS.
 
 ## Points to confirm
 
-Two points surfaced while building steps 1 and 2 (`fix/access-tenancy`) and were decided with the user on
+Three points surfaced while building steps 1 to 3 (`fix/access-tenancy`) and were decided with the user on
 10 November 2026:
 - **The `/api/v1` refusal's "every call but sign-out"** also exempts `businesses.index` and `businesses.switch` —
   literally refusing every other call left a token whose business became inaccessible with no way to discover or
@@ -719,6 +728,11 @@ Two points surfaced while building steps 1 and 2 (`fix/access-tenancy`) and were
   people manager may edit a cashier regardless of the cashier's own (often larger, operational) permission set.
   `GrantableRole` already covers the part of this that matters — not being able to *grant* a stronger role. See
   step 1's "Who may edit whom" bullet.
+- **"Every other tier, its trial included" needs `shop_ids`** only once the business has a real metered tier
+  subscription (`Entitlements::isMetered()` and not the Free Trial) — **not** merely "not on the Free Trial" as
+  first read. A business with no subscription at all isn't "on a tier," and `tests/Feature/Signup/InviteFlowTest.php`
+  already relies on inviting with no shop for such a business; three of its cases that genuinely do subscribe the
+  business to `tier-1` now pass `shop_ids` instead. See step 3's invite bullets.
 
 Nothing else is open. The decisions of 28 October 2026 stand, including the first revision's: the code's owner rule kept,
 no editing a stronger member, nobody changes their own role; members kept their shops on a return to the Free Trial

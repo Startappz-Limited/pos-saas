@@ -25,12 +25,12 @@ test('user can view shops index if authorized', function () {
     $response->assertStatus(200);
 });
 
-test('user cannot view shops index if not authorized', function () {
+test('any business member views the shops index, shops.view or not (stage 10a: viewing follows access)', function () {
     $user = assignToNewShops(User::factory()->create());
 
     $response = $this->actingAs($user)->get(route('shops.index'));
 
-    $response->assertStatus(403);
+    $response->assertStatus(200);
 });
 
 test('user can create shop if authorized', function () {
