@@ -6,7 +6,9 @@ use App\Enums\AuditEvent;
 use App\Events\AuditableEvent;
 use App\Http\Requests\UpdateBusinessSettingsRequest;
 use App\Models\Business;
+use App\Models\Shop;
 use App\Models\User;
+use App\Support\Business\DefaultShopAudit;
 use App\Support\Currency;
 use App\Support\Sales\VoidWindow;
 use App\Support\Stock\AdjustmentApproval;
@@ -45,6 +47,7 @@ class BusinessSettingsController extends Controller
             'voidWindow' => VoidWindow::setting($this->tenant->business()),
             'currencies' => Currency::options(),
             'timezones' => \DateTimeZone::listIdentifiers(),
+            'shops' => Shop::query()->orderBy('name')->get(['id', 'name']),
         ]);
     }
 
@@ -93,10 +96,19 @@ class BusinessSettingsController extends Controller
             $data['logo_path'] = null;
         }
 
+        if (array_key_exists('default_shop_id', $data)) {
+            $data['default_shop_id'] = $data['default_shop_id'] !== null ? (int) $data['default_shop_id'] : null;
+        }
+        $previousDefaultShopId = $business->default_shop_id;
+
         $business->update($data);
 
         foreach ($changes as $key => [$old, $new]) {
             $this->auditSetting($request->user(), $business, $key, $old, $new);
+        }
+
+        if (array_key_exists('default_shop_id', $data)) {
+            DefaultShopAudit::record($business, $previousDefaultShopId, $data['default_shop_id']);
         }
 
         return redirect()->route('business.settings.edit')->with('success', __('Business settings saved.'));

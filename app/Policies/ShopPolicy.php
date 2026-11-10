@@ -4,6 +4,7 @@ namespace App\Policies;
 
 use App\Models\Shop;
 use App\Models\User;
+use App\Support\Tenancy\TenantContext;
 
 class ShopPolicy
 {
@@ -20,11 +21,14 @@ class ShopPolicy
     }
 
     /**
-     * Determine whether the user can view any models.
+     * Viewing follows access (stage 10a, step 3): any member of the
+     * business may see the shops they can reach, whatever their role.
+     * `shops.view` stays as a permission for a business that wants to show
+     * more of the list to a role, but no longer gates seeing one's own.
      */
     public function viewAny(User $user): bool
     {
-        return $user->can('shops.view');
+        return app(TenantContext::class)->has();
     }
 
     /**
@@ -32,7 +36,7 @@ class ShopPolicy
      */
     public function view(User $user, Shop $shop): bool
     {
-        return $user->can('shops.view') && $user->canAccessShop($shop->id);
+        return $user->canAccessShop($shop->id);
     }
 
     /**

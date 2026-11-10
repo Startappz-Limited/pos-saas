@@ -8,6 +8,7 @@
  * added here on purpose.
  */
 const ALLOWED_SCOPE_BYPASSES = [
+    'app/Models/Business.php' => [1, 'onFreeTrial() (stage 10a) answers for the business named by $this->id, not the ambient TenantContext, so it works correctly for a business a command is iterating that isn\'t (yet) the one set'],
     'app/Models/Concerns/BelongsToBusiness.php' => [1, 'a new record takes its business from its shop'],
     'app/Models/Concerns/ResolvesTenantFromRouteBinding.php' => [2, 'a route with no signed-in user (webhook, signed link) finds its record, then acts for its business'],
     'app/Http/Controllers/PlatformPaymentWebhookController.php' => [1, 'a payment callback names a checkout request, not a business: the payment is found on our own reference, then settled by asking the M-Pesa API, acting for its business'],

@@ -333,13 +333,14 @@ Checked against `main` after Phase 7 (`832f684`) and on UAT, 28 October 2026 (re
 
 ## Work
 
-### 1. The users list shows the actions people may take (gap 1)
-- [ ] `resources/views/components/ui-action-buttons.blade.php` asks the model's policy instead of a permission named
+### 1. The users list shows the actions people may take (gap 1) — done, `fix/access-tenancy`
+- [x] `resources/views/components/ui-action-buttons.blade.php` asks the model's policy instead of a permission named
       after the route: `@can($viewPermission ?? 'view', $model)`, `@can($editPermission ?? 'update', $model)`,
       `@can($deletePermission ?? 'delete', $model)`. A caller can still pass an ability. The component's docblock says
       so.
-- [ ] The users list is the only caller (checked 28 October 2026); a search confirms none is added before this ships.
-- [ ] **Delete removes the member from this business only** (decided; [stage 3](./05-phase-3-accounts-roles-settings.md)
+- [x] The users list is the only caller (re-checked 10 November 2026: still the only real caller; the other match is
+      the component's own usage example inside its doc comment).
+- [x] **Delete removes the member from this business only** (decided; [stage 3](./05-phase-3-accounts-roles-settings.md)
       decided removal). `RemoveFromBusiness`, used by the web and the flat API, also:
   - sets `business_user.removed_at` to now (third revision; nullable, new); accepting a re-invite
     (`AcceptBusinessInvite`, which makes the membership active again) clears it, and nothing else does (fourth
@@ -355,7 +356,7 @@ Checked against `main` after Phase 7 (`832f684`) and on UAT, 28 October 2026 (re
 
   A person left with no usable business who signs in sees the "No active business" page (web) or 403
   `no_active_business` (APIs), as today.
-- [ ] **`/api/v1` refuses a bound token whose business can't be entered** (fourth revision): `EnsureBusinessToken`
+- [x] **`/api/v1` refuses a bound token whose business can't be entered** (fourth revision): `EnsureBusinessToken`
       (or a middleware beside it on the `/api/v1` group) refuses, on every call except `POST /api/v1/auth/sign-out`
       (so the app can still sign out), a token bound to a business when `ResolveTenant` set none:
   - **the business is suspended:** 403 `business_suspended` ("This business is suspended. Nobody can work in it until
@@ -365,6 +366,18 @@ Checked against `main` after Phase 7 (`832f684`) and on UAT, 28 October 2026 (re
 
   A removed member's tokens are deleted on removal; one issued between checks is refused too. Both answers use
   `ApiV1::error()`, so the body is `/api/v1`'s `{success: false, message, code}`.
+  **Implementation note:** the refusal had to be added to `middlewarePriority` in `bootstrap/app.php`, right after
+  `ResolveTenant`, not left unprioritised — otherwise Laravel's `SubstituteBindings` (route-model binding, e.g.
+  `{sale:uuid}`) ran first under the now-unset `TenantContext`, 404ing before this check got a chance to answer
+  `business_suspended`/`no_active_business`.
+  **Conflict found and resolved with the user (10 November 2026):** "every call but sign-out", applied literally,
+  broke an existing, tested recovery flow (`tests/Feature/Tenancy/ApiV1SignInTest.php`, "cuts a token off…"): a
+  token whose business becomes inaccessible (membership suspended or removed, the business itself untouched) must
+  still be able to call `GET /api/v1/businesses` (to see what else it can reach) and
+  `POST /api/v1/businesses/{uuid}/switch` (to move there) — otherwise it could never recover without a fresh
+  sign-in. **Decided:** the carve-out also covers `businesses.index` and `businesses.switch`
+  (`EnsureBusinessToken::EXEMPT_ROUTES`); the switch's own destination check (404 for a business the token holder
+  can't enter) is unaffected and still runs.
 
   It already makes the membership inactive, removes their roles and shop assignments here and deletes their
   `/api/v1` tokens bound here. A deactivated member's membership is `inactive` with `removed_at` null. Tables touched:
@@ -372,7 +385,7 @@ Checked against `main` after Phase 7 (`832f684`) and on UAT, 28 October 2026 (re
   `personal_access_tokens`, `business_invites`, `till_pins`, `users`, and the audit database. The User row and the
   person's memberships, roles and shops in other businesses stay. A person left with no business keeps the account
   and can accept new invites (an invite to an existing email adds a membership, stage 3).
-- [ ] **Members removed before this stage:** `php artisan members:clean-removed --business=<id>|--all` (dry run;
+- [x] **Members removed before this stage:** `php artisan members:clean-removed --business=<id>|--all` (dry run;
       `--apply`) brings every removed membership to the state a new removal leaves. A membership is removed when its
       `removed_at` is set (third revision). Rows from before this stage have none, so for them only, and once, it
       uses the second revision's rule: `inactive` and the person holds no role in the business (a deactivated member
@@ -387,109 +400,147 @@ Checked against `main` after Phase 7 (`832f684`) and on UAT, 28 October 2026 (re
   - audits each change, with the actor "System".
 
   A second `--apply` changes nothing, and the no-role rule then finds no row without `removed_at`.
-- [ ] **A removed member can't be reactivated by hand** (fourth revision): while `removed_at` is set,
-      `UserService::changeStatus` and `UserService::update` refuse any change of the member's status, so the web's
-      Activate, Deactivate and Suspend and a user update with `status` (web and flat API) are refused with "Re-invite
-      them instead." (422 on the flat API, `{success: false, message}`). The users list doesn't offer Activate on a
-      removed member. Only an accepted re-invite brings them back, clearing `removed_at`, with the invite's role and
-      shops.
-- [ ] **`--all`** (second revision): `businesses:set-default-shop`, `users:grant-default-shop`,
-      `users:list-without-shop` and `members:clean-removed` take `--all` instead of `--business`, running for every
-      active business in turn (`TenantContext::eachBusiness()`), with one report per business. `businesses:set-default-shop
-      --all` is the exception (third revision): it runs for **every** business, whatever its status (active, lapsed,
-      pending verification, suspended, closing), so a business reopened or verified later already has its default
-      shop; it runs each inside `TenantContext::run()`. `members:clean-removed --all` likewise runs for **every**
-      business, whatever its status (fourth revision), so a member removed from a suspended or closing business is
-      cleaned too.
-- [ ] **Who may edit whom** (decided): `UserPolicy::update` also refuses a non-owner editing someone whose role holds a
-      permission the editor doesn't hold; `UpdateUserRequest` and `UserService::update` refuse a change to one's own
-      role (web and flat API), "You can't change your own role."; the owner rules stay as they are.
-- [ ] Tests (`UiButtonLinkTest` or a new `UsersListActionsTest`):
-  - an owner sees View and Edit on every member's row, and Delete on members they may delete (not themselves, not the
-    primary owner);
-  - a manager with `users.view` and `users.update` sees View and Edit on cashiers' rows, and View only on the owner's
-    row and on another manager's row whose role holds more permissions; no Delete (only owners delete);
-  - a manager can't raise a cashier to manager or owner; nobody changes their own role, the owner included;
-  - a person in businesses A and B, deleted from A, keeps B's role and shops and can still sign in; their A-bound
-    tokens stop working, and an unbound token with A as default moves to B; their till PIN and pending invites for A
-    are gone; A's audit records the removal;
-  - the owner can't delete themselves; nobody but an owner deletes anyone, and the primary owner can't be deleted;
-  - a person removed from their only business signs in and sees "No active business" (web) and 403
-    `no_active_business` (flat API and `/api/v1`);
-  - `members:clean-removed` on a removed member deletes the till PIN, revokes an invite sent before the removal,
-    keeps a re-invite sent after it, moves the default business and deletes unbound tokens when nothing usable is
-    left, audits each change as "System", leaves a deactivated member untouched, and changes nothing on a second run;
-  - a removal sets `removed_at`; deactivating a member doesn't; a re-invite accepted after a removal clears it;
-  - `members:clean-removed` uses `removed_at` for rows that have it, and a re-invite sent after `removed_at`
-    survives even when the row's `updated_at` changed since; a row from before this stage (inactive, no role, no
-    `removed_at`) is listed separately in the dry run, and `--apply` sets its `removed_at` and cleans it; a
-    deactivated member with a role gets no `removed_at`;
-  - the web's Activate and a user update with `status` (web and flat API) on a removed member are refused with
-    "Re-invite them instead." and change nothing; on a deactivated member they work; accepting a re-invite makes the
-    removed member active and clears `removed_at`;
-  - a founding owner who has just signed up, unverified, reaches their business (it is `active` and usable); after
-    24 hours unverified they get `email_verification_required` (web redirect; 403 on both APIs), not
-    `no_active_business`; verifying restores access; a `pending_verification` business from the stage 3 sign-up opens
-    when its owner verifies;
-  - `/api/v1` with a token bound to a business that is then suspended answers 403 `business_suspended` on every
-    endpoint (sync included) except sign-out; closing, or one the person was removed from, answers 403
-    `no_active_business`; sign-out still works in each case;
-  - a lapsed (read-only) business is still usable: its member signs in to it, read-only; a suspended or closing one
-    isn't, and the member sees "No active business" when it was their only one;
-  - an automatic default-business move (a removal, the cleanup) is audited with its reason;
-  - a cashier with no user permissions sees no buttons, and the list itself is refused if they lack `users.view`;
-  - each button's link opens (`linkButtonHref`), and Edit saves a member's details.
+- [x] **A removed member can't be reactivated by hand** (fourth revision): while `removed_at` is set,
+      `UserService::changeStatus` and `UserService::update` (via the shared `setBusinessStatus()`) refuse any actual
+      change of the member's status, so the web's Activate, Deactivate and Suspend and a user update with `status`
+      (web and flat API) are refused with "Re-invite them instead." — a `BusinessRuleException`, so it's a plain
+      `back()->with('error', …)` flash on the web and `{success: false, message, code: 'member_removed'}` at 422 on
+      the flat API, matching how this codebase's other non-field refusals already render (`Controller::failed()`'s
+      doc comment), not a field-level `ValidationException`. Re-submitting the *same* status (e.g. Deactivate on an
+      already-inactive removed member) is a no-op, not a refusal. **The users list already offers no Activate
+      button anywhere** (checked 10 November 2026: no view references `route('users.activate', …)`; it's dead,
+      reachable only by URL) — nothing to hide, so nothing was added there. Only an accepted re-invite brings them
+      back, clearing `removed_at`, with the invite's role and shops (`AcceptBusinessInvite`).
+- [x] **`--all`** (second revision): `members:clean-removed` takes `--all` (this step); `businesses:set-default-shop`,
+      `users:grant-default-shop` and `users:list-without-shop` will take it when step 3 builds them. The mechanics are
+      now generic on `App\Console\Concerns\RunsForBusiness` (`supportsAllBusinesses()`, `allBusinessesEveryStatus()`),
+      so every existing `RunsForBusiness` command that doesn't opt in is unaffected (checked: 14 such commands,
+      `--business`-only, unchanged). `--all` running for every **active** business in turn uses
+      `TenantContext::eachBusiness()`, with a header line between businesses; `allBusinessesEveryStatus()` instead
+      walks every business, whatever its status — `members:clean-removed --all` opts into that (fourth revision: a
+      member removed from a suspended or closing business is cleaned too); `businesses:set-default-shop --all` will
+      when step 3 builds it.
+- [x] **Who may edit whom** (decided, then narrowed with the user, 10 November 2026): `UserService::update` (both
+      web and flat API funnel through it) refuses a change to one's own role, "You can't change your own role.";
+      the owner rules stay as they are (unchanged: only owners manage owners, the primary owner only themselves).
+      **"A non-owner can't edit someone whose role holds a permission they don't hold" was tried in
+      `UserPolicy::update` as a blanket permission-set comparison (`notStrongerThan()`) and dropped**: it broke
+      `tests/Feature/Tenancy/PeopleTest.php`'s existing, deliberately-designed behavior — a narrowly-permissioned
+      people manager (`users.*` only) is meant to freely edit a cashier, even though the real seeded `cashier`
+      role holds many unrelated operational permissions (`sales.create`, `products.view`, …) the manager doesn't.
+      `GrantableRole` (pre-existing, unchanged) already refuses assigning someone a role whose permissions the
+      giver doesn't fully hold, which is what actually stops a weak admin from strengthening anyone's role; there
+      is no additional protection for editing a stronger person's *other* fields beyond the existing owner rule.
+      The stage's own test bullet below ("View only on … another manager's row whose role holds more
+      permissions") is accordingly **not built** — see "Points to confirm".
+- [x] Tests — `tests/Feature/UsersListActionsTest.php` (7 tests), `tests/Feature/MemberRemovalTest.php` (6 tests),
+      `tests/Feature/CleanRemovedMembersTest.php` (4 tests), plus 2 new/changed tests in
+      `tests/Feature/TenantIsolation/NoBusinessResolvedTest.php`, and one assertion fixed in
+      `tests/Feature/Tenancy/PeopleTest.php` (see below). All passing:
+  - an owner sees View and Edit on every member's row, and Delete on members they may delete (not themselves);
+  - a manager with `users.view`/`users.update` sees View and Edit on a cashier's row **and on a peer manager's
+    row holding more permissions** (the "who may edit whom" narrowing above), View only on the owner's row, and
+    no Delete anywhere;
+  - a manager can't raise a cashier to the owner's role (`GrantableRole`, pre-existing); nobody — the owner
+    included — changes their own role, but the owner saves their own other details unchanged;
+  - a person in businesses A and B, deleted from A: B's role and shop stay and they still sign in to B; their
+    A-bound token is deleted, an unbound token with A as default moves to B (audited: old/new business, reason
+    `member_removed`, actor); their A till PIN and a same-second pending invite are gone; A's audit trail records
+    `member_removed`; with no usable business left, unbound tokens are deleted too;
+  - the owner can't delete themselves; a manager can't delete anyone; `UserPolicy::delete` (unchanged) still allows
+    only an owner, never the last one;
+  - `/api/v1`: a token bound to a suspended business answers `403 business_suspended` on every endpoint checked
+    (including `sales/{uuid}/receipt`, which needed the middleware-priority fix above to not 404 first) except
+    sign-out, listing reachable businesses and switching to one (the exempt-routes conflict above), which still
+    work; closing answers `403 no_active_business`; a removed member's token is deleted
+    outright (`401`), and one somehow issued afterward is refused the same way (`403 no_active_business`), sign-out
+    still working;
+  - `members:clean-removed`: a legacy row (inactive, no role, no `removed_at`) is listed separately on a dry run,
+    unchanged until `--apply`, which backfills `removed_at` from `updated_at` and settles it (till PIN gone, an
+    invite from before the removal revoked, default business moved); a re-invite sent *after* the (backfilled)
+    `removed_at` survives; a deactivated member who still holds a role is left alone, with no `removed_at`; a
+    second `--apply` changes nothing; `--all` reaches a suspended business's removed member too.
 
-### 2. An owner's rights stop at their own business (gap 2)
-- [ ] **Roles never answer for another business:** a `User` remembers which business its `roles` and `permissions`
-      relations were loaded for (the Spatie team id at load time); `hasRole`, `can` and `isBusinessOwner` reload them
-      when the current business differs. `TenantContext::set()` keeps clearing the signed-in user's, as today.
-- [ ] **Owner checks always name the current business:** every `isBusinessOwner()` call and every `admin` role check
-      runs only with a business set (it returns false otherwise, as today); a search for `hasRole('admin')`,
-      `role(CopyRoleTemplates::OWNER_ROLE)` and `isBusinessOwner` lists each place in the PR, with the business it
-      runs in.
-- [ ] **The flat API's unbound tokens** keep acting in the default business, and changing one's default business
-      (the business switcher) is audited, so what a token can do is traceable. `/api/v1` tokens are bound to one
-      business already (Phase 7).
-- [ ] **Isolation tests** (`TenantIsolation/OwnerScopeTest`), with a person who owns business A and is a cashier in B,
-      and a person who owns only A:
-  - in B, the A-owner-and-B-cashier has a cashier's rights only: can't edit users, change roles, void, see costs,
-    change settings or reach the platform console; their own user page in B offers no Edit for others;
-  - the A-only owner gets a 404 for every B resource (users, roles, shops, sales, settings), on the web, the flat API
-    and `/api/v1`;
-  - a `User` loaded while A was set, asked again after switching to B (as a job looping with `eachBusiness()` does),
-    answers with B's roles;
-  - a queued job dispatched in A, run while B is the worker's last business, acts with A's roles (Phase 1c restores
-    the business);
-  - a command run for business B acts as the system, with no person's rights; no command takes its rights from a
-    user's role (checked 28 October 2026: `RunsForBusiness` only sets the business, and no command or job signs a user
-    in); a `RunsForBusiness` command runs with no signed-in user;
-  - an unbound flat API token of the person above acts as owner when their default business is A and as cashier when
-    it is B; the switch is audited;
-  - an operator impersonating A's owner acts only in A.
+  **Not separately tested here** (pre-existing, unaffected by this step, already covered elsewhere): the
+  pending-verification/email-verification window (`EnsureActiveBusiness`, untouched) and a lapsed business staying
+  usable (`Business::STATUS_ACTIVE` vs. `Entitlements::isLapsed()`, untouched) — both predate this stage and this
+  step changes neither code path nor its existing tests.
 
-### 3. Shops: viewing follows access, and the default shop on the Free Trial (gap 3)
-- [ ] **Viewing follows access** (decided). `ShopPolicy::viewAny` allows any member of the business; `view` allows
+  **One pre-existing test's assertion changed, not its behaviour:**
+  `PeopleTest > it removes a person from this business only…` asserted the *session key* was set to B after
+  removal — true only because `default_business_id` used to stay unmoved (old behaviour). Since this step moves
+  `default_business_id` itself to B, `ResolveTenant` has no reason to also write the session key (the fallback
+  already lands on B, now the default). The test now asserts `default_business_id` moved and that opening
+  `/dashboard` resolves to B (`TenantContext::id()`), which is the fact that actually matters.
+
+### 2. An owner's rights stop at their own business (gap 2) — done, `fix/access-tenancy`
+- [x] **Roles never answer for another business:** `App\Models\User` now tracks the Spatie team id its `roles`/
+      `permissions` relations were last loaded for (`$rolesLoadedForTeam`); `hasRole()`, `can()` and
+      `isBusinessOwner()` call `refreshRolesForCurrentBusiness()` first, which unsets both relations when the
+      current business differs, so the next access reloads under the right team. `hasRole()` can no longer delegate
+      to `parent::` (that method lives in the `HasRoles` trait, not a base class), so the trait's original is kept
+      under the alias `spatieHasRole`. `TenantContext::set()` is unchanged — it still clears the signed-in user's
+      relations directly, now a harmless subset of the general guard. Since `hasPermissionViaRole()` and
+      `isBusinessOwner()` both call `hasRole()`, and Spatie's own `Gate::before` callback calls
+      `hasPermissionTo()` → `hasPermissionViaRole()` for every permission-string `can()` check, this one guard
+      covers policies, Blade `@can`, and direct `hasRole`/`can`/`isBusinessOwner` calls alike.
+- [x] **Owner checks always name the current business:** every `isBusinessOwner()` call already ran only with a
+      business set (unchanged); the search for `hasRole('admin')`, `role(CopyRoleTemplates::OWNER_ROLE)` and
+      `isBusinessOwner()` turned up 37 call sites outside `User.php` itself, all either a scoped DB query
+      (`User::query()->role(...)`, no caching risk) or `$user->isBusinessOwner()` (now covered by the guard above).
+      None bypass `TenantContext`. `GrantableRole` and `RolePolicy` call `getAllPermissions()` directly rather than
+      through the three guarded methods — not fixed here, since in every call site that's always the signed-in
+      actor (whose relations `TenantContext::set()` already clears), not a reused `User` instance; flagged in case
+      a future caller passes a different instance.
+- [x] **The flat API's unbound tokens** keep acting in the default business (unchanged, Phase 7). Changing the
+      default business through the switcher is now audited: `App\Support\Tenancy\DefaultBusinessAudit::record()`
+      (tags `['tenancy', 'default_business_changed']`, `auditable_type` = `User::class`) is called from both
+      `BusinessSwitchController::switch()` (the automatic fallback when the stored default can no longer be
+      entered) and `::makeDefault()` (the deliberate "make default" action); a no-op switch (already the default)
+      audits nothing. The removal and cleanup command's automatic moves call the same helper in step 1.
+- [x] **Isolation tests** (`tests/Feature/TenantIsolation/OwnerScopeTest.php`, 6 tests, 27 assertions, all passing):
+  - a `User` loaded while A was set, asked again after switching to B, answers with B's roles (and back again) —
+    the direct regression test for the caching fix;
+  - an owner of A, cashier in B, has only a cashier's rights in B (`users.update`, `users.delete`,
+    `settings.update`, `products.view-cost`, `sales.void` all false; their own edit form for another B member is
+    `403`);
+  - an owner of A gets a `404` for a B resource addressed directly by uuid (a non-member's session choice of B is
+    ignored by `ResolveTenant`, so the dashboard still resolves to A and B's customer 404s);
+  - a `RunsForBusiness`-style `TenantContext::run()` call sees no signed-in user (`Auth::user()` is null inside
+    it) — pinning "no command takes its rights from a user's role";
+  - a queued job dispatched while A is set, picked up by the worker once B is the last business set, still sees
+    A as its business and the person as A's owner (exercises Laravel's real `Context::dehydrate()`/`hydrate()`
+    queue payload mechanism, Phase 1c, via an actual `database`-queue round trip, not a mock);
+  - the switcher's `makeDefault` action audits the change (old/new business, reason `switcher`, actor), and the
+    person acts as owner with A as default and cashier with B as default.
+  - **Not duplicated here:** "an operator impersonating A's owner acts only in A" is already pinned by
+    `tests/Feature/Platform/ImpersonationTest.php` ("gives the operator exactly the user's permissions while
+    impersonating"), which impersonation is scoped to one business by construction.
+
+### 3. Shops: viewing follows access, and the default shop on the Free Trial (gap 3) — done, `fix/access-tenancy`
+- [x] **Viewing follows access** (decided). `ShopPolicy::viewAny` allows any member of the business; `view` allows
       anyone who can reach the shop (`canAccessShop`). The list stays filtered by `ShopAccessScope`, so each person sees
       only their shops. Managing (create, update, delete, activate, staff assignments) keeps its permissions. On the
-      shop's page, integrations, M-Pesa details and the staff list show only to someone who may update the shop.
-      `shops.view` stays as a permission for roles a business wants to show more of, but no longer gates seeing one's
-      own shops. The web and the flat API then agree (the API's list stays as it is; `show` gains the same `view`
-      check).
-- [ ] **The shop delete confirmation** says "Its sales, stock and payment history are kept; the shop can't be
-      restored." (fourth revision; the flat API's authorization and the 5 pages' shop names shipped in hotfix
-      `fix/api-authz`). Other pages that read a shop through a relation still show nothing for a deleted one (they
-      guard with `?->` or `??`); naming it there is left to the page that needs it.
-- [ ] **The default shop:** `businesses.default_shop_id` (nullable foreign key), set to the first shop at sign-up
-      (`RegisterBusiness`). The owner can change it on the business settings page (`settings.update`, audited). **While
-      the business is on the Free Trial**, the default shop can't be deleted or deactivated until another is chosen;
-      on other tiers it is used for nothing and may be (decided). A return to the Free Trial makes its one remaining
-      shop the default (moved to [stage 21](./21-plans-billing-trial-banner.md), step 3). Existing businesses:
-      `php artisan businesses:set-default-shop --business=<id>|--all` (dry run; `--apply`) sets the oldest active shop
-      (`--all`: every business, whatever its status).
-- [ ] **The owner grants shop access on the invite** (decided). The invite form lists the business's shops; the person
-      accepting chooses nothing, and receives the invite's shops (as today).
-- [ ] **On the Free Trial, every member has the default shop** (decided; `Business::onFreeTrial()`, see "Decisions"):
+      shop's page, integrations and the staff list (this codebase has no separate M-Pesa section on `shops/show`; its
+      fields live on `shops/edit`, already behind `update`) show only to someone who may update the shop. `shops.view`
+      stays as a permission for roles a business wants to show more of, but no longer gates seeing one's own shops.
+      The web and the flat API then agree: the API's list stays as it is; `Api\ShopController::show` gained the same
+      `view` check (it had none before).
+- [x] **The shop delete confirmation** says "Delete this shop? Its sales, stock and payment history are kept; the
+      shop can't be restored." (`shops/index.blade.php`'s JS confirm; the flat API's authorization and the 5 pages'
+      shop names shipped in hotfix `fix/api-authz`).
+- [x] **The default shop:** `businesses.default_shop_id` (nullable integer, indexed, migrated — no DB foreign key:
+      see "Schema"), set to the first shop at
+      sign-up (`RegisterBusiness`). The owner can change it on the business settings page (new field, `settings.update`,
+      audited via `App\Support\Business\DefaultShopAudit`). **While the business is on the Free Trial**, the default
+      shop can't be deleted or deactivated until another is chosen (`DeleteShopAction`, `ShopService::deactivate()`,
+      `BusinessRuleException`); on other tiers it is unguarded. The return to the Free Trial is stage 21's, unbuilt
+      here. Existing businesses: `php artisan businesses:set-default-shop --business=<id>|--all` (dry run; `--apply`)
+      sets the oldest active shop (`--all`: every business, whatever its status, via the generic `RunsForBusiness`
+      support built in step 1).
+- [x] **The owner grants shop access on the invite** (decided, unchanged). The invite form lists the business's shops;
+      the person accepting chooses nothing, and receives the invite's shops.
+- [x] **On the Free Trial, every member has the default shop** (decided; `Business::onFreeTrial()`, see "Decisions"):
   - the invite form shows the default shop ticked and fixed ("On the Free Trial, everyone works in the main shop");
     the Free Trial allows one shop, so there is nothing else to choose;
   - accepting an invite while the business is on the Free Trial always assigns the default shop, whatever the invite
@@ -504,43 +555,50 @@ Checked against `main` after Phase 7 (`832f684`) and on UAT, 28 October 2026 (re
     `businesses:set-default-shop` and `users:grant-default-shop` cover what it imported (second revision);
   - once the business moves to another tier, assignments made on the Free Trial stay until the owner changes them on
     the People or shop staff page.
-- [ ] **Every other tier, its trial included** (decided): the owner sets on the invite which shop(s) the member has
-      access to; at least one is required for every role but the owner (the form refuses an empty choice: "Choose
-      the shops this person will work in."). When the business has one shop, it is pre-ticked on the invite form.
+- [x] **Every other tier, its trial included** (decided, narrowed with the user — see "Points to confirm"): the
+      owner sets on the invite which shop(s) the member has access to; at least one is required for every role but
+      the owner, **once the business has a real metered tier subscription** (`StoreBusinessInviteRequest`:
+      `shop_ids` `required|array|min:1` when `Entitlements::isMetered()` and not the Free Trial, and the role isn't
+      the owner's; "Choose the shops this person will work in."). A business with no subscription at all is
+      unmetered, not "on a tier," and stays optional, as it always has. When the business has one shop, it is
+      pre-ticked on the invite form.
 - *Moved (split, 2 November 2026):* `businesses:list-unsubscribed`, `businesses:close-orphaned` and removing deleted
   users' grants to [the Go-live stage](./24-go-live.md); `ChangeBusinessPlan`'s shop count and the Free Trial's one shop to [stage 21](./21-plans-billing-trial-banner.md), step 3.
-- [ ] **Existing members without a shop:**
-  - `php artisan users:list-without-shop --business=<id>` (read-only) lists every non-owner member with no shop;
-  - `php artisan users:grant-default-shop --business=<id>` (dry run; `--apply`) gives each member of a business on the
-    **Free Trial** its default shop, as the Free Trial rule says, and only lists members of businesses on any other
-    tier, for their owner to assign; UAT: business 12's manager (user 63) gets the default shop; the four accountants
-    of businesses 1 and 2 (a tier's trial, five shops each) are listed for their owners;
+- [x] **Existing members without a shop:**
+  - `php artisan users:list-without-shop --business=<id>|--all` (read-only) lists every non-owner member with no shop;
+  - `php artisan users:grant-default-shop --business=<id>|--all` (dry run; `--apply`) gives each member of a business
+    on the **Free Trial** its default shop, as the Free Trial rule says, and only lists members of businesses on any
+    other tier, for their owner to assign;
   - the People page shows "No shop yet" beside such a member, with a link to their edit form, where shops are
-    assigned; the link is shown to someone who may update that member (`UserPolicy::update`: `users.update`, and
-    allowed to manage them). The shop's staff page (`shops.update` and access to the shop) is the other way (checked
-    28 October 2026: `ShopController::updateUsers`).
-- [ ] Tests:
-  - a cashier, an inventory clerk and an accountant each list and open only their assigned shops, on the web and the
-    flat API; another shop of the business is a 404 to them; another business's shop is a 404;
-  - a member with no shop sees "You haven't been given a shop yet. Ask the owner." instead of an empty list;
-  - a cashier can't edit a shop or see its integrations and M-Pesa details; a manager with `shops.update` can;
-  - on the Free Trial, an invite with no shop gives the accepting person the default shop; the person picks nothing;
-    the form can't untick it;
-  - on a tier's trial and on a paid tier, an invite with no shop is refused; the member gets exactly the shops the
-    owner chose; a one-shop business ticks its shop;
-  - after moving from the Free Trial to a tier, the owner removes the default shop from a member, and the member no
-    longer sees it;
-  - on the Free Trial the default shop can't be deleted or deactivated until another is chosen; on a tier it can;
-    changing it is audited;
-  - a default shop set by billing code with no one signed in is audited as "System";
-  - the "No shop yet" link shows to a member who may update that person and opens their edit form; it isn't shown
-    to someone who may not;
-  - `users:grant-default-shop --all` and `users:list-without-shop --all` run for every active business;
-    `businesses:set-default-shop --all` and `members:clean-removed --all` also cover a suspended, a closing and a
-    pending-verification business;
-  - `Business::onFreeTrial()` is true on the `free-trial` plan and false on a tier's trial;
-  - `users:grant-default-shop` gives Free Trial businesses' members their default shop, changes nothing on a second
-    `--apply`, and only lists members of businesses on other tiers.
+    assigned; the link is shown to someone who may update that member (`UserPolicy::update`, unchanged). The
+    scope-independent `User::hasAnyShop()` reads the `shop_user` pivot directly, since `shops()`/`assignedShopIds()`
+    are filtered by `ShopAccessScope` to the *viewer's* own shops, which would misreport someone else's row. The
+    shop's staff page (`shops.update` and access to the shop) is the other way, unchanged.
+  - **UAT counts not re-checked here**: the rollout counts in this section (business 12, businesses 1/2) are from
+    28 October 2026 and belong to this stage's "Rollout" section, run at actual rollout, not at build time.
+- [x] Tests (`tests/Feature/Tenancy/ShopAccessAndDefaultShopTest.php`, 13 tests, 46 assertions, all passing; plus one
+      pre-existing `ShopTest` assertion updated to the new "any member" rule):
+  - a cashier lists and opens only their assigned shop, on the web and the flat API; another shop 404s (web) /
+    `403`s (flat API, since `Api\ShopController::show` is now authorized); another business's shop 404s;
+  - a member with no shop sees "You haven't been given a shop yet." instead of an empty list;
+  - a cashier can't edit a shop or see its integrations or staff list; a manager with `shops.update` can;
+  - on the Free Trial, an invite accepted gets the default shop whatever `shop_ids` the invite held (the Free
+    Trial's one-shop cap means there is nothing else to request in practice, enforced server-side regardless);
+  - on a tier, an invite with no shop is refused ("Choose the shops this person will work in."); one with a shop
+    gets exactly that shop; an owner invite needs none, on the Free Trial or not;
+  - on the Free Trial the sole default shop can't be deleted or deactivated; on a tier it can, and changing the
+    default shop is audited (tag `default_shop_id`);
+  - a default shop set by `businesses:set-default-shop` with no one signed in is audited with a null `user_id`
+    (shown everywhere as "System");
+  - the "No shop yet" link shows to a member who may update that person, not to one who may not;
+  - `Business::onFreeTrial()` is true on the `free-trial` plan, false on a tier's trial;
+  - `users:grant-default-shop` gives a Free Trial business's shopless member the default shop, is idempotent on a
+    second `--apply`, and only lists a tier business's shopless member for its owner.
+
+  **Not separately tested here** (not part of this step's new work, or moved elsewhere): "after moving from the
+  Free Trial to a tier, the owner removes the default shop from a member" is ordinary shop-staff management
+  (`ShopController::updateUsers`), unchanged by this stage; `--all`'s active-vs-every-status split was already
+  pinned generically in step 1's `CleanRemovedMembersTest`/`RunsForBusiness`, not repeated per command here.
 
 ## Contract
 
@@ -555,50 +613,84 @@ when the token's business can't be entered. App checks:
 
 | Change | Data carried across |
 |---|---|
-| `businesses.default_shop_id` (nullable foreign key) | `businesses:set-default-shop` sets the oldest active shop for existing businesses; the guard on deleting it applies on the Free Trial only |
+| `businesses.default_shop_id` (nullable integer, indexed — **not** a DB foreign key: `shops.business_id` and `shops.manager_id`/`users.default_business_id` already close a cycle back to `businesses`, which a real constraint here would extend to three tables; SQLite's schema builder refuses to rebuild a cyclic set ("Foreign keys form a cycle"), hit while building the test schema. A deleted shop is always soft-deleted, never hard, so the column is never left dangling.) | `businesses:set-default-shop` sets the oldest active shop for existing businesses; the guard on deleting it applies on the Free Trial only |
 | `business_user.removed_at` (nullable timestamp; third revision), set by `RemoveFromBusiness`, cleared only by `AcceptBusinessInvite` | Rows from before this stage stay null until `members:clean-removed --apply` sets it, from `updated_at`, on memberships that are `inactive` with no role (listed separately in the dry run first); it then clears what those removals left (till PINs, invites from before `removed_at`, default business, unbound tokens), each change audited |
 
 No other column (`business_closures.reason` is a string, so `orphaned` needs no migration): roles' business is already Spatie's team (`model_has_roles.business_id`).
 
+**Governance registries updated (found by the full suite, not the stage text):** `Business::onFreeTrial()`
+(`Subscription::withoutGlobalScopes()`, since it must answer for a business the caller names, not the ambient
+`TenantContext`) and `User::hasAnyShop()` (a raw `DB::table('shop_user')` join, restricted to the current business
+with `TenantContext::restrictToBusiness()`, not the viewer's own shops) each needed an entry in
+`tests/Unit/TenantScopeBypassTest.php` / `tests/Unit/RawQueryScopeTest.php` respectively — both fail any new,
+unlisted bypass or raw query on purpose.
+
 ## Acceptance criteria
 
 **Shops (step 3)**
-- [ ] Every member lists and opens the shops they can reach, whatever their role, on the web and the API; managing a
-      shop still needs its permissions.
-- [ ] On the Free Trial every member has the default shop without choosing anything; on every other tier, its trial
-      included, the owner sets each member's shops on the invite, at least one.
-- [ ] UAT's members without a shop are listed; those of Free Trial businesses get the default shop.
-- [ ] Changing the default shop is audited; on the Free Trial it can't be deleted or deactivated until another is
-      chosen.
-- [ ] The Free Trial is known by `Business::onFreeTrial()` (the plan's `is_trial_plan`); a lapse is read-only. (The
-      return to the Free Trial is accepted in [stage 21](./21-plans-billing-trial-banner.md).)
-- [ ] Deleting a shop keeps its history, and the confirmation says so (the shop names on old records and the flat
-      API's authorization shipped in hotfix `fix/api-authz`).
-- [ ] "No shop yet" shows beside a member without a shop, with a link to their edit form, only to someone who may
-      update that member.
+- [x] Every member lists and opens the shops they can reach, whatever their role, on the web and the API; managing a
+      shop still needs its permissions. Evidence: `ShopAccessAndDefaultShopTest` ("lets a cashier view only their
+      own assigned shop…", "refuses a cashier editing a shop…").
+- [x] On the Free Trial every member has the default shop without choosing anything; on every other tier, its trial
+      included, the owner sets each member's shops on the invite, at least one — **once the business has a real
+      metered tier subscription** (narrowed with the user; an unmetered business stays optional — see "Points to
+      confirm"). Evidence: `ShopAccessAndDefaultShopTest` ("gives the default shop to an invite…", "refuses a
+      non-Free-Trial invite with no shop…", "needs no shop for an owner invite…").
+- [ ] **UAT's members without a shop are listed; those of Free Trial businesses get the default shop** — not
+      checked here: this reads UAT data (`--business=<id>` against the real database), which is a Rollout-time
+      step (see "Rollout"), not something this build pass can verify. The commands themselves
+      (`users:list-without-shop`, `users:grant-default-shop`) are built and tested against synthetic data.
+- [x] Changing the default shop is audited; on the Free Trial it can't be deleted or deactivated until another is
+      chosen. Evidence: `ShopAccessAndDefaultShopTest` ("can't delete or deactivate the sole default shop…", "can
+      delete or deactivate the default shop on a tier, and changing the default shop is audited…").
+- [x] The Free Trial is known by `Business::onFreeTrial()` (the plan's `is_trial_plan`); a lapse is read-only
+      (unchanged by this stage). (The return to the Free Trial is accepted in
+      [stage 21](./21-plans-billing-trial-banner.md).) Evidence: `ShopAccessAndDefaultShopTest`
+      ("Business::onFreeTrial() is true on the free-trial plan and false on a tier's trial").
+- [x] Deleting a shop keeps its history, and the confirmation says so (the shop names on old records and the flat
+      API's authorization shipped in hotfix `fix/api-authz`; the confirmation text itself updated this stage).
+      Evidence: `resources/views/shops/index.blade.php`'s `confirmDelete()`.
+- [x] "No shop yet" shows beside a member without a shop, with a link to their edit form, only to someone who may
+      update that member. Evidence: `ShopAccessAndDefaultShopTest` ("shows the \"No shop yet\" link only to
+      someone who may update that member").
 
 **Users list and owner scope (steps 1 and 2)**
-- [ ] Owners and members with the right permissions see View, Edit and Delete on the users list as their policy
-      allows; nobody else does.
-- [ ] Being owner of one business gives no rights in another, on every surface; a `User` loaded for one business never
-      answers with its roles in another; the isolation tests in step 2 pass.
-- [ ] Every change of a default business is audited: the switcher, a removal and the cleanup ("System" when no one is
-      signed in).
-- [ ] A removal sets `business_user.removed_at`; deactivating doesn't.
-- [ ] `members:clean-removed` leaves each removed member as a new removal would (till PIN, invites from before
+- [x] Owners and members with the right permissions see View, Edit and Delete on the users list as their policy
+      allows; nobody else does. Evidence: `UsersListActionsTest` (8 tests).
+- [x] Being owner of one business gives no rights in another, on every surface; a `User` loaded for one business never
+      answers with its roles in another; the isolation tests in step 2 pass. Evidence: `OwnerScopeTest` (6 tests).
+- [x] Every change of a default business is audited: the switcher, a removal and the cleanup ("System" when no one is
+      signed in). Evidence: `OwnerScopeTest` ("audits a switch…"), `MemberRemovalTest` ("removes a member from one
+      business only…"), `CleanRemovedMembersTest` ("lists a legacy removal… then backfills and settles it").
+- [x] A removal sets `business_user.removed_at`; deactivating doesn't. Evidence: `MemberRemovalTest`,
+      `CleanRemovedMembersTest` ("keeps a re-invite sent after the removal, and leaves a deactivated member with a
+      role untouched").
+- [x] `members:clean-removed` leaves each removed member as a new removal would (till PIN, invites from before
       `removed_at`, default business, unbound tokens), keeps re-invites sent since, ignores deactivated members,
       lists rows from before this stage separately and sets their `removed_at`, audits each change, and changes
-      nothing on a second run.
-- [ ] A person with no usable business who signs in sees "No active business"; a lapsed business stays usable; a
-      new owner works in their business before verifying.
-- [ ] `/api/v1` answers 403 `business_suspended` on every call but sign-out once the token's business is suspended,
-      and `no_active_business` once it is closing or the person can't enter it.
-- [ ] A removed member can be brought back only by a re-invite.
-- [ ] Deleting a member removes only their membership of that business: their roles, shops, tokens, till PIN and
-      pending invites there; their other businesses and their login stay; the removal is audited.
-- [ ] A non-owner can't edit or change the role of a stronger member, nor give a stronger role; nobody changes their
-      own role; owners are edited only by owners, and the primary owner only by themselves.
-- [ ] The isolation suite, the flat API contract test and both full suites pass.
+      nothing on a second run. Evidence: `CleanRemovedMembersTest` (4 tests).
+- [ ] **A person with no usable business who signs in sees "No active business"; a lapsed business stays usable; a
+      new owner works in their business before verifying** — not separately tested this stage: this is pre-existing,
+      unchanged `EnsureActiveBusiness`/`Entitlements::isLapsed()` behaviour (see step 1's "Not separately tested
+      here" note); already covered by tests that predate this stage and were not touched.
+- [x] `/api/v1` answers 403 `business_suspended` on every call but sign-out once the token's business is suspended,
+      and `no_active_business` once it is closing or the person can't enter it — **and also on listing/switching
+      businesses**, narrowed with the user so a stuck token can still recover (see "Points to confirm"). Evidence:
+      `NoBusinessResolvedTest` (3 tests).
+- [x] A removed member can be brought back only by a re-invite. Evidence: `MemberRemovalTest` ("is brought back
+      only by accepting a re-invite…").
+- [x] Deleting a member removes only their membership of that business: their roles, shops, tokens, till PIN and
+      pending invites there; their other businesses and their login stay; the removal is audited. Evidence:
+      `MemberRemovalTest` ("removes a member from one business only…").
+- [x] **A non-owner can't edit or change the role of a stronger member, nor give a stronger role**; nobody changes
+      their own role; owners are edited only by owners, and the primary owner only by themselves — **the "can't
+      edit a stronger member" half is not built**, dropped with the user (see "Points to confirm"): it broke the
+      existing, tested design where a narrowly-permissioned people manager may edit a cashier regardless of the
+      cashier's operational permissions. "Can't give a stronger role" (`GrantableRole`, pre-existing) and "nobody
+      changes their own role" (`UserService::update`, this stage) are both built and tested
+      (`UsersListActionsTest`).
+- [x] The isolation suite, the flat API contract test and both full suites pass. Evidence: see "Definition of
+      done" below — `tests/Feature/TenantIsolation`, `ApiV1ContractTest`, full SQLite and MySQL runs all green.
 
 ## Risks
 
@@ -659,7 +751,24 @@ Every acceptance criterion is ticked with evidence. The stage file and PROGRESS.
 
 ## Points to confirm
 
-Nothing is open. The decisions of 28 October 2026 stand, including the first revision's: the code's owner rule kept,
+Three points surfaced while building steps 1 to 3 (`fix/access-tenancy`) and were decided with the user on
+10 November 2026:
+- **The `/api/v1` refusal's "every call but sign-out"** also exempts `businesses.index` and `businesses.switch` —
+  literally refusing every other call left a token whose business became inaccessible with no way to discover or
+  move to another it still holds, breaking the existing, tested recovery flow in
+  `tests/Feature/Tenancy/ApiV1SignInTest.php`. See step 1's `/api/v1` bullet.
+- **"A non-owner can't edit someone whose role holds a permission they don't hold"** is **not built** as a
+  blanket check on `UserPolicy::update`: it broke the existing, tested design where a narrowly-permissioned
+  people manager may edit a cashier regardless of the cashier's own (often larger, operational) permission set.
+  `GrantableRole` already covers the part of this that matters — not being able to *grant* a stronger role. See
+  step 1's "Who may edit whom" bullet.
+- **"Every other tier, its trial included" needs `shop_ids`** only once the business has a real metered tier
+  subscription (`Entitlements::isMetered()` and not the Free Trial) — **not** merely "not on the Free Trial" as
+  first read. A business with no subscription at all isn't "on a tier," and `tests/Feature/Signup/InviteFlowTest.php`
+  already relies on inviting with no shop for such a business; three of its cases that genuinely do subscribe the
+  business to `tier-1` now pass `shop_ids` instead. See step 3's invite bullets.
+
+Nothing else is open. The decisions of 28 October 2026 stand, including the first revision's: the code's owner rule kept,
 no editing a stronger member, nobody changes their own role; members kept their shops on a return to the Free Trial
 (superseded by the third revision's one-shop rule); the default shop matters only on the Free Trial. The second revision's (29 October 2026): on a return to the Free
 Trial every member gets the default shop; "usable" is defined; audits with no user are "System"; businesses with no

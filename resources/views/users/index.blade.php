@@ -91,6 +91,14 @@
                                 @foreach ($user->roles as $role)
                                     <x-ui-badge variant="info" soft>{{ $role->displayName() }}</x-ui-badge>
                                 @endforeach
+                                @if (! $user->isBusinessOwner() && ! $user->hasAnyShop())
+                                    <div class="small text-warning mt-1">
+                                        {{ __('No shop yet') }}
+                                        @can('update', $user)
+                                            — <a href="{{ route('users.edit', $user) }}">{{ __('assign one') }}</a>
+                                        @endcan
+                                    </div>
+                                @endif
                             </td>
                             <td>
                                 @include('users.partials.status-badge', ['user' => $user])

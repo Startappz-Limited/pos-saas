@@ -75,8 +75,11 @@ class AcceptBusinessInvite
             $this->tenant->run($invite->business_id, function () use ($invite, $user): void {
                 $membership = $user->joinBusiness($invite->business, $invite->inviter);
 
-                if ($membership->status !== BusinessMembership::STATUS_ACTIVE) {
-                    $membership->update(['status' => BusinessMembership::STATUS_ACTIVE]);
+                if ($membership->status !== BusinessMembership::STATUS_ACTIVE || $membership->removed_at !== null) {
+                    // A re-invite is the only way back for a removed member
+                    // (stage 10a, step 1); clearing removed_at here, not
+                    // User::joinBusiness(), which doesn't reactivate.
+                    $membership->update(['status' => BusinessMembership::STATUS_ACTIVE, 'removed_at' => null]);
                 }
 
                 $role = Role::query()->find($invite->role_id);
@@ -84,10 +87,15 @@ class AcceptBusinessInvite
                     $user->assignRole($role);
                 }
 
-                // The joiner can't see any shop yet (default-deny), so only the
-                // business scope limits this: the invite's shops still in it.
-                $shopIds = Shop::query()->withoutGlobalScope(ShopAccessScope::class)
-                    ->whereIn('id', $invite->shop_ids ?? [])->pluck('id');
+                // On the Free Trial, every member gets the default shop,
+                // whatever the invite holds (stage 10a, step 3). Otherwise,
+                // the joiner can't see any shop yet (default-deny), so only
+                // the business scope limits this: the invite's shops still
+                // in it.
+                $shopIds = $invite->business->onFreeTrial()
+                    ? array_filter([$invite->business->default_shop_id])
+                    : Shop::query()->withoutGlobalScope(ShopAccessScope::class)
+                        ->whereIn('id', $invite->shop_ids ?? [])->pluck('id');
                 $user->shops()->syncWithoutDetaching($shopIds);
             });
 

@@ -33,6 +33,8 @@ class UpdateBusinessSettingsRequest extends FormRequest
             // How long a sale can be voided (stage 10, step 2).
             'void_window' => ['nullable', Rule::in([VoidWindow::SESSION, VoidWindow::END_OF_DAY, 'minutes', VoidWindow::NONE])],
             'void_window_minutes' => ['nullable', 'required_if:void_window,minutes', 'integer', 'min:1', 'max:'.VoidWindow::MAX_MINUTES],
+            // The shop this business opens into (stage 10a, step 3).
+            'default_shop_id' => ['nullable', 'integer', 'exists:shops,id'],
         ];
     }
 

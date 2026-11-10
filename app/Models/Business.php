@@ -42,6 +42,7 @@ class Business extends Model
         'settings',
         'status',
         'primary_owner_id',
+        'default_shop_id',
         'currency',
         'timezone',
         'logo_path',
@@ -165,5 +166,28 @@ class Business extends Model
             ->using(BusinessMembership::class)
             ->withPivot(['status', 'invited_by', 'joined_at'])
             ->withTimestamps();
+    }
+
+    /**
+     * The shop this business opens into (stage 10a, step 3). Matters only
+     * on the Free Trial; kept but unused on every other tier.
+     */
+    public function defaultShop(): BelongsTo
+    {
+        return $this->belongsTo(Shop::class, 'default_shop_id')->withTrashed();
+    }
+
+    /**
+     * Whether this business is on the Free Trial (stage 10a, "Decisions
+     * that apply"): its subscription's plan has `is_trial_plan` — only the
+     * `free-trial` plan does; a tier's own trial is a `trialing`
+     * subscription on a tier plan, whose flag is false. Scoped to this
+     * business explicitly, not the current `TenantContext`, so it answers
+     * correctly for any business regardless of which one is set.
+     */
+    public function onFreeTrial(): bool
+    {
+        return Subscription::query()->withoutGlobalScopes()->where('business_id', $this->id)
+            ->with('plan')->first()?->plan?->is_trial_plan ?? false;
     }
 }

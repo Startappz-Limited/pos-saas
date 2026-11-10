@@ -325,6 +325,15 @@
                 <div class="d-flex justify-content-end mt-3">
                     {{ $shops->links() }}
                 </div>
+            @elseif (! request('search') && ! auth()->user()->isBusinessOwner() && ! auth()->user()->hasAnyShop())
+                <div class="noresult">
+                    <div class="text-center">
+                        <iconify-icon icon="solar:box-minimalistic-bold-duotone" class="text-primary"
+                            style="font-size: 5rem; opacity: 0.5;"></iconify-icon>
+                        <h5 class="mt-3">{{ __("You haven't been given a shop yet.") }}</h5>
+                        <p class="text-muted mb-0">{{ __('Ask the owner.') }}</p>
+                    </div>
+                </div>
             @else
                 <div class="noresult">
                     <div class="text-center">
@@ -349,7 +358,7 @@
     @push('scripts')
         <script>
             function confirmDelete(uuid) {
-                if (confirm('Are you sure you want to delete this shop? This action cannot be undone.')) {
+                if (confirm('Delete this shop? Its sales, stock and payment history are kept; the shop can\'t be restored.')) {
                     document.getElementById('delete-form-' + uuid).submit();
                 }
             }

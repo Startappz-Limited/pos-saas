@@ -1,6 +1,5 @@
 <?php
 
-use App\Http\Middleware\ResolveTenant;
 use App\Models\BusinessInvite;
 use App\Models\BusinessMembership;
 use App\Models\Role;
@@ -148,11 +147,15 @@ it('removes a person from this business only, and they lose access at once', fun
         ->and($both->canEnterBusiness($this->fixture->b->business))->toBeTrue()
         ->and($this->tenant->run($this->fixture->b->business, fn () => $both->fresh()->hasRole('cashier')))->toBeTrue();
 
+    // Since stage 10a, step 1: a default business pointing at A moves on
+    // removal (audited), to B here — the only other usable one.
+    expect($both->fresh()->default_business_id)->toBe($this->fixture->b->business->id);
+
     // Their next request opens B, the only business left; A's customer is out of reach.
     $this->tenant->forget();
     app('auth')->forgetGuards();
     $this->actingAs($both->fresh())->get('/dashboard')->assertOk();
-    expect(session(ResolveTenant::SESSION_KEY))->toBe($this->fixture->b->business->id);
+    expect(app(TenantContext::class)->id())->toBe($this->fixture->b->business->id);
 });
 
 it('never removes the remover, and keeps the business\'s last owner', function () {

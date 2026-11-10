@@ -9,6 +9,7 @@ use App\Models\BusinessExport;
 use App\Models\BusinessMembership;
 use App\Models\User;
 use App\Support\Tenancy\BusinessLink;
+use App\Support\Tenancy\DefaultBusinessAudit;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -49,7 +50,9 @@ class BusinessSwitchController extends Controller
         $request->session()->put(ResolveTenant::SESSION_KEY, $business->id);
 
         if (! $user->canEnterBusiness($user->default_business_id)) {
+            $from = $user->defaultBusiness;
             $user->forceFill(['default_business_id' => $business->id])->save();
+            DefaultBusinessAudit::record($user, $from, $business, 'default_unusable');
         }
 
         return redirect()->route('dashboard')
@@ -79,8 +82,10 @@ class BusinessSwitchController extends Controller
     public function makeDefault(Request $request, Business $business): RedirectResponse
     {
         $user = $this->member($request, $business);
+        $from = $user->defaultBusiness;
 
         $user->forceFill(['default_business_id' => $business->id])->save();
+        DefaultBusinessAudit::record($user, $from, $business, 'switcher');
 
         return back()->with('success', __(':business now opens when you sign in.', ['business' => $business->name]));
     }

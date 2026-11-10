@@ -39,6 +39,8 @@ class BusinessInviteController extends Controller
             'roles' => Role::query()->active()->select('id', 'name')->orderBy('name')->get()
                 ->reject(fn (Role $role): bool => $role->name === CopyRoleTemplates::OWNER_ROLE && ! $user->isBusinessOwner()),
             'shops' => Shop::query()->select('id', 'name')->get(),
+            'onFreeTrial' => app(TenantContext::class)->business()?->onFreeTrial() ?? false,
+            'defaultShopId' => app(TenantContext::class)->business()?->default_shop_id,
         ]);
     }
 

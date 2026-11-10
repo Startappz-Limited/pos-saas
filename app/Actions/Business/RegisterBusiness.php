@@ -54,7 +54,8 @@ class RegisterBusiness
                 // The subscription first, so the first shop is counted against it.
                 $this->trial->execute($business, $plan, (int) ($data['shop_count'] ?? 1));
 
-                Shop::create(['business_id' => $business->id, 'name' => $data['business_name']]);
+                $shop = Shop::create(['business_id' => $business->id, 'name' => $data['business_name']]);
+                $business->forceFill(['default_shop_id' => $shop->id])->saveQuietly();
             });
 
             return $user;

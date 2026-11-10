@@ -15,6 +15,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Contracts\Permission;
@@ -25,7 +26,20 @@ class User extends Authenticatable
     use Auditable;
 
     /** @use HasFactory<UserFactory> */
-    use HasApiTokens, HasFactory, HasRoles, Notifiable;
+    // hasRole() is overridden below to reload roles per business first; a
+    // trait method isn't reachable through `parent::`, only a real base
+    // class is, so the original is kept under an alias to delegate to.
+    use HasApiTokens, HasFactory, HasRoles, Notifiable {
+        HasRoles::hasRole as private spatieHasRole;
+    }
+
+    /**
+     * The Spatie team id its `roles`/`permissions` relations were last loaded
+     * for (stage 10a, gap 2). `false` means "never loaded" — distinct from the
+     * `null` team id of "no business set" — so a model freshly hydrated while
+     * no business is set still reloads once one is.
+     */
+    private int|string|null|false $rolesLoadedForTeam = false;
 
     /**
      * The attributes that are mass assignable.
@@ -397,6 +411,27 @@ class User extends Authenticatable
         return $this->shops()->pluck('shops.id')->map(fn ($shopId): int => (int) $shopId)->values();
     }
 
+    /**
+     * Whether this person has any shop assigned, read from the pivot table
+     * directly (stage 10a, step 3): unlike `shops()`/`assignedShopIds()`,
+     * this isn't filtered by `ShopAccessScope` to the *viewer's* own shops,
+     * so it answers correctly for someone else's row on the People page
+     * however little of the shop list the viewer can themselves reach.
+     * Restricted to the current business (not the viewer's own shops): a
+     * shop belongs to one business, so joining to it and filtering by
+     * `shops.business_id` answers "has a shop *here*", which is the
+     * question the People page asks, regardless of which other businesses
+     * this person belongs to.
+     */
+    public function hasAnyShop(): bool
+    {
+        $query = DB::table('shop_user')
+            ->join('shops', 'shops.id', '=', 'shop_user.shop_id')
+            ->where('shop_user.user_id', $this->id);
+
+        return app(TenantContext::class)->restrictToBusiness($query, 'shops.business_id')->exists();
+    }
+
     public function hasShopRestrictions(): bool
     {
         if ($this->relationLoaded('shops')) {
@@ -429,8 +464,62 @@ class User extends Authenticatable
      */
     public function isBusinessOwner(): bool
     {
+        $this->refreshRolesForCurrentBusiness();
+
         // The owner role, held in the current business (decision 4.4).
         return app(TenantContext::class)->has() && $this->hasRole('admin');
+    }
+
+    /**
+     * Being owner (or anything else) in one business gives nothing in
+     * another (stage 10a, gap 2). Roles are per business (Spatie teams), but
+     * once `roles`/`permissions` are loaded onto a `User` instance they stay
+     * cached by Eloquent even if the current business changes under it — a
+     * risk for any instance other than the signed-in user, which
+     * `TenantContext::set()` already clears: a command looping over
+     * businesses (`eachBusiness()`), a listener, an operator script. Reload
+     * them whenever the team they were loaded for differs from the one
+     * `TenantContext` has set now.
+     */
+    private function refreshRolesForCurrentBusiness(): void
+    {
+        $current = getPermissionsTeamId();
+
+        if ($this->rolesLoadedForTeam === $current) {
+            return;
+        }
+
+        $this->unsetRelation('roles')->unsetRelation('permissions');
+        $this->rolesLoadedForTeam = $current;
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * Reloads roles for the current business first (see
+     * refreshRolesForCurrentBusiness); Spatie's permission check
+     * (registered on the Gate as a `before` callback) calls this.
+     */
+    public function hasRole($roles, ?string $guard = null): bool
+    {
+        $this->refreshRolesForCurrentBusiness();
+
+        return $this->spatieHasRole($roles, $guard);
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * Reloads roles for the current business first (see
+     * refreshRolesForCurrentBusiness) before asking the Gate, so a
+     * model-based or policy check never answers with another business's
+     * permissions either.
+     */
+    public function can($abilities, $arguments = []): bool
+    {
+        $this->refreshRolesForCurrentBusiness();
+
+        return parent::can($abilities, $arguments);
     }
 
     /**

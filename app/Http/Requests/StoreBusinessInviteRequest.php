@@ -2,10 +2,13 @@
 
 namespace App\Http\Requests;
 
+use App\Actions\Business\CopyRoleTemplates;
 use App\Models\BusinessMembership;
+use App\Models\Role;
 use App\Models\User;
 use App\Rules\GrantableRole;
 use App\Rules\RealEmail;
+use App\Services\Billing\Entitlements;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -29,12 +32,29 @@ class StoreBusinessInviteRequest extends FormRequest
      */
     public function rules(): array
     {
+        // On the Free Trial, the invite gives the default shop regardless of
+        // what's chosen; an owner invite needs no shop (owners see every
+        // shop); on a real tier subscription at least one is required
+        // (stage 10a, step 3). A business with no subscription at all isn't
+        // "on a tier" — it stays optional, as it always has been.
+        $onFreeTrial = app(TenantContext::class)->business()?->onFreeTrial() ?? false;
+        $onMeteredTier = ! $onFreeTrial && app(Entitlements::class)->isMetered();
+        $isOwnerInvite = Role::query()->find($this->input('role_id'))?->name === CopyRoleTemplates::OWNER_ROLE;
+
         return [
             'email' => ['required', 'string', 'lowercase', 'email', 'max:255', $this->realEmailUnlessKnown()],
             'name' => ['nullable', 'string', 'max:255'],
             'role_id' => ['required', 'integer', new GrantableRole($this->user())],
-            'shop_ids' => ['nullable', 'array'],
+            'shop_ids' => $onMeteredTier && ! $isOwnerInvite ? ['required', 'array', 'min:1'] : ['nullable', 'array'],
             'shop_ids.*' => ['integer', 'exists:shops,id'],
+        ];
+    }
+
+    public function messages(): array
+    {
+        return [
+            'shop_ids.required' => __('Choose the shops this person will work in.'),
+            'shop_ids.min' => __('Choose the shops this person will work in.'),
         ];
     }
 
