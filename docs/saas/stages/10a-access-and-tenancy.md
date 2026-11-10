@@ -440,33 +440,49 @@ Checked against `main` after Phase 7 (`832f684`) and on UAT, 28 October 2026 (re
   - a cashier with no user permissions sees no buttons, and the list itself is refused if they lack `users.view`;
   - each button's link opens (`linkButtonHref`), and Edit saves a member's details.
 
-### 2. An owner's rights stop at their own business (gap 2)
-- [ ] **Roles never answer for another business:** a `User` remembers which business its `roles` and `permissions`
-      relations were loaded for (the Spatie team id at load time); `hasRole`, `can` and `isBusinessOwner` reload them
-      when the current business differs. `TenantContext::set()` keeps clearing the signed-in user's, as today.
-- [ ] **Owner checks always name the current business:** every `isBusinessOwner()` call and every `admin` role check
-      runs only with a business set (it returns false otherwise, as today); a search for `hasRole('admin')`,
-      `role(CopyRoleTemplates::OWNER_ROLE)` and `isBusinessOwner` lists each place in the PR, with the business it
-      runs in.
-- [ ] **The flat API's unbound tokens** keep acting in the default business, and changing one's default business
-      (the business switcher) is audited, so what a token can do is traceable. `/api/v1` tokens are bound to one
-      business already (Phase 7).
-- [ ] **Isolation tests** (`TenantIsolation/OwnerScopeTest`), with a person who owns business A and is a cashier in B,
-      and a person who owns only A:
-  - in B, the A-owner-and-B-cashier has a cashier's rights only: can't edit users, change roles, void, see costs,
-    change settings or reach the platform console; their own user page in B offers no Edit for others;
-  - the A-only owner gets a 404 for every B resource (users, roles, shops, sales, settings), on the web, the flat API
-    and `/api/v1`;
-  - a `User` loaded while A was set, asked again after switching to B (as a job looping with `eachBusiness()` does),
-    answers with B's roles;
-  - a queued job dispatched in A, run while B is the worker's last business, acts with A's roles (Phase 1c restores
-    the business);
-  - a command run for business B acts as the system, with no person's rights; no command takes its rights from a
-    user's role (checked 28 October 2026: `RunsForBusiness` only sets the business, and no command or job signs a user
-    in); a `RunsForBusiness` command runs with no signed-in user;
-  - an unbound flat API token of the person above acts as owner when their default business is A and as cashier when
-    it is B; the switch is audited;
-  - an operator impersonating A's owner acts only in A.
+### 2. An owner's rights stop at their own business (gap 2) — done, `fix/access-tenancy`
+- [x] **Roles never answer for another business:** `App\Models\User` now tracks the Spatie team id its `roles`/
+      `permissions` relations were last loaded for (`$rolesLoadedForTeam`); `hasRole()`, `can()` and
+      `isBusinessOwner()` call `refreshRolesForCurrentBusiness()` first, which unsets both relations when the
+      current business differs, so the next access reloads under the right team. `hasRole()` can no longer delegate
+      to `parent::` (that method lives in the `HasRoles` trait, not a base class), so the trait's original is kept
+      under the alias `spatieHasRole`. `TenantContext::set()` is unchanged — it still clears the signed-in user's
+      relations directly, now a harmless subset of the general guard. Since `hasPermissionViaRole()` and
+      `isBusinessOwner()` both call `hasRole()`, and Spatie's own `Gate::before` callback calls
+      `hasPermissionTo()` → `hasPermissionViaRole()` for every permission-string `can()` check, this one guard
+      covers policies, Blade `@can`, and direct `hasRole`/`can`/`isBusinessOwner` calls alike.
+- [x] **Owner checks always name the current business:** every `isBusinessOwner()` call already ran only with a
+      business set (unchanged); the search for `hasRole('admin')`, `role(CopyRoleTemplates::OWNER_ROLE)` and
+      `isBusinessOwner()` turned up 37 call sites outside `User.php` itself, all either a scoped DB query
+      (`User::query()->role(...)`, no caching risk) or `$user->isBusinessOwner()` (now covered by the guard above).
+      None bypass `TenantContext`. `GrantableRole` and `RolePolicy` call `getAllPermissions()` directly rather than
+      through the three guarded methods — not fixed here, since in every call site that's always the signed-in
+      actor (whose relations `TenantContext::set()` already clears), not a reused `User` instance; flagged in case
+      a future caller passes a different instance.
+- [x] **The flat API's unbound tokens** keep acting in the default business (unchanged, Phase 7). Changing the
+      default business through the switcher is now audited: `App\Support\Tenancy\DefaultBusinessAudit::record()`
+      (tags `['tenancy', 'default_business_changed']`, `auditable_type` = `User::class`) is called from both
+      `BusinessSwitchController::switch()` (the automatic fallback when the stored default can no longer be
+      entered) and `::makeDefault()` (the deliberate "make default" action); a no-op switch (already the default)
+      audits nothing. The removal and cleanup command's automatic moves call the same helper in step 1.
+- [x] **Isolation tests** (`tests/Feature/TenantIsolation/OwnerScopeTest.php`, 6 tests, 27 assertions, all passing):
+  - a `User` loaded while A was set, asked again after switching to B, answers with B's roles (and back again) —
+    the direct regression test for the caching fix;
+  - an owner of A, cashier in B, has only a cashier's rights in B (`users.update`, `users.delete`,
+    `settings.update`, `products.view-cost`, `sales.void` all false; their own edit form for another B member is
+    `403`);
+  - an owner of A gets a `404` for a B resource addressed directly by uuid (a non-member's session choice of B is
+    ignored by `ResolveTenant`, so the dashboard still resolves to A and B's customer 404s);
+  - a `RunsForBusiness`-style `TenantContext::run()` call sees no signed-in user (`Auth::user()` is null inside
+    it) — pinning "no command takes its rights from a user's role";
+  - a queued job dispatched while A is set, picked up by the worker once B is the last business set, still sees
+    A as its business and the person as A's owner (exercises Laravel's real `Context::dehydrate()`/`hydrate()`
+    queue payload mechanism, Phase 1c, via an actual `database`-queue round trip, not a mock);
+  - the switcher's `makeDefault` action audits the change (old/new business, reason `switcher`, actor), and the
+    person acts as owner with A as default and cashier with B as default.
+  - **Not duplicated here:** "an operator impersonating A's owner acts only in A" is already pinned by
+    `tests/Feature/Platform/ImpersonationTest.php` ("gives the operator exactly the user's permissions while
+    impersonating"), which impersonation is scoped to one business by construction.
 
 ### 3. Shops: viewing follows access, and the default shop on the Free Trial (gap 3)
 - [ ] **Viewing follows access** (decided). `ShopPolicy::viewAny` allows any member of the business; `view` allows

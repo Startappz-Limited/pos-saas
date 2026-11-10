@@ -945,6 +945,7 @@ The stock stages that follow (stage files in [stages/](stages/)); none started.
 
 | Stage | File | Branch | Depends on | Status |
 |---|---|---|---|---|
+| 10a | [10a-access-and-tenancy.md](stages/10a-access-and-tenancy.md) | `fix/access-tenancy` | None; can ship any time | **In progress** (see below) |
 | 11 | [11-units-quantities-and-batches.md](stages/11-units-quantities-and-batches.md) | `feat/stock-units-batches` | 10 | Planned |
 | 11b | [11b-prices-and-discounts.md](stages/11b-prices-and-discounts.md) | `feat/prices-and-discounts` | 11, 10 | Planned |
 | 11c | [11c-low-stock-alerts-and-snapshots.md](stages/11c-low-stock-alerts-and-snapshots.md) | `feat/low-stock-and-snapshots` | 11 | Planned |
@@ -952,3 +953,24 @@ The stock stages that follow (stage files in [stages/](stages/)); none started.
 | 13 | [13-stocktakes.md](stages/13-stocktakes.md) | `feat/stocktakes` | 12, 11 | Planned |
 | 14 | [14-returns-in-reports.md](stages/14-returns-in-reports.md) | `fix/returns-in-reports` | 10, 11, 12 | Planned; also takes the uncounted collected-cash gap (stage 10, step 4) |
 | 15 | [15-regulated-products.md](stages/15-regulated-products.md) | `feat/regulated-products` | 11, 12 | Planned |
+
+## Stage 10a: Access and Tenancy
+
+Branch: `fix/access-tenancy` (from `main` at `b84d519`, 10 November 2026). The stage file is the plan:
+[stages/10a-access-and-tenancy.md](stages/10a-access-and-tenancy.md). Re-checked against `main` on 10 November
+2026 before starting: steps 1–3 were entirely unbuilt (only the hotfix `fix/api-authz` carve-outs — the flat API's
+write authorization and the deleted-shop names — had shipped). Order: step 2, then step 1, then step 3 (decided
+with the user, 10 November 2026).
+
+### Steps
+
+| Step | Done | What | Commit |
+|---|---|---|---|
+| 2 | 10 Nov | An owner's rights stop at their own business: `App\Models\User` tracks the Spatie team id its `roles`/`permissions` relations were last loaded for and reloads them in `hasRole()`, `can()` and `isBusinessOwner()` when the current business differs (closes the one real gap: a reused `User` instance, not the signed-in user, answering for a business it isn't set to); `App\Support\Tenancy\DefaultBusinessAudit` audits every default-business change, wired into `BusinessSwitchController::switch()` and `::makeDefault()` (the removal and cleanup command wire into it in step 1). `OwnerScopeTest` (6 tests, 27 assertions). | (pending) |
+
+### Already true before the stage (checked 10 November 2026)
+
+- Every `isBusinessOwner()`/`hasRole('admin')`/`role(CopyRoleTemplates::OWNER_ROLE)` call site outside `User.php`
+  (37 found) already names the current business correctly; none bypass `TenantContext`.
+- "An operator impersonating A's owner acts only in A" is already pinned by
+  `tests/Feature/Platform/ImpersonationTest.php`, not duplicated in `OwnerScopeTest`.
