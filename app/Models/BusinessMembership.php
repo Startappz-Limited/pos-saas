@@ -31,13 +31,25 @@ class BusinessMembership extends Pivot
         'status',
         'invited_by',
         'joined_at',
+        'removed_at',
     ];
 
     protected function casts(): array
     {
         return [
             'joined_at' => 'datetime',
+            'removed_at' => 'datetime',
         ];
+    }
+
+    /**
+     * Removed, not merely deactivated (stage 10a, step 1): `removed_at` is
+     * set only by RemoveFromBusiness and `members:clean-removed`'s backfill,
+     * and cleared only by accepting a re-invite.
+     */
+    public function isRemoved(): bool
+    {
+        return $this->removed_at !== null;
     }
 
     public function business(): BelongsTo

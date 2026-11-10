@@ -7,12 +7,14 @@ use App\Actions\Business\RemoveFromBusiness;
 use App\Actions\CreateUserAction;
 use App\Actions\UpdateUserAction;
 use App\Enums\UserStatus;
+use App\Exceptions\BusinessRuleException;
 use App\Models\BusinessMembership;
 use App\Models\User;
 use App\Support\Tenancy\TenantContext;
 use App\Support\Tenancy\TenantFiles;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 
@@ -112,6 +114,12 @@ class UserService
      */
     public function update(User $user, array $data): User
     {
+        // Nobody changes their own role (stage 10a, step 1), the owner included.
+        if (isset($data['roles']) && Auth::id() === $user->id
+            && $this->sortedNames($data['roles']) !== $this->sortedNames($user->getRoleNames()->all())) {
+            throw ValidationException::withMessages(['roles' => [__("You can't change your own role.")]]);
+        }
+
         // The business keeps at least one owner.
         if (isset($data['roles']) && ! in_array(CopyRoleTemplates::OWNER_ROLE, $data['roles'], true) && ($this->isLastOwner($user) || $user->isPrimaryOwner())) {
             throw ValidationException::withMessages(['roles' => [$user->isPrimaryOwner() ? __('Hand the business over to another owner before changing this role.') : __('The business needs at least one owner.')]]);
@@ -154,6 +162,17 @@ class UserService
         return true;
     }
 
+    /**
+     * @param  array<int, string>  $names
+     * @return array<int, string>
+     */
+    private function sortedNames(array $names): array
+    {
+        sort($names);
+
+        return $names;
+    }
+
     private function isLastOwner(User $user): bool
     {
         return $user->isBusinessOwner()
@@ -173,13 +192,27 @@ class UserService
     /**
      * The person's status in the current business (stage 3): suspending or
      * deactivating here doesn't touch their login or their other businesses.
+     * A removed member (stage 10a, step 1) can't be brought back this way —
+     * only an accepted re-invite clears `removed_at`.
      */
     private function setBusinessStatus(User $user, UserStatus|string $status): void
     {
-        BusinessMembership::query()
+        $membership = BusinessMembership::query()
             ->where('business_id', $this->tenant->id())
             ->where('user_id', $user->id)
-            ->update(['status' => $status instanceof UserStatus ? $status->value : $status]);
+            ->first();
+
+        if ($membership === null) {
+            return;
+        }
+
+        $value = $status instanceof UserStatus ? $status->value : $status;
+
+        if ($membership->isRemoved() && $membership->status !== $value) {
+            throw BusinessRuleException::because(__('Re-invite them instead.'), 'member_removed');
+        }
+
+        $membership->update(['status' => $value]);
     }
 
     /**

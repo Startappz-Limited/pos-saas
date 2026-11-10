@@ -4,6 +4,7 @@ use App\Http\Middleware\EnforceEmailVerification;
 use App\Http\Middleware\EnforceSubscription;
 use App\Http\Middleware\EnsureAccountActive;
 use App\Http\Middleware\EnsureActiveBusiness;
+use App\Http\Middleware\EnsureBusinessToken;
 use App\Http\Middleware\EnsurePlatformOperator;
 use App\Http\Middleware\HandleImpersonation;
 use App\Http\Middleware\RequireFeature;
@@ -50,6 +51,12 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->web(append: [ResolveTenant::class]);
         $middleware->api(append: [ResolveTenant::class]);
         $middleware->appendToPriorityList(AuthenticatesRequests::class, ResolveTenant::class);
+
+        // `/api/v1`'s own business-token check (stage 3) must run before route
+        // model binding (SubstituteBindings): a {sale:uuid} param otherwise
+        // resolves under no business and 404s before this gets a chance to
+        // answer `business_suspended`/`no_active_business` (stage 10a, step 1).
+        $middleware->appendToPriorityList(ResolveTenant::class, EnsureBusinessToken::class);
 
         // A login whose account isn't active is signed out or refused on its
         // next request (stage 3); also after authentication.

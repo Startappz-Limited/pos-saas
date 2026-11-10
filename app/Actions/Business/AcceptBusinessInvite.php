@@ -75,8 +75,11 @@ class AcceptBusinessInvite
             $this->tenant->run($invite->business_id, function () use ($invite, $user): void {
                 $membership = $user->joinBusiness($invite->business, $invite->inviter);
 
-                if ($membership->status !== BusinessMembership::STATUS_ACTIVE) {
-                    $membership->update(['status' => BusinessMembership::STATUS_ACTIVE]);
+                if ($membership->status !== BusinessMembership::STATUS_ACTIVE || $membership->removed_at !== null) {
+                    // A re-invite is the only way back for a removed member
+                    // (stage 10a, step 1); clearing removed_at here, not
+                    // User::joinBusiness(), which doesn't reactivate.
+                    $membership->update(['status' => BusinessMembership::STATUS_ACTIVE, 'removed_at' => null]);
                 }
 
                 $role = Role::query()->find($invite->role_id);
