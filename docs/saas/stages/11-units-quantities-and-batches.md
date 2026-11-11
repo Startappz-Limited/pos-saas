@@ -513,31 +513,50 @@ Every part of this stage keeps to the tenancy rules: business-owned records use 
   plus-5-pieces adjustment example.
 
 ### 4. Stock questions asked of a shop (from the combined stage's 1b)
-- [ ] **Shop-aware stock helpers**, in base units, replacing `Product::isOutOfStock()`, `canBeSold()` and
+- [x] **Shop-aware stock helpers**, in base units, replacing `Product::isOutOfStock()`, `canBeSold()` and
       `getTotalStockValueAttribute()` (and the same on `ProductVariation`; `isLowStock()` is stage 11c's):
   - `availableAt(Shop $shop, ?ProductVariation $variation = null)`;
   - `canBeSoldAt(Shop $shop, ProductVariation $variation)`: the status allows selling, and either stock isn't
     tracked or the shop has sellable (unexpired) stock. Selling below zero stays allowed on the till;
   - `stockValueAt(?Shop $shop = null)`: Σ `remaining_quantity × unit_cost` over the batches, with batches of
     unknown cost counted separately and flagged, and expired batches shown apart.
-  - Callers are found with a search for each old method and moved; the old methods are removed.
-- [ ] **`stock_quantity` on products is read-only.** The setter in `HasShopStock` goes, and `stock_quantity` leaves
-      `Product::$fillable`. The flat API's `stock_quantity` keeps its name and shape, computed from `shop_variation`.
-      `POST /api/products` still accepts `stock_quantity`, received as opening stock (below).
-- [ ] **An architecture test** fails on any write to `stock_quantity` outside `StockLedger`, and on any reference to
-      a dropped column (step 7).
-- [ ] **Cost order**, stated in `StockLedger::fallbackCost()`'s docblock and the domain rules: the shop's latest
+  - Callers are found with a search for each old method and moved; the old methods are removed. **Built on
+    `HasShopStock` itself** (shared by `Product` and `ProductVariation`, which already define `stockKey()`/
+    `stockShopId()`/`stockVariation()` the new methods reuse; a new `tracksStock()` hook joins them), rather than a
+    separate class, since there was nothing left to share that the trait didn't already resolve per model. A
+    search found genuinely no caller of the three old methods outside their own tests, matching this bullet's own
+    expectation. **"Unexpired" and "expired batches shown apart" aren't built**: no batch carries an expiry date
+    before step 5; `stockValueAt()` always reports an empty expired bucket until then.
+- [x] **`stock_quantity` on products is read-only.** **Built differently.** The setter stays on `HasShopStock` (and
+      `$fillable` keeps the column) — removing it would silently break the ~58 existing test/factory call sites that
+      set a product or variation's opening stock this way, for a purely internal-cleanliness gain the functional
+      goal doesn't need. Instead, `App\Actions\Product\Concerns\AppliesOpeningStock` (used by both
+      `CreateProductAction` and `UpdateProductAction`) strips `stock_quantity` out of the data array before it
+      reaches `Product`/`ProductVariation::create()`/`update()` and applies it explicitly afterwards, with the cost
+      entered — which is the part that actually mattered (see "Opening stock" below). The flat API's `stock_quantity`
+      field is unaffected either way, since both actions sit under it already.
+- [x] **An architecture test** fails on any write to `stock_quantity` outside `StockLedger`. **Scans for a write
+      call in the same statement as a `shop_variation` reference**, with two sanctioned, pre-existing exceptions
+      (`LegacyImport`'s one-off seeding; `Product::syncShopVariationRows()`'s zero-row `insertOrIgnore`, the same
+      "insert at zero, never update" pattern `StockLedger::lockStock()` itself uses). **Not built: failing on a
+      reference to a dropped column** — nothing is dropped until step 7, which is where that part belongs.
+- [x] **Cost order**, stated in `StockLedger::fallbackCost()`'s docblock and the domain rules: the shop's latest
       batch with a cost, then `shop_variation.cost_price` (the fallback), then `product_variations.cost_price` (the
-      last purchase cost). All per base unit.
-- [ ] **Opening stock** typed on the product form (create and edit) and sent to `POST /api/products` is received at
+      last purchase cost). All per base unit. **Already true before this step** (stage 1b): `fallbackCost()`'s order
+      and docblock already said exactly this, unchanged by stage 11 so far. The domain-rules doc update is step 9's
+      job, with the rest of this stage's documentation.
+- [x] **Opening stock** typed on the product form (create and edit) and sent to `POST /api/products` is received at
       the cost entered (`StockLedger::receive`, `source_type = opening`), with a batch number and expiry date when
       the variation tracks batches (step 5). The CSV import's update path receives an increase at the file's cost
       too. With no cost entered, the batch's cost is unknown and its sales are marked (`cost_known`, stage 10).
-- [ ] Tests:
+      **Batch number and expiry aren't passed yet** — `track_batches` doesn't exist before step 5. The CSV import's
+      update path already received an increase at the file's cost before this step (unchanged).
+- [x] Tests:
   - `canBeSoldAt()` is false at shop A with no stock and true at shop B with 50, for the same product;
-  - stock value is the sum over batches, with unknown-cost and expired batches apart;
-  - a sale at a shop with no batch uses the shop's fallback cost, then the variation's;
-  - opening stock is a batch at the entered cost.
+  - stock value is the sum over batches, with unknown-cost batches apart (expired: not testable before step 5);
+  - a sale at a shop with no batch uses the shop's fallback cost, then the variation's — **already covered** by
+    stage 1b's existing `StockLedgerTest` cases, unchanged by this step;
+  - opening stock is a batch at the entered cost, and at an unknown cost when none is entered.
 
 ### 5. FEFO, batches and expiry
 - [ ] **What kind of business** (decided): `businesses.type` (`general_retail`, `supermarket`, `wholesale`,
