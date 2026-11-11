@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Enums\BusinessType;
 use App\Support\Currency;
 use App\Support\Sales\VoidWindow;
 use Illuminate\Foundation\Http\FormRequest;
@@ -35,6 +36,10 @@ class UpdateBusinessSettingsRequest extends FormRequest
             'void_window_minutes' => ['nullable', 'required_if:void_window,minutes', 'integer', 'min:1', 'max:'.VoidWindow::MAX_MINUTES],
             // The shop this business opens into (stage 10a, step 3).
             'default_shop_id' => ['nullable', 'integer', 'exists:shops,id'],
+            // What kind of business, and its stock consumption order (stage 11, step 5): neither
+            // restricts anything, both change only what's created afterwards.
+            'type' => ['nullable', Rule::enum(BusinessType::class)],
+            'consumption' => ['nullable', Rule::in(['fifo', 'fefo'])],
         ];
     }
 

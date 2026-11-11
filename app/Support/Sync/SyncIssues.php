@@ -4,9 +4,13 @@ namespace App\Support\Sync;
 
 use App\Models\Register;
 use App\Models\Sale;
+use App\Models\Shop;
 use App\Models\StockMovement;
 use App\Models\SyncIssue;
 use App\Support\Approvals\Flags;
+use App\Support\Stock\Expiry;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Records what a till's push turned up (Phase 7, decision 4.9), once per
@@ -46,8 +50,7 @@ class SyncIssues
      */
     public function recordNegativeStock(Sale $sale, ?Register $register = null, array $details = [], ?array $override = null): bool
     {
-        $negative = StockMovement::query()->where('reference_uuid', $sale->uuid)->where('quantity_after', '<', 0)
-            ->get(['shop_id', 'variation_id'])->unique(fn (StockMovement $movement): string => "{$movement->shop_id}:{$movement->variation_id}");
+        $negative = $this->negativeStockPairs($sale);
 
         if ($negative->isEmpty()) {
             return false;
@@ -90,15 +93,76 @@ class SyncIssues
     }
 
     /**
-     * Resolves every open negative_stock issue for $shopId and $variationId
-     * (stage 11 step 4 follow-up): the shop's stock for that variation is
-     * back at zero or above, so whatever oversold it is no longer a concern.
+     * Records a sale line that went short because sellable stock existed
+     * only as expired batches (stage 11, step 5), once per sale, shop and
+     * variation. Found from the provisional cost_allocations consume()
+     * writes whenever a line's need outlives its eligible (unexpired)
+     * layers — not from the shop going below zero: a shop can hold plenty
+     * of *expired* stock and still show a positive total after the sale,
+     * since shop_variation counts physical units whatever their expiry.
+     *
+     * @return bool whether any line went short on expired stock
+     */
+    public function recordExpiredStock(Sale $sale, ?Register $register = null): bool
+    {
+        $itemIds = $sale->items()->pluck('id');
+        $provisional = DB::table('cost_allocations')->where('is_provisional', true)->whereIn('sale_item_id', $itemIds)
+            ->get(['shop_id', 'variation_id'])->unique(fn ($row): string => "{$row->shop_id}:{$row->variation_id}");
+        $any = false;
+
+        foreach ($provisional as $row) {
+            $shopId = (int) $row->shop_id;
+            $variationId = (int) $row->variation_id;
+            $shop = Shop::query()->find($shopId);
+
+            if ($shop === null || ! $this->hasExpiredStock($shopId, $variationId, $shop)) {
+                continue;
+            }
+
+            $any = true;
+            $this->record(
+                SyncIssue::EXPIRED_STOCK,
+                "expired:{$sale->uuid}:{$shopId}:{$variationId}",
+                ['sale' => $sale->uuid, 'invoice_number' => $sale->invoice_number, 'shop_id' => $shopId, 'variation_id' => $variationId],
+                $register,
+                $shopId,
+            );
+        }
+
+        return $any;
+    }
+
+    /**
+     * The distinct (shop, variation) pairs a sale's stock movements took
+     * below zero, once each.
+     *
+     * @return Collection<int, StockMovement>
+     */
+    private function negativeStockPairs(Sale $sale): Collection
+    {
+        return StockMovement::query()->where('reference_uuid', $sale->uuid)->where('quantity_after', '<', 0)
+            ->get(['shop_id', 'variation_id'])->unique(fn (StockMovement $movement): string => "{$movement->shop_id}:{$movement->variation_id}");
+    }
+
+    private function hasExpiredStock(int $shopId, int $variationId, Shop $shop): bool
+    {
+        $boundary = Expiry::firstSellableDate($shop)->toDateString();
+
+        return DB::table('cost_layers')->where('shop_id', $shopId)->where('variation_id', $variationId)
+            ->where('remaining_quantity', '>', 0)->whereNotNull('expiry_date')->where('expiry_date', '<', $boundary)->exists();
+    }
+
+    /**
+     * Resolves every open negative_stock and expired_stock issue for
+     * $shopId and $variationId (stage 11, step 4 follow-up and step 5): the
+     * shop's stock for that variation is back at zero or above, so whatever
+     * oversold or ran it short of unexpired stock is no longer a concern.
      * Resolved one row at a time (not a bulk update) so each resolution is
      * still captured by SyncIssue's own audit trail.
      */
     public function resolveNegativeStock(int $shopId, int $variationId): void
     {
-        SyncIssue::query()->open()->where('type', SyncIssue::NEGATIVE_STOCK)->where('shop_id', $shopId)
+        SyncIssue::query()->open()->whereIn('type', [SyncIssue::NEGATIVE_STOCK, SyncIssue::EXPIRED_STOCK])->where('shop_id', $shopId)
             ->where('details->variation_id', $variationId)
             ->get()
             ->each(fn (SyncIssue $issue) => $issue->update(['resolved_at' => now(), 'resolution' => 'self_resolved']));

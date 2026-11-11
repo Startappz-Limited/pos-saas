@@ -206,6 +206,12 @@
                                         <div class="form-text mt-0">
                                             {{ __('A new product starts with no stock. Receive it afterwards with a stock intake.') }}
                                         </div>
+                                        <div class="form-check form-switch mt-2">
+                                            <input class="form-check-input" type="checkbox" role="switch" id="track_batches" name="track_batches"
+                                                value="1" @checked(old('track_batches', $trackBatchesDefault ?? false))>
+                                            <label class="form-check-label" for="track_batches">{{ __('Track batches and expiry') }}</label>
+                                        </div>
+                                        <div class="form-text">{{ __('A batch number and expiry are then required every time stock is received.') }}</div>
                                     </div>
                                 </div>
                                 <div class="col-md-6">

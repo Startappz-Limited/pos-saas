@@ -225,6 +225,8 @@ class RecordSale
         if ($context->clientUuid === null) {
             app(SyncIssues::class)->recordNegativeStock($sale, override: $context->oversellReason !== null
                 ? ['by' => auth()->user()?->name ?? __('unknown'), 'reason' => $context->oversellReason] : null);
+            // Short only because sellable stock was expired (stage 11, step 5).
+            app(SyncIssues::class)->recordExpiredStock($sale);
         }
 
         // Notify the customer, exactly as the web POS does. COD sales stay

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Actions\Business\CopyRoleTemplates;
+use App\Enums\BusinessType;
 use App\Services\Billing\Entitlements;
 use App\Support\Tenancy\TenantContext;
 use App\Support\Tenancy\TenantFiles;
@@ -39,6 +40,7 @@ class Business extends Model
     protected $fillable = [
         'uuid',
         'name',
+        'type',
         'settings',
         'status',
         'primary_owner_id',
@@ -55,10 +57,33 @@ class Business extends Model
     protected function casts(): array
     {
         return [
+            'type' => BusinessType::class,
             'settings' => 'array',
             'trial_started_at' => 'datetime',
             'suspended_at' => 'datetime',
         ];
+    }
+
+    /**
+     * The stock consumption order a new product's shop takes
+     * (`settings['stock']['consumption']`): the business's own setting, else
+     * its type's, else fifo. Set once at sign-up or by `settings.update`;
+     * changing the type later never changes this (stage 11, step 5).
+     */
+    public function stockConsumption(): string
+    {
+        $setting = data_get($this->settings, 'stock.consumption');
+
+        return in_array($setting, ['fifo', 'fefo'], true) ? $setting : ($this->type?->consumption() ?? 'fifo');
+    }
+
+    /**
+     * Whether a new product takes batch tracking on by default: the type's
+     * default, or off with no type set.
+     */
+    public function tracksBatchesByDefault(): bool
+    {
+        return $this->type?->tracksBatchesByDefault() ?? false;
     }
 
     protected static function booted(): void

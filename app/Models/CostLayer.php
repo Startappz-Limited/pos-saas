@@ -39,6 +39,8 @@ class CostLayer extends Model
         'source_id',
         'stock_intake_id',
         'unit_cost',
+        'batch_number',
+        'expiry_date',
         'original_quantity',
         'remaining_quantity',
         'received_at',
@@ -51,6 +53,7 @@ class CostLayer extends Model
             'unit_cost' => Quantity::class.':4',
             'original_quantity' => Quantity::class,
             'remaining_quantity' => Quantity::class,
+            'expiry_date' => 'date',
             'received_at' => 'datetime',
             'consumed_at' => 'datetime',
         ];

@@ -22,11 +22,13 @@ class UpdateProductAction
         $variations = $data['variations'] ?? null;
         $shouldSyncShops = array_key_exists('sync_shops', $data) || array_key_exists('shop_ids', $data);
         $shopIds = $data['shop_ids'] ?? [];
+        // Absent means "leave as it is" (stage 11, step 5), unlike on create.
+        $trackBatches = $data['track_batches'] ?? null;
 
         // Stock changes only through intakes, adjustments, stocktakes and sales
         // (decided after stage 11, step 4): this form never moves stock,
         // whatever is sent.
-        unset($data['variations'], $data['stock_quantity']);
+        unset($data['variations'], $data['stock_quantity'], $data['track_batches']);
         unset($data['sync_shops'], $data['shop_ids']);
 
         if (array_key_exists('image', $data)) {
@@ -52,6 +54,10 @@ class UpdateProductAction
 
         $product->update($data);
 
+        if ($trackBatches !== null) {
+            $product->defaultVariation()->update(['track_batches' => $trackBatches]);
+        }
+
         if ($shouldSyncShops) {
             $product->shops()->sync($shopIds);
             $product->syncShopVariationRows();
@@ -76,6 +82,10 @@ class UpdateProductAction
                             'tax_class' => $variationData['tax_class'] ?? null,
                         ];
 
+                        if (array_key_exists('track_batches', $variationData)) {
+                            $payload['track_batches'] = (bool) $variationData['track_batches'];
+                        }
+
                         // Absent key means "not submitted" (filtered out for a
                         // user without products.set-cost); keep the stored cost
                         // rather than blanking it.
@@ -99,6 +109,7 @@ class UpdateProductAction
                         'selling_price' => $variationData['selling_price'],
                         'wholesale_price' => $variationData['wholesale_price'] ?? null,
                         'tax_class' => $variationData['tax_class'] ?? null,
+                        'track_batches' => $variationData['track_batches'] ?? $trackBatches ?? false,
                         'status' => ProductStatus::ACTIVE,
                     ]);
                     $this->setVariationThreshold($product, $newVariation, $variationData);

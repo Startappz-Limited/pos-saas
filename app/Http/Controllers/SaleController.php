@@ -373,6 +373,8 @@ class SaleController extends Controller
             // through and why when sales.oversell was used (stage 11 step 4 follow-up).
             app(SyncIssues::class)->recordNegativeStock($sale, override: $oversellReason !== null
                 ? ['by' => $request->user()->name, 'reason' => $oversellReason] : null);
+            // Short only because sellable stock was expired (stage 11, step 5).
+            app(SyncIssues::class)->recordExpiredStock($sale);
 
             // Send WhatsApp notifications to customer
             $this->sendSaleNotifications($sale);

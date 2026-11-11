@@ -46,6 +46,8 @@ class StoreProductRequest extends FormRequest
             'wholesale_price' => ['nullable', 'numeric', 'min:0'],
             'reorder_level' => ['nullable', 'integer', 'min:0'],
             'track_stock' => ['nullable', 'boolean'],
+            // Requires a batch number and expiry on every line that receives stock (stage 11, step 5).
+            'track_batches' => ['nullable', 'boolean'],
             'has_variations' => ['nullable', 'boolean'],
             'variations' => ['nullable', 'array'],
             'variations.*.name' => ['required_with:has_variations', 'string', 'max:255'],
@@ -55,6 +57,7 @@ class StoreProductRequest extends FormRequest
             'variations.*.selling_price' => ['required_with:has_variations', 'numeric', 'min:0'],
             'variations.*.wholesale_price' => ['nullable', 'numeric', 'min:0'],
             'variations.*.reorder_level' => ['nullable', 'integer', 'min:0'],
+            'variations.*.track_batches' => ['nullable', 'boolean'],
             'image' => ['nullable', 'image', 'max:2048'],
             'images' => ['nullable', 'array'],
             'unit' => ['nullable', 'string', 'max:255'],

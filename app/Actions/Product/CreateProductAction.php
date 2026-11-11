@@ -5,6 +5,7 @@ namespace App\Actions\Product;
 use App\Actions\Product\Concerns\GuardsPurchaseCost;
 use App\Enums\ProductStatus;
 use App\Models\Product;
+use App\Support\Tenancy\TenantContext;
 use App\Support\Tenancy\TenantFiles;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Str;
@@ -20,11 +21,13 @@ class CreateProductAction
         $variations = $data['variations'] ?? [];
         $shouldSyncShops = array_key_exists('sync_shops', $data) || array_key_exists('shop_ids', $data);
         $shopIds = $data['shop_ids'] ?? [];
+        // Not set on the form: the business type's own default (stage 11, step 5).
+        $trackBatches = $data['track_batches'] ?? null;
 
         // Stock changes only through intakes, adjustments, stocktakes and sales
         // (decided after stage 11, step 4): a product is never created with
         // stock through this form, whatever is sent.
-        unset($data['variations'], $data['stock_quantity']);
+        unset($data['variations'], $data['stock_quantity'], $data['track_batches']);
         unset($data['sync_shops'], $data['shop_ids']);
 
         if (array_key_exists('image', $data)) {
@@ -49,6 +52,11 @@ class CreateProductAction
 
         $product = Product::create($data);
 
+        // New products take the business type's track_batches default (stage 11, step 5); the form
+        // can change it. Set on the hidden default variation too, for a product with real ones.
+        $trackBatches ??= app(TenantContext::class)->business()->tracksBatchesByDefault();
+        $product->defaultVariation()->update(['track_batches' => $trackBatches]);
+
         if ($shouldSyncShops) {
             $product->shops()->sync($shopIds);
             $product->syncShopVariationRows();
@@ -66,6 +74,7 @@ class CreateProductAction
                     'selling_price' => $variationData['selling_price'],
                     'wholesale_price' => $variationData['wholesale_price'] ?? null,
                     'tax_class' => $variationData['tax_class'] ?? null,
+                    'track_batches' => $variationData['track_batches'] ?? $trackBatches,
                     'status' => ProductStatus::ACTIVE,
                 ]);
 

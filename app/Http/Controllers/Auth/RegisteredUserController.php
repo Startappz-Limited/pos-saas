@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Actions\Business\RegisterBusiness;
+use App\Enums\BusinessType;
 use App\Http\Controllers\Controller;
 use App\Models\Plan;
 use App\Rules\RealEmail;
@@ -47,6 +48,10 @@ class RegisteredUserController extends Controller
             // No shop count: every trial starts paying for one shop. How more
             // shops are paid for is settled in Billing.
             'plan' => ['nullable', 'string', Rule::exists('plans', 'key')->where('is_active', true)],
+            // Not yet on the registration form (stage 11, step 5: Breeze/Tailwind, not the admin
+            // theme); settable here for a caller that already has it, and always changeable later
+            // on the business settings page.
+            'type' => ['nullable', Rule::enum(BusinessType::class)],
             'agree_terms' => ['accepted'],
         ], [
             'agree_terms.accepted' => __('Please accept the Terms and Privacy Policy to continue.'),

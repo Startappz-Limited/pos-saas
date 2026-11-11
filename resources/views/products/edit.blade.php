@@ -214,6 +214,11 @@
                                             {{ __('or an') }}
                                             <a href="{{ route('stock-adjustments.create') }}">{{ __('adjustment') }}</a>.
                                         </div>
+                                        <div class="form-check form-switch mt-2">
+                                            <input class="form-check-input" type="checkbox" role="switch" id="track_batches" name="track_batches"
+                                                value="1" @checked(old('track_batches', $trackBatches))>
+                                            <label class="form-check-label" for="track_batches">{{ __('Track batches and expiry') }}</label>
+                                        </div>
                                     </div>
                                 </div>
                                 <div class="col-md-6">

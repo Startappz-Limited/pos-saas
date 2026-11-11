@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Enums\AuditEvent;
+use App\Enums\BusinessType;
 use App\Events\AuditableEvent;
 use App\Http\Requests\UpdateBusinessSettingsRequest;
 use App\Models\Business;
@@ -45,6 +46,8 @@ class BusinessSettingsController extends Controller
             'business' => $this->tenant->business(),
             'adjustmentThreshold' => AdjustmentApproval::threshold($this->tenant->business()),
             'voidWindow' => VoidWindow::setting($this->tenant->business()),
+            'consumption' => $this->tenant->business()->stockConsumption(),
+            'businessTypes' => BusinessType::cases(),
             'currencies' => Currency::options(),
             'timezones' => \DateTimeZone::listIdentifiers(),
             'shops' => Shop::query()->orderBy('name')->get(['id', 'name']),
@@ -56,7 +59,7 @@ class BusinessSettingsController extends Controller
         abort_unless($request->user()->can('settings.update') || $request->user()->can('settings.full-access'), 403);
 
         $business = $this->tenant->business();
-        $data = collect($request->validated())->except(['logo', 'remove_logo', 'adjustment_approval_threshold', 'void_window', 'void_window_minutes'])->all();
+        $data = collect($request->validated())->except(['logo', 'remove_logo', 'adjustment_approval_threshold', 'void_window', 'void_window_minutes', 'consumption'])->all();
 
         // Settings kept in businesses.settings: [key => [old, new]], absent fields unchanged.
         $changes = array_filter([
@@ -71,6 +74,11 @@ class BusinessSettingsController extends Controller
                     'minutes' => (int) $request->validated('void_window_minutes'),
                     default => $request->validated('void_window'),
                 },
+            ],
+            // Neither restricts anything: both change only what's created afterwards (stage 11, step 5).
+            'stock.consumption' => [
+                $old = $business->stockConsumption(),
+                $request->filled('consumption') ? $request->validated('consumption') : $old,
             ],
         ], fn (array $change): bool => $change[0] !== $change[1]);
 

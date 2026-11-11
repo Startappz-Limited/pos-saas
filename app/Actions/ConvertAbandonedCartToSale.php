@@ -191,6 +191,8 @@ class ConvertAbandonedCartToSale
         // November 2026): a cart recovered into a sale that takes a shop below zero is flagged,
         // on the till sync review, not blocked.
         app(SyncIssues::class)->recordNegativeStock($sale);
+        // Short only because sellable stock was expired (stage 11, step 5).
+        app(SyncIssues::class)->recordExpiredStock($sale);
 
         return $sale;
     }

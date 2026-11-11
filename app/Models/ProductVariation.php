@@ -43,6 +43,7 @@ class ProductVariation extends Model
         'image',
         'status',
         'is_default',
+        'track_batches',
     ];
 
     protected function casts(): array
@@ -51,6 +52,7 @@ class ProductVariation extends Model
             'status' => ProductStatus::class,
             'attributes' => 'array',
             'is_default' => 'boolean',
+            'track_batches' => 'boolean',
             'cost_price' => Quantity::class.':4',
             'selling_price' => 'decimal:2',
             'wholesale_price' => 'decimal:2',

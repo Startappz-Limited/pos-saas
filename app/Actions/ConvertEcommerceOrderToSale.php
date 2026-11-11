@@ -254,6 +254,8 @@ class ConvertEcommerceOrderToSale
         // November 2026): a paid online order already represents money taken elsewhere, so an
         // order that takes a shop below zero is flagged, on the till sync review, not blocked.
         app(SyncIssues::class)->recordNegativeStock($sale);
+        // Short only because sellable stock was expired (stage 11, step 5).
+        app(SyncIssues::class)->recordExpiredStock($sale);
 
         return $sale;
     }

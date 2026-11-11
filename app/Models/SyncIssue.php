@@ -32,6 +32,9 @@ class SyncIssue extends Model
 
     public const NEGATIVE_STOCK = 'negative_stock';
 
+    /** A sale line went short because sellable stock existed only as expired batches (stage 11, step 5). */
+    public const EXPIRED_STOCK = 'expired_stock';
+
     public const IMPLAUSIBLE_TIME = 'implausible_time';
 
     public const MPESA_UNMATCHED = 'mpesa_unmatched';
@@ -100,6 +103,7 @@ class SyncIssue extends Model
             self::INVOICE_REPEAT => __('Invoice number used twice'),
             self::POSSIBLE_DUPLICATE_CUSTOMER => __('Possible duplicate customer'),
             self::NEGATIVE_STOCK => __('Sold below zero stock'),
+            self::EXPIRED_STOCK => __('Sold short: only expired stock left'),
             self::IMPLAUSIBLE_TIME => __('Sale time in the future'),
             self::MPESA_UNMATCHED => __('M-Pesa code not found'),
             self::MPESA_AMOUNT_MISMATCH => __('M-Pesa amount differs'),
@@ -120,7 +124,7 @@ class SyncIssue extends Model
         return match ($this->type) {
             self::INVOICE_REPEAT, self::MPESA_CODE_REUSED, self::VOID_REFUSED, self::HELD_ITEM => 'danger',
             self::MPESA_UNMATCHED, self::MPESA_AMOUNT_MISMATCH, self::MPESA_NOT_NEEDED => 'warning',
-            self::INVOICE_GAP, self::NEGATIVE_STOCK => 'warning',
+            self::INVOICE_GAP, self::NEGATIVE_STOCK, self::EXPIRED_STOCK => 'warning',
             self::POSSIBLE_DUPLICATE_CUSTOMER => 'info',
             default => 'secondary',
         };

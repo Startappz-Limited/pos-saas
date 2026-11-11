@@ -119,6 +119,10 @@ final class SaleHandler implements PushHandler
         if ($this->issues->recordNegativeStock($sale, $item->register, $about)) {
             $flags[] = 'negative_stock';
         }
+        // Short only because sellable stock was expired (stage 11, step 5).
+        if ($this->issues->recordExpiredStock($sale, $item->register)) {
+            $flags[] = 'expired_stock';
+        }
         if ($recorded->overCreditLimit) {
             $flags[] = 'over_credit_limit';
         }

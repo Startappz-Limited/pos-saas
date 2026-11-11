@@ -15,6 +15,7 @@ use App\Models\Shop;
 use App\Models\StockAdjustmentItem;
 use App\Models\StockMovement;
 use App\Observers\ProductObserver;
+use App\Support\Stock\Expiry;
 use App\Support\Sync\SyncIssues;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
@@ -111,9 +112,19 @@ class StockLedger
 
             [$consumerType, $consumerId, $saleItemId] = $this->consumerKey($consumer);
 
+            // Expired batches are never sold (stage 11, step 5): only sellItem() passes
+            // exclude_expired; every other consumer (adjustments, write-offs, purchase returns) can
+            // still take them. FEFO/FIFO is the shop's business's own setting.
+            $excludeExpired = (bool) ($context['exclude_expired'] ?? false);
+            $shop = Shop::query()->find($shopId);
+            $boundary = $shop !== null ? Expiry::firstSellableDate($shop)->toDateString() : null;
+            $fefo = $shop !== null && $shop->business?->stockConsumption() === 'fefo';
+
             $layers = DB::table('cost_layers')
                 ->where('shop_id', $shopId)->where('variation_id', $variation->id)->where('remaining_quantity', '>', 0)
+                ->when($excludeExpired && $boundary !== null, fn ($query) => $query->where(fn ($q) => $q->whereNull('expiry_date')->orWhere('expiry_date', '>=', $boundary)))
                 ->when($preferredLayerId, fn ($query) => $query->orderByRaw('case when id = ? then 0 else 1 end', [$preferredLayerId]))
+                ->when($fefo, fn ($query) => $query->orderByRaw('expiry_date is null')->orderBy('expiry_date'))
                 ->orderBy('received_at')->orderBy('id')
                 ->lockForUpdate()
                 ->get();
@@ -287,7 +298,10 @@ class StockLedger
         // The selling shop, recorded on the line (stage 10, step 1a), else its sale's:
         // converted online orders record no shop on their lines.
         $shopId = (int) ($item->shop_id ?? DB::table('sales')->where('id', $item->sale_id)->value('shop_id'));
-        $change = $this->consume($shopId, $variation, Quantity::normalize($item->base_quantity), StockMovementType::SALE, $item, ['reference' => $context['reference'] ?? $item->sale, ...$context]);
+        // Expired batches are never sold (stage 11, step 5): the only caller that excludes them.
+        $change = $this->consume($shopId, $variation, Quantity::normalize($item->base_quantity), StockMovementType::SALE, $item, [
+            ...$context, 'reference' => $context['reference'] ?? $item->sale, 'exclude_expired' => true,
+        ]);
         $this->applyItemCost($item->id, $change->totalCost);
         // Whether every unit's cost is known (stage 10, step 6).
         DB::table('sale_items')->where('id', $item->id)->update(['cost_known' => $change->costKnown]);
@@ -519,6 +533,10 @@ class StockLedger
             'source_id' => $context['source_id'] ?? null,
             'stock_intake_id' => $context['stock_intake_id'] ?? null,
             'unit_cost' => $unitCost,
+            // A batch's number and expiry (stage 11, step 5): the caller already enforced that a
+            // variation tracking batches gives both; this just carries whatever it was given.
+            'batch_number' => $context['batch_number'] ?? null,
+            'expiry_date' => $context['expiry_date'] ?? null,
             'original_quantity' => $quantity,
             'remaining_quantity' => $quantity,
             'received_at' => $context['received_at'] ?? now(),

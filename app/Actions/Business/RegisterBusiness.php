@@ -2,6 +2,7 @@
 
 namespace App\Actions\Business;
 
+use App\Enums\BusinessType;
 use App\Models\Business;
 use App\Models\Plan;
 use App\Models\Shop;
@@ -25,7 +26,7 @@ class RegisterBusiness
     public function __construct(private TenantContext $tenant, private StartTrial $trial) {}
 
     /**
-     * @param  array{name: string, email: string, password: string, business_name: string, plan?: ?string, shop_count?: int|string|null}  $data
+     * @param  array{name: string, email: string, password: string, business_name: string, plan?: ?string, shop_count?: int|string|null, type?: BusinessType|string|null}  $data
      */
     public function execute(array $data): User
     {
@@ -41,6 +42,9 @@ class RegisterBusiness
 
             $business = Business::create([
                 'name' => $data['business_name'],
+                // Chosen at sign-up (stage 11, step 5); null (no field on the current form yet)
+                // takes stockConsumption()'s and tracksBatchesByDefault()'s own fifo/off fallback.
+                'type' => $data['type'] ?? null,
                 'status' => Business::STATUS_ACTIVE,
                 'trial_started_at' => now(),
                 'primary_owner_id' => $user->id,
