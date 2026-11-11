@@ -988,3 +988,30 @@ PR #28, `fix/access-tenancy` → `main` at `0e288c4`.
 - **`mobile:contract-diff` not run**: the Flutter app (`MOBILE_APP_PATH`) isn't on this machine.
 - **`members:clean-removed` not run anywhere yet**: run it once at rollout (stage 24), per step 1's note that it
   backfills `removed_at` for pre-stage removals.
+
+## Stage 11: Units, quantities and batches
+
+Branch: `feat/stock-units-batches` (from `main`). In progress. The stage file is the plan:
+[stages/11-units-quantities-and-batches.md](stages/11-units-quantities-and-batches.md).
+
+### Steps
+
+| Step | Done | What | Commit |
+|---|---|---|---|
+| 1 | 11 Nov | Stock and cost quantities moved from `int`/`float` to decimal strings handled with `bcmath` throughout `StockLedger` (a new `Quantity` cast normalises on read, truncates on write); columns widened to `decimal(15,3)`/`decimal(15,4)`. | `9a655ac` |
+| 2 | 11 Nov | `product_units` (per-variation units of measure) and `shop_unit_prices`: base-unit lock, factor locked once a unit is used on a line, soft deletes, barcode uniqueness. CSV import gained unit columns. | `d33ca56` |
+| 3 | 11 Nov | Selling in units: `sale_items`/`return_items` carry `unit_id` + `base_quantity`; `SaleLineUnit::resolve()` is the single resolution point for both sale and return lines; `StockLedger` consumes `base_quantity`, not the sold unit's own quantity. | `f3eebab` |
+| 4 | 11 Nov | `HasShopStock` gained `availableAt()`, `canBeSoldAt()`, `stockValueAt()`. First built with opening stock receivable through the product form at an entered cost — **reversed in the same-day follow-up below** once it was clear that bypassed stage 10's approval rule the same as any other stock shortcut. | `592db23`, ticked `4ee1217` |
+| 4 follow-up | 11 Nov | `stock_quantity` removed from every request path (web create/edit, flat API, CSV import): a product is always made and edited with no stock, whatever is sent. Two architecture tests now guard this (`StockQuantityWriteTest` from step 4, `StockQuantitySetterTest` new). Stage file's step 4 and "Opening stock" acceptance notes corrected to match. | `45a663a` |
+
+### Points to confirm, found while reconciling with decisions made since this stage file was written
+
+Before step 5, checked against three decisions made after this file was written, per the user's instruction to
+stop and ask only on a genuine conflict:
+- **Expiry write-offs via adjustments with stage 10's approval rule**: not yet reached (step 5 is next) — to
+  resolve when building it.
+- **`canBeSoldAt()` vs. the 5 November oversell rule**: no conflict in what's built so far — `canBeSoldAt()`
+  stays informational (not the enforcement point); the real oversell enforcement belongs inside
+  `StockLedger::consume()`/`sellItem()`, not yet built, and is step 5/later scope, not a step 4 defect.
+- **Business types / FIFO-FEFO default**: no conflict — UAT stays `general_retail` → FIFO, unchanged by anything
+  built so far.
