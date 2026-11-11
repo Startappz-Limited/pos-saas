@@ -112,6 +112,20 @@ class Product extends Model
                 $product->sku = static::generateSku();
             }
         });
+
+        // A deleted product's units go with it (stage 11, step 2): keeps its
+        // barcode free to reuse, since a variation (which doesn't soft-delete)
+        // would otherwise still hold it on its base unit. A raw update, not
+        // delete(): the base-unit guard is for someone removing a unit from a
+        // product still in use, not this cleanup. Units soft-delete (not the
+        // variation, which has no deleted_at), so nothing that already names
+        // one, or will via unit_id, loses its reference.
+        static::deleted(function (Product $product): void {
+            DB::table('product_units')
+                ->whereIn('variation_id', $product->sellableVariations()->pluck('id'))
+                ->whereNull('deleted_at')
+                ->update(['deleted_at' => now(), 'updated_at' => now()]);
+        });
     }
 
     // Relationships

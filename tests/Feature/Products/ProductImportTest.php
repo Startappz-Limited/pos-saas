@@ -77,7 +77,7 @@ describe('the page', function () {
         $template = $this->actingAs($this->owner)->get(route('products.import.template'))->assertOk()->streamedContent();
         $lines = array_values(array_filter(explode("\n", $template)));
 
-        expect($lines[0])->toBe('name,selling_price,sku,barcode,category,cost_price,wholesale_price,stock,reorder_level,unit')
+        expect($lines[0])->toBe('name,selling_price,sku,barcode,category,cost_price,wholesale_price,stock,reorder_level,unit,unit_precision,pack_unit,pack_factor,pack_barcode,pack_price')
             ->and($lines)->toHaveCount(3);
 
         uploadProducts($this, $this->owner, $this->shop, $template)->assertRedirect(route('products.index'))->assertSessionHas('success');
