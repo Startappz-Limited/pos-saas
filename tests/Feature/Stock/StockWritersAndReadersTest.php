@@ -154,14 +154,14 @@ describe('readers', function () {
     });
 
     it('raises low-stock alerts from the shop\'s own stock', function () {
-        expect(app(CheckLowStockLevels::class)->execute($this->shop->id, $this->user->id)->pluck('current_quantity')->all())->toBe([3])
+        expect(app(CheckLowStockLevels::class)->execute($this->shop->id, $this->user->id)->pluck('current_quantity')->all())->toBe(['3.000'])
             ->and(app(CheckLowStockLevels::class)->execute($this->otherShop->id, $this->user->id))->toBeEmpty();
     });
 
     it('snapshots the shop\'s own stock at its FIFO value', function () {
         $snapshot = app(CreateInventorySnapshot::class)->execute($this->shop->id)->sole();
 
-        expect($snapshot->quantity_on_hand)->toBe(3)
+        expect($snapshot->quantity_on_hand)->toBe('3.000')
             ->and((float) $snapshot->total_value)->toBe(30.0);
     });
 

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Casts\Quantity;
 use App\Models\Concerns\BelongsToShop;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -32,9 +33,9 @@ class ShopVariation extends Model
     protected function casts(): array
     {
         return [
-            'stock_quantity' => 'integer',
-            'reorder_level' => 'integer',
-            'cost_price' => 'decimal:2',
+            'stock_quantity' => Quantity::class,
+            'reorder_level' => Quantity::class,
+            'cost_price' => Quantity::class.':4',
             'selling_price' => 'decimal:2',
             'wholesale_price' => 'decimal:2',
             'is_active' => 'boolean',

@@ -41,14 +41,14 @@ class DeleteSale
                 throw BusinessRuleException::because(__('This sale has payments. Void it instead.'), 'sale_has_payments');
             }
 
-            $units = 0;
+            $units = '0.000';
             foreach ($sale->items()->orderBy('id')->get() as $item) {
-                $units += $this->ledger->release($item, StockMovementType::SALE_DELETE, ['reference' => $sale, 'user_id' => $by->id, 'notes' => "Sale {$sale->invoice_number} deleted."])?->quantity ?? 0;
+                $units = bcadd($units, $this->ledger->release($item, StockMovementType::SALE_DELETE, ['reference' => $sale, 'user_id' => $by->id, 'notes' => "Sale {$sale->invoice_number} deleted."])?->quantity ?? '0', 3);
             }
             $this->credit->reverse($sale, __('Sale deleted'));
             $sale->delete();
 
-            return $units;
+            return (int) $units;
         });
     }
 }

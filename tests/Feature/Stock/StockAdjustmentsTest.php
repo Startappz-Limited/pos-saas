@@ -95,7 +95,7 @@ it('writes the before and after figures when it is approved, not when it is draf
     $this->actingAs($this->manager)->post(route('stock-adjustments.approve', $adjustment))->assertRedirect();
 
     $line = $adjustment->items()->first();
-    expect([$line->quantity_before, $line->quantity_after])->toBe([8, 6])
+    expect([$line->quantity_before, $line->quantity_after])->toBe(['8.000', '6.000'])
         ->and(($this->quantity)($this->default))->toBe(6);
 });
 

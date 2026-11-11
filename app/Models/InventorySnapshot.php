@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Casts\Quantity;
 use App\Models\Concerns\BelongsToShop;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -29,7 +30,7 @@ class InventorySnapshot extends Model
     protected function casts(): array
     {
         return [
-            'quantity_on_hand' => 'integer',
+            'quantity_on_hand' => Quantity::class,
             'total_value' => 'decimal:2',
             'retail_value' => 'decimal:2',
             'snapshot_date' => 'date',

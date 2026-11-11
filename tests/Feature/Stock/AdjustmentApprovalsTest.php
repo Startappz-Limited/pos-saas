@@ -1,6 +1,7 @@
 <?php
 
 use App\Actions\Business\RemoveFromBusiness;
+use App\Casts\Quantity;
 use App\Enums\StockMovementType;
 use App\Models\Product;
 use App\Models\ProductVariation;
@@ -215,7 +216,7 @@ describe('history', function () {
         $this->actingAs($this->owner)->get(route('stock-adjustments.edit', $applied))->assertForbidden();
         $this->actingAs($this->owner)->put(route('stock-adjustments.update', $applied), ['reason' => 'found', 'items' => [['product_id' => $this->product->id, 'quantity_change' => 5]]])->assertForbidden();
         $this->actingAs($this->owner)->post(route('stock-adjustments.cancel', $applied))->assertForbidden();
-        expect($applied->fresh()->items->first()->quantity_change)->toBe(1);
+        expect($applied->fresh()->items->first()->quantity_change)->toBe('1.000');
     });
 
     it('still shows an old "returned to supplier" adjustment, and points an unapplied one at purchase returns', function () {
@@ -245,7 +246,7 @@ describe('history', function () {
 
         expect(app(LegacyAdjustmentSigns::class)->fix())->toBe(1)
             ->and(app(LegacyAdjustmentSigns::class)->fix())->toBe(0)
-            ->and([$old->fresh()->quantity_change, $imported->fresh()->quantity_change, $increase->fresh()->quantity_change])->toBe([-4, -3, 5]);
+            ->and([$old->fresh()->quantity_change, $imported->fresh()->quantity_change, $increase->fresh()->quantity_change])->toBe(['-4.000', '-3.000', '5.000']);
     });
 });
 
@@ -260,5 +261,5 @@ it('records a purchase return with no purchase order, for stock bought before th
     $return = PurchaseReturn::query()->latest('id')->firstOrFail();
     expect($return->purchase_order_id)->toBeNull()
         ->and($return->items()->sole()->stock_intake_id)->toBeNull();
-    expect(DB::table('purchase_return_items')->where('purchase_return_id', $return->id)->value('quantity'))->toBe(2);
+    expect(Quantity::normalize(DB::table('purchase_return_items')->where('purchase_return_id', $return->id)->value('quantity')))->toBe('2.000');
 });

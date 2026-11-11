@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Casts\Quantity;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -34,6 +35,7 @@ class ReturnItem extends Model
     protected function casts(): array
     {
         return [
+            'quantity' => Quantity::class,
             'unit_price' => 'decimal:2',
             'total_price' => 'decimal:2',
             'is_restockable' => 'boolean',

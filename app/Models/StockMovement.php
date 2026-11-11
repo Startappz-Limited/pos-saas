@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Casts\Quantity;
 use App\Enums\StockMovementType;
 use App\Models\Concerns\BelongsToShop;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
@@ -37,10 +38,10 @@ class StockMovement extends Model
     {
         return [
             'movement_type' => StockMovementType::class,
-            'quantity' => 'integer',
-            'quantity_before' => 'integer',
-            'quantity_after' => 'integer',
-            'unit_cost' => 'decimal:2',
+            'quantity' => Quantity::class,
+            'quantity_before' => Quantity::class,
+            'quantity_after' => Quantity::class,
+            'unit_cost' => Quantity::class.':4',
         ];
     }
 

@@ -38,7 +38,7 @@ class MarkPurchaseReturnShippedAction
                     ? DB::table('cost_layers')->where('stock_intake_id', $item->stock_intake_id)->where('variation_id', $variation->id)->value('id')
                     : null;
 
-                $this->ledger->consume((int) $purchaseReturn->shop_id, $variation, (int) $item->quantity, StockMovementType::SUPPLIER_RETURN, $item, [
+                $this->ledger->consume((int) $purchaseReturn->shop_id, $variation, $item->quantity, StockMovementType::SUPPLIER_RETURN, $item, [
                     'reference' => $purchaseReturn,
                     'notes' => "Returned to supplier via {$purchaseReturn->return_number}.",
                     'user_id' => $userId,

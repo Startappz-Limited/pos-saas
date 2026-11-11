@@ -54,7 +54,7 @@ class NewEcommerceOrderNotification extends Notification implements ShouldQueue
             ->line("**Items ({$order->items->count()}):**");
 
         foreach ($order->items as $item) {
-            $mail->line("- {$item->name} x{$item->quantity}");
+            $mail->line("- {$item->name} x".(int) $item->quantity);
         }
 
         return $mail
@@ -83,7 +83,7 @@ class NewEcommerceOrderNotification extends Notification implements ShouldQueue
         $order->loadMissing('items');
 
         $itemsSummary = $order->items
-            ->map(fn ($item) => "{$item->name} x{$item->quantity}")
+            ->map(fn ($item) => "{$item->name} x".(int) $item->quantity)
             ->implode(', ');
 
         return (new WhatsAppTemplateMessage(

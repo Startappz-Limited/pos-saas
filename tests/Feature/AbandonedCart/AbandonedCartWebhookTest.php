@@ -87,7 +87,7 @@ describe('acr_cart.cutoff', function () {
             ->and($item->name)->toBe('Yoga Mat')
             ->and($item->platform_product_id)->toBe('11')
             ->and($item->platform_variation_id)->toBeNull()
-            ->and($item->quantity)->toBe(2)
+            ->and($item->quantity)->toBe('2.000')
             ->and($item->unit_price)->toBe('1160.00')
             ->and($item->line_total)->toBe('2320.00')
             ->and($item->image_url)->toBe('https://shop.test/wp-content/uploads/mat.jpg');
@@ -174,7 +174,7 @@ describe('acr_cart.cutoff', function () {
             ->and($cart->total)->toBe('580.00')
             ->and($cart->abandoned_at->getTimestamp())->toBe(1790000000)
             ->and($item->platform_product_id)->toBe('77')
-            ->and($item->quantity)->toBe(1)
+            ->and($item->quantity)->toBe('1.000')
             ->and($item->unit_price)->toBe('580.00')
             ->and($item->sku)->toBeNull()
             ->and($item->image_url)->toBeNull();

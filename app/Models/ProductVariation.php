@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Casts\Quantity;
 use App\Enums\ProductStatus;
 use App\Enums\TaxClass;
 use App\Models\Concerns\BelongsToBusiness;
@@ -48,7 +49,7 @@ class ProductVariation extends Model
             'status' => ProductStatus::class,
             'attributes' => 'array',
             'is_default' => 'boolean',
-            'cost_price' => 'decimal:2',
+            'cost_price' => Quantity::class.':4',
             'selling_price' => 'decimal:2',
             'wholesale_price' => 'decimal:2',
             'tax_class' => TaxClass::class,

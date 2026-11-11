@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Casts\Quantity;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -28,6 +29,7 @@ class EcommerceOrderItem extends Model
     protected function casts(): array
     {
         return [
+            'quantity' => Quantity::class,
             'platform_data' => 'array',
         ];
     }

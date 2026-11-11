@@ -136,7 +136,7 @@ class NotifyCustomerOfSale
 
         foreach ($sale->items as $item) {
             $productName = $item->product?->name ?? 'Item';
-            $lines[] = "• {$productName} x{$item->quantity} — ".number_format((float) $item->line_total, 2);
+            $lines[] = "• {$productName} x".((int) $item->quantity).' — '.number_format((float) $item->line_total, 2);
         }
 
         $lines[] = '';

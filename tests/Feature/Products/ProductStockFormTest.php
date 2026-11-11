@@ -103,7 +103,7 @@ it('saves a variation\'s threshold where the low-stock check reads it', function
     ]))->assertSessionHasNoErrors();
 
     $variation = ProductVariation::query()->where('sku', 'TEA-S')->firstOrFail();
-    expect(ShopVariation::query()->where('shop_id', $this->shop->id)->where('variation_id', $variation->id)->value('reorder_level'))->toBe(2);
+    expect(ShopVariation::query()->where('shop_id', $this->shop->id)->where('variation_id', $variation->id)->value('reorder_level'))->toBe('2.000');
 });
 
 describe('the /api/v1 import', function () {

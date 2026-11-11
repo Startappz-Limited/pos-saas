@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Casts\Quantity;
 use App\Models\Concerns\BelongsToBusiness;
 use App\Models\Concerns\BelongsToShop;
 use Illuminate\Database\Eloquent\Model;
@@ -46,10 +47,10 @@ class CostAllocation extends Model
     protected function casts(): array
     {
         return [
-            'unit_cost' => 'decimal:2',
+            'unit_cost' => Quantity::class.':4',
             'total_cost' => 'decimal:2',
-            'provisional_unit_cost' => 'decimal:2',
-            'quantity_allocated' => 'integer',
+            'provisional_unit_cost' => Quantity::class.':4',
+            'quantity_allocated' => Quantity::class,
             'is_provisional' => 'boolean',
             'allocated_at' => 'datetime',
             'settled_at' => 'datetime',

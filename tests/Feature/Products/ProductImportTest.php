@@ -175,7 +175,7 @@ describe('products already in the system', function () {
 
         $tea = $this->tea->fresh();
         expect(stockIn($tea, $this->shop))->toBe(25)
-            ->and(ShopVariation::query()->where('shop_id', $this->shop->id)->where('variation_id', $tea->defaultVariation()->first()->id)->value('reorder_level'))->toBe(8)
+            ->and(ShopVariation::query()->where('shop_id', $this->shop->id)->where('variation_id', $tea->defaultVariation()->first()->id)->value('reorder_level'))->toBe('8.000')
             ->and($tea->name)->toBe('Tea')
             ->and((float) $tea->selling_price)->toBe(100.0)
             ->and(stockIn(productNamed('Coffee'), $this->shop))->toBe(3)

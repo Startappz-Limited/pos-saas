@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Casts\Quantity;
 use App\Models\Concerns\BelongsToShop;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -28,9 +29,9 @@ class StockAdjustmentItem extends Model
     protected function casts(): array
     {
         return [
-            'quantity_before' => 'integer',
-            'quantity_change' => 'integer',
-            'quantity_after' => 'integer',
+            'quantity_before' => Quantity::class,
+            'quantity_change' => Quantity::class,
+            'quantity_after' => Quantity::class,
         ];
     }
 

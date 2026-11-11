@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Casts\Quantity;
 use App\Models\Concerns\BelongsToBusiness;
 use App\Models\Concerns\BelongsToShop;
 use Illuminate\Database\Eloquent\Model;
@@ -47,9 +48,9 @@ class CostLayer extends Model
     protected function casts(): array
     {
         return [
-            'unit_cost' => 'decimal:2',
-            'original_quantity' => 'integer',
-            'remaining_quantity' => 'integer',
+            'unit_cost' => Quantity::class.':4',
+            'original_quantity' => Quantity::class,
+            'remaining_quantity' => Quantity::class,
             'received_at' => 'datetime',
             'consumed_at' => 'datetime',
         ];

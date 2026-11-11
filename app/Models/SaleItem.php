@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Casts\Quantity;
 use App\Enums\TaxClass;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -39,6 +40,8 @@ class SaleItem extends Model
         return [
             'cost_known' => 'boolean',
             'tax_class' => TaxClass::class,
+            'quantity' => Quantity::class,
+            'unit_cost' => Quantity::class.':4',
             'tax_rate' => 'decimal:3',
             'tax_amount' => 'decimal:2',
             'taxable_amount' => 'decimal:2',

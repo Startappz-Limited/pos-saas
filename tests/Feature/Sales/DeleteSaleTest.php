@@ -80,7 +80,7 @@ it('deletes a pending sale with no payments: stock back (SALE_DELETE), soft-dele
         ->and(SaleItem::where('sale_id', $sale->id)->count())->toBe(1);
 
     $movement = StockMovement::where('movement_type', StockMovementType::SALE_DELETE->value)->sole();
-    expect($movement->quantity)->toBe(3)
+    expect($movement->quantity)->toBe('3.000')
         ->and($movement->reference?->is($kept))->toBeTrue();
 
     // The number stays taken: a new sale can't reuse it.
