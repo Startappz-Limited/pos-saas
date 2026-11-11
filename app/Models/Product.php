@@ -186,6 +186,12 @@ class Product extends Model
         return $this->defaultVariation()->first();
     }
 
+    /** Whether this product tracks stock (stage 11, step 4). */
+    protected function tracksStock(): bool
+    {
+        return (bool) $this->track_stock;
+    }
+
     /**
      * The variations people created; the default variation isn't one of them.
      */
@@ -340,19 +346,9 @@ class Product extends Model
         return $this->status === ProductStatus::ACTIVE;
     }
 
-    public function isOutOfStock(): bool
-    {
-        return $this->stock_quantity <= 0;
-    }
-
     public function isLowStock(): bool
     {
         return $this->stock_quantity <= $this->reorder_level;
-    }
-
-    public function canBeSold(): bool
-    {
-        return $this->status->canBeSold() && ($this->stock_quantity > 0 || ! $this->track_stock);
     }
 
     /**
@@ -384,11 +380,6 @@ class Product extends Model
     public function getProfitAttribute(): float
     {
         return $this->selling_price - (float) $this->cost_price;
-    }
-
-    public function getTotalStockValueAttribute(): float
-    {
-        return $this->stock_quantity * (float) $this->cost_price;
     }
 
     /**

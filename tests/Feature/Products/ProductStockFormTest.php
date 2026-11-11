@@ -52,6 +52,25 @@ it('saves the opening stock in the owning shop and the threshold, on create', fu
         ->and(DB::table('stock_movements')->where('product_id', $product->id)->count())->toBe(1);
 });
 
+it('receives opening stock at the cost entered on the form (stage 11, step 4)', function () {
+    $this->actingAs($this->owner)->post(route('products.store'), productForm(['stock_quantity' => 15, 'cost_price' => 42]))
+        ->assertSessionHasNoErrors();
+
+    $product = Product::query()->where('name', 'Form Tea')->firstOrFail();
+    $layer = DB::table('cost_layers')->where('variation_id', $product->defaultVariation->id)->sole();
+    expect((float) $layer->unit_cost)->toBe(42.0)
+        ->and($layer->source_type)->toBe('opening');
+});
+
+it('receives opening stock at an unknown cost when none is entered', function () {
+    $this->actingAs($this->owner)->post(route('products.store'), productForm(['stock_quantity' => 15, 'cost_price' => '']))
+        ->assertSessionHasNoErrors();
+
+    $product = Product::query()->where('name', 'Form Tea')->firstOrFail();
+    $layer = DB::table('cost_layers')->where('variation_id', $product->defaultVariation->id)->sole();
+    expect($layer->unit_cost)->toBeNull();
+});
+
 it('still accepts the old low_stock_threshold field', function () {
     $this->actingAs($this->owner)->post(route('products.store'), productForm(['low_stock_threshold' => 3]))->assertSessionHasNoErrors();
 

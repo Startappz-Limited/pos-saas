@@ -222,18 +222,20 @@ class StockLedger
 
     /**
      * Moves a shop's stock of a variation to $target (a figure set on a
-     * product or variation): the difference is received at the fallback cost
-     * or written off, oldest layers first.
+     * product or variation): the difference is received at $unitCost (else
+     * the fallback cost) or written off, oldest layers first. $context may
+     * give its own 'source_type' (stage 11, step 4: opening stock uses
+     * CostLayer::SOURCE_OPENING); it defaults to an adjustment.
      */
-    public function setLevel(int $shopId, ProductVariation $variation, int|float|string $target, array $context = []): ?StockChange
+    public function setLevel(int $shopId, ProductVariation $variation, int|float|string $target, array $context = [], ?float $unitCost = null): ?StockChange
     {
-        return DB::transaction(function () use ($shopId, $variation, $target, $context): ?StockChange {
+        return DB::transaction(function () use ($shopId, $variation, $target, $context, $unitCost): ?StockChange {
             $target = Quantity::normalize($target);
             $delta = bcsub($target, $this->lockStock($shopId, $variation), 3);
             $cmp = bccomp($delta, '0', 3);
 
             return match (true) {
-                $cmp > 0 => $this->receive($shopId, $variation, $delta, $this->fallbackCost($shopId, $variation), StockMovementType::ADJUSTMENT_ADD, [...$context, 'source_type' => CostLayer::SOURCE_ADJUSTMENT]),
+                $cmp > 0 => $this->receive($shopId, $variation, $delta, $unitCost ?? $this->fallbackCost($shopId, $variation), StockMovementType::ADJUSTMENT_ADD, [...$context, 'source_type' => $context['source_type'] ?? CostLayer::SOURCE_ADJUSTMENT]),
                 $cmp < 0 => $this->consume($shopId, $variation, bcmul($delta, '-1', 3), StockMovementType::ADJUSTMENT_REMOVE, $variation, $context),
                 default => null,
             };

@@ -1,11 +1,13 @@
 <?php
 
 use App\Enums\ProductStatus;
+use App\Enums\StockMovementType;
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\Role;
 use App\Models\Shop;
 use App\Models\User;
+use App\Services\Stock\StockLedger;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Spatie\Permission\Models\Permission;
@@ -252,8 +254,39 @@ test('product out of stock state works', function () {
     $product = Product::factory()->outOfStock()->create();
 
     expect($product->status)->toBe(ProductStatus::OUT_OF_STOCK)
-        ->and($product->stock_quantity)->toBe(0)
-        ->and($product->isOutOfStock())->toBeTrue();
+        ->and($product->stock_quantity)->toBe(0);
+});
+
+test('availableAt and canBeSoldAt answer per shop (stage 11, step 4)', function () {
+    $shopA = Shop::factory()->create();
+    $shopB = Shop::factory()->create();
+    $product = Product::factory()->active()->create(['shop_id' => $shopA->id, 'stock_quantity' => 0]);
+    app(StockLedger::class)->receive($shopB->id, $product->defaultVariation, 50, 10, StockMovementType::INTAKE);
+
+    expect($product->availableAt($shopA))->toBe('0.000')
+        ->and($product->canBeSoldAt($shopA))->toBeFalse()
+        ->and($product->availableAt($shopB))->toBe('50.000')
+        ->and($product->canBeSoldAt($shopB))->toBeTrue();
+});
+
+test('canBeSoldAt allows an untracked product with no stock', function () {
+    $shop = Shop::factory()->create();
+    $product = Product::factory()->active()->create(['shop_id' => $shop->id, 'stock_quantity' => 0, 'track_stock' => false]);
+
+    expect($product->canBeSoldAt($shop))->toBeTrue();
+});
+
+test('stockValueAt sums the batches, with unknown-cost batches apart', function () {
+    $shop = Shop::factory()->create();
+    $product = Product::factory()->active()->create(['shop_id' => $shop->id, 'stock_quantity' => 0]);
+    $ledger = app(StockLedger::class);
+    $ledger->receive($shop->id, $product->defaultVariation, 10, 5, StockMovementType::INTAKE);
+    $ledger->receive($shop->id, $product->defaultVariation, 4, null, StockMovementType::INTAKE);
+
+    $value = $product->stockValueAt($shop);
+
+    expect($value['known'])->toBe(50.0)
+        ->and($value['unknown_quantity'])->toBe('4.000');
 });
 
 test('product low stock state works', function () {
@@ -272,14 +305,15 @@ test('isActive method returns correct boolean', function () {
         ->and($inactiveProduct->isActive())->toBeFalse();
 });
 
-test('canBeSold method checks status and stock', function () {
-    $activeProduct = Product::factory()->active()->create(['stock_quantity' => 10]);
-    $outOfStockProduct = Product::factory()->create(['status' => ProductStatus::ACTIVE, 'stock_quantity' => 0]);
-    $inactiveProduct = Product::factory()->inactive()->create(['stock_quantity' => 10]);
+test('canBeSoldAt checks status and stock', function () {
+    $shop = Shop::factory()->create();
+    $activeProduct = Product::factory()->active()->create(['shop_id' => $shop->id, 'stock_quantity' => 10]);
+    $outOfStockProduct = Product::factory()->create(['shop_id' => $shop->id, 'status' => ProductStatus::ACTIVE, 'stock_quantity' => 0]);
+    $inactiveProduct = Product::factory()->inactive()->create(['shop_id' => $shop->id, 'stock_quantity' => 10]);
 
-    expect($activeProduct->canBeSold())->toBeTrue()
-        ->and($outOfStockProduct->canBeSold())->toBeFalse()
-        ->and($inactiveProduct->canBeSold())->toBeFalse();
+    expect($activeProduct->canBeSoldAt($shop))->toBeTrue()
+        ->and($outOfStockProduct->canBeSoldAt($shop))->toBeFalse()
+        ->and($inactiveProduct->canBeSoldAt($shop))->toBeFalse();
 });
 
 test('profit margin is calculated correctly', function () {

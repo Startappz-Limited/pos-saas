@@ -2,6 +2,7 @@
 
 namespace App\Actions\Product;
 
+use App\Actions\Product\Concerns\AppliesOpeningStock;
 use App\Actions\Product\Concerns\GuardsPurchaseCost;
 use App\Enums\ProductStatus;
 use App\Models\Product;
@@ -13,6 +14,7 @@ use Illuminate\Support\Str;
 
 class UpdateProductAction
 {
+    use AppliesOpeningStock;
     use GuardsPurchaseCost;
 
     public function execute(Product $product, array $data): Product
@@ -22,8 +24,10 @@ class UpdateProductAction
         $variations = $data['variations'] ?? null;
         $shouldSyncShops = array_key_exists('sync_shops', $data) || array_key_exists('shop_ids', $data);
         $shopIds = $data['shop_ids'] ?? [];
+        // Applied explicitly below, at the cost entered (stage 11, step 4).
+        $newStock = array_key_exists('stock_quantity', $data) ? $data['stock_quantity'] : null;
 
-        unset($data['variations']);
+        unset($data['variations'], $data['stock_quantity']);
         unset($data['sync_shops'], $data['shop_ids']);
 
         if (array_key_exists('image', $data)) {
@@ -54,6 +58,10 @@ class UpdateProductAction
             $product->syncShopVariationRows();
         }
 
+        if ($newStock !== null && $newStock !== '') {
+            $this->applyOpeningStock($product, $product->createDefaultVariation(), $newStock, $product->cost_price !== null ? (float) $product->cost_price : null);
+        }
+
         // Sync variations when has_variations is enabled and variations data is provided
         if ($product->has_variations && $variations !== null) {
             $existingIds = $product->variations()->pluck('id')->toArray();
@@ -71,7 +79,6 @@ class UpdateProductAction
                             'selling_price' => $variationData['selling_price'],
                             'wholesale_price' => $variationData['wholesale_price'] ?? null,
                             'tax_class' => $variationData['tax_class'] ?? null,
-                            'stock_quantity' => $variationData['stock_quantity'] ?? 0,
                         ];
 
                         // Absent key means "not submitted" (filtered out for a
@@ -82,6 +89,7 @@ class UpdateProductAction
                         }
 
                         $variation->update($payload);
+                        $this->applyOpeningStock($product, $variation, $variationData['stock_quantity'] ?? null, $variation->cost_price !== null ? (float) $variation->cost_price : null);
                         $this->setVariationThreshold($product, $variation, $variationData);
                         $submittedIds[] = $variation->id;
                     }
@@ -97,9 +105,9 @@ class UpdateProductAction
                         'selling_price' => $variationData['selling_price'],
                         'wholesale_price' => $variationData['wholesale_price'] ?? null,
                         'tax_class' => $variationData['tax_class'] ?? null,
-                        'stock_quantity' => $variationData['stock_quantity'] ?? 0,
                         'status' => ProductStatus::ACTIVE,
                     ]);
+                    $this->applyOpeningStock($product, $newVariation, $variationData['stock_quantity'] ?? null, isset($variationData['cost_price']) ? (float) $variationData['cost_price'] : null);
                     $this->setVariationThreshold($product, $newVariation, $variationData);
                     $submittedIds[] = $newVariation->id;
                 }

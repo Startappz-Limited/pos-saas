@@ -157,16 +157,6 @@ class ProductVariation extends Model
         return $this->status === ProductStatus::ACTIVE;
     }
 
-    public function isOutOfStock(): bool
-    {
-        return $this->stock_quantity <= 0;
-    }
-
-    public function canBeSold(): bool
-    {
-        return $this->status->canBeSold() && $this->stock_quantity > 0;
-    }
-
     /**
      * Whether a real purchase cost has been recorded for this variation.
      */
@@ -213,6 +203,12 @@ class ProductVariation extends Model
     protected function stockVariation(): ?ProductVariation
     {
         return $this;
+    }
+
+    /** Whether this variation's product tracks stock (stage 11, step 4). */
+    protected function tracksStock(): bool
+    {
+        return (bool) (Product::withoutGlobalScopes()->find($this->product_id)?->track_stock ?? true);
     }
 
     /**

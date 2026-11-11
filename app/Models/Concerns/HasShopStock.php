@@ -2,9 +2,13 @@
 
 namespace App\Models\Concerns;
 
+use App\Casts\Quantity;
+use App\Models\ProductVariation;
+use App\Models\Shop;
 use App\Services\Stock\StockLedger;
 use App\Services\Stock\StockQuery;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -17,10 +21,18 @@ use Illuminate\Support\Facades\Log;
  *   query with withStockOnHand().
  * - Setting it (forms, the flat API, factories) moves the stock in the
  *   product's own shop to that figure when the record is saved, through the
- *   ledger: an adjustment, with a movement and FIFO layers.
+ *   ledger: an adjustment, with a movement and FIFO layers. Kept for tests and
+ *   other callers with no cost to give; `App\Actions\Product\Concerns\
+ *   AppliesOpeningStock` (stage 11, step 4) is what the product form and the
+ *   flat API use instead, since it can pass the cost entered.
+ *
+ * Also the shop-aware stock questions (stage 11, step 4), replacing the old
+ * shop-blind `isOutOfStock()`/`canBeSold()`/`getTotalStockValueAttribute()`:
+ * `availableAt()`, `canBeSoldAt()`, `stockValueAt()`. Expired batches aren't
+ * shown apart yet (stage 11, step 5 adds expiry to cost layers).
  *
  * The using model defines stockKey() (the shop_variation column to match),
- * stockShopId() and stockVariation().
+ * stockShopId(), stockVariation() and tracksStock().
  */
 trait HasShopStock
 {
@@ -99,5 +111,64 @@ trait HasShopStock
         }
 
         app(StockLedger::class)->setLevel($shopId, $variation, $target, ['reference' => $this, 'notes' => 'Stock figure set on the product.']);
+    }
+
+    /**
+     * Stock of $variation (this model's own variation — its default one, for
+     * a product — when none given) at $shop, in base units.
+     */
+    public function availableAt(Shop $shop, ?ProductVariation $variation = null): string
+    {
+        $variation ??= $this->stockVariation();
+
+        return app(StockLedger::class)->exactQuantity($shop->id, $variation->id);
+    }
+
+    /**
+     * Whether $variation (this model's own, when it's a variation) can be
+     * sold at $shop: the status allows it, and either stock isn't tracked or
+     * the shop holds more than zero. Selling below zero stays allowed on the
+     * till — this only gates whether the till offers the item at all.
+     */
+    public function canBeSoldAt(Shop $shop, ?ProductVariation $variation = null): bool
+    {
+        if (! $this->status->canBeSold()) {
+            return false;
+        }
+
+        if (! $this->tracksStock()) {
+            return true;
+        }
+
+        return bccomp($this->availableAt($shop, $variation), '0', 3) > 0;
+    }
+
+    /**
+     * The value of stock held at $shop (every shop the viewer may access,
+     * when none given): the batches' remaining quantity times their cost.
+     * Batches with no known cost are counted apart, not as zero. Expired
+     * batches aren't separated yet (stage 11, step 5).
+     *
+     * @return array{known: float, unknown_quantity: string}
+     */
+    public function stockValueAt(?Shop $shop = null): array
+    {
+        $query = DB::table('cost_layers')->where($this->stockKey(), $this->id)->where('remaining_quantity', '>', 0);
+        $shop !== null ? $query->where('shop_id', $shop->id) : $query->whereIn('shop_id', app(StockQuery::class)->shops());
+
+        $known = 0.0;
+        $unknownQuantity = '0.000';
+
+        foreach ($query->get(['remaining_quantity', 'unit_cost']) as $layer) {
+            $quantity = Quantity::normalize($layer->remaining_quantity);
+            if ($layer->unit_cost === null) {
+                $unknownQuantity = bcadd($unknownQuantity, $quantity, 3);
+
+                continue;
+            }
+            $known += (float) bcmul($quantity, (string) $layer->unit_cost, 6);
+        }
+
+        return ['known' => round($known, 2), 'unknown_quantity' => $unknownQuantity];
     }
 }
