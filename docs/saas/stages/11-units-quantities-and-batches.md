@@ -361,7 +361,7 @@ Every part of this stage keeps to the tenancy rules: business-owned records use 
 `TenantIsolation/ResourceMatrixTest`; a manager reaches only the shops they work in.
 
 ### 1. Decimal quantities
-- [ ] **Migrations widen every stock quantity to `decimal(15,3)`**, values unchanged:
+- [x] **Migrations widen every stock quantity to `decimal(15,3)`**, values unchanged:
       `shop_variation.stock_quantity` and `reorder_level`; `cost_layers.original_quantity` and `remaining_quantity`;
       `cost_allocations.quantity_allocated`; `stock_movements.quantity`, `quantity_before`, `quantity_after`;
       `sale_items.quantity`; `return_items.quantity`; `stock_adjustment_items.quantity_before`, `quantity_change`,
@@ -370,30 +370,34 @@ Every part of this stage keeps to the tenancy rules: business-owned records use 
       (inventory snapshots, low-stock alerts, online-order and abandoned-cart lines) is widened too and listed in the
       PR. `stock_intakes` stays as it is (read-only history). `pricing_rules.min_quantity` / `max_quantity` stay
       whole base units (step 3).
-- [ ] **Unit costs widen to `decimal(15,4)`:** `cost_layers.unit_cost`, `cost_allocations.unit_cost` and
+- [x] **Unit costs widen to `decimal(15,4)`:** `cost_layers.unit_cost`, `cost_allocations.unit_cost` and
       `provisional_unit_cost`, `sale_items.unit_cost`, `stock_movements.unit_cost`, `product_variations.cost_price`
       and `shop_variation.cost_price` (costs per base unit). Totals stay `decimal(…,2)`, rounded once at the total. A
       carton of 24 at KES 1,000 costs 41.6667 a piece, and 24 pieces still cost exactly KES 1,000.
-- [ ] **No floats for quantities.** `StockLedger` takes and returns quantities as decimal strings at scale 3, and its
+- [x] **No floats for quantities.** `StockLedger` takes and returns quantities as decimal strings at scale 3, and its
       arithmetic and comparisons use `bcmath` (`bcadd`, `bcsub`, `bcmul`, `bccomp`). `StockChange` carries strings.
       The same applies to `HasShopStock`, `CheckLowStockLevels`, inventory snapshots and every report that sums
       quantities in PHP. Raw queries that cast stock `as signed` cast to `decimal(15,3)`.
-- [ ] **One cast for quantities, for storage only:** `App\Casts\Quantity` reads a widened column as a scale-3 string
+- [x] **One cast for quantities, for storage only:** `App\Casts\Quantity` reads a widened column as a scale-3 string
       for storage and `bcmath` arithmetic. A model's `toArray()` / JSON gives that string too (`"2.000"`), so nothing
       becomes a number by accident; encoding for an API is step 8's job. Every widened quantity column on a model
-      uses it.
-- [ ] **Validation reads the unit's precision.** `App\Rules\QuantityForUnit` checks a quantity against the unit it is
+      uses it. **Built as round on read, truncate on write** (not truncate both ways as written here): SQLite
+      stores these columns as doubles, so a raw read can land a hair under the true value at the last digit;
+      rounding absorbs that, and writing only ever normalises an already-clean `bcmath` value, where there is no
+      such noise to round away.
+- [x] **Validation reads the unit's precision.** `App\Rules\QuantityForUnit` checks a quantity against the unit it is
       entered in: more than 0, at most the precision's decimals. A fraction for a precision-0 unit is refused
       ("Panadol tablets are sold whole: enter a whole number of tablets, or sell by the strip."). Every form request
-      and push handler with a quantity uses it; `integer` rules on quantities go.
-- [ ] Tests:
+      and push handler with a quantity uses it; `integer` rules on quantities go. Built generically (not yet wired to
+      real units, which land in step 2); wired into `StoreSaleRequest` in step 3.
+- [x] Tests:
   - the widening migrations leave every value unchanged (row counts and sums per table, on SQLite and MySQL);
   - 2.5 kg sold from 50 kg leaves 47.5, and 0.1 + 0.2 kg sold leaves exactly 0.3 kg less (no float drift);
   - the ledger invariant holds with decimal quantities, for receive, consume, release and settling below zero;
   - a fraction of a tablet is refused online; 1.250 kg is accepted, 1.2505 kg is refused.
 
 ### 2. Units of measure (`product_units`)
-- [ ] **Schema:** `product_units`: `uuid`, `business_id` (`BelongsToBusiness`), `variation_id`, `name`, `factor`
+- [x] **Schema:** `product_units`: `uuid`, `business_id` (`BelongsToBusiness`), `variation_id`, `name`, `factor`
       (`decimal(15,3)`, base units in one of this unit, more than 0), `precision` (0 to 3), `barcode` (nullable,
       unique per business among live units), `selling_price`, `wholesale_price` (nullable; `decimal(10,2)`, per this
       unit), `is_base`, `can_sell`, `can_buy`, `is_default_purchase`, `sort_order`, `created_by`/`updated_by`,
@@ -406,40 +410,50 @@ Every part of this stage keeps to the tenancy rules: business-owned records use 
   - Unit names are unique per variation. At most one `is_default_purchase` per variation.
   - A non-base unit's factor must give a base quantity the base unit's precision can hold (a bag of 50 kg: fine; a
     pack of 2.5 tablets: refused).
-- [ ] **Shop prices per unit:** `shop_unit_prices` (`shop_id`, `unit_id`, `selling_price`, `wholesale_price`;
+- [x] **Shop prices per unit:** `shop_unit_prices` (`shop_id`, `unit_id`, `selling_price`, `wholesale_price`;
       `BelongsToShop`; unique on shop and unit). The only place a shop overrides a price. **This stage owns the table
       and its copy** (step 7), because release 2 drops the columns it replaces; the shop's existing price screen writes
-      it for the base unit. Stage 11b adds editing every unit's shop price, and `PriceResolver`.
-- [ ] **`App\Support\Pricing\UnitPrice::for(Shop $shop, ProductUnit $unit, ?Customer $customer = null)`:** the unit's
+      it for the base unit. Stage 11b adds editing every unit's shop price, and `PriceResolver`. **Departure:** no
+      such screen was found in the codebase (searched; nothing currently writes a shop price override anywhere), so
+      there is nothing to wire into yet — flagged rather than guessed at. The table and `UnitPrice` work regardless.
+- [x] **`App\Support\Pricing\UnitPrice::for(Shop $shop, ProductUnit $unit, ?Customer $customer = null)`:** the unit's
       price by the order in "Decisions that apply" (shop price, the unit's own, base × factor; `wholesale_price` for a
       wholesale customer when set). It backs the APIs' computed price fields (step 7) and the web POS until stage 11b's
       `quote()` replaces it there.
-- [ ] **A unit's factor is locked once used.** `ProductUnit::isUsed()` is true once the unit appears on any line
+- [x] **A unit's factor is locked once used.** `ProductUnit::isUsed()` is true once the unit appears on any line
       (`sale_items`, `return_items` here; stage 12 adds GRN, purchase-order and transfer lines to the same list,
       `ProductUnit::USED_ON`). Adjustment lines take units too (step 3), so `stock_adjustment_items` is on the list.
-      Once used:
+      **Built with `USED_ON` starting empty in this step** (`sale_items`/`return_items` have no `unit_id` column
+      until step 3 adds it — checking them before that would throw on every edit) and filled in step 3, alongside the
+      columns it checks. **Adjustment lines are deferred** (see step 3's note); `stock_adjustment_items` isn't on the
+      list yet. Once used:
   - a model guard (`updating`) refuses a `factor` change with `UnitInUse`, so the API, imports and tinker can't
-    change it either;
+    change it either; built as `BusinessRuleException::because(..., 'unit_in_use')` (an error code, not a dedicated
+    exception class), matching how every other business rule in this codebase is thrown;
   - the product form shows the factor read-only, with "To change the pack size, add a new unit and stop selling this
-    one.";
+    one."; **not built** (no product-form UI this step — see below);
   - to change a pack size, a new unit is created and the old one's `can_sell` / `can_buy` turned off. Its past lines
     keep their meaning.
-- [ ] **Finding a unit:** every lookup by id or uuid (forms, the flat API, the push) goes through
+- [x] **Finding a unit:** every lookup by id or uuid (forms, the flat API, the push) goes through
       `ProductUnit::resolveFor(ProductVariation $variation, string $uuid)`: within the current business (the tenant
       scope stays on), **including soft-deleted units** (`withTrashed()`), and only a unit of that variation. A unit of
       another business, or of another variation, is not found.
-- [ ] **The product form edits units.** A "Units" table on the product (or on each variation): name, factor
-      ("1 Strip = 10 Tablet"), precision, barcode, selling and wholesale price, can sell, can buy, default for
+- [ ] **The product form edits units.** **Not built.** A "Units" table on the product (or on each variation): name,
+      factor ("1 Strip = 10 Tablet"), precision, barcode, selling and wholesale price, can sell, can buy, default for
       purchases. A product without variations edits its default variation's units. The base unit's row is always
       first and can't be removed. The shop's price for the base unit is edited on the shop's product page (every unit's
-      in stage 11b).
-- [ ] **CSV import:** the base unit's name and precision (`unit`, `unit_precision`), and one optional extra unit per
-      row (`pack_unit`, `pack_factor`, `pack_barcode`, `pack_price`). More units are added on the form.
+      in stage 11b). The domain layer underneath (schema, model, guards) is complete and tested on its own; this UI
+      is deferred as a self-contained follow-up alongside step 3's barcode-scanning work, not guessed at here.
+- [x] **CSV import:** the base unit's name and precision (`unit`, `unit_precision`), and one optional extra unit per
+      row (`pack_unit`, `pack_factor`, `pack_barcode`, `pack_price`). More units are added on the form — **except
+      "on the form"**, since that form doesn't exist yet (see above).
 - [ ] **Showing quantities:** `App\Support\Stock\UnitBreakdown` writes a base quantity in the largest sensible unit
       plus the remainder: the largest sellable or buyable unit with a whole-number factor not above the quantity,
       then base units ("12 Crate + 5 Bottle (293 Bottle)"; "3 Bag + 12.5 kg (162.5 kg)"). Stock screens, low-stock
-      alerts and the stock value report use it.
-- [ ] Tests (the three examples):
+      alerts and the stock value report use it. **The class is built and tested**; wiring it into those three
+      screens is deferred with them (stock screens: no unit-editing UI yet to show units on; low-stock alerts and
+      the stock value report: stage 11c).
+- [x] Tests (the three examples):
   - Panadol: tablet base (precision 0), strip ×10, box ×100; 2 strips and 1 box are 120 tablets;
   - fertiliser: kg base (precision 3), bag ×50; a bag is 50 kg, and 2.5 kg is a valid quantity;
   - soda: bottle base, crate ×24, with its own barcode; 293 bottles show as "12 Crate + 5 Bottle";
@@ -450,41 +464,53 @@ Every part of this stage keeps to the tenancy rules: business-owned records use 
   - `resolveFor()` finds a soft-deleted unit of the variation, and not another business's or another variation's.
 
 ### 3. Selling in units
-- [ ] **Sale lines in units:** `sale_items.unit_id` (foreign key to `product_units`), `quantity` (in that unit),
+- [x] **Sale lines in units:** `sale_items.unit_id` (foreign key to `product_units`), `quantity` (in that unit),
       `base_quantity` (`decimal(15,3)`). Online, the server computes `base_quantity = quantity × factor`; from the
       push, it takes the till's figure (step 8). `unit_price` and `unit_cost` are per the unit sold, so `line_total`
       and `total_cost` keep their meaning. The ledger moves `base_quantity`: `sellItem()` consumes it, and
       `release()` (stage 10) gives it back. Existing lines: `unit_id` set to the base unit and
-      `base_quantity = quantity`, by `catalogue:copy-to-units` (step 7).
-- [ ] **Every sale path takes a unit:** the web POS, `RecordSale` (flat API and push), online orders and abandoned
+      `base_quantity = quantity`, by `catalogue:copy-to-units` (step 7). **Built as a migration backfill instead**
+      (`base_quantity = quantity` for every existing row, in the same migration that adds the column): there's no
+      live data yet for `catalogue:copy-to-units` to matter for on this table, and the column needs to be NOT NULL
+      from the start. `App\Support\Stock\SaleLineUnit::resolve()` prefers a given `base_quantity` (the till's
+      figure) over computing one, but nothing yet *flags* a mismatch — that detection is step 8's job.
+- [x] **Every sale path takes a unit:** the web POS, `RecordSale` (flat API and push), online orders and abandoned
       carts (always the base unit: online stores sell base units). A line with no unit is the base unit.
-- [ ] **Scanning a unit's barcode adds that unit.** Barcode lookup (the web POS, the flat API's product search, the
-      till's local catalogue from the pull) looks in `product_units`: a crate's barcode adds one crate at the crate
-      price; a bottle's adds one bottle.
-- [ ] **Fractions:** online (web, flat API, `/api/v1`), a fraction of a precision-0 unit is refused (step 1). From the
-      push, it is applied as recorded (the goods have left the shop) and flagged on the till sync review
-      (`fractional_quantity`), as negative stock is.
-- [ ] **Return lines in units:** `return_items.unit_id` and `base_quantity`; a returned line takes the unit it was
+- [ ] **Scanning a unit's barcode adds that unit.** **Not built.** Barcode lookup (the web POS, the flat API's
+      product search, the till's local catalogue from the pull) looks in `product_units`: a crate's barcode adds one
+      crate at the crate price; a bottle's adds one bottle. The till's catalogue can't do this before step 8 ships
+      the pull's `units` entity; the web POS's and flat API's lookups are deferred alongside the product-form UI
+      (step 2) as a self-contained follow-up.
+- [ ] **Fractions:** online (web, flat API, `/api/v1`) is built — a fraction of a precision-0 unit is refused
+      (step 1), via `StoreSaleRequest` resolving each line's unit during validation. **From the push is not built**:
+      nothing yet applies a push item as recorded or flags it (`fractional_quantity`) — that belongs with the rest
+      of the sync push's unit handling, step 8.
+- [x] **Return lines in units:** `return_items.unit_id` and `base_quantity`; a returned line takes the unit it was
       sold in, or the base unit; restocking moves `base_quantity`. Existing lines get the base unit (step 7). Stage 14
-      caps returns in base units.
-- [ ] **Adjustment lines in any unit** (decided): `stock_adjustment_items.unit_id`, `quantity` (in that unit) and
-      `base_quantity`, as other lines; the ledger moves `base_quantity`. "2 cartons + 5 pieces" is entered as two
-      quantities (two lines of the same variation). Existing lines get the base unit and `base_quantity = quantity`
-      (by `catalogue:copy-to-units`). The factor lock covers them.
+      caps returns in base units. **Built as a migration backfill**, same reasoning as sale lines above.
+- [ ] **Adjustment lines in any unit** (decided). **Not built.** `stock_adjustment_items.unit_id`, `quantity` (in
+      that unit) and `base_quantity`, as other lines; the ledger moves `base_quantity`. "2 cartons + 5 pieces" is
+      entered as two quantities (two lines of the same variation). Existing lines get the base unit and
+      `base_quantity = quantity` (by `catalogue:copy-to-units`). The factor lock covers them. Deferred: adjustments
+      carry their own approval/threshold machinery from stage 10 that would need parallel updates (next bullet), so
+      this is a separate pass once this step and step 2 are settled, not folded in here.
   - Stage 10's approval threshold then values an adjustment by Σ |`base_quantity`| × unit cost (planned note from
-    stage 10's ninth round, 28 October 2026; [stage 10](./10-stock-correctness-and-voids.md), step 1g).
+    stage 10's ninth round, 28 October 2026; [stage 10](./10-stock-correctness-and-voids.md), step 1g). **Not built**
+    (depends on the bullet above).
 - [ ] **Receipts and invoices** show the unit with the quantity ("2 Strip", "2.500 kg", "1 Crate"): the web receipt,
-      the invoice PDF and the `/api/v1` receipt JSON.
-- [ ] **Reports** sum `base_quantity` for quantities and show them in base units; money is unchanged.
-- [ ] Tests:
-  - 3 crates of 24 sold by scanning the crate barcode take 72 bottles and charge 3 × the crate price;
-  - 2.5 kg of fertiliser sold from a 50 kg bag's stock leaves 47.5 kg; one bag sold takes 50 kg at the bag price;
-  - a strip and a box of the same medicine are stocked correctly (10 and 100 tablets), and `UnitPrice` gives each
-    its own price, else 10 × and 100 × the tablet;
-  - a fraction of a tablet is refused online, and applied and flagged on the push;
+      the invoice PDF and the `/api/v1` receipt JSON. **Not built** — cosmetic while every sale still uses the base
+      unit by default; deferred alongside step 8's pull/encoding work, which touches the same surface.
+- [ ] **Reports** sum `base_quantity` for quantities and show them in base units; money is unchanged. **Not built.**
+- [ ] Tests: built and passing for everything ticked above —
+  - 3 crates sold by unit take 72 bottles and charge 3 × the crate price (not yet via barcode scanning — see above);
+  - 2.5 kg of fertiliser sold through the API;
+  - a fraction of a whole unit is refused online;
   - voiding a sale of 2 crates gives back 48 bottles;
-  - an adjustment of 2 cartons + 5 pieces (two lines) moves 53 pieces; a used carton on an adjustment line can't
-    change its factor.
+  - returning and restocking 1 of 2 sold crates, at the per-base-unit cost the sale was costed at.
+
+  Not built (depend on the unbuilt bullets above): the strip/box pricing example (already covered in step 2's
+  tests, via `UnitPrice` directly rather than a sale); a fraction applied and flagged on the push; the 2-cartons-
+  plus-5-pieces adjustment example.
 
 ### 4. Stock questions asked of a shop (from the combined stage's 1b)
 - [ ] **Shop-aware stock helpers**, in base units, replacing `Product::isOutOfStock()`, `canBeSold()` and
