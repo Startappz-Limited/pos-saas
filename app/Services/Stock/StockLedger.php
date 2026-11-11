@@ -245,12 +245,15 @@ class StockLedger
      * from the layers it consumed. Call recostSale() once all lines are done.
      * A product that doesn't track stock moves nothing (stage 10, step 1a): no
      * movement, no allocation; its line is costed at the variation's cost.
+     * Moves base_quantity (stage 11, step 3: the line's own quantity is in
+     * whatever unit it was sold in); applyItemCost() still divides by
+     * quantity, so unit_cost lands per that unit, as unit_price already is.
      */
     public function sellItem(SaleItem $item, ProductVariation $variation, array $context = []): ?StockChange
     {
         if (! $this->tracksStock($variation)) {
             $cost = $variation->cost_price ?? ($variation->is_default ? DB::table('products')->where('id', $variation->product_id)->value('cost_price') : null);
-            $totalCost = round($this->multiply(Quantity::normalize($item->quantity), $cost === null ? null : (float) $cost), 2);
+            $totalCost = round($this->multiply(Quantity::normalize($item->base_quantity), $cost === null ? null : (float) $cost), 2);
             $this->applyItemCost($item->id, $totalCost);
             DB::table('sale_items')->where('id', $item->id)->update(['cost_known' => $cost !== null]);
 
@@ -260,7 +263,7 @@ class StockLedger
         // The selling shop, recorded on the line (stage 10, step 1a), else its sale's:
         // converted online orders record no shop on their lines.
         $shopId = (int) ($item->shop_id ?? DB::table('sales')->where('id', $item->sale_id)->value('shop_id'));
-        $change = $this->consume($shopId, $variation, Quantity::normalize($item->quantity), StockMovementType::SALE, $item, ['reference' => $context['reference'] ?? $item->sale, ...$context]);
+        $change = $this->consume($shopId, $variation, Quantity::normalize($item->base_quantity), StockMovementType::SALE, $item, ['reference' => $context['reference'] ?? $item->sale, ...$context]);
         $this->applyItemCost($item->id, $change->totalCost);
         // Whether every unit's cost is known (stage 10, step 6).
         DB::table('sale_items')->where('id', $item->id)->update(['cost_known' => $change->costKnown]);

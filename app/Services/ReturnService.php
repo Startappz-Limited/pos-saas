@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Casts\Quantity;
 use App\Enums\ReturnReason;
 use App\Enums\ReturnStatus;
 use App\Enums\StockMovementType;
@@ -91,7 +92,7 @@ class ReturnService
                 if (! $saleItem) {
                     throw new ModelNotFoundException("SaleItem [{$itemData['sale_item_id']}] not found.");
                 }
-                $quantity = (int) $itemData['quantity'];
+                $quantity = (float) $itemData['quantity'];
                 $unitPrice = $saleItem->unit_price ?? $saleItem->price ?? 0;
                 $totalPrice = $unitPrice * $quantity;
                 $totalAmount += $totalPrice;
@@ -100,7 +101,7 @@ class ReturnService
                     'return_id' => $saleReturn->id,
                     'sale_item_id' => $saleItem->id,
                     'product_id' => $saleItem->product_id,
-                    'quantity' => $quantity,
+                    ...$this->returnLineUnit($saleItem, $quantity),
                     'unit_price' => $unitPrice,
                     'total_price' => $totalPrice,
                     'condition' => $itemData['condition'] ?? null,
@@ -153,7 +154,7 @@ class ReturnService
                     if (! $saleItem) {
                         throw new ModelNotFoundException("SaleItem [{$itemData['sale_item_id']}] not found.");
                     }
-                    $quantity = (int) $itemData['quantity'];
+                    $quantity = (float) $itemData['quantity'];
                     $unitPrice = $saleItem->unit_price ?? $saleItem->price ?? 0;
                     $totalPrice = $unitPrice * $quantity;
                     $totalAmount += $totalPrice;
@@ -162,7 +163,7 @@ class ReturnService
                         'return_id' => $saleReturn->id,
                         'sale_item_id' => $saleItem->id,
                         'product_id' => $saleItem->product_id,
-                        'quantity' => $quantity,
+                        ...$this->returnLineUnit($saleItem, $quantity),
                         'unit_price' => $unitPrice,
                         'total_price' => $totalPrice,
                         'condition' => $itemData['condition'] ?? null,
@@ -185,6 +186,24 @@ class ReturnService
 
             return $saleReturn->fresh()->load(['sale', 'customer', 'shop', 'requestedBy', 'items.product']);
         });
+    }
+
+    /**
+     * A returned line takes the unit it was sold in (stage 11, step 3), else
+     * the variation's base unit; $quantity is in that unit.
+     *
+     * @return array{unit_id: ?int, quantity: float, base_quantity: string}
+     */
+    private function returnLineUnit(SaleItem $saleItem, float $quantity): array
+    {
+        $variation = $saleItem->variation ?? Product::find($saleItem->product_id)?->defaultVariation()->first();
+        $unit = $saleItem->unit ?? $variation?->baseUnit;
+
+        return [
+            'unit_id' => $unit?->id,
+            'quantity' => $quantity,
+            'base_quantity' => bcmul((string) $quantity, (string) ($unit?->factor ?? '1'), 3),
+        ];
     }
 
     public function approveReturn(SaleReturn $saleReturn, int $userId): SaleReturn
@@ -241,7 +260,17 @@ class ReturnService
                     ? ProductVariation::withoutGlobalScope(ProductVariation::HIDE_DEFAULT)->findOrFail($item->saleItem->variation_id)
                     : Product::findOrFail($item->product_id)->defaultVariation()->firstOrFail();
 
-                app(StockLedger::class)->receive((int) $saleReturn->shop_id, $variation, (int) $item->quantity, (float) $item->saleItem->unit_cost, StockMovementType::RETURN, [
+                // base_quantity (stage 11, step 3): the line's own quantity may be in a
+                // pack unit; restocking always moves base units, at the per-base-unit cost
+                // the original sale line was costed at (its own base_quantity, not this
+                // return's, since only part of the line may be coming back).
+                $baseQuantity = Quantity::normalize($item->base_quantity);
+                $saleItemBaseQuantity = Quantity::normalize($item->saleItem->base_quantity);
+                $costPerBaseUnit = bccomp($saleItemBaseQuantity, '0', 3) > 0
+                    ? round((float) $item->saleItem->total_cost / (float) $saleItemBaseQuantity, 4)
+                    : (float) $item->saleItem->unit_cost;
+
+                app(StockLedger::class)->receive((int) $saleReturn->shop_id, $variation, $baseQuantity, $costPerBaseUnit, StockMovementType::RETURN, [
                     'source_type' => CostLayer::SOURCE_SALE_RETURN,
                     'source_id' => $saleReturn->id,
                     'reference' => $saleReturn,

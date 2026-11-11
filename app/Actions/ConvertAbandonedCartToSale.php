@@ -133,6 +133,7 @@ class ConvertAbandonedCartToSale
             foreach ($items as $index => $item) {
                 $product = $productsById[$item['product_id']];
                 $variation = $item['variation_id'] ? ($variationsById[$item['variation_id']] ?? null) : null;
+                $variation ??= $product->defaultVariation()->firstOrFail();
                 $line = $totals->line($index);
 
                 $saleItem = SaleItem::create([
@@ -140,8 +141,11 @@ class ConvertAbandonedCartToSale
                     'sale_id' => $sale->id,
                     'product_id' => $product->id,
                     'shop_id' => $shop->id,
-                    'variation_id' => $variation?->id,
+                    'variation_id' => $item['variation_id'] ?: null,
+                    // Online stores sell base units (stage 11, step 3).
+                    'unit_id' => $variation->baseUnit?->id,
                     'quantity' => $item['quantity'],
+                    'base_quantity' => $item['quantity'],
                     'unit_price' => $item['price'],
                     'line_total' => $line['line_total'],
                     'tax_class' => $line['tax_class'],
@@ -156,7 +160,7 @@ class ConvertAbandonedCartToSale
                 ]);
 
                 // Take the stock from the line's shop, costed oldest layers first.
-                app(StockLedger::class)->sellItem($saleItem, $variation ?? $product->defaultVariation()->firstOrFail());
+                app(StockLedger::class)->sellItem($saleItem, $variation);
             }
             // FIFO cost and profit onto the sale held in memory (a reload would
             // turn the response's money fields into strings on MySQL).

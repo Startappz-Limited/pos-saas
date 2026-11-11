@@ -4,9 +4,11 @@ namespace App\Http\Requests;
 
 use App\Models\Customer;
 use App\Models\Product;
+use App\Models\ProductUnit;
 use App\Models\ProductVariation;
 use App\Models\Sale;
 use App\Rules\KraPin;
+use App\Rules\QuantityForUnit;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Validator;
 
@@ -41,7 +43,8 @@ class StoreSaleRequest extends FormRequest
             'items' => ['required', 'array', 'min:1'],
             'items.*.product_id' => ['required', 'exists:products,id'],
             'items.*.variation_id' => ['nullable', 'exists:product_variations,id'],
-            'items.*.quantity' => ['required', 'integer', 'min:1', 'max:10000'],
+            'items.*.quantity' => ['required', 'numeric', 'min:0.001', 'max:10000'],
+            'items.*.unit_id' => ['nullable', 'string'],
             'items.*.price' => ['required', 'numeric', 'min:0', 'max:1000000'],
             'discount_amount' => ['nullable', 'numeric', 'min:0', 'max:1000000'],
             // Only honoured for shops that are not VAT registered. For a
@@ -93,6 +96,7 @@ class StoreSaleRequest extends FormRequest
                 }
 
                 // Validate that variation belongs to the selected product
+                $variation = null;
                 if ($variationId) {
                     $variation = ProductVariation::where('id', $variationId)
                         ->where('product_id', $productId)
@@ -102,6 +106,25 @@ class StoreSaleRequest extends FormRequest
                         $validator->errors()->add(
                             "items.{$index}.variation_id",
                             'The selected variation does not belong to this product.'
+                        );
+                    }
+                }
+                $variation ??= $product->defaultVariation()->first();
+
+                // The unit sold, and the quantity against its precision (stage 11, step 3):
+                // a fraction of a whole-unit item (a tablet, a piece) is refused online.
+                if ($variation && isset($item['quantity'])) {
+                    $unitId = $item['unit_id'] ?? null;
+                    $unit = $unitId ? ProductUnit::resolveFor($variation, $unitId) : null;
+
+                    if ($unitId && ! $unit) {
+                        $validator->errors()->add("items.{$index}.unit_id", 'That unit was not found for this product.');
+                    } else {
+                        $unit ??= $variation->baseUnit;
+                        (new QuantityForUnit($unit?->precision ?? 0))->validate(
+                            "items.{$index}.quantity",
+                            (string) $item['quantity'],
+                            fn (string $message) => $validator->errors()->add("items.{$index}.quantity", $message)
                         );
                     }
                 }
@@ -147,7 +170,7 @@ class StoreSaleRequest extends FormRequest
         }
 
         $subtotal = round(collect($items)->sum(
-            fn (mixed $item): float => is_array($item) ? round((int) ($item['quantity'] ?? 0) * (float) ($item['price'] ?? 0), 2) : 0.0
+            fn (mixed $item): float => is_array($item) ? round((float) ($item['quantity'] ?? 0) * (float) ($item['price'] ?? 0), 2) : 0.0
         ), 2);
 
         if (round((float) $discount, 2) > $subtotal) {

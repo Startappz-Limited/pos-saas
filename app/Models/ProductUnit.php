@@ -31,11 +31,10 @@ class ProductUnit extends Model
     use SoftDeletes;
 
     /**
-     * Tables whose lines name a unit (`unit_id`), checked by isUsed(). Starts
-     * empty: nothing names a unit yet. Step 3 adds 'sale_items' and
-     * 'return_items'; stage 12 adds GRN, purchase-order and transfer lines.
+     * Tables whose lines name a unit (`unit_id`), checked by isUsed(). Stage
+     * 12 adds GRN, purchase-order and transfer lines.
      */
-    public const USED_ON = [];
+    public const USED_ON = ['sale_items', 'return_items'];
 
     protected $fillable = [
         'uuid',

@@ -18,7 +18,9 @@ class SaleItem extends Model
         'product_id',
         'shop_id',
         'variation_id',
+        'unit_id',
         'quantity',
+        'base_quantity',
         'unit_price',
         'discount_amount',
         'line_total',
@@ -41,11 +43,23 @@ class SaleItem extends Model
             'cost_known' => 'boolean',
             'tax_class' => TaxClass::class,
             'quantity' => Quantity::class,
+            'base_quantity' => Quantity::class,
             'unit_cost' => Quantity::class.':4',
             'tax_rate' => 'decimal:3',
             'tax_amount' => 'decimal:2',
             'taxable_amount' => 'decimal:2',
         ];
+    }
+
+    protected static function booted(): void
+    {
+        // A line with no base quantity given is the base unit (stage 11, step 3):
+        // its quantity already is the base quantity.
+        static::creating(function (self $item): void {
+            if ($item->base_quantity === null && $item->quantity !== null) {
+                $item->base_quantity = $item->quantity;
+            }
+        });
     }
 
     public function sale(): BelongsTo
@@ -67,5 +81,11 @@ class SaleItem extends Model
     public function variation(): BelongsTo
     {
         return $this->belongsTo(ProductVariation::class, 'variation_id');
+    }
+
+    /** The unit this line was sold in, soft-deleted ones included. */
+    public function unit(): BelongsTo
+    {
+        return $this->belongsTo(ProductUnit::class, 'unit_id')->withTrashed();
     }
 }

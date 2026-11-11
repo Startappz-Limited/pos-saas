@@ -61,7 +61,8 @@ class CalculateSaleTotals
                 ? ($variationsById[$item['variation_id']] ?? null)
                 : null;
 
-            $quantity = (int) $item['quantity'];
+            // Decimal: a sale line's quantity is in whatever unit it was sold in (stage 11, step 3).
+            $quantity = (float) $item['quantity'];
             $unitPrice = (float) $item['price'];
 
             // A purchase cost may legitimately be unknown (NULL) for imported

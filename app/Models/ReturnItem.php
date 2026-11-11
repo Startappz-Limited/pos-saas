@@ -19,7 +19,9 @@ class ReturnItem extends Model
         'sale_item_id',
         'product_id',
         'stock_intake_id',
+        'unit_id',
         'quantity',
+        'base_quantity',
         'unit_price',
         'total_price',
         'condition',
@@ -36,6 +38,7 @@ class ReturnItem extends Model
     {
         return [
             'quantity' => Quantity::class,
+            'base_quantity' => Quantity::class,
             'unit_price' => 'decimal:2',
             'total_price' => 'decimal:2',
             'is_restockable' => 'boolean',
@@ -51,6 +54,10 @@ class ReturnItem extends Model
         static::creating(function (ReturnItem $item): void {
             if (empty($item->uuid)) {
                 $item->uuid = (string) Str::uuid();
+            }
+            // A line with no base quantity given is the base unit (stage 11, step 3).
+            if ($item->base_quantity === null && $item->quantity !== null) {
+                $item->base_quantity = $item->quantity;
             }
         });
     }
@@ -80,5 +87,11 @@ class ReturnItem extends Model
     public function purchaseReturnItems(): HasMany
     {
         return $this->hasMany(PurchaseReturnItem::class);
+    }
+
+    /** The unit this line was returned in, soft-deleted ones included. */
+    public function unit(): BelongsTo
+    {
+        return $this->belongsTo(ProductUnit::class, 'unit_id')->withTrashed();
     }
 }

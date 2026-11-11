@@ -28,7 +28,7 @@ class StoreReturnRequest extends FormRequest
             'restocking_fee' => ['nullable', 'numeric', 'min:0'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.sale_item_id' => ['required', 'exists:sale_items,id'],
-            'items.*.quantity' => ['required', 'integer', 'min:1'],
+            'items.*.quantity' => ['required', 'numeric', 'min:0.001'],
             'items.*.condition' => ['nullable', 'string', 'in:new,opened,damaged,defective'],
             'items.*.condition_notes' => ['nullable', 'string', 'max:500'],
             'items.*.return_to_supplier' => ['nullable', 'boolean'],

@@ -206,6 +206,8 @@ class ConvertEcommerceOrderToSale
                 $totalItemCost = $quantity * $unitCost;
                 $profit = $lineTotal - $totalItemCost;
                 $profitMargin = $lineTotal > 0 ? ($profit / $lineTotal) * 100 : 0;
+                // Online stores sell base units (stage 11, step 3).
+                $baseUnit = ($variation ?? $product?->defaultVariation()->first())?->baseUnit;
 
                 $saleItem = SaleItem::create([
                     'uuid' => (string) Str::uuid(),
@@ -214,7 +216,9 @@ class ConvertEcommerceOrderToSale
                     // The selling shop: the order's (stage 10, step 1a).
                     'shop_id' => $order->shop_id,
                     'variation_id' => $variationId,
+                    'unit_id' => $baseUnit?->id,
                     'quantity' => $quantity,
+                    'base_quantity' => $quantity,
                     'unit_price' => $unitPrice,
                     'discount_amount' => 0,
                     'line_total' => $lineTotal,

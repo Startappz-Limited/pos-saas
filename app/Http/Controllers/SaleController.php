@@ -29,6 +29,7 @@ use App\Rules\UniqueForTenant;
 use App\Services\InvoiceNumberService;
 use App\Services\Stock\StockLedger;
 use App\Support\Sales\VoidButton;
+use App\Support\Stock\SaleLineUnit;
 use App\Support\Sync\SyncIssues;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Collection;
@@ -318,7 +319,10 @@ class SaleController extends Controller
             foreach ($validated['items'] as $index => $item) {
                 $product = $productsById[$item['product_id']];
                 $variation = isset($item['variation_id']) ? $variationsById[$item['variation_id']] ?? null : null;
+                $variation ??= $product->defaultVariation()->firstOrFail();
                 $line = $totals->line($index);
+                // The unit sold and its base quantity (stage 11, step 3).
+                $lineUnit = SaleLineUnit::resolve($variation, $item);
 
                 $saleItem = SaleItem::create([
                     'uuid' => (string) Str::uuid(),
@@ -326,7 +330,9 @@ class SaleController extends Controller
                     'product_id' => $item['product_id'],
                     'shop_id' => $shopId,
                     'variation_id' => $item['variation_id'] ?? null,
-                    'quantity' => $item['quantity'],
+                    'unit_id' => $lineUnit['unit']?->id,
+                    'quantity' => $lineUnit['quantity'],
+                    'base_quantity' => $lineUnit['base_quantity'],
                     'unit_price' => $item['price'],
                     'line_total' => $line['line_total'],
                     'tax_class' => $line['tax_class'],
@@ -341,7 +347,7 @@ class SaleController extends Controller
                 ]);
 
                 // Take the stock from the line's shop, costed oldest layers first.
-                app(StockLedger::class)->sellItem($saleItem, $variation ?? $product->defaultVariation()->firstOrFail());
+                app(StockLedger::class)->sellItem($saleItem, $variation);
             }
             // FIFO cost and profit onto the sale held in memory (a reload would
             // turn the response's money fields into strings on MySQL).
