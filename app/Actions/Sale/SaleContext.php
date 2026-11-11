@@ -27,5 +27,10 @@ final class SaleContext
         public readonly bool $invoiceAsGiven = false,
         // Number it in the shop's web series (stage 10, steps 5c and 5d): a re-rung till sale.
         public readonly bool $webSeries = false,
+        // Overselling (decided 5 November 2026, stage 11): a direct flat API sale refuses below the
+        // shop's stock; a till's push never does, so SaleHandler sets this false.
+        public readonly bool $enforceStock = true,
+        // Who pushed a sale through below stock, and why (sales.oversell); null means not overridden.
+        public readonly ?string $oversellReason = null,
     ) {}
 }

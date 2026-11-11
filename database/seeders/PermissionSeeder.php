@@ -175,6 +175,8 @@ class PermissionSeeder extends Seeder
             'sales.void',
             'sales.refund',
             'sales.restore',
+            // Pushes a sale through below the shop's stock, with a reason (decided 5 November 2026, stage 11).
+            'sales.oversell',
             'sales.full-access',
 
             // Refunds Management

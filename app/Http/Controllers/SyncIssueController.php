@@ -28,8 +28,13 @@ class SyncIssueController extends Controller
         $this->authorize('viewAny', SyncIssue::class);
 
         $showResolved = $request->query('show') === 'resolved';
+        // A per-shop filter (stage 11 step 4 follow-up): BelongsToShop already limits the list to
+        // the viewer's own accessible shops; this narrows it further to one, e.g. for a manager who
+        // only wants their shop's negative-stock reviews.
+        $shopId = $request->query('shop_id');
         $issues = SyncIssue::query()
             ->with(['register:id,name,code', 'shop:id,name', 'resolvedBy:id,name'])
+            ->when($shopId, fn ($query) => $query->where('shop_id', $shopId))
             ->when($showResolved, fn ($query) => $query->whereNotNull('resolved_at')->latest('resolved_at'), fn ($query) => $query->open()->latest())
             ->paginate(25)
             ->withQueryString();

@@ -59,6 +59,9 @@ class StoreSaleRequest extends FormRequest
             'payment_method' => ['required', 'in:cash,card,bank_transfer,mobile_money,credit'],
             'is_cod' => ['nullable', 'boolean'],
             'notes' => ['nullable', 'string', 'max:1000'],
+            // Pushes the sale through below the shop's stock (stage 11 step 4 follow-up); ignored
+            // for anyone without sales.oversell.
+            'oversell_reason' => ['nullable', 'string', 'max:500'],
         ];
     }
 

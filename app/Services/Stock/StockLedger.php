@@ -4,6 +4,7 @@ namespace App\Services\Stock;
 
 use App\Casts\Quantity;
 use App\Enums\StockMovementType;
+use App\Exceptions\BusinessRuleException;
 use App\Jobs\PushShopStockJob;
 use App\Models\CostAllocation;
 use App\Models\CostLayer;
@@ -14,6 +15,7 @@ use App\Models\Shop;
 use App\Models\StockAdjustmentItem;
 use App\Models\StockMovement;
 use App\Observers\ProductObserver;
+use App\Support\Sync\SyncIssues;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -71,6 +73,12 @@ class StockLedger
             $after = bcadd($before, $quantity, 3);
             $movement = $this->recordMovement($shopId, $variation, $type, $quantity, $before, $after, $unitCost, $context);
 
+            // Stock back at zero or above resolves any open negative_stock review for this shop and
+            // variation (stage 11 step 4 follow-up: the overselling policy's negative_stock review).
+            if (bccomp($after, '0', 3) >= 0) {
+                app(SyncIssues::class)->resolveNegativeStock($shopId, $variation->id);
+            }
+
             return new StockChange($movement, $quantity, round($this->multiply($quantity, $unitCost), 2), $unitCost !== null);
         });
     }
@@ -87,6 +95,20 @@ class StockLedger
 
         return DB::transaction(function () use ($shopId, $variation, $quantity, $type, $consumer, $context, $preferredLayerId): StockChange {
             $before = $this->lockStock($shopId, $variation);
+
+            // Overselling (decided 5 November 2026, stage 11 step 4 follow-up): only a caller that
+            // opts in (sellItem(), for the web POS and a direct flat API sale) enforces this; a
+            // till's push, an online order or abandoned-cart conversion, and every other consumer
+            // (adjustments, write-offs, purchase returns) never pass enforce_stock, so they are
+            // unaffected. Checked right after the row lock above, so two simultaneous sales for the
+            // shop's last unit can't both pass this check before either commits.
+            if (($context['enforce_stock'] ?? false) && empty($context['oversell_reason']) && bccomp($before, $quantity, 3) < 0) {
+                throw BusinessRuleException::because(
+                    __('Only :available left of this item at this shop; :needed needed.', ['available' => $before, 'needed' => $quantity]),
+                    'insufficient_stock',
+                );
+            }
+
             [$consumerType, $consumerId, $saleItemId] = $this->consumerKey($consumer);
 
             $layers = DB::table('cost_layers')

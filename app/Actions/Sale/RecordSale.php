@@ -196,8 +196,13 @@ class RecordSale
                     'status' => 'completed',
                 ]);
 
-                // Take the stock from the line's shop, costed oldest layers first.
-                app(StockLedger::class)->sellItem($saleItem, $variation);
+                // Take the stock from the line's shop, costed oldest layers first. A direct flat API
+                // sale refuses below stock unless sales.oversell overrode it; a till's push never does
+                // (stage 11 step 4 follow-up, decided 5 November 2026).
+                app(StockLedger::class)->sellItem($saleItem, $variation, [
+                    'enforce_stock' => $context->enforceStock,
+                    'oversell_reason' => $context->oversellReason,
+                ]);
             }
             // FIFO cost and profit onto the sale held in memory (a reload would
             // turn the response's money fields into strings on MySQL).
@@ -214,10 +219,12 @@ class RecordSale
 
         $register->updateSalesTotals();
 
-        // Sold below zero: on the till sync review (stage 10, step 1a). A till's push records it
+        // Sold below zero: on the till sync review (stage 10, step 1a), with who pushed it through
+        // and why when sales.oversell was used (stage 11 step 4 follow-up). A till's push records it
         // itself, with the till and its recorded time.
         if ($context->clientUuid === null) {
-            app(SyncIssues::class)->recordNegativeStock($sale);
+            app(SyncIssues::class)->recordNegativeStock($sale, override: $context->oversellReason !== null
+                ? ['by' => auth()->user()?->name ?? __('unknown'), 'reason' => $context->oversellReason] : null);
         }
 
         // Notify the customer, exactly as the web POS does. COD sales stay

@@ -69,6 +69,10 @@ final class SaleHandler implements PushHandler
                 awaitingPayment: (bool) ($data['awaiting_mpesa'] ?? false),
                 invoiceAsGiven: $item->accepting('invoice_as_given'),
                 webSeries: $item->accepting('web_series'),
+                // A till's push is never refused for overselling (stage 11 step 4 follow-up,
+                // decided 5 November 2026): it can't know what other tills have sold since its
+                // last pull.
+                enforceStock: false,
             ));
         } catch (InvalidArgumentException $e) {
             throw new PushRefused(ApiErrorCode::InvalidInvoiceNumber, $e->getMessage(), ['invoice_number' => [$e->getMessage()]]);

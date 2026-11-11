@@ -1002,16 +1002,16 @@ Branch: `feat/stock-units-batches` (from `main`). In progress. The stage file is
 | 2 | 11 Nov | `product_units` (per-variation units of measure) and `shop_unit_prices`: base-unit lock, factor locked once a unit is used on a line, soft deletes, barcode uniqueness. CSV import gained unit columns. | `d33ca56` |
 | 3 | 11 Nov | Selling in units: `sale_items`/`return_items` carry `unit_id` + `base_quantity`; `SaleLineUnit::resolve()` is the single resolution point for both sale and return lines; `StockLedger` consumes `base_quantity`, not the sold unit's own quantity. | `f3eebab` |
 | 4 | 11 Nov | `HasShopStock` gained `availableAt()`, `canBeSoldAt()`, `stockValueAt()`. First built with opening stock receivable through the product form at an entered cost — **reversed in the same-day follow-up below** once it was clear that bypassed stage 10's approval rule the same as any other stock shortcut. | `592db23`, ticked `4ee1217` |
-| 4 follow-up | 11 Nov | `stock_quantity` removed from every request path (web create/edit, flat API, CSV import): a product is always made and edited with no stock, whatever is sent. Two architecture tests now guard this (`StockQuantityWriteTest` from step 4, `StockQuantitySetterTest` new). Stage file's step 4 and "Opening stock" acceptance notes corrected to match. | `45a663a` |
+| 4 follow-up (1) | 11 Nov | `stock_quantity` removed from every request path (web create/edit, flat API, CSV import): a product is always made and edited with no stock, whatever is sent. Two architecture tests now guard this (`StockQuantityWriteTest` from step 4, `StockQuantitySetterTest` new). Stage file's step 4 and "Opening stock" acceptance notes corrected to match. | `45a663a` |
+| 4 follow-up (2) | 11 Nov | Overselling (decided 5 November 2026): a genuine conflict found while checking step 5 (below) — ported from the unmerged `docs/saas-stage-plans` branch's newer stage-11 copy, with the user's go-ahead. The web POS and a direct flat API sale refuse below the shop's stock by default (`StockLedger::consume()`, 422 `insufficient_stock`, under its row lock); new `sales.oversell` permission (owner/manager) overrides it with a reason; a till's push, an online order and an abandoned-cart conversion are never refused. `SyncIssues::recordNegativeStock()` rewritten per sale+shop+variation, now also fires from the flat API and both conversions (previously missing), notifies the owner (`App\Support\Approvals\Flags`), and self-resolves (`resolveNegativeStock()`, called from `StockLedger::receive()`). `canBeSoldAt()` gained a `$quantity` parameter. `Controller::failed()` now sends `code` for every `BusinessRuleException`, not just `message` (a pre-existing gap, fixed in passing). Deferred, documented: a shop-filter dropdown on the sync-issues view (the `?shop_id=` filter itself is built); "show other shops' stock when short" (informational UI only). | (pending) |
 
 ### Points to confirm, found while reconciling with decisions made since this stage file was written
 
-Before step 5, checked against three decisions made after this file was written, per the user's instruction to
-stop and ask only on a genuine conflict:
+Checked against three decisions made after this file was written, per the user's instruction to stop and ask only
+on a genuine conflict, before building step 5:
 - **Expiry write-offs via adjustments with stage 10's approval rule**: not yet reached (step 5 is next) — to
   resolve when building it.
-- **`canBeSoldAt()` vs. the 5 November oversell rule**: no conflict in what's built so far — `canBeSoldAt()`
-  stays informational (not the enforcement point); the real oversell enforcement belongs inside
-  `StockLedger::consume()`/`sellItem()`, not yet built, and is step 5/later scope, not a step 4 defect.
+- **`canBeSoldAt()` vs. the 5 November oversell rule**: a genuine conflict — resolved as follow-up (2) above, with
+  the user's confirmation to port the newer branch's confirmed overselling decision now rather than defer it.
 - **Business types / FIFO-FEFO default**: no conflict — UAT stays `general_retail` → FIFO, unchanged by anything
   built so far.

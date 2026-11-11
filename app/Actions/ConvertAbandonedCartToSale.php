@@ -17,6 +17,7 @@ use App\Models\User;
 use App\Services\Integration\AbandonedCartWriteBack;
 use App\Services\InvoiceNumberService;
 use App\Services\Stock\StockLedger;
+use App\Support\Sync\SyncIssues;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -186,6 +187,10 @@ class ConvertAbandonedCartToSale
         });
 
         $register->updateSalesTotals();
+        // Always converts, never refused for overselling (stage 11 step 4 follow-up, decided 5
+        // November 2026): a cart recovered into a sale that takes a shop below zero is flagged,
+        // on the till sync review, not blocked.
+        app(SyncIssues::class)->recordNegativeStock($sale);
 
         return $sale;
     }

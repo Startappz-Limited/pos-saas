@@ -26,6 +26,7 @@ const ALLOWED_RAW_QUERIES = [
     'app/Http/Controllers/SaleController.php' => [3, SCOPED.' (applyShopFilter)'],
     'app/Services/ReportService.php' => [5, SCOPED.', plus the explicit allowed_shop_ids list'],
     'app/Services/VatReportService.php' => [2, SCOPED],
+    'app/Models/Concerns/HasShopStock.php' => [1, 'stockValueAt() (stage 11, step 4): the one shop named, else '.SCOPED.' via StockQuery::shops()'],
 
     // Internal reads and writes by id, on ids that came through scoped models.
     'app/Actions/Business/ExportBusinessData.php' => [3, 'the export reads only rows BusinessData found to be the business\'s, its members and its audit rows'],

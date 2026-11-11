@@ -15,6 +15,7 @@ use App\Services\Integration\ShopifyOrderSyncService;
 use App\Services\Integration\WooCommerceOrderSyncService;
 use App\Services\InvoiceNumberService;
 use App\Services\Stock\StockLedger;
+use App\Support\Sync\SyncIssues;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -46,7 +47,7 @@ class ConvertEcommerceOrderToSale
 
         $this->syncOrderItemsToPlatform($order, $data);
 
-        return DB::transaction(function () use ($order, $data, $user) {
+        $sale = DB::transaction(function () use ($order, $data, $user) {
             // Locked, so two conversions of one order can't both go through: the second sees it converted.
             EcommerceOrder::query()->whereKey($order->getKey())->lockForUpdate()->first();
             $order->refresh()->load(['shop', 'items.product']);
@@ -248,6 +249,13 @@ class ConvertEcommerceOrderToSale
 
             return $sale;
         });
+
+        // Always converts, never refused for overselling (stage 11 step 4 follow-up, decided 5
+        // November 2026): a paid online order already represents money taken elsewhere, so an
+        // order that takes a shop below zero is flagged, on the till sync review, not blocked.
+        app(SyncIssues::class)->recordNegativeStock($sale);
+
+        return $sale;
     }
 
     /**

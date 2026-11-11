@@ -208,6 +208,9 @@ class SaleController extends Controller
         $this->authorize('create', Sale::class);
 
         $validated = $request->validated();
+        // sales.oversell (decided 5 November 2026, stage 11): a reason sent with no permission is
+        // simply ignored, so a sale over stock is always refused unless the user actually holds it.
+        $oversellReason = $request->user()->can('sales.oversell') ? ($validated['oversell_reason'] ?? null) : null;
 
         DB::beginTransaction();
         try {
@@ -346,8 +349,12 @@ class SaleController extends Controller
                     'status' => 'completed',
                 ]);
 
-                // Take the stock from the line's shop, costed oldest layers first.
-                app(StockLedger::class)->sellItem($saleItem, $variation);
+                // Take the stock from the line's shop, costed oldest layers first. Refuses below the
+                // shop's stock (sales.oversell above) unless $oversellReason overrides it.
+                app(StockLedger::class)->sellItem($saleItem, $variation, [
+                    'enforce_stock' => true,
+                    'oversell_reason' => $oversellReason,
+                ]);
             }
             // FIFO cost and profit onto the sale held in memory (a reload would
             // turn the response's money fields into strings on MySQL).
@@ -362,8 +369,10 @@ class SaleController extends Controller
 
             DB::commit();
 
-            // Sold below zero: on the till sync review (stage 10, step 1a).
-            app(SyncIssues::class)->recordNegativeStock($sale);
+            // Sold below zero: on the till sync review (stage 10, step 1a), with who pushed it
+            // through and why when sales.oversell was used (stage 11 step 4 follow-up).
+            app(SyncIssues::class)->recordNegativeStock($sale, override: $oversellReason !== null
+                ? ['by' => $request->user()->name, 'reason' => $oversellReason] : null);
 
             // Send WhatsApp notifications to customer
             $this->sendSaleNotifications($sale);

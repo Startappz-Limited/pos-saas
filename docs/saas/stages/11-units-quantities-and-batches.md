@@ -77,6 +77,18 @@ documents, comments in old migration copies, corrections to the app's documents,
 planning rounds change only this folder. Each is now a planned item in the stage whose work makes it true, with its
 exact text (step 9).
 
+**Overselling (decided 5 November 2026), ported 11 November 2026.** Found while checking step 5 against decisions
+made since this file was last revised here: a separate, unmerged `docs/saas-stage-plans` branch had already decided
+this (its own "eighth round", 10 November 2026) and written it into its copy of this file, next to `canBeSoldAt()`
+in step 4. That branch's stage-11 file also carries a seventh-round business-level `measurement_units` proposal,
+explicitly marked "not yet confirmed" there — **not** ported here; this stage still has `product_units.name` as a
+free-text string, per-variation, as step 2 already built it. Only the confirmed overselling decision was pulled in,
+as a second step 4 follow-up (see the acceptance criteria): replaces "selling below zero stays allowed" wherever it
+appeared below with a policy that varies by path — the web POS and the flat API refuse by default
+(422 `insufficient_stock`); `sales.oversell` overrides it with a reason, flagged; a till's push, an online order and
+an abandoned-cart conversion are never refused for this; the `negative_stock` review gained owner notifications,
+self-resolution and a per-shop filter.
+
 **Fourth round (27 October 2026):**
 - **Decided (were "Points to confirm" 1 to 5):** business types set defaults only, from a table of six (step 5);
   sale-level discounts are limited per role and checked with the price (step 3); adjustment lines take any unit
@@ -573,6 +585,50 @@ Every part of this stage keeps to the tenancy rules: business-owned records use 
     stage 1b's existing `StockLedgerTest` cases, unchanged by this step;
   - **opening-stock-at-entered-cost tests removed** with the feature; replaced by the "never applied" tests
     named in the revised bullet above.
+- [x] **Overselling (decided 5 November 2026). Second step 4 follow-up, found while checking step 5 against
+      decisions made since this stage file was written**, before building it: `canBeSoldAt()` was still only
+      informational ("is this in stock here"), with no enforcement anywhere, so a sale beyond a shop's stock was
+      unconditionally allowed on every path — the old "selling below zero stays allowed" behaviour. Replaced with a
+      policy that varies by path, ported from the newer, unmerged `docs/saas-stage-plans` copy of this stage file
+      (confirmed with the user before building):
+  - **`canBeSoldAt(Shop $shop, ?ProductVariation $variation = null, string $quantity = '1')`** now compares
+    against `$quantity`, not just zero, and its docblock states plainly that it is informational only — the
+    actual refusal is enforced inside `StockLedger` itself.
+  - **The web POS and a direct flat API sale refuse by default**: `StockLedger::consume()` checks the locked
+    `shop_variation` row against the quantity needed and throws `BusinessRuleException::because(..., 'insufficient_stock')`
+    (422) when a caller opts in via `$context['enforce_stock']` — only `sellItem()`'s two direct callers
+    (`SaleController::store()`, `RecordSale::execute()` when not a till push) set it; every other `consume()`
+    caller (adjustments, write-offs, purchase returns) is unaffected by default. Checked immediately after the
+    row lock `lockStock()` already takes, so two simultaneous sales for a shop's last unit can't both pass.
+  - **`sales.oversell`** (new permission, owner and manager by default) lets a holder push the sale through with
+    a required `oversell_reason`; sent by anyone without the permission, it is silently ignored (the controller
+    checks `$request->user()->can('sales.oversell')` before forwarding it — never the ledger itself, which stays
+    unaware of authorization).
+  - **A till's push, an online order and an abandoned-cart conversion are never refused for this**: `SaleContext::$enforceStock`
+    defaults `true` (a direct sale) and `SaleHandler` sets it `false`; `ConvertAbandonedCartToSale` and
+    `ConvertEcommerceOrderToSale` call `sellItem()` with no context at all, same as before, so they were already
+    exempt without any code change.
+  - **`SyncIssues::recordNegativeStock()` rewritten** to record once per sale, shop **and variation** (not once
+    per sale as before, since a sale can short more than one), carry `overridden_by`/`reason` when
+    `sales.oversell` was used, notify the owner the first time one is recorded (`App\Support\Approvals\Flags`,
+    the same "alert plus notify" tool stage 10 built for online-order review), and now also fires from the flat
+    API (`RecordSale::execute()`, previously missing it), `ConvertAbandonedCartToSale` and
+    `ConvertEcommerceOrderToSale` (also previously missing it) — "every path", as decided.
+  - **Self-resolving**: `SyncIssues::resolveNegativeStock(shopId, variationId)`, called from `StockLedger::receive()`
+    whenever a shop's stock for a variation returns to zero or above, resolves every open `negative_stock` issue
+    for that pair, row by row (not a bulk update) so `SyncIssue`'s own audit capture still fires.
+  - **A per-shop filter** added to `SyncIssueController::index()` (`?shop_id=`); no new filter control in the
+    view yet — a deliberate, documented scope cut, not an oversight.
+  - **Not built, deferred**: "a short shop shows the business's other shops' available quantities" on the
+    product search and POS line (informational only, no code depends on it). The flat API error response
+    through `Controller::failed()` gained the `code` field for every `BusinessRuleException` (it only rendered
+    `message` before) so `insufficient_stock` is actually distinguishable on the wire — a pre-existing gap,
+    fixed in passing since this step is the first to need it.
+  - Tests: `tests/Feature/Stock/OversellingTest.php` (web refuse, override with reason and owner notification, an
+    unauthorized reason ignored, self-resolution, the permission rollout, `canBeSoldAt()`'s quantity comparison);
+    `SalePathsStockTest`'s old "accepts a sale beyond stock" test split into a refuse case and an override case;
+    `SyncPushTest`'s existing "flags a sale that takes stock below zero, and accepts it" needed no change,
+    confirming the push path is genuinely unaffected.
 
 ### 5. FEFO, batches and expiry
 - [ ] **What kind of business** (decided): `businesses.type` (`general_retail`, `supermarket`, `wholesale`,
@@ -608,9 +664,11 @@ Every part of this stage keeps to the tenancy rules: business-owned records use 
 - [ ] **`consume()` order:** `fifo`: `received_at`, then `id`; `fefo`: `expiry_date` (batches without one last), then
       `received_at`, then `id`; `$preferredLayerId` still comes first.
 - [ ] **Expired batches are never sold.** For a sale line, `consume()` skips expired batches, in both modes. If only
-      expired stock remains, the shortfall goes below zero (provisional, `fallbackCost()`). The sale is flagged: an
-      `expired_stock` issue on the till sync review (the sale, the line, the units short), and the web POS warns when
-      the item is added. Other consumers (write-offs, supplier returns) can take expired batches.
+      expired stock remains, the shortfall is handled by the overselling policy above (step 4's second follow-up):
+      refused on the web and flat API unless `sales.oversell` overrides it, never refused on a till's push, costed
+      provisionally either way (`fallbackCost()`). The sale is flagged: an `expired_stock` issue on the till sync
+      review (the sale, the line, the units short), and the web POS warns when the item is added. Other consumers
+      (write-offs, supplier returns) can take expired batches.
 - [ ] **The expiry touch:** `stock:touch-expiring`, scheduled every 15 minutes (`withoutOverlapping`,
       `onOneServer`). Each shop keeps the time it was last done, `shops.expiry_touched_at` (nullable). For each
       active business (`TenantContext::eachBusiness()`) and each of its shops, a run:

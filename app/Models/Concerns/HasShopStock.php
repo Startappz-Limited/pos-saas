@@ -127,10 +127,15 @@ trait HasShopStock
     /**
      * Whether $variation (this model's own, when it's a variation) can be
      * sold at $shop: the status allows it, and either stock isn't tracked or
-     * the shop holds more than zero. Selling below zero stays allowed on the
-     * till — this only gates whether the till offers the item at all.
+     * the shop holds at least $quantity. Informational only — it answers "is
+     * this in stock here", not "is this sale allowed": the actual refusal,
+     * where the overselling policy (stage 11, step 4 follow-up) applies one,
+     * is enforced inside StockLedger itself, under its row lock, so a
+     * check-then-sell race between two callers can't both pass this method
+     * and then both oversell. Expired batches aren't excluded yet (stage 11,
+     * step 5 adds expiry to cost layers).
      */
-    public function canBeSoldAt(Shop $shop, ?ProductVariation $variation = null): bool
+    public function canBeSoldAt(Shop $shop, ?ProductVariation $variation = null, string $quantity = '1'): bool
     {
         if (! $this->status->canBeSold()) {
             return false;
@@ -140,7 +145,7 @@ trait HasShopStock
             return true;
         }
 
-        return bccomp($this->availableAt($shop, $variation), '0', 3) > 0;
+        return bccomp($this->availableAt($shop, $variation), $quantity, 3) >= 0;
     }
 
     /**

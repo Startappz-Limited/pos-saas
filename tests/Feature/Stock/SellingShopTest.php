@@ -47,7 +47,7 @@ beforeEach(function () {
     $this->ledger->receive($this->shopB->id, $this->variation, 6, 25, StockMovementType::INTAKE);
 });
 
-function sellingShopPayload(int $shopId, int $quantity = 2): array
+function sellingShopPayload(int $shopId, int $quantity = 2, ?string $oversellReason = null): array
 {
     return [
         'shop_id' => $shopId,
@@ -57,6 +57,7 @@ function sellingShopPayload(int $shopId, int $quantity = 2): array
         'walk_in_customer_phone' => '0700000000',
         'payment_method' => 'cash',
         'items' => [['product_id' => test()->product->id, 'quantity' => $quantity, 'price' => 100]],
+        ...($oversellReason !== null ? ['oversell_reason' => $oversellReason] : []),
     ];
 }
 
@@ -147,12 +148,14 @@ it('sells at a shop with no stock row for the product: the row is made, stock go
     $shopC = Shop::factory()->create(['code' => 'CCC']);
     expect(DB::table('shop_variation')->where('shop_id', $shopC->id)->where('variation_id', $this->variation->id)->exists())->toBeFalse();
 
-    $this->actingAs($this->owner)->post(route('sales.store'), sellingShopPayload($shopC->id, 3))->assertSessionHasNoErrors();
+    // Beyond stock refuses by default (stage 11 step 4 follow-up): the owner's own sales.oversell overrides it.
+    $this->actingAs($this->owner)->post(route('sales.store'), sellingShopPayload($shopC->id, 3, 'Customer insisted, restocking soon'))
+        ->assertSessionHasNoErrors();
     $sale = Sale::latest('id')->firstOrFail();
 
     expect($this->ledger->quantity($shopC->id, $this->variation->id))->toBe(-3)
         ->and($this->ledger->quantity($this->shopA->id, $this->variation->id))->toBe(10)
-        ->and(SyncIssue::query()->where('type', SyncIssue::NEGATIVE_STOCK)->where('key', 'sale:'.$sale->uuid)->value('shop_id'))->toBe($shopC->id);
+        ->and(SyncIssue::query()->where('type', SyncIssue::NEGATIVE_STOCK)->where('key', 'like', "sale:{$sale->uuid}:%")->value('shop_id'))->toBe($shopC->id);
 
     $this->get(route('sync-issues.index'))->assertOk()->assertSee($sale->invoice_number);
 });
@@ -160,10 +163,11 @@ it('sells at a shop with no stock row for the product: the row is made, stock go
 it('records a negative_stock issue for a flat API sale below zero', function () {
     Sanctum::actingAs($this->owner, ['*']);
 
-    $uuid = $this->postJson('/api/sales', sellingShopPayload($this->shopB->id, 8))->assertCreated()->json('data.uuid');
+    $uuid = $this->postJson('/api/sales', sellingShopPayload($this->shopB->id, 8, 'Customer insisted, restocking soon'))
+        ->assertCreated()->json('data.uuid');
 
     expect($this->ledger->quantity($this->shopB->id, $this->variation->id))->toBe(-2)
-        ->and(SyncIssue::query()->where('type', SyncIssue::NEGATIVE_STOCK)->where('key', 'sale:'.$uuid)->exists())->toBeTrue();
+        ->and(SyncIssue::query()->where('type', SyncIssue::NEGATIVE_STOCK)->where('key', 'like', "sale:{$uuid}:%")->exists())->toBeTrue();
 });
 
 it('moves no stock for a product that doesn\'t track stock', function () {
