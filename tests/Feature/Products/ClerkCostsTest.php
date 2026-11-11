@@ -100,6 +100,25 @@ it('makes a product with no cost for someone without products.set-cost, and refu
     $this->putJson("/api/products/{$this->product->getRouteKey()}", ['cost_price' => 42.50, 'name' => 'Renamed'])->assertOk();
 });
 
+it('ignores stock_quantity on the flat API too: a product is made with no stock', function () {
+    $member = User::factory()->create();
+    $member->givePermissionTo(['products.view', 'products.create', 'products.update']);
+    $member->shops()->attach($this->shop);
+    Sanctum::actingAs($member, ['*']);
+
+    $uuid = $this->postJson('/api/products', [
+        'name' => 'Rice', 'category_id' => Category::factory()->create()->id, 'selling_price' => 100, 'stock_quantity' => 999,
+    ])->assertCreated()->json('data.uuid');
+    $made = Product::where('uuid', $uuid)->firstOrFail();
+
+    expect((int) DB::table('shop_variation')->where('shop_id', $this->shop->id)
+        ->where('variation_id', $made->defaultVariation()->first()->id)->value('stock_quantity'))->toBe(0);
+
+    $this->putJson("/api/products/{$made->getRouteKey()}", ['stock_quantity' => 999])->assertOk();
+    expect((int) DB::table('shop_variation')->where('shop_id', $this->shop->id)
+        ->where('variation_id', $made->defaultVariation()->first()->id)->value('stock_quantity'))->toBe(0);
+});
+
 it('refuses a product with variations on the flat API and creates nothing', function () {
     Sanctum::actingAs(($this->member)('manager'), ['*']);
     $before = Product::count();

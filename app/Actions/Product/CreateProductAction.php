@@ -2,7 +2,6 @@
 
 namespace App\Actions\Product;
 
-use App\Actions\Product\Concerns\AppliesOpeningStock;
 use App\Actions\Product\Concerns\GuardsPurchaseCost;
 use App\Enums\ProductStatus;
 use App\Models\Product;
@@ -12,7 +11,6 @@ use Illuminate\Support\Str;
 
 class CreateProductAction
 {
-    use AppliesOpeningStock;
     use GuardsPurchaseCost;
 
     public function execute(array $data): Product
@@ -22,9 +20,10 @@ class CreateProductAction
         $variations = $data['variations'] ?? [];
         $shouldSyncShops = array_key_exists('sync_shops', $data) || array_key_exists('shop_ids', $data);
         $shopIds = $data['shop_ids'] ?? [];
-        // Applied explicitly below, at the cost entered (stage 11, step 4).
-        $openingStock = $data['stock_quantity'] ?? null;
 
+        // Stock changes only through intakes, adjustments, stocktakes and sales
+        // (decided after stage 11, step 4): a product is never created with
+        // stock through this form, whatever is sent.
         unset($data['variations'], $data['stock_quantity']);
         unset($data['sync_shops'], $data['shop_ids']);
 
@@ -55,10 +54,6 @@ class CreateProductAction
             $product->syncShopVariationRows();
         }
 
-        if ($openingStock !== null && $openingStock !== '') {
-            $this->applyOpeningStock($product, $product->createDefaultVariation(), $openingStock, $data['cost_price'] !== null ? (float) $data['cost_price'] : null);
-        }
-
         if ($product->has_variations && ! empty($variations)) {
             foreach ($variations as $variationData) {
                 $variation = $product->variations()->create([
@@ -73,7 +68,6 @@ class CreateProductAction
                     'tax_class' => $variationData['tax_class'] ?? null,
                     'status' => ProductStatus::ACTIVE,
                 ]);
-                $this->applyOpeningStock($product, $variation, $variationData['stock_quantity'] ?? null, isset($variationData['cost_price']) ? (float) $variationData['cost_price'] : null);
 
                 // A variation's threshold lives on its row in the owning shop.
                 if (isset($variationData['reorder_level']) && $variationData['reorder_level'] !== '' && ($shopId = $product->stockShopId()) !== null) {

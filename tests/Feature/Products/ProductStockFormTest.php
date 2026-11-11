@@ -42,33 +42,15 @@ function shopStock(Product $product, Shop $shop): int
         ->where('variation_id', $product->defaultVariation()->first()->id)->value('stock_quantity');
 }
 
-it('saves the opening stock in the owning shop and the threshold, on create', function () {
+it('ignores stock_quantity on create: a product is always made with no stock, whatever is sent', function () {
     $this->actingAs($this->owner)->post(route('products.store'), productForm(['stock_quantity' => 15, 'reorder_level' => 4]))
         ->assertSessionHasNoErrors();
 
     $product = Product::query()->where('name', 'Form Tea')->firstOrFail();
-    expect(shopStock($product, $this->shop))->toBe(15)
+    expect(shopStock($product, $this->shop))->toBe(0)
         ->and($product->reorder_level)->toBe(4)
-        ->and(DB::table('stock_movements')->where('product_id', $product->id)->count())->toBe(1);
-});
-
-it('receives opening stock at the cost entered on the form (stage 11, step 4)', function () {
-    $this->actingAs($this->owner)->post(route('products.store'), productForm(['stock_quantity' => 15, 'cost_price' => 42]))
-        ->assertSessionHasNoErrors();
-
-    $product = Product::query()->where('name', 'Form Tea')->firstOrFail();
-    $layer = DB::table('cost_layers')->where('variation_id', $product->defaultVariation->id)->sole();
-    expect((float) $layer->unit_cost)->toBe(42.0)
-        ->and($layer->source_type)->toBe('opening');
-});
-
-it('receives opening stock at an unknown cost when none is entered', function () {
-    $this->actingAs($this->owner)->post(route('products.store'), productForm(['stock_quantity' => 15, 'cost_price' => '']))
-        ->assertSessionHasNoErrors();
-
-    $product = Product::query()->where('name', 'Form Tea')->firstOrFail();
-    $layer = DB::table('cost_layers')->where('variation_id', $product->defaultVariation->id)->sole();
-    expect($layer->unit_cost)->toBeNull();
+        ->and(DB::table('stock_movements')->where('product_id', $product->id)->count())->toBe(0)
+        ->and(DB::table('cost_layers')->where('variation_id', $product->defaultVariation->id)->count())->toBe(0);
 });
 
 it('still accepts the old low_stock_threshold field', function () {
@@ -83,23 +65,24 @@ it('names the threshold field as the server reads it, on both forms', function (
         ->assertSeeText('Opening stock');
 });
 
-it('shows and saves the owning shop\'s stock and the real threshold on edit, leaving other shops alone', function () {
-    $this->actingAs($this->owner)->post(route('products.store'), productForm(['stock_quantity' => 10, 'reorder_level' => 4]));
+it('shows the owning shop\'s stock read-only on edit, and ignores stock_quantity if posted anyway', function () {
+    $this->actingAs($this->owner)->post(route('products.store'), productForm(['reorder_level' => 4]));
     $product = Product::query()->where('name', 'Form Tea')->firstOrFail();
     $product->shops()->syncWithoutDetaching([$this->shop->id, $this->branch->id]);
     $product->syncShopVariationRows();
+    app(StockLedger::class)->setLevel($this->shop->id, $product->defaultVariation()->first(), 10);
     app(StockLedger::class)->setLevel($this->branch->id, $product->defaultVariation()->first(), 25);
 
-    // The form shows Main Street's 10, not the 35 across both shops.
+    // The form shows Main Street's 10, not the 35 across both shops, disabled: it can't be edited here.
     $this->tenant->forget();
     $html = $this->actingAs($this->owner)->get(route('products.edit', $product))->assertOk()
         ->assertSeeText('Stock in Main Street')->getContent();
-    expect($html)->toMatch('/id="stock_quantity" name="stock_quantity"[^>]*value="10"/')
+    expect($html)->toMatch('/id="stock_quantity" name="stock_quantity"[^>]*value="10"[^>]*disabled/')
         ->and($html)->toMatch('/id="reorder_level" name="reorder_level"[^>]*value="4"/');
 
-    // Saving it unchanged changes no shop's stock; the threshold saves.
+    // Posting a stock_quantity anyway changes no shop's stock; the threshold still saves.
     $this->tenant->forget();
-    $this->actingAs($this->owner)->put(route('products.update', $product), productForm(['stock_quantity' => 10, 'reorder_level' => 7]))
+    $this->actingAs($this->owner)->put(route('products.update', $product), productForm(['stock_quantity' => 999, 'reorder_level' => 7]))
         ->assertSessionHasNoErrors();
 
     expect(shopStock($product, $this->shop))->toBe(10)

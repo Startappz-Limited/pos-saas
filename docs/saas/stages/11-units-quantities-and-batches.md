@@ -58,8 +58,9 @@ prices and discounts went to [stage 11b](./11b-prices-and-discounts.md), low sto
   simple price order as `UnitPrice`; editing every unit's shop price, and `PriceResolver`, are 11b.
 - Step 3: selling in units stays; `PriceResolver::quote()`, quantity breaks, the price check, discount limits and
   offline approval went to 11b (its steps 1 to 5), with their tests.
-- Step 4: the stock helpers, the architecture test, the cost order and opening stock stay; per-shop reorder levels and
-  `isLowStockAt()` went to 11c (step 1).
+- Step 4: the stock helpers, the architecture test and the cost order stay; per-shop reorder levels and
+  `isLowStockAt()` went to 11c (step 1). Opening stock through the product form was built, then reversed in a
+  follow-up before step 5 (see the acceptance criteria above): a product is now always made with no stock.
 - Steps 4a (low stock) and 4b (snapshots) went to 11c (steps 1 to 4); the snapshot catch-up became exact (decided).
 - Step 7: `pricing-rules:check-customers`, the pricing-rule columns and the `customer_id` re-point went to 11b.
 - Step 8: the pull's `unit_prices` entity, the rules' new fields and the push's approval fields went to 11b (step 6).
@@ -527,36 +528,51 @@ Every part of this stage keeps to the tenancy rules: business-owned records use 
     search found genuinely no caller of the three old methods outside their own tests, matching this bullet's own
     expectation. **"Unexpired" and "expired batches shown apart" aren't built**: no batch carries an expiry date
     before step 5; `stockValueAt()` always reports an empty expired bucket until then.
-- [x] **`stock_quantity` on products is read-only.** **Built differently.** The setter stays on `HasShopStock` (and
-      `$fillable` keeps the column) — removing it would silently break the ~58 existing test/factory call sites that
-      set a product or variation's opening stock this way, for a purely internal-cleanliness gain the functional
-      goal doesn't need. Instead, `App\Actions\Product\Concerns\AppliesOpeningStock` (used by both
-      `CreateProductAction` and `UpdateProductAction`) strips `stock_quantity` out of the data array before it
-      reaches `Product`/`ProductVariation::create()`/`update()` and applies it explicitly afterwards, with the cost
-      entered — which is the part that actually mattered (see "Opening stock" below). The flat API's `stock_quantity`
-      field is unaffected either way, since both actions sit under it already.
+- [x] **`stock_quantity` on products is read-only. Revised after this step was first built (step 4 follow-up).**
+      The first pass kept the `HasShopStock` setter reachable from every product request (web create/edit,
+      `POST`/`PUT /api/products`, the CSV import), on the reasoning that removing it would break existing
+      factory/test call sites for no functional gain. That reasoning held for the setter itself, but not for
+      leaving it wired to requests: a product's own create/update form is still a stock-mutation shortcut that
+      bypasses stage 10's approval rule, same as any other. **Closed now**: `CreateProductAction` and
+      `UpdateProductAction` unset `stock_quantity` (and the removed `AppliesOpeningStock` concern) before the data
+      reaches the model, so a product is always made and edited with no stock, whatever is sent;
+      `StoreProductRequest`/`UpdateProductRequest` and the flat API's `Api\ProductController` no longer validate
+      or accept the field; `ImportProductsFromCsv`'s "stock" column is read for the opening-stock summary only and
+      never applied, on create or on update. The `HasShopStock` setter itself stays on the trait — factories and
+      the one-off `saas:import-legacy` command still use it directly on the model, not through a request. Stock now
+      moves only through intakes, adjustments (stage 10's approval rule), stocktakes and sales. The create/edit
+      Blade forms show the field as informational text (create) or a disabled, read-only display linking to a
+      stock intake or adjustment (edit), since it no longer does anything if submitted. Tests per path: web create
+      ignores it (`ProductStockFormTest`), web edit shows it disabled and ignores a resubmit, the flat API ignores
+      it on create and update (`ClerkCostsTest`), and CSV import never sets stock on create or update
+      (`ProductImportTest`, rewritten).
 - [x] **An architecture test** fails on any write to `stock_quantity` outside `StockLedger`. **Scans for a write
       call in the same statement as a `shop_variation` reference**, with two sanctioned, pre-existing exceptions
       (`LegacyImport`'s one-off seeding; `Product::syncShopVariationRows()`'s zero-row `insertOrIgnore`, the same
       "insert at zero, never update" pattern `StockLedger::lockStock()` itself uses). **Not built: failing on a
       reference to a dropped column** — nothing is dropped until step 7, which is where that part belongs.
+      **A second architecture test added in the step 4 follow-up** (`StockQuantitySetterTest`) fails on any use of
+      the `stock_quantity` *setter* itself (`->stock_quantity = `, or `'stock_quantity' => ...` into a
+      `create`/`update`/`fill` call) anywhere under `app/`, outside `StockLedger` and `LegacyImport` — closing the
+      gap the first test didn't cover: a caller that sets the attribute directly rather than writing
+      `shop_variation`. Factories and seeders, outside `app/`, are unscanned and still use it.
 - [x] **Cost order**, stated in `StockLedger::fallbackCost()`'s docblock and the domain rules: the shop's latest
       batch with a cost, then `shop_variation.cost_price` (the fallback), then `product_variations.cost_price` (the
       last purchase cost). All per base unit. **Already true before this step** (stage 1b): `fallbackCost()`'s order
       and docblock already said exactly this, unchanged by stage 11 so far. The domain-rules doc update is step 9's
       job, with the rest of this stage's documentation.
-- [x] **Opening stock** typed on the product form (create and edit) and sent to `POST /api/products` is received at
-      the cost entered (`StockLedger::receive`, `source_type = opening`), with a batch number and expiry date when
-      the variation tracks batches (step 5). The CSV import's update path receives an increase at the file's cost
-      too. With no cost entered, the batch's cost is unknown and its sales are marked (`cost_known`, stage 10).
-      **Batch number and expiry aren't passed yet** — `track_batches` doesn't exist before step 5. The CSV import's
-      update path already received an increase at the file's cost before this step (unchanged).
+- [x] **Opening stock. Reversed by the step 4 follow-up above.** This step first wired the product form and
+      `POST /api/products` to receive opening stock at the entered cost through `StockLedger::receive`. That is
+      now gone: a product is made with no stock regardless of what the form or the CSV import sends; the first
+      stock a product gets comes from a stock intake, not its own create/edit form. See the revised
+      `stock_quantity`-is-read-only bullet above for what replaced it and why.
 - [x] Tests:
   - `canBeSoldAt()` is false at shop A with no stock and true at shop B with 50, for the same product;
   - stock value is the sum over batches, with unknown-cost batches apart (expired: not testable before step 5);
   - a sale at a shop with no batch uses the shop's fallback cost, then the variation's — **already covered** by
     stage 1b's existing `StockLedgerTest` cases, unchanged by this step;
-  - opening stock is a batch at the entered cost, and at an unknown cost when none is entered.
+  - **opening-stock-at-entered-cost tests removed** with the feature; replaced by the "never applied" tests
+    named in the revised bullet above.
 
 ### 5. FEFO, batches and expiry
 - [ ] **What kind of business** (decided): `businesses.type` (`general_retail`, `supermarket`, `wholesale`,
@@ -825,8 +841,9 @@ Every part of this stage keeps to the tenancy rules: business-owned records use 
       Exact correction:
   - "Product Statuses": the `out_of_stock` row is removed, with "Out of stock is per shop: read `stock_quantity`.";
   - "Create Product" validation: `status` becomes "nullable, in: `active`, `inactive`, `discontinued`";
-    `stock_quantity` becomes "nullable, numeric, min:0, up to the base unit's decimals; received as opening stock at
-    the cost given";
+    `stock_quantity` is removed from the request fields (reversed by the step 4 follow-up): it is never read from
+    the request body, on create or update; a new product always starts with no stock, received afterwards with a
+    stock intake;
   - "Show Product": responses gain `units` (`id`, `name`, `factor` as a string, `precision`, `barcode`,
     `selling_price`, `wholesale_price`, `is_base`, `can_sell`); quantities stay JSON numbers (an integer when whole).
 - [ ] **`docs/flutter/10-enums.md`, "ProductStatus"** (step 6): the `out_of_stock` row is removed, and a line added:

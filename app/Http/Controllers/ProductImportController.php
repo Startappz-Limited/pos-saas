@@ -137,10 +137,10 @@ class ProductImportController extends Controller
     {
         $parts = [trans_choice('{0} No new products|{1} 1 new product imported|[2,*] :count new products imported', $result['created'], ['count' => $result['created']])
             .' '.__('into :shop', ['shop' => $shop->name])
-            .($result['created'] > 0 ? ', '.trans_choice('{0} with no opening stock|{1} with 1 unit of opening stock|[2,*] with :count units of opening stock', $result['opening_stock'], ['count' => $result['opening_stock']]) : '')];
+            .($result['created'] > 0 && $result['opening_stock'] > 0 ? ', '.trans_choice('{1} the file lists 1 unit of opening stock to receive with a stock intake|[2,*] the file lists :count units of opening stock to receive with a stock intake', $result['opening_stock'], ['count' => $result['opening_stock']]) : '')];
 
         if ($result['updated'] > 0) {
-            $parts[] = trans_choice('{1} 1 existing product updated (stock set to the file\'s figure)|[2,*] :count existing products updated (stock set to the file\'s figures)', $result['updated'], ['count' => $result['updated']]);
+            $parts[] = trans_choice('{1} 1 existing product\'s threshold updated|[2,*] :count existing products\' thresholds updated', $result['updated'], ['count' => $result['updated']]);
         }
         if ($result['unchanged'] > 0) {
             $parts[] = trans_choice('{1} 1 existing product already matched the file|[2,*] :count existing products already matched the file', $result['unchanged'], ['count' => $result['unchanged']]);

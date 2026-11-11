@@ -206,14 +206,14 @@
                                 <div class="col-md-6">
                                     <div class="mb-3">
                                         <label for="stock_quantity" class="form-label">{{ __('Stock in :shop', ['shop' => $stockShop?->name ?? __('the shop it was first stocked at')]) }}</label>
-                                        <input type="number" min="0"
-                                            class="form-control @error('stock_quantity') is-invalid @enderror"
-                                            id="stock_quantity" name="stock_quantity" aria-describedby="stock_quantity-help"
-                                            value="{{ old('stock_quantity', $stockInShop) }}">
-                                        <div class="form-text" id="stock_quantity-help">{{ __('Changing it records a stock adjustment. Other shops\' stock is changed through Stock adjustments.') }}</div>
-                                        @error('stock_quantity')
-                                            <div class="invalid-feedback">{{ $message }}</div>
-                                        @enderror
+                                        <input type="number" class="form-control" id="stock_quantity" name="stock_quantity"
+                                            aria-describedby="stock_quantity-help" value="{{ $stockInShop }}" disabled readonly>
+                                        <div class="form-text" id="stock_quantity-help">
+                                            {{ __('Change stock with a') }}
+                                            <a href="{{ route('stock-intakes.create') }}">{{ __('stock intake') }}</a>
+                                            {{ __('or an') }}
+                                            <a href="{{ route('stock-adjustments.create') }}">{{ __('adjustment') }}</a>.
+                                        </div>
                                     </div>
                                 </div>
                                 <div class="col-md-6">
@@ -328,8 +328,8 @@
                                             <div class="{{ $variationPriceCols }}">
                                                 <label class="form-label">Stock Qty</label>
                                                 <input type="number" class="form-control form-control-sm"
-                                                    name="variations[{{ $index }}][stock_quantity]"
-                                                    value="{{ $variation['stock_quantity'] ?? 0 }}">
+                                                    value="{{ $variation['stock_quantity'] ?? 0 }}" disabled readonly>
+                                                <div class="form-text">{{ __('Use a stock intake or adjustment.') }}</div>
                                             </div>
                                         </div>
                                     </div>

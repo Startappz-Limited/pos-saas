@@ -13,7 +13,7 @@
             {{ __('Nothing has changed yet. Choose below what to do.') }}
         </p>
         <p class="text-muted small">
-            {{ __('Updating sets each product\'s stock in :shop to the figure in the file (it is not added to what is there), and its low-stock threshold there. Names, prices, costs and categories stay as they are. The upload is kept until :time.', ['shop' => $shop->name, 'time' => $expiresAt->format('H:i')]) }}
+            {{ __('Updating sets each product\'s low-stock threshold in :shop to the figure in the file. The file\'s stock is shown for reference only and is never applied: receive it with a stock intake. Names, prices, costs and categories stay as they are. The upload is kept until :time.', ['shop' => $shop->name, 'time' => $expiresAt->format('H:i')]) }}
         </p>
 
         @if ($ignored !== [])
@@ -28,7 +28,7 @@
                     <tr>
                         <th scope="col">{{ __('Product') }}</th>
                         <th scope="col">{{ __('SKU') }}</th>
-                        <th scope="col" class="text-end">{{ __('Stock in :shop', ['shop' => $shop->name]) }}</th>
+                        <th scope="col" class="text-end">{{ __('Stock in :shop (reference only)', ['shop' => $shop->name]) }}</th>
                         <th scope="col" class="text-end">{{ __('Low-stock threshold') }}</th>
                         <th scope="col">{{ __('Result') }}</th>
                     </tr>
@@ -42,7 +42,7 @@
                             <td class="text-end text-nowrap">
                                 {{ $preview['stock'] }}
                                 @if ($preview['file_stock'] !== null && $preview['file_stock'] !== $preview['stock'])
-                                    → <strong>{{ $preview['file_stock'] }}</strong>
+                                    <span class="text-muted">({{ __('file: :figure', ['figure' => $preview['file_stock']]) }})</span>
                                 @endif
                             </td>
                             <td class="text-end text-nowrap">
