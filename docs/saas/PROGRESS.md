@@ -945,8 +945,8 @@ The stock stages that follow (stage files in [stages/](stages/)); none started.
 
 | Stage | File | Branch | Depends on | Status |
 |---|---|---|---|---|
-| 10a | [10a-access-and-tenancy.md](stages/10a-access-and-tenancy.md) | `fix/access-tenancy` | None; can ship any time | **In progress** (see below) |
-| 11 | [11-units-quantities-and-batches.md](stages/11-units-quantities-and-batches.md) | `feat/stock-units-batches` | 10 | Planned |
+| 10a | [10a-access-and-tenancy.md](stages/10a-access-and-tenancy.md) | `fix/access-tenancy` | None; can ship any time | **Merged** (see below) |
+| 11 | [11-units-quantities-and-batches.md](stages/11-units-quantities-and-batches.md) | `feat/stock-units-batches` | 10 | **In progress** |
 | 11b | [11b-prices-and-discounts.md](stages/11b-prices-and-discounts.md) | `feat/prices-and-discounts` | 11, 10 | Planned |
 | 11c | [11c-low-stock-alerts-and-snapshots.md](stages/11c-low-stock-alerts-and-snapshots.md) | `feat/low-stock-and-snapshots` | 11 | Planned |
 | 12 | [12-receiving-and-moving-stock.md](stages/12-receiving-and-moving-stock.md) | `feat/stock-receiving-transfers` | 11, 11c | Planned |
@@ -977,3 +977,14 @@ with the user, 10 November 2026).
   (37 found) already names the current business correctly; none bypass `TenantContext`.
 - "An operator impersonating A's owner acts only in A" is already pinned by
   `tests/Feature/Platform/ImpersonationTest.php`, not duplicated in `OwnerScopeTest`.
+
+### Merged (11 November 2026)
+
+PR #28, `fix/access-tenancy` → `main` at `0e288c4`.
+
+### Follow-ups
+
+- **UAT rehearsal not run**: depends on the go-live rollout (stage 24) running first.
+- **`mobile:contract-diff` not run**: the Flutter app (`MOBILE_APP_PATH`) isn't on this machine.
+- **`members:clean-removed` not run anywhere yet**: run it once at rollout (stage 24), per step 1's note that it
+  backfills `removed_at` for pre-stage removals.
