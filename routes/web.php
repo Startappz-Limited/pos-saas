@@ -36,6 +36,7 @@ use App\Http\Controllers\Platform\ImpersonationController as PlatformImpersonati
 use App\Http\Controllers\Platform\PaymentController as PlatformPaymentController;
 use App\Http\Controllers\Platform\RoleTemplateController as PlatformRoleTemplateController;
 use App\Http\Controllers\PricingRuleController;
+use App\Http\Controllers\ProductBarcodeController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProductImportController;
 use App\Http\Controllers\ProductPurchaseCostController;
@@ -54,6 +55,7 @@ use App\Http\Controllers\ShopController;
 use App\Http\Controllers\ShopMpesaController;
 use App\Http\Controllers\SocialAccountController;
 use App\Http\Controllers\StockAdjustmentController;
+use App\Http\Controllers\StockExpiryController;
 use App\Http\Controllers\StockIntakeController;
 use App\Http\Controllers\StockMovementController;
 use App\Http\Controllers\SupplierController;
@@ -219,6 +221,9 @@ Route::middleware(['auth', 'business'])->group(function () {
     Route::get('products/import/confirm', [ProductImportController::class, 'confirm'])->name('products.import.confirm');
     Route::post('products/import/confirm', [ProductImportController::class, 'decide'])->middleware(['throttle:10,1', ProtectAgainstSpam::class])->name('products.import.decide');
     Route::resource('products', ProductController::class);
+    // A product barcode waiting for a unit: assign it to one of the product's units, or drop it (stage 11, step 7).
+    Route::post('products/{product}/barcodes/{waitingBarcode:uuid}/assign', [ProductBarcodeController::class, 'assign'])->withoutScopedBindings()->name('products.barcodes.assign');
+    Route::post('products/{product}/barcodes/{waitingBarcode:uuid}/drop', [ProductBarcodeController::class, 'drop'])->withoutScopedBindings()->name('products.barcodes.drop');
     Route::get('products/low-stock/list', [ProductController::class, 'lowStock'])->name('products.lowStock');
     Route::post('products/{product}/activate', [ProductController::class, 'activate'])->name('products.activate');
     Route::post('products/{product}/deactivate', [ProductController::class, 'deactivate'])->name('products.deactivate');
@@ -517,6 +522,10 @@ Route::middleware(['auth', 'business'])->group(function () {
     Route::post('stock-adjustments/{stockAdjustment}/cancel', [StockAdjustmentController::class, 'cancel'])->name('stock-adjustments.cancel');
     Route::post('stock-adjustments/{stockAdjustment}/approve', [StockAdjustmentController::class, 'approve'])->name('stock-adjustments.approve');
     Route::post('stock-adjustments/{stockAdjustment}/reject', [StockAdjustmentController::class, 'reject'])->name('stock-adjustments.reject');
+
+    // Expiring stock and "Write off expired" (stage 11, step 5): the write-off files an adjustment.
+    Route::get('stock/expiring', [StockExpiryController::class, 'index'])->name('stock.expiring');
+    Route::post('stock/expiring/write-off', [StockExpiryController::class, 'writeOff'])->name('stock.expiring.write-off');
 });
 
 require __DIR__.'/auth.php';

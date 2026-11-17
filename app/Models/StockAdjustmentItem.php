@@ -24,6 +24,10 @@ class StockAdjustmentItem extends Model
         'quantity_change',
         'quantity_after',
         'item_notes',
+        'cost_layer_id',
+        'batch_number',
+        'expiry_date',
+        'unit_cost',
     ];
 
     protected function casts(): array
@@ -32,6 +36,8 @@ class StockAdjustmentItem extends Model
             'quantity_before' => Quantity::class,
             'quantity_change' => Quantity::class,
             'quantity_after' => Quantity::class,
+            'expiry_date' => 'date',
+            'unit_cost' => Quantity::class.':4',
         ];
     }
 
@@ -72,5 +78,13 @@ class StockAdjustmentItem extends Model
     public function shop(): BelongsTo
     {
         return $this->belongsTo(Shop::class);
+    }
+
+    /**
+     * The batch a decrease line named, to take from (stage 11, step 5).
+     */
+    public function costLayer(): BelongsTo
+    {
+        return $this->belongsTo(CostLayer::class);
     }
 }

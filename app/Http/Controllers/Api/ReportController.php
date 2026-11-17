@@ -88,7 +88,7 @@ class ReportController extends Controller
             ->where('sales.status', 'completed')
             ->whereDate('sales.completed_at', $date)
             ->selectRaw('products.id, products.name, products.sku')
-            ->selectRaw('SUM(sale_items.quantity) as total_quantity')
+            ->selectRaw('SUM(COALESCE(sale_items.base_quantity, sale_items.quantity)) as total_quantity')
             ->selectRaw('SUM(sale_items.line_total) as total_revenue')
             ->selectRaw('SUM(sale_items.profit) as total_profit')
             ->groupBy('products.id', 'products.name', 'products.sku')

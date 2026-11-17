@@ -38,6 +38,8 @@ enum ApiErrorCode: string
     case InvoiceNumberTaken = 'invoice_number_taken';
     case SaleAlreadyPaid = 'sale_already_paid';
     case UnknownItemType = 'unknown_item_type';
+    /** A sale line names a unit the server never had for that product (stage 11, step 8). */
+    case UnknownUnit = 'unknown_unit';
 
     // Voids (stage 10, steps 2, 4 and 5c), online and in the push.
     case VoidWindowClosed = 'void_window_closed';
@@ -111,6 +113,7 @@ enum ApiErrorCode: string
             self::CashSessionNotSynced => 'The cash session this event names hasn\'t been opened on the server yet; send it again after the opening.',
             self::TillHasUnsyncedItems => 'The till being replaced last reported unsynced items; confirm to pair anyway.',
             self::UnknownItemType => 'The server does not know this kind of pushed item.',
+            self::UnknownUnit => 'The server has no such unit for this product. The sale is kept on the till until someone discards it.',
             self::MpesaNotSetUp => 'The shop has no proven M-Pesa Till or Paybill, so it can\'t take M-Pesa at the till.',
             self::SubscriptionInactive => 'The subscription has lapsed or the business is over its shops; it is read-only.',
             self::PlanLimitReached => 'The plan allows no more of this (see `limit` and `allowed`).',

@@ -139,9 +139,11 @@ class StockAdjustmentService
     /**
      * A draft line: its variation (the product's default one for a product without
      * variations) and its signed change. Its before and after figures are written
-     * when stock moves (apply()), never at draft time.
+     * when stock moves (apply()), never at draft time. An increase line may carry its
+     * own batch, expiry and cost; a decrease line, the batch it takes from
+     * (stage 11, step 5).
      *
-     * @param  array{product_id: int, variation_id?: int|null, quantity_change: int, item_notes?: string|null}  $itemData
+     * @param  array{product_id: int, variation_id?: int|null, quantity_change: int, item_notes?: string|null, cost_layer_id?: int|null, batch_number?: string|null, expiry_date?: string|null, unit_cost?: float|null}  $itemData
      */
     public function addItem(StockAdjustment $adjustment, array $itemData): StockAdjustmentItem
     {
@@ -155,6 +157,10 @@ class StockAdjustmentService
             'shop_id' => $adjustment->shop_id,
             'quantity_change' => (int) $itemData['quantity_change'],
             'item_notes' => $itemData['item_notes'] ?? null,
+            'cost_layer_id' => $itemData['cost_layer_id'] ?? null,
+            'batch_number' => $itemData['batch_number'] ?? null,
+            'expiry_date' => $itemData['expiry_date'] ?? null,
+            'unit_cost' => $itemData['unit_cost'] ?? null,
         ]);
     }
 
@@ -257,14 +263,19 @@ class StockAdjustmentService
             $quantity = (int) $item->quantity_change;
 
             if ($quantity > 0) {
-                $change = $this->ledger->receive($shopId, $variation, $quantity, $this->ledger->latestBatchCost($shopId, $variation), StockMovementType::ADJUSTMENT_ADD, [
+                // Without a cost entered, the increase is received at an unknown cost (stage 11,
+                // step 5): never the fallback cost silently, unlike other increases.
+                $change = $this->ledger->receive($shopId, $variation, $quantity, $item->unit_cost !== null ? (float) $item->unit_cost : null, StockMovementType::ADJUSTMENT_ADD, [
                     ...$context, 'source_type' => CostLayer::SOURCE_ADJUSTMENT, 'source_id' => $adjustment->id,
+                    'batch_number' => $item->batch_number, 'expiry_date' => $item->expiry_date,
                 ]);
             } else {
                 if ($this->ledger->quantity($shopId, $variation->id) + $quantity < 0) {
                     throw new BusinessRuleException("Cannot apply this adjustment: it would take {$item->product->name} below zero.");
                 }
-                $change = $this->ledger->consume($shopId, $variation, -$quantity, StockMovementType::ADJUSTMENT_REMOVE, $item, $context);
+                // The batch a decrease line named (damaged, expired, a quality issue) comes out of
+                // that batch, not the oldest (stage 11, step 5).
+                $change = $this->ledger->consume($shopId, $variation, -$quantity, StockMovementType::ADJUSTMENT_REMOVE, $item, $context, $item->cost_layer_id);
             }
 
             $item->update([

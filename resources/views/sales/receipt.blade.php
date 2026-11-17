@@ -296,7 +296,7 @@
                         <div class="item-variation">({{ $item->variation->name }})</div>
                     @endif
                     <div class="item-details">
-                        <span>{{ $item->quantity }} x {{ format_currency($item->unit_price) }}</span>
+                        <span>{{ \App\Support\Receipts\LineQuantity::for($item) }} x {{ format_currency($item->unit_price) }}</span>
                         <span>{{ format_currency($item->line_total) }}</span>
                     </div>
                 </div>

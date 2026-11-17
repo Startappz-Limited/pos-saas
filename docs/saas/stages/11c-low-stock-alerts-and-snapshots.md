@@ -164,6 +164,13 @@ Every part keeps to the tenancy rules: `BelongsToBusiness` / `BelongsToShop`, bu
       `(shop_id, variation_id, snapshot_date, kind)`.
 - [ ] `CreateInventorySnapshot` uses them; the snapshot screen shows quantities with `UnitBreakdown` and marks
       rebuilt and late snapshots.
+- [ ] **Two snapshot routes name methods that don't exist** (review of `main`, 17 November 2026: both are a 500):
+      `POST inventory-snapshots/generate` (`InventorySnapshotController@generate`) and
+      `GET inventory-snapshots/report/valuation` (`@valuationReport`). `generate` is built as the manual snapshot
+      (`kind = manual`, through `CreateInventorySnapshot`); `valuationReport` shows a snapshot date's cost and retail
+      value per shop from the rows above, or is removed if stage 20's stock value definition is the only valuation
+      page wanted. Both leave `CanaryCrawlTest::BROKEN_ROUTES`
+      ([stage 25](./25-broken-pages-dead-code-and-hardening.md) owns the other entries).
 - [ ] **Every night, per shop:** `stock:snapshot`, scheduled every 15 minutes (`withoutOverlapping`, `onOneServer`),
       takes a shop's snapshot once its local midnight has passed since its last one (`shops.snapshot_taken_at`), dated
       the day that ended. Each missed day is taken on the next run (step 4).

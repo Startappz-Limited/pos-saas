@@ -33,8 +33,9 @@ use Illuminate\Support\Collection;
  * offered (purchase returns).
  *
  * The cost value is Σ |quantity| × unit cost over the lines (gross, never
- * netted), a decrease at the cost the ledger would consume now, an increase at
- * the shop's latest batch cost of the variation, else unknown.
+ * netted), a decrease at the cost the ledger would consume now, an increase
+ * only at the cost entered on the line (stage 11, step 5) — never the
+ * shop's latest batch cost silently, else unknown.
  */
 final class AdjustmentApproval
 {
@@ -114,16 +115,19 @@ final class AdjustmentApproval
     }
 
     /**
-     * The unit cost a line moves stock at; null when unknown.
+     * The unit cost a line moves stock at; null when unknown. A decrease
+     * costs at what the ledger would consume it from now; an increase costs
+     * only at what was entered (stage 11, step 5) — never the shop's latest
+     * batch cost silently, so this agrees with what apply() actually moves
+     * stock at.
      */
     public function unitCost(StockAdjustmentItem $item): ?float
     {
-        $variation = $this->variationOf($item);
-        $shopId = (int) $item->shop_id;
+        if ((int) $item->quantity_change < 0) {
+            return $this->ledger->costToConsume((int) $item->shop_id, $this->variationOf($item), (int) $item->quantity_change);
+        }
 
-        return (int) $item->quantity_change < 0
-            ? $this->ledger->costToConsume($shopId, $variation, (int) $item->quantity_change)
-            : $this->ledger->latestBatchCost($shopId, $variation);
+        return $item->unit_cost !== null ? (float) $item->unit_cost : null;
     }
 
     public function variationOf(StockAdjustmentItem $item): ProductVariation

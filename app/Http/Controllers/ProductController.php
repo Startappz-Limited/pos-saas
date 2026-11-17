@@ -9,6 +9,7 @@ use App\Models\Product;
 use App\Models\Shop;
 use App\Models\ShopVariation;
 use App\Models\Supplier;
+use App\Models\UnassignedBarcode;
 use App\Services\ProductService;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
@@ -91,7 +92,10 @@ class ProductController extends Controller
 
         $trackBatches = (bool) $variation?->track_batches;
 
-        return view('products.edit', compact('product', 'categories', 'suppliers', 'shops', 'stockShop', 'stockInShop', 'trackBatches'));
+        // Barcodes of this product waiting for a unit (stage 11, step 7): assigned or dropped below.
+        $waitingBarcodes = UnassignedBarcode::query()->where('product_id', $product->id)->orderBy('id')->get();
+
+        return view('products.edit', compact('product', 'categories', 'suppliers', 'shops', 'stockShop', 'stockInShop', 'trackBatches', 'waitingBarcodes'));
     }
 
     public function update(UpdateProductRequest $request, Product $product): RedirectResponse

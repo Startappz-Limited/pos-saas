@@ -48,9 +48,12 @@ beforeEach(function () {
     $this->clerk = ($this->member)('inventory-clerk');
     $this->manager = ($this->member)('manager');
     $this->ledger->receive($this->shop->id, $this->default, 100, 100, StockMovementType::INTAKE, ['received_at' => now()->subDay()]);
-    $this->adjust = function (User $user, string $reason, int $change) {
+    $this->adjust = function (User $user, string $reason, int $change, array $extra = []) {
         $this->actingAs($user)->post(route('stock-adjustments.store'), [
-            'shop_id' => $this->shop->id, 'reason' => $reason, 'items' => [['product_id' => $this->product->id, 'quantity_change' => $change]],
+            'shop_id' => $this->shop->id, 'reason' => $reason,
+            // An increase costs only at what's entered (stage 11, step 5): found defaults to 100,
+            // matching the shop's one batch, so existing assertions about auto-apply still hold.
+            'items' => [['product_id' => $this->product->id, 'quantity_change' => $change, ...($change > 0 ? ['unit_cost' => 100] : []), ...$extra]],
         ])->assertSessionHasNoErrors();
 
         return StockAdjustment::query()->latest('id')->firstOrFail();

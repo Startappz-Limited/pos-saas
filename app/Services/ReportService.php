@@ -312,7 +312,7 @@ class ReportService
             ->groupBy('sale_items.product_id', 'products.name')
             ->orderByDesc(DB::raw('SUM(sale_items.profit)'))
             ->selectRaw('products.name as product_name')
-            ->selectRaw('COALESCE(SUM(sale_items.quantity), 0) as quantity_sold')
+            ->selectRaw('COALESCE(SUM(COALESCE(sale_items.base_quantity, sale_items.quantity)), 0) as quantity_sold')
             ->selectRaw('COALESCE(SUM(sale_items.line_total), 0) as revenue')
             ->selectRaw('COALESCE(SUM(sale_items.total_cost), 0) as cost')
             ->selectRaw('COALESCE(SUM(sale_items.profit), 0) as gross_profit')

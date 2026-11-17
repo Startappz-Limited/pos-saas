@@ -1,4 +1,10 @@
 # Module 09: Inventory Tracking
+
+> **Superseded (stage 11).** Partly built. `stock_movements` are written by `StockLedger` (stage 1b). One
+> low-stock definition, alerts that clear themselves, and nightly snapshots in base units, rebuilt exactly when
+> missed, are in stage 11c; decimal quantities, units of measure and batches (FEFO, expiry, the expiry touch) are
+> in stage 11. The `inventory.*` permissions are dropped by stage 11c.
+
 ## Stock Taking & Sales Management System
 
 > **Important:** This module follows the guidelines defined in `.ai/general/` folder.

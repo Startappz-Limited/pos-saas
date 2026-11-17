@@ -24,7 +24,7 @@ class GenerateSaleInvoicePdf
      */
     public function execute(Sale $sale): string
     {
-        $sale->loadMissing(['shop', 'customer', 'items.product', 'items.variation', 'deliveryCompany', 'payments']);
+        $sale->loadMissing(['shop', 'customer', 'items.product', 'items.variation', 'items.unit', 'deliveryCompany', 'payments']);
 
         return Pdf::loadView('pdf.sale-invoice', [
             'sale' => $sale,

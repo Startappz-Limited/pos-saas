@@ -10,6 +10,7 @@ use App\Models\Shop;
 use App\Models\StockIntake;
 use App\Models\Supplier;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Permission;
 
 beforeEach(function () {
@@ -179,6 +180,45 @@ test('can complete stock intake', function () {
 
     expect($stockIntake->status)->toBe(StockIntakeStatus::COMPLETED)
         ->and((float) $product->stock_quantity)->toBe(150.0);
+});
+
+test('a variation that tracks batches needs a batch number and expiry to be received', function () {
+    Permission::create(['name' => 'stock-intake.create']);
+    $this->user->givePermissionTo('stock-intake.create');
+
+    $shop = Shop::factory()->create();
+    $product = Product::factory()->create(['shop_id' => $shop->id, 'stock_quantity' => 0]);
+    $product->defaultVariation->update(['track_batches' => true]);
+
+    $data = [
+        'product_id' => $product->id, 'shop_id' => $shop->id, 'intake_date' => now()->toDateString(),
+        'quantity_received' => 50, 'quantity_accepted' => 50, 'quantity_rejected' => 0,
+    ];
+
+    $this->post(route('stock-intakes.store'), $data)->assertSessionHasErrors('batch_number');
+
+    $data['batch_number'] = 'B-100';
+    $data['expiry_date'] = '10/2027';
+    $this->post(route('stock-intakes.store'), $data)->assertSessionHasNoErrors();
+    expect(StockIntake::latest('id')->first()->expiry_date->toDateString())->toBe('2027-10-31');
+});
+
+test('completing an intake carries its batch number and expiry onto the cost layer', function () {
+    Permission::create(['name' => 'stock-intake.approve']);
+    $this->user->givePermissionTo('stock-intake.approve');
+
+    $shop = Shop::factory()->create();
+    $product = Product::factory()->create(['shop_id' => $shop->id, 'stock_quantity' => 0]);
+    $stockIntake = StockIntake::factory()->pending()->create([
+        'shop_id' => $shop->id, 'product_id' => $product->id, 'quantity_accepted' => 50,
+        'batch_number' => 'B-200', 'expiry_date' => '2027-06-30',
+    ]);
+
+    $this->post(route('stock-intakes.complete', $stockIntake))->assertRedirect();
+
+    $layer = DB::table('cost_layers')->where('stock_intake_id', $stockIntake->id)->sole();
+    expect($layer->batch_number)->toBe('B-200')
+        ->and($layer->expiry_date)->toBe('2027-06-30');
 });
 
 test('can cancel stock intake', function () {

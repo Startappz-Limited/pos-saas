@@ -70,6 +70,15 @@ Checked against `main` after Phase 7 (`832f684`), 27 October 2026.
       `types` (until step 2 replaces it) and the VAT report.
 - [ ] `report_exports` and `dashboard_widgets` stay unused until steps 4 and 6 give them tenant columns (no data on UAT
       to carry: checked by a read-only count before the PR).
+- [ ] **The five dashboard widget routes go too** (review of `main`, 17 November 2026): `POST dashboard/widgets`,
+      `POST dashboard/widgets/reorder`, `PUT` and `DELETE dashboard/widgets/{widget}` and
+      `GET dashboard/widgets/{widget}/data` name `DashboardController` methods that don't exist (`addWidget`,
+      `reorderWidgets`, `updateWidget`, `removeWidget`, `widgetData`), so each is a 500. Removed here; step 6 adds them
+      back with their methods if it is built. They leave `CanaryCrawlTest::BROKEN_ROUTES`.
+- [ ] **The empty report classes** (same review; nothing refers to them): the actions `GenerateReport`, `ExportReport`
+      and `ScheduleReport` and the models `ReportExport` and `DashboardWidget` are removed with the stubs, or filled by
+      steps 4 to 6 if point 1 says build ([stage 25](./25-broken-pages-dead-code-and-hardening.md), step 3, leaves
+      them to this stage).
 - [ ] Tests: the removed routes are 404s; the dashboard export still downloads; the route list test is updated.
 
 ### 2. Report definitions as data

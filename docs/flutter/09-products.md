@@ -365,3 +365,11 @@ Returns categories for the product filter/selector.
 - Product images: use `{base_url}{image_path}` to construct the full image URL.
 - When creating products with variations, allow dynamically adding variation rows.
 - The `shops` array shows per-shop pricing — useful for multi-location setups.
+
+## Units and quantities (stage 11)
+
+- `GET /api/products/{product}` and the list carry `units` (see [README](./README.md#quantities-and-units-stage-11)).
+  A deleted unit is left off.
+- `search` also matches a unit's own barcode exactly: a crate's code finds its product, a fragment doesn't.
+- The `status` list is unchanged until stage 11, step 6's enum case is removed; `out_of_stock` then goes, and the
+  tile counts products with no stock in the viewer's shops instead.

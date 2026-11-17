@@ -36,6 +36,13 @@ class ProductUnit extends Model
      */
     public const USED_ON = ['sale_items', 'return_items'];
 
+    /**
+     * Internal columns stay out of the API's JSON: the business and who changed a unit.
+     *
+     * @var list<string>
+     */
+    protected $hidden = ['business_id', 'created_by', 'updated_by', 'deleted_at', 'base_key', 'default_purchase_key', 'alive'];
+
     protected $fillable = [
         'uuid',
         'business_id',

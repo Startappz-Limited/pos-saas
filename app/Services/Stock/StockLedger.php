@@ -18,6 +18,7 @@ use App\Observers\ProductObserver;
 use App\Support\Stock\Expiry;
 use App\Support\Sync\SyncIssues;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -536,7 +537,7 @@ class StockLedger
             // A batch's number and expiry (stage 11, step 5): the caller already enforced that a
             // variation tracking batches gives both; this just carries whatever it was given.
             'batch_number' => $context['batch_number'] ?? null,
-            'expiry_date' => $context['expiry_date'] ?? null,
+            'expiry_date' => isset($context['expiry_date']) ? Carbon::parse($context['expiry_date'])->toDateString() : null,
             'original_quantity' => $quantity,
             'remaining_quantity' => $quantity,
             'received_at' => $context['received_at'] ?? now(),

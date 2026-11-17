@@ -37,7 +37,9 @@ The plan stays the source of truth. When a stage file and the plan disagree, the
 | 21. Plans, billing page and trial banner | [21-plans-billing-trial-banner.md](./21-plans-billing-trial-banner.md) | `feat/plans-trial-banner` | Phases 4 to 7; 10a's default shop for step 3's return to the Free Trial | Tiers not agreed (point 1) |
 | 22. KRA eTIMS | [22-etims.md](./22-etims.md) | `feat/etims` | 10, 14, 11, 17 | Points 1 to 3 (integration type, certification, who must use it) |
 | 23. Stocktakes in the app (outline) | [23-stocktakes-in-the-app.md](./23-stocktakes-in-the-app.md) | `feat/stocktakes-app` | 13, a scheduled app release | Two points to confirm |
-| 24. Go-live (subscriptions, orphaned businesses, deleted users' grants, no erasure before the owner has the export, production steps) | [24-go-live.md](./24-go-live.md) | `chore/go-live` | Phase 5; stage 21's `ChangeBusinessPlan` shop count if the imported business has several shops | Step 3 (the closure rule) ships first; runs before 10a's commands and before go-live (about 12 November 2026); nothing open |
+| 24. Go-live (subscriptions, orphaned businesses, deleted users' grants, no erasure before the owner has the export, production steps) | [24-go-live.md](./24-go-live.md) | `chore/go-live` | Phase 5; stage 21's `ChangeBusinessPlan` shop count if the imported business has several shops | Step 3 (the closure rule) ships first; runs before 10a's commands and before go-live (about 12 November 2026, now passed); three points opened 17 November 2026 (the date, who checks production, subscription payments) |
+| 25. Broken pages, dead code and hardening | [25-broken-pages-dead-code-and-hardening.md](./25-broken-pages-dead-code-and-hardening.md) | `fix/broken-pages-dead-code` | None | Points 1 (does the app call four failing flat endpoints) and 2 (which empty classes go now); can ship at any time |
+| 26. Test suite: speed, edge cases and journeys | [26-test-suite-speed-edge-cases-and-journeys.md](./26-test-suite-speed-edge-cases-and-journeys.md) | `chore/test-suite` | None (steps 2e and 3a's J1 after stage 11) | Six points (time targets, browser tool, `jq`, per-worker databases, legacy scripts, mutation testing); step 1 can start now |
 
 **Proposed order (27 October 2026, sixth round).** The stock stages come first: 10 (with 10a, which depends on no stage and can ship at any time), 11, then 11b and 11c (either
 order), 12, 13, 14. Then 16 (sign-in security; small, and can run alongside the stock stages), 17 (platform; its tills
@@ -53,14 +55,21 @@ app in shops and checks the server against the app's recorded requests; the app-
 **Traceability.** Every finding from documents outside this folder, and where it went:
 [stock, products, inventory and costing](./TRACEABILITY-stock.md), [reports](./TRACEABILITY-reports.md),
 [alerts](./TRACEABILITY-alerts.md), [expenses](./TRACEABILITY-expenses.md), [security](./TRACEABILITY-security.md),
-[billing](./TRACEABILITY-billing.md), [platform and eTIMS](./TRACEABILITY-platform.md).
+[billing](./TRACEABILITY-billing.md), [platform and eTIMS](./TRACEABILITY-platform.md),
+[the review of `main`, 17 November 2026](./TRACEABILITY-main-review.md),
+[the test review, 17 November 2026](./TRACEABILITY-tests.md).
 
 **History.** Stages 10 to 15 came from the FIFO and returns reviews of 26 October 2026, the stock intake and products
 review and the review of the pre-SaaS stock documents of 27 October 2026. On 27 October the combined stock stage was
 split into 10, 11 and 12; stocktakes became 13 and the returns stage 14; in the sixth round stage 11 was split again
 into 11, 11b and 11c (by suffix, so no other stage was renumbered), stage 15 became Regulated products, and stages 16
 to 23 were added for the findings outside the stock scope and Phase 7's open items. On 2 November 2026 stage 10a
-was split: its billing items moved to 21, step 3, and its business hygiene and go-live steps became stage 24.
+was split: its billing items moved to 21, step 3, and its business hygiene and go-live steps became stage 24. On
+17 November 2026 a review of `main` (after stage 10a) added stage 25 for the findings no stage owned (routes that
+fail, empty classes, the rest of the security baseline, robustness, the isolation suite's placeholders); the others
+went to stages 11c, 18, 19, 20 and 24 and the app checklist. Stage 25 depends on no stage and can ship at any time. The same day a review of the tests added stage 26 (why the
+MySQL run takes 35 to 47 minutes, the edge cases and journeys the tests miss, and how to build better tests); its
+concurrency and random-order items link to stages 25 and 17.
 
 **Planning rounds change only this folder** (decided 27 October 2026): changes to code, migrations or other documents
 are planned as items in the stage whose work makes them true; PROGRESS.md is edited only when the user asks.

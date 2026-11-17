@@ -5,6 +5,7 @@ namespace App\Http\Requests;
 use App\Enums\AdjustmentReason;
 use App\Models\Product;
 use App\Models\StockAdjustment;
+use App\Support\Stock\Expiry;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -44,6 +45,12 @@ class StoreStockAdjustmentRequest extends FormRequest
             'items.*.variation_id' => ['nullable', 'exists:product_variations,id'],
             'items.*.quantity_change' => ['required', 'integer', 'not_in:0', 'between:-1000000,1000000'],
             'items.*.item_notes' => ['nullable', 'string', 'max:500'],
+            // An increase line's own batch, expiry and cost; a decrease line's chosen batch
+            // (stage 11, step 5).
+            'items.*.cost_layer_id' => ['nullable', 'integer', 'exists:cost_layers,id'],
+            'items.*.batch_number' => ['nullable', 'string', 'max:100'],
+            'items.*.expiry_date' => ['nullable', 'date'],
+            'items.*.unit_cost' => ['nullable', 'numeric', 'min:0'],
         ];
     }
 
@@ -55,6 +62,26 @@ class StoreStockAdjustmentRequest extends FormRequest
         ];
     }
 
+    /**
+     * A month-only expiry ("10/2026") becomes its last day, before the `date` rule sees it.
+     */
+    protected function prepareForValidation(): void
+    {
+        $items = $this->input('items', []);
+        // A cost is entered only by someone who may set costs (stage 10, step 1f); from anyone else it
+        // is ignored, so their increase is received at an unknown cost, never one they chose.
+        $mayEnterCost = $this->user()?->can('products.set-cost') ?? false;
+        foreach ($items as $index => $item) {
+            if (! empty($item['expiry_date'])) {
+                $items[$index]['expiry_date'] = Expiry::parse($item['expiry_date']);
+            }
+            if (! $mayEnterCost) {
+                unset($items[$index]['unit_cost']);
+            }
+        }
+        $this->merge(['items' => $items]);
+    }
+
     public function withValidator(Validator $validator): void
     {
         $validator->after(function (Validator $validator): void {
@@ -63,8 +90,9 @@ class StoreStockAdjustmentRequest extends FormRequest
             }
 
             $reason = AdjustmentReason::from((string) $this->input('reason'));
-            $products = Product::query()->with('variations:id,product_id,is_default')
+            $products = Product::query()->with('variations:id,product_id,is_default,track_batches')
                 ->whereIn('id', collect($this->input('items', []))->pluck('product_id'))->get()->keyBy('id');
+            $needsNamedBatch = in_array($reason, [AdjustmentReason::DAMAGED, AdjustmentReason::EXPIRED, AdjustmentReason::QUALITY_ISSUE], true);
 
             foreach ((array) $this->input('items', []) as $index => $item) {
                 $change = (int) $item['quantity_change'];
@@ -83,6 +111,24 @@ class StoreStockAdjustmentRequest extends FormRequest
                     $validator->errors()->add("items.{$index}.variation_id", __('Choose which variation of :product.', ['product' => $product->name]));
                 } elseif ($product !== null && $variationId !== null && ! $product->variations->contains('id', (int) $variationId)) {
                     $validator->errors()->add("items.{$index}.variation_id", __('That variation isn\'t one of :product\'s.', ['product' => $product->name]));
+                }
+
+                if ($product === null) {
+                    continue;
+                }
+
+                $variation = $variationId !== null
+                    ? $product->variations->firstWhere('id', (int) $variationId)
+                    : $product->defaultVariation()->first();
+
+                if ($variation === null || ! $variation->track_batches) {
+                    continue;
+                }
+
+                if ($change > 0 && (empty($item['batch_number']) || empty($item['expiry_date']))) {
+                    $validator->errors()->add("items.{$index}.batch_number", __('This product tracks batches: give a batch number and expiry.'));
+                } elseif ($change < 0 && $needsNamedBatch && empty($item['cost_layer_id'])) {
+                    $validator->errors()->add("items.{$index}.cost_layer_id", __('This product tracks batches: choose which batch :reason takes from.', ['reason' => $reason->label()]));
                 }
             }
         });

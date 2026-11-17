@@ -71,7 +71,7 @@ class ProductController extends Controller
 
         $validated['created_by'] = auth()->id();
         $product = $this->productService->createProduct($validated);
-        $product->load(['category', 'supplier', 'variations']);
+        $product->load(['category', 'supplier', 'variations', 'units']);
 
         return response()->json([
             'success' => true,
@@ -84,7 +84,7 @@ class ProductController extends Controller
     {
         $this->authorize('view', $product);
 
-        $product->load(['category', 'supplier', 'variations', 'shops']);
+        $product->load(['category', 'supplier', 'variations', 'units', 'shops']);
 
         return response()->json([
             'success' => true,
@@ -126,7 +126,7 @@ class ProductController extends Controller
 
         $validated['updated_by'] = auth()->id();
         $product = $this->productService->updateProduct($product, $validated);
-        $product->load(['category', 'supplier', 'variations']);
+        $product->load(['category', 'supplier', 'variations', 'units']);
 
         return response()->json([
             'success' => true,

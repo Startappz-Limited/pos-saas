@@ -29,7 +29,9 @@ class ProductService
                 $q->where('name', 'like', "%{$search}%")
                     ->orWhere('sku', 'like', "%{$search}%")
                     ->orWhere('barcode', 'like', "%{$search}%")
-                    ->orWhere('description', 'like', "%{$search}%");
+                    ->orWhere('description', 'like', "%{$search}%")
+                    // A unit's own barcode finds its product exactly: a crate's code is not a bottle's.
+                    ->orWhereHas('sellableVariations.units', fn ($units) => $units->where('product_units.barcode', $search));
             });
         }
 
@@ -119,7 +121,8 @@ class ProductService
             'total' => Product::count(),
             'active' => Product::active()->count(),
             'inactive' => Product::inactive()->count(),
-            'out_of_stock' => Product::outOfStock()->count(),
+            // Stock, not a status: active products that track stock and hold none in the viewer's shops (stage 11, step 6).
+            'out_of_stock' => Product::active()->where('track_stock', true)->whereStock('<=', 0)->count(),
             'discontinued' => Product::discontinued()->count(),
             'low_stock' => Product::lowStock()->count(),
             // Units in the shops the viewer may access (per-shop stock, stage 1b).

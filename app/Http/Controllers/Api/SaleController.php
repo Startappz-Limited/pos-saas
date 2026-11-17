@@ -91,7 +91,7 @@ class SaleController extends Controller
             return $this->failed($e, __('Failed to create sale:'));
         }
 
-        $sale = $recorded->sale->load(['customer', 'items.product', 'items.variation', 'source', 'createdBy']);
+        $sale = $recorded->sale->load(['customer', 'items.product', 'items.variation', 'items.unit', 'source', 'createdBy']);
 
         return response()->json([
             'success' => true,
@@ -107,7 +107,7 @@ class SaleController extends Controller
     {
         abort_unless(auth()->user()->canAccessShop($sale->shop_id), 403, __('This action is unauthorized.'));
 
-        $sale->load(['customer', 'shop', 'items.product', 'items.variation', 'createdBy', 'source', 'deliveryCompany', 'payments.receiver']);
+        $sale->load(['customer', 'shop', 'items.product', 'items.variation', 'items.unit', 'createdBy', 'source', 'deliveryCompany', 'payments.receiver']);
 
         return response()->json([
             'success' => true,

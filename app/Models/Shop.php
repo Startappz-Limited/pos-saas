@@ -53,6 +53,7 @@ class Shop extends Model
             'status' => ShopStatus::class,
             'settings' => 'array',
             'vat_registered' => 'boolean',
+            'expiry_touched_at' => 'datetime',
             'latitude' => 'decimal:8',
             'longitude' => 'decimal:8',
         ];

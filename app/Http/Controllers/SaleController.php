@@ -452,7 +452,7 @@ class SaleController extends Controller
     {
         $this->authorize('view', $sale);
 
-        $sale->load(['customer', 'shop', 'items.product', 'items.variation', 'createdBy', 'source']);
+        $sale->load(['customer', 'shop', 'items.product', 'items.variation', 'items.unit', 'createdBy', 'source']);
 
         return view('sales.receipt', compact('sale'));
     }

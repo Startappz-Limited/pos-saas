@@ -41,6 +41,11 @@ users, how business 7 was made, `LegacyImport`, and 10a's "Go-live" section. The
 
 ---
 
+**Revised 17 November 2026** (review of `main` at `0e288c4`): "Go-live (production)" gains item 4 (the scheduler, the
+queue worker with its named queues, the audit database) and item 5 (the three integrations still bound to `Null…`
+implementations); three points opened under "Points to confirm" (the date, who checks production, subscription
+payments). Nothing built in this stage changes.
+
 ## Goal
 
 Before go-live, and on UAT before stage 10a's commands, every business is either one somebody works in, with a
@@ -50,7 +55,7 @@ or a platform operator for a business with no owner, has its data.
 ## Before you start
 
 Step 3 (the closure rule) ships before steps 1 and 2 are run anywhere, since they close businesses. Production with an
-imported business of several shops also needs stage 21's `ChangeBusinessPlan` shop count. Nothing is open.
+imported business of several shops also needs stage 21's `ChangeBusinessPlan` shop count. Three points were opened on 17 November 2026 (see "Points to confirm"); none blocks steps 1 to 3.
 
 ## Decisions that apply
 
@@ -345,6 +350,23 @@ After the one-off `LegacyImport` into the freshly migrated production database, 
 3. Stage 10a's `businesses:set-default-shop --all`, `users:grant-default-shop --all` and `members:clean-removed --all`,
    each as a dry run, then `--apply`.
 
+4. **Background work is running** (added 17 November 2026, from the review of `main`; checks only, since deployment
+   and operations are outside the plan, section 9). Without these the application looks healthy and silently does
+   nothing:
+   - `schedule:run` every minute: `mpesa:check-pending` (every minute), `approvals:remind` and `sync:warn-overdue`
+     (hourly), `businesses:erase-closed` (02:30), `billing:sweep` (03:00), the media prune (03:15) and the campaign
+     sweep. Check: `php artisan schedule:list` on the server, and a scheduled run recorded within the last minute.
+   - a queue worker naming every queue: `default,whatsapp-notifications,order-notifications,baileys,ecommerce` (and
+     `alerts` once stage 18 ships). Check: `select queue, count(*) from jobs group by queue;` shows nothing waiting on
+     a queue no worker drains, and a test notification arrives.
+   - the audit database exists on the server, is migrated
+     (`migrate --database=audit --path=database/migrations/audit`) and is in the backups.
+   - `APP_DEBUG=false`, and HTTPS is forced.
+5. **What isn't real yet is known before the first customer** (same review): `MpesaGateway`, `FiscalProvider` and
+   `PaymentCollector` are bound to their `Null…` implementations on `main`. Until stage 17, step 3 (till M-Pesa),
+   stage 22 (eTIMS) and the billing adapter (point 1 below) ship, till M-Pesa prompts don't reach M-Pesa, receipts
+   carry no fiscal signature, and subscription payments are recorded by hand with `billing:record-payment`.
+
 ## Definition of done
 
 Every acceptance criterion is ticked with evidence; the UAT rollout's dry runs are in the PR body. The stage file and
@@ -352,10 +374,22 @@ PROGRESS.md are updated. The pre-push checks (Pint, SQLite, MySQL) pass.
 
 ## Points to confirm
 
-Nothing is open. Closed 2 November 2026: erasing businesses 3 and 5 (UAT test data: confirmed without an export,
+Closed 2 November 2026: erasing businesses 3 and 5 (UAT test data: confirmed without an export,
 erased on the normal schedule); the closure rule (erasure only after the export is emailed, or an operator confirms,
 plus 30 days); orphaned businesses with data are listed, not closed; the operator download's permission; the closure
 screens' wording; operators emailed after the fifth failed send.
+
+Opened 17 November 2026 (review of `main` at `0e288c4`):
+
+1. **The go-live date.** This stage was written for a go-live of about 12 November 2026. On 17 November nothing in
+   it is built (every item is unticked and there is no `chore/go-live` branch). What is the new date, and does step 3
+   (the closure rule) still ship first?
+2. **Who confirms the scheduler and the queue worker on production** ("Go-live (production)", item 4)? Deployment is
+   outside the plan, so nothing in the repository proves either runs; the checks need someone with access to the
+   server.
+3. **Subscription payments at go-live:** turn on `BILLING_MPESA_ENABLED` with a `PaymentCollector` adapter over the
+   M-Pesa package (the same package stage 17, step 3 waits for), or go live recording payments by hand? This is the
+   undecided follow-up below.
 
 ## Follow-ups (not this stage)
 

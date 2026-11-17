@@ -86,3 +86,28 @@ All error responses follow a consistent structure:
 - UUIDs are used as public-facing identifiers for most resources. Internal `id` fields are integers.
 - Pagination follows Laravel's standard: `{ data: [], links: {}, meta: { current_page, last_page, per_page, total } }`.
 - Timestamps are in ISO 8601 format (`2026-03-18T10:30:00.000000Z`).
+
+## Quantities and units (stage 11)
+
+- **Convention.** A quantity the app reads as a number stays a JSON number: the flat API's `quantity`,
+  `stock_quantity`, `reorder_level` and `quantity_before/change/after`, and the `/api/v1` receipt's line
+  `quantity`. A whole value is an integer (`2`); only a fractional one is a decimal (`2.5`), and that happens only
+  when a business sells by a unit with decimals.
+- **New decimal fields are strings with the unit's decimals** (`"2.500"`): `base_quantity`, `quantity_exact`,
+  `base_reorder_level`, `sellable_quantity`, `expired_quantity`, a unit's `factor`.
+- **Pull** (`/api/v1/sync/pull`):
+  - `units`: `uuid`, `variation_uuid` (null for a simple product's hidden variation), `product_uuid`, `name`,
+    `factor`, `precision`, `barcode`, `selling_price`, `wholesale_price`, `is_base`, `can_sell`, `can_buy`,
+    `sort_order`, `deleted_at`, `updated_at`. A deleted unit comes as an update with `deleted_at` set and
+    `can_sell`/`can_buy` false, never in `deletions`: past receipts still name it.
+  - `stock`: `quantity` and `reorder_level` are whole numbers, rounded down; `base_quantity`, `base_reorder_level`,
+    `sellable_quantity`, `expired_quantity` (strings) and `next_expiry` (date or null).
+  - `variations`: `track_batches`. `settings.stock.consumption`: `fifo` or `fefo`.
+- **Push sale lines** take `unit_id` (a unit uuid, optional; the base unit when missing) and `base_quantity` (a
+  string, optional). The till's `base_quantity` is kept; if it disagrees with quantity x factor the server records a
+  `unit_factor_mismatch` issue. A unit the server doesn't have holds the sale as `unknown_unit` (disposition `hold`)
+  until someone discards it with `outbox_item_discarded`.
+- **Flat API:** sale lines carry `unit` (the unit record) and `base_quantity`; products carry `units`; the product
+  search also matches a unit's own barcode, exactly.
+- **Not sent:** a waiting product barcode (`unassigned_barcodes`) appears on no pull or flat response until an owner
+  assigns it.

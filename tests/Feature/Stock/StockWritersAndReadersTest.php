@@ -87,6 +87,8 @@ describe('writers', function () {
             StockAdjustmentItem::create([
                 'uuid' => (string) Str::uuid(), 'stock_adjustment_id' => $adjustment->id, 'product_id' => $this->product->id,
                 'shop_id' => $this->shop->id, 'quantity_change' => $type === 'increase' ? $quantity : -$quantity,
+                // An increase costs only at what's entered (stage 11, step 5): never a silent fallback.
+                'unit_cost' => $type === 'increase' ? 10 : null,
             ]);
 
             // Approved by a second person (stage 10, step 1g).

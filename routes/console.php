@@ -58,3 +58,6 @@ Schedule::command('sync:warn-overdue')->hourly()->name('warn-overdue-tills')->wi
 
 // M-Pesa payments at tills: confirmed by asking M-Pesa, then recorded on their sales (Phase 7).
 Schedule::command('mpesa:check-pending')->everyMinute()->name('check-pending-mpesa')->withoutOverlapping();
+
+// Batches that expired since each shop's last run: tills and stores pull their stock again (stage 11, step 5).
+Schedule::command('stock:touch-expiring')->everyFifteenMinutes()->name('touch-expiring-stock')->withoutOverlapping()->onOneServer();

@@ -2,7 +2,10 @@
 
 namespace App\Http\Requests;
 
+use App\Models\Product;
+use App\Models\ProductVariation;
 use App\Models\PurchaseOrderItem;
+use App\Support\Stock\Expiry;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Validator;
@@ -36,9 +39,22 @@ class StoreStockIntakeRequest extends FormRequest
             'quantity_rejected' => ['required', 'numeric', 'min:0'],
             'unit' => ['nullable', 'string', 'max:50'],
             'quality_notes' => ['nullable', 'string'],
+            // A batch's number and expiry (stage 11, step 5); expiry accepts a full date or a
+            // month ("10/2026"), normalised in prepareForValidation().
+            'batch_number' => ['nullable', 'string', 'max:100'],
             'expiry_date' => ['nullable', 'date', 'after:today'],
             'notes' => ['nullable', 'string'],
         ];
+    }
+
+    /**
+     * A month-only expiry ("10/2026") becomes its last day, before the `date` rule sees it.
+     */
+    protected function prepareForValidation(): void
+    {
+        if ($this->filled('expiry_date')) {
+            $this->merge(['expiry_date' => Expiry::parse($this->input('expiry_date'))]);
+        }
     }
 
     /**
@@ -68,6 +84,34 @@ class StoreStockIntakeRequest extends FormRequest
                     'Accepted + rejected quantities cannot exceed the received quantity.'
                 );
             }
+
+            // A variation that tracks batches needs both, on any line that receives stock
+            // (stage 11, step 5).
+            $variation = $this->resolveVariation();
+            if ($variation !== null && $variation->track_batches && (! $this->filled('batch_number') || ! $this->filled('expiry_date'))) {
+                $validator->errors()->add('batch_number', 'This product tracks batches: give a batch number and expiry.');
+            }
         });
+    }
+
+    private function resolveVariation(): ?ProductVariation
+    {
+        if ($this->purchase_order_item_id) {
+            $item = PurchaseOrderItem::find($this->purchase_order_item_id);
+
+            return $item?->product_variation_id !== null
+                ? ProductVariation::find($item->product_variation_id)
+                : $item?->product?->defaultVariation()->first();
+        }
+
+        if ($this->filled('product_variation_id')) {
+            return ProductVariation::find($this->input('product_variation_id'));
+        }
+
+        if ($this->filled('product_id')) {
+            return Product::find($this->input('product_id'))?->defaultVariation()->first();
+        }
+
+        return null;
     }
 }

@@ -132,8 +132,9 @@ trait HasShopStock
      * where the overselling policy (stage 11, step 4 follow-up) applies one,
      * is enforced inside StockLedger itself, under its row lock, so a
      * check-then-sell race between two callers can't both pass this method
-     * and then both oversell. Expired batches aren't excluded yet (stage 11,
-     * step 5 adds expiry to cost layers).
+     * and then both oversell. Expired batches are not excluded here: the sale
+     * refuses them under the same lock (`StockLedger::consume()`, stage 11,
+     * step 5), so this figure can be higher than what a sale can take.
      */
     public function canBeSoldAt(Shop $shop, ?ProductVariation $variation = null, string $quantity = '1'): bool
     {

@@ -189,6 +189,27 @@ Pricing rules are time-bounded (active / upcoming / expired scopes) and typed by
 Always resolve price through that method rather than reading `selling_price` directly, or time-bounded
 promotions and wholesale tiers silently stop applying.
 
+## Units, quantities and batches (stage 11)
+
+- **Base units.** Every variation has exactly one base unit (`product_units`, `is_base`, factor 1). Stock, costs and
+  `base_quantity` are in base units; a sale line's `quantity` is in its unit, and `base_quantity` is `quantity x factor`
+  unless the till sends its own figure (which then wins; a mismatch is recorded as `unit_factor_mismatch`).
+- **Quantities are decimal strings** (scale 3) inside the server. The APIs turn them into numbers only through
+  `App\Support\Quantities\Encode` (`flat`, `pullWhole`, `exact`); the flat API's quantity keys go through
+  `EncodeFlatQuantities`. Purchase-order quantities are `decimal(15,2)` and stay strings.
+- **Expiry.** A batch is expired from the start of the day after its `expiry_date`, in the shop's local day
+  (`Expiry`). A sale never takes an expired batch; the shortfall follows the overselling rule and is flagged
+  `expired_stock`. `stock:touch-expiring` touches the stock row of each batch that expired since the shop's last run,
+  so tills and stores pull it again.
+- **Consumption.** `fifo` (default) or `fefo` per business (`settings.stock.consumption`); a decrease line may name the
+  batch it takes (`cost_layer_id`).
+- **Costs of adjustments.** An increase is received at the cost entered, and only someone holding `products.set-cost`
+  may enter one; without a cost it is received at an unknown cost.
+- **Barcodes.** A unit's barcode is unique per business among live units. A product barcode on a product with real
+  variations waits in `unassigned_barcodes` until assigned; nothing sends it until then.
+- **Copy and verify (release 1 of step 7).** `catalogue:copy-to-units` (dry run unless `--apply`) and
+  `catalogue:verify-units` (read-only). The old columns are dropped only in release 2, after verify passes.
+
 ## Money and quantity invariants
 
 - Money is `decimal(10,2)` everywhere. Never store money in a float column, and be careful comparing

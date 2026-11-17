@@ -15,6 +15,48 @@
 
     <div>
 
+        @if ($waitingBarcodes->isNotEmpty())
+            <div class="card border-warning mb-3">
+                <div class="card-header bg-warning-subtle">
+                    <strong>{{ __('Barcode to assign') }}</strong>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted mb-3">
+                        {{ __('This product has variations, so its barcode belongs to one of their units. Scanning this barcode won\'t work until you assign it.') }}
+                    </p>
+                    @foreach ($waitingBarcodes as $waiting)
+                        <div class="d-flex flex-wrap align-items-end gap-2 mb-3">
+                            <div class="me-2">
+                                <span class="fw-medium">{{ $waiting->barcode }}</span>
+                            </div>
+                            <form method="POST" action="{{ route('products.barcodes.assign', [$product, $waiting]) }}" class="d-flex gap-2 align-items-end">
+                                @csrf
+                                @honeypot
+                                <div>
+                                    <label class="form-label" for="unit-{{ $waiting->id }}">{{ __('Unit') }}</label>
+                                    <select class="form-select" name="unit" id="unit-{{ $waiting->id }}" required>
+                                        @foreach ($product->units as $unit)
+                                            <option value="{{ $unit->uuid }}">{{ $unit->name }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                                <button type="submit" class="btn btn-primary">{{ __('Assign') }}</button>
+                            </form>
+                            <form method="POST" action="{{ route('products.barcodes.drop', [$product, $waiting]) }}" class="d-flex gap-2 align-items-end">
+                                @csrf
+                                @honeypot
+                                <div>
+                                    <label class="form-label" for="reason-{{ $waiting->id }}">{{ __('Reason') }}</label>
+                                    <input class="form-control" type="text" name="reason" id="reason-{{ $waiting->id }}" maxlength="500" required>
+                                </div>
+                                <button type="submit" class="btn btn-outline-danger">{{ __('Drop') }}</button>
+                            </form>
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+        @endif
+
         <form action="{{ route('products.update', $product) }}" method="POST" enctype="multipart/form-data">
             @csrf
             @method('PUT')

@@ -54,6 +54,12 @@ class SyncIssue extends Model
     /** An item a till abandoned (`outbox_item_discarded`), on record (stage 10, step 5c). */
     public const OUTBOX_ITEM_DISCARDED = 'outbox_item_discarded';
 
+    /** A sale line whose unit the server never had: the till keeps the sale until someone discards it (stage 11, step 8). */
+    public const UNKNOWN_UNIT = 'unknown_unit';
+
+    /** A till's base quantity differs from quantity x the unit's factor: the till's figure is kept, and this records both (stage 11, step 8). */
+    public const UNIT_FACTOR_MISMATCH = 'unit_factor_mismatch';
+
     protected $fillable = ['uuid', 'business_id', 'shop_id', 'register_id', 'type', 'key', 'details', 'resolved_at', 'resolved_by', 'resolution'];
 
     protected function casts(): array

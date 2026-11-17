@@ -35,7 +35,10 @@ function importAs($test, $user, $shop, string $csv)
     return $test->actingAs($user)->post(route('products.import.store'), ['shop_id' => $shop->id, 'file' => csvUpload($csv)]);
 }
 
-it('imports products with a category, a cost and opening stock', function () {
+// Stage 11, step 4 follow-up: the file's stock column is for reference only and is never
+// applied (the first stock a product gets comes from a stock intake, which stage 10's approval
+// rule covers), so the file's 20 is never received and the new product has no movement.
+it('imports products with a category and a cost, and receives no stock', function () {
     $shop = $this->a->shops[0];
     $csv = "name,selling_price,sku,category,cost_price,stock\nWidget,250.00,W-1,Tools,150,20\nGadget,99,G-1,Tools,,0\n";
 
@@ -47,7 +50,8 @@ it('imports products with a category, a cost and opening stock', function () {
             ->and($widget->category->name)->toBe('Tools')
             ->and(Product::query()->where('sku', 'G-1')->exists())->toBeTrue()
             ->and(Category::query()->where('name', 'Tools')->count())->toBe(1)
-            ->and(StockMovement::query()->where('shop_id', $shop->id)->where('quantity', 20)->exists())->toBeTrue();
+            ->and(StockMovement::query()->where('shop_id', $shop->id)->where('quantity', 20)->exists())->toBeFalse()
+            ->and(StockMovement::query()->where('reference_uuid', $widget->uuid)->where('reference_type', Product::class)->exists())->toBeFalse();
     });
     expect($this->tenant->run($this->b->business, fn () => Product::query()->where('sku', 'W-1')->exists()))->toBeFalse();
 });

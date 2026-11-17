@@ -14,6 +14,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\DB;
@@ -73,6 +74,23 @@ class Product extends Model
     public function uniqueIds(): array
     {
         return ['uuid'];
+    }
+
+    /**
+     * A product with real variations sends no barcode of its own in its JSON: that barcode waits for
+     * a unit (stage 11, step 7) and nothing sends it until it is assigned.
+     *
+     * @return array<string, mixed>
+     */
+    public function attributesToArray(): array
+    {
+        $attributes = parent::attributesToArray();
+
+        if ($this->has_variations && array_key_exists('barcode', $attributes)) {
+            $attributes['barcode'] = null;
+        }
+
+        return $attributes;
     }
 
     public function getRouteKeyName(): string
@@ -216,6 +234,16 @@ class Product extends Model
     public function sellableVariations(): HasMany
     {
         return $this->hasMany(ProductVariation::class)->withoutGlobalScope(ProductVariation::HIDE_DEFAULT);
+    }
+
+    /**
+     * The units of every sellable variation, the default one's included (stage 11, step 8): what
+     * the flat API sends as a product's `units`. A deleted unit is left off (soft deletes).
+     */
+    public function units(): HasManyThrough
+    {
+        return $this->hasManyThrough(ProductUnit::class, ProductVariation::class, 'product_id', 'variation_id')
+            ->withoutGlobalScope(ProductVariation::HIDE_DEFAULT);
     }
 
     /**
@@ -368,18 +396,25 @@ class Product extends Model
         return $this->hasPurchaseCost() && (float) $this->cost_price > (float) $this->selling_price;
     }
 
+    /**
+     * Margin as a percentage, with the money rules sales use (stage 11, step 9): bcmath, rounded to
+     * two decimals, no float drift.
+     */
     public function getProfitMarginAttribute(): float
     {
-        if ($this->selling_price <= 0) {
+        if ((float) $this->selling_price <= 0) {
             return 0;
         }
 
-        return (($this->selling_price - (float) $this->cost_price) / $this->selling_price) * 100;
+        return (float) bcmul(bcdiv($this->profit, (string) $this->selling_price, 6), '100', 2);
     }
 
+    /**
+     * Profit per unit, to the cent, as a sale's line profit is (stage 11, step 9).
+     */
     public function getProfitAttribute(): float
     {
-        return $this->selling_price - (float) $this->cost_price;
+        return (float) bcsub(number_format((float) $this->selling_price, 2, '.', ''), number_format((float) $this->cost_price, 2, '.', ''), 2);
     }
 
     /**

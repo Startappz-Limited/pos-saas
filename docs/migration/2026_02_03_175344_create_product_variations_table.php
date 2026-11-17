@@ -1,5 +1,8 @@
 <?php
 
+// Historical copy, kept for reference (stage 11, step 9). Not a live migration: the schema
+// lives in database/migrations. Do not run this file or copy it back.
+
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;

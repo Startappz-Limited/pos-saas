@@ -59,6 +59,10 @@ class CompleteStockIntakeAction
                     'reference' => $stockIntake,
                     'notes' => "Stock intake {$stockIntake->intake_number}.",
                     'user_id' => $userId,
+                    // The batch this stock belongs to (stage 11, step 5); the request already
+                    // required both when the variation tracks batches.
+                    'batch_number' => $stockIntake->batch_number,
+                    'expiry_date' => $stockIntake->expiry_date,
                 ]);
             }
 
