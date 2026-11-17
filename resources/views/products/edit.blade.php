@@ -15,6 +15,10 @@
 
     <div>
 
+        <div class="d-flex justify-content-end mb-2">
+            <a class="btn btn-outline-primary btn-sm" href="{{ route('products.units.index', $product) }}">{{ __('Units and pack sizes') }}</a>
+        </div>
+
         @if ($waitingBarcodes->isNotEmpty())
             <div class="card border-warning mb-3">
                 <div class="card-header bg-warning-subtle">

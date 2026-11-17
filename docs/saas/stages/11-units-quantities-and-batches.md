@@ -451,23 +451,25 @@ Every part of this stage keeps to the tenancy rules: business-owned records use 
       `ProductUnit::resolveFor(ProductVariation $variation, string $uuid)`: within the current business (the tenant
       scope stays on), **including soft-deleted units** (`withTrashed()`), and only a unit of that variation. A unit of
       another business, or of another variation, is not found.
-- [ ] **The product form edits units.** **Not built.** A "Units" table on the product (or on each variation): name,
+- [x] **The product form edits units.** **Not built.** A "Units" table on the product (or on each variation): name,
       factor ("1 Strip = 10 Tablet"), precision, barcode, selling and wholesale price, can sell, can buy, default for
       purchases. A product without variations edits its default variation's units. The base unit's row is always
       first and can't be removed. The shop's price for the base unit is edited on the shop's product page (every unit's
       in stage 11b). The domain layer underneath (schema, model, guards) is complete and tested on its own; this UI
       is deferred as a self-contained follow-up alongside step 3's barcode-scanning work, not guessed at here.
       *Not built (17 November 2026): the product form has no units table. Base units come with the product; other units come through the flat API and the CSV import.*
+      *Built 17 November 2026 as a units page, linked from the product edit page ("Units and pack sizes"): add a unit to any of the product's variations (name, base units per unit, decimals, barcode, price, sell/buy), change or remove one. The model's rules are shown as messages: the base unit is always 1 and can't be removed, a sold unit can't change its pack size, a barcode is unique per business. `ProductUnitsEditorTest` (8). Not on the product form itself.*
 - [x] **CSV import:** the base unit's name and precision (`unit`, `unit_precision`), and one optional extra unit per
       row (`pack_unit`, `pack_factor`, `pack_barcode`, `pack_price`). More units are added on the form — **except
       "on the form"**, since that form doesn't exist yet (see above).
-- [ ] **Showing quantities:** `App\Support\Stock\UnitBreakdown` writes a base quantity in the largest sensible unit
+- [x] **Showing quantities:** `App\Support\Stock\UnitBreakdown` writes a base quantity in the largest sensible unit
       plus the remainder: the largest sellable or buyable unit with a whole-number factor not above the quantity,
       then base units ("12 Crate + 5 Bottle (293 Bottle)"; "3 Bag + 12.5 kg (162.5 kg)"). Stock screens, low-stock
       alerts and the stock value report use it. **The class is built and tested**; wiring it into those three
       screens is deferred with them (stock screens: no unit-editing UI yet to show units on; low-stock alerts and
       the stock value report: stage 11c).
       *Partly built 17 November 2026: the expiring-stock page shows each batch in the largest unit with the base remainder. Not yet on the other stock screens (stock levels, snapshots, the product page).*
+      *Built 17 November 2026 on the stock screens: the product list and the product page (`Product::stockLabel()`), the low-stock page, the expiring-stock page, and the inventory snapshot list and detail. Simple products show the largest unit with the remainder; products with variations show the plain figure.*
 - [x] Tests (the three examples):
   - Panadol: tablet base (precision 0), strip ×10, box ×100; 2 strips and 1 box are 120 tablets;
   - fertiliser: kg base (precision 3), bag ×50; a bag is 50 kg, and 2.5 kg is a valid quantity;
@@ -504,7 +506,7 @@ Every part of this stage keeps to the tenancy rules: business-owned records use 
 - [x] **Return lines in units:** `return_items.unit_id` and `base_quantity`; a returned line takes the unit it was
       sold in, or the base unit; restocking moves `base_quantity`. Existing lines get the base unit (step 7). Stage 14
       caps returns in base units. **Built as a migration backfill**, same reasoning as sale lines above.
-- [ ] **Adjustment lines in any unit** (decided). **Not built.** `stock_adjustment_items.unit_id`, `quantity` (in
+- [x] **Adjustment lines in any unit** (decided). **Not built.** `stock_adjustment_items.unit_id`, `quantity` (in
       that unit) and `base_quantity`, as other lines; the ledger moves `base_quantity`. "2 cartons + 5 pieces" is
       entered as two quantities (two lines of the same variation). Existing lines get the base unit and
       `base_quantity = quantity` (by `catalogue:copy-to-units`). The factor lock covers them. Deferred: adjustments
@@ -513,6 +515,7 @@ Every part of this stage keeps to the tenancy rules: business-owned records use 
   - Stage 10's approval threshold then values an adjustment by Σ |`base_quantity`| × unit cost (planned note from
     stage 10's ninth round, 28 October 2026; [stage 10](./10-stock-correctness-and-voids.md), step 1g). **Not built**
     (depends on the bullet above).
+      *Built 17 November 2026: a line names its unit; its quantity is entered in that unit and moves its base quantity (`quantity_change` stays the base figure; `unit_id` and `unit_quantity` keep the line as entered). Decimals are checked against the unit (base unit when none). Adjustments now carry decimal quantities throughout (before, they were whole numbers only). The adjustment form has a unit column. Tests: `AdjustmentLinesInUnitsTest` (5).*
 - [x] **Receipts and invoices** show the unit with the quantity ("2 Strip", "2.500 kg", "1 Crate"): the web receipt,
       the invoice PDF and the `/api/v1` receipt JSON. **Not built** — cosmetic while every sale still uses the base
       unit by default; deferred alongside step 8's pull/encoding work, which touches the same surface.
@@ -740,10 +743,12 @@ Every part of this stage keeps to the tenancy rules: business-owned records use 
       `out_of_stock` (422), `scopeOutOfStock()` becomes `scopeOutOfStockAt(Shop $shop)`,
       `ProductService::getOutOfStockProducts()` and the products page's tile count per shop, `markOutOfStock()` goes,
       and `ProductFactory::outOfStock()` makes a product with no stock at its shop.
-- [ ] Tests: the command maps a by-hand row to `inactive` and a second `--apply` changes nothing; an `inactive`
+      *Not done (17 November 2026): the enum case stays. It can be removed only after `products:clear-out-of-stock-status --apply` has run on UAT and production (a deployment step, after a snapshot), and the rows it maps must be zero first.*
+- [x] Tests: the command maps a by-hand row to `inactive` and a second `--apply` changes nothing; an `inactive`
       product isn't published; the out-of-stock tile counts products with no stock at the shop.
       *Built:* `ClearOutOfStockStatusTest` (3): dry run writes nothing, `--apply` maps the row to inactive and a second run changes nothing, another business is untouched. The store-sync draft test and the tile count are not written yet.
       *Built 17 November 2026: `ClearOutOfStockStatusTest` (3) and `OutOfStockTileTest` (2): the tile counts active tracked products with no stock in the viewer's shops. Not written: the store-sync draft test. An attempt hung the suite (a product save fired a real store call), so it was removed and needs its own look.*
+      *Built 17 November 2026: the command tests (3), the tile test (2), and the store-sync draft test (2): an inactive product goes to WooCommerce as a draft, an active one as published. The draft test fakes the job bus, so a product save doesn't call a real store.*
 
 ### 7. One home for each fact: copy, verify, drop
 - [ ] **Two server releases**, so there is never a period with two writable copies, and no migration is designed to
@@ -802,6 +807,7 @@ Every part of this stage keeps to the tenancy rules: business-owned records use 
       selling the default variation. The panel's warning says "Scanning this barcode won't work until you assign it." The products list shows the same warning.
       *Not built: the "Barcode to assign" panel on the product page and the products-list filter. The waiting barcodes are not yet sent anywhere, as the stage requires (they appear in no pull or flat API response).*
       *Built 17 November 2026: the "Barcode to assign" panel on the product page: assign to one of the product's units, or drop with a reason; both audited (`ProductBarcodeController`, `BarcodeAssignmentTest`, 7). A waiting barcode is in no pull and no flat API response (the pull sends `null`, and the flat product's `barcode` is `null` while it has variations). Not built: the "Barcodes to assign" filter on the products list. Each assign or drop writes two audit rows: the model's own delete row, and the event with the reason.*
+      *Added 17 November 2026: the "Barcodes to assign" filter and a warning count on the products list (`?waiting=1`); each assign or drop now writes one audit row (the reason-carrying event), not two.*
 - [ ] **`products.stock_quantity`** was dropped in Phase 1b; only the setter and `$fillable` entry remain (step 4).
       *Not changed here: the setter and `$fillable` entry are removed with release 2, not before.*
 - [ ] **The old field names stay on the APIs, computed from the new homes:** product and variation `selling_price`,
@@ -1063,7 +1069,7 @@ the `/api/v1` receipt gains `unit_name`, `quantity_exact` and `base_quantity`. A
 - [ ] 3 crates of 24 sold by scanning the crate barcode take 72 bottles and charge the crate price; 2.5 kg of
       fertiliser is sold from a 50 kg bag's stock; a fraction of a tablet is refused online and flagged offline.
 - [x] A used unit's factor can't be changed, by any route.
-- [ ] Stock screens show the largest sensible unit and the base ("12 Crate + 5 Bottle").
+- [x] Stock screens show the largest sensible unit and the base ("12 Crate + 5 Bottle").
 
 **One home**
 - [ ] Each price, barcode, stock level and cost has one home; the dropped columns' values are all carried across;
@@ -1071,7 +1077,7 @@ the `/api/v1` receipt gains `unit_name`, `quantity_exact` and `base_quantity`. A
 
 **Business and adjustments**
 - [ ] Business types set defaults only; existing UAT businesses are `general_retail` with their settings unchanged.
-- [ ] Adjustment lines take any unit; an increase without a cost is at an unknown cost.
+- [x] Adjustment lines take any unit; an increase without a cost is at an unknown cost.
 - [ ] `CostingMethod`, `CostingService` and `sale_item_stock_allocations` are gone.
 - [x] An adjustment can take a named batch, and an increase can carry a cost from someone allowed to set costs.
 

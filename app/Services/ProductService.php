@@ -20,9 +20,14 @@ class ProductService
         private DeleteProductAction $deleteAction
     ) {}
 
-    public function getAllProducts(int $perPage = 15, ?string $search = null, ?string $status = null, ?int $categoryId = null, ?int $shopId = null): LengthAwarePaginator
+    public function getAllProducts(int $perPage = 15, ?string $search = null, ?string $status = null, ?int $categoryId = null, ?int $shopId = null, bool $waitingBarcodesOnly = false): LengthAwarePaginator
     {
         $query = Product::query()->with(['category', 'creator', 'updater', 'shops'])->withStockOnHand();
+
+        // Products with a barcode waiting for a unit (stage 11, step 7).
+        if ($waitingBarcodesOnly) {
+            $query->whereHas('unassignedBarcodes');
+        }
 
         if ($search) {
             $query->where(function ($q) use ($search) {
@@ -122,6 +127,7 @@ class ProductService
             'active' => Product::active()->count(),
             'inactive' => Product::inactive()->count(),
             // Stock, not a status: active products that track stock and hold none in the viewer's shops (stage 11, step 6).
+            'waiting_barcodes' => Product::query()->whereHas('unassignedBarcodes')->count(),
             'out_of_stock' => Product::active()->where('track_stock', true)->whereStock('<=', 0)->count(),
             'discontinued' => Product::discontinued()->count(),
             'low_stock' => Product::lowStock()->count(),

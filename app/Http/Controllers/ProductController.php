@@ -32,7 +32,8 @@ class ProductController extends Controller
             search: $request->get('search'),
             status: $request->get('status'),
             categoryId: $request->get('category_id'),
-            shopId: $request->get('shop_id')
+            shopId: $request->get('shop_id'),
+            waitingBarcodesOnly: $request->boolean('waiting'),
         );
 
         $statistics = $this->productService->getStatistics();

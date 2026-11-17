@@ -25,6 +25,8 @@ class StockAdjustmentItem extends Model
         'quantity_after',
         'item_notes',
         'cost_layer_id',
+        'unit_id',
+        'unit_quantity',
         'batch_number',
         'expiry_date',
         'unit_cost',
@@ -35,6 +37,7 @@ class StockAdjustmentItem extends Model
         return [
             'quantity_before' => Quantity::class,
             'quantity_change' => Quantity::class,
+            'unit_quantity' => Quantity::class,
             'quantity_after' => Quantity::class,
             'expiry_date' => 'date',
             'unit_cost' => Quantity::class.':4',
@@ -83,6 +86,14 @@ class StockAdjustmentItem extends Model
     /**
      * The batch a decrease line named, to take from (stage 11, step 5).
      */
+    /**
+     * The unit the line was entered in (stage 11, step 4); null for a line entered in base units.
+     */
+    public function unit(): BelongsTo
+    {
+        return $this->belongsTo(ProductUnit::class, 'unit_id')->withTrashed();
+    }
+
     public function costLayer(): BelongsTo
     {
         return $this->belongsTo(CostLayer::class);

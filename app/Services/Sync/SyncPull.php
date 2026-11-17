@@ -297,7 +297,7 @@ class SyncPull
             ->where('shop_id', $register->shop_id)->where('quantity_change', '<', 0)->whereNotNull('variation_id')
             ->get(['variation_id', 'quantity_change'])
             ->groupBy('variation_id')
-            ->map(fn ($lines): int => (int) -$lines->sum('quantity_change'))
+            ->map(fn ($lines): int => (int) ceil(-$lines->sum('quantity_change'))) // rounded up: a fraction still warns the till
             ->all();
     }
 

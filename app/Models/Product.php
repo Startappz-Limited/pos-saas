@@ -8,6 +8,7 @@ use App\Models\Concerns\Auditable;
 use App\Models\Concerns\BelongsToBusiness;
 use App\Models\Concerns\HasShopStock;
 use App\Models\Concerns\RecordsSyncDeletion;
+use App\Support\Stock\UnitBreakdown;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -240,6 +241,30 @@ class Product extends Model
      * The units of every sellable variation, the default one's included (stage 11, step 8): what
      * the flat API sends as a product's `units`. A deleted unit is left off (soft deletes).
      */
+    /**
+     * The stock for a stock screen, in the largest sensible unit with the remainder (stage 11, step 2),
+     * for a simple product. A product with real variations shows its plain figure, since its variations
+     * don't share one unit.
+     */
+    public function stockLabel(): string
+    {
+        $quantity = $this->stock_quantity ?? 0;
+
+        if ($this->has_variations || $this->defaultVariation === null) {
+            return (string) $quantity;
+        }
+
+        return UnitBreakdown::describe($this->defaultVariation, $quantity);
+    }
+
+    /**
+     * Barcodes of this product waiting for a unit (stage 11, step 7).
+     */
+    public function unassignedBarcodes(): HasMany
+    {
+        return $this->hasMany(UnassignedBarcode::class);
+    }
+
     public function units(): HasManyThrough
     {
         return $this->hasManyThrough(ProductUnit::class, ProductVariation::class, 'product_id', 'variation_id')

@@ -19,8 +19,8 @@ enum AdjustmentType: string
         $changes = collect($changes);
 
         return match (true) {
-            $changes->every(fn (int $change): bool => $change > 0) => self::INCREASE,
-            $changes->every(fn (int $change): bool => $change < 0) => self::DECREASE,
+            $changes->every(fn (float $change): bool => $change > 0) => self::INCREASE,
+            $changes->every(fn (float $change): bool => $change < 0) => self::DECREASE,
             default => self::MIXED,
         };
     }

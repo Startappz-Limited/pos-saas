@@ -3,6 +3,14 @@
 @section('title', 'Products')
 
 @section('content')
+    @if (($statistics['waiting_barcodes'] ?? 0) > 0)
+        <div class="alert alert-warning d-flex justify-content-between align-items-center">
+            <span>
+                {{ __(':count product barcode(s) to assign. Scanning them won\'t work until you assign them to a unit.', ['count' => $statistics['waiting_barcodes']]) }}
+            </span>
+            <a class="btn btn-sm btn-warning" href="{{ route('products.index', ['waiting' => 1]) }}">{{ __('Barcodes to assign') }}</a>
+        </div>
+    @endif
     @php
         // Cost reveals supplier terms and margin, so the per-row cost line is
         // gated rather than shown to anyone who can list products.
@@ -252,10 +260,10 @@
                                             <td>
                                                 @if ($product->stock_quantity > $product->reorder_level)
                                                     <span
-                                                        class="badge bg-success-subtle text-success">{{ $product->stock_quantity }}</span>
+                                                        class="badge bg-success-subtle text-success">{{ $product->stockLabel() }}</span>
                                                 @elseif($product->stock_quantity > 0)
                                                     <span
-                                                        class="badge bg-warning-subtle text-warning">{{ $product->stock_quantity }}</span>
+                                                        class="badge bg-warning-subtle text-warning">{{ $product->stockLabel() }}</span>
                                                 @else
                                                     <span class="badge bg-danger-subtle text-danger">Out</span>
                                                 @endif

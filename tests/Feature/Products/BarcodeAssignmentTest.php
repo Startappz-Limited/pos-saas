@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\StockMovementType;
 use App\Models\AuditLog;
 use App\Models\Product;
 use App\Models\ProductUnit;
@@ -7,6 +8,7 @@ use App\Models\Register;
 use App\Models\Shop;
 use App\Models\UnassignedBarcode;
 use App\Models\User;
+use App\Services\Stock\StockLedger;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Support\Carbon;
 use Laravel\Sanctum\Sanctum;
@@ -109,4 +111,32 @@ it('answers no waiting product barcode on the flat API either', function () {
     Sanctum::actingAs($this->user, ['*']);
 
     expect($this->getJson("/api/products/{$this->tee->getRouteKey()}")->assertOk()->json('data.barcode'))->toBeNull();
+});
+
+it('lists only the products with a barcode waiting, when asked, with a warning count', function () {
+    $plain = Product::factory()->create(['shop_id' => $this->shop->id, 'stock_quantity' => 0, 'has_variations' => false]);
+
+    $list = $this->get(route('products.index', ['waiting' => 1]))->assertOk();
+    $list->assertSee($this->tee->name)->assertDontSee($plain->name);
+
+    $this->get(route('products.index'))->assertOk()->assertSee('to assign');
+});
+
+it('writes one audit row for an assignment, with no second delete row', function () {
+    $before = AuditLog::query()->count();
+
+    $this->post(route('products.barcodes.assign', [$this->tee, $this->waiting]), ['unit' => $this->unit->uuid]);
+
+    $rows = AuditLog::query()->get()->filter(fn ($row) => in_array('barcode', $row->tags ?? [], true));
+    expect($rows)->toHaveCount(1)
+        ->and(AuditLog::query()->count() - $before)->toBeGreaterThanOrEqual(1);
+});
+
+it('shows a simple product\'s stock in its largest unit with the remainder on the product list', function () {
+    $simple = Product::factory()->create(['shop_id' => $this->shop->id, 'stock_quantity' => 0, 'has_variations' => false, 'name' => 'Bottled soda']);
+    $crate = ProductUnit::factory()->create(['variation_id' => $simple->defaultVariation->id, 'name' => 'Crate', 'factor' => '24.000', 'precision' => 0]);
+    app(StockLedger::class)->receive($this->shop->id, $simple->defaultVariation, '29.000', 5.0, StockMovementType::INTAKE);
+
+    expect($simple->fresh()->stockLabel())->toContain('1 Crate')->toContain('(29')
+        ->and($crate->exists)->toBeTrue();
 });

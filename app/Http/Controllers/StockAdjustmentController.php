@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Enums\AdjustmentReason;
 use App\Http\Requests\StoreStockAdjustmentRequest;
 use App\Models\Product;
+use App\Models\ProductUnit;
 use App\Models\Shop;
 use App\Models\StockAdjustment;
 use App\Services\Stock\StockLedger;
@@ -12,6 +13,7 @@ use App\Services\StockAdjustmentService;
 use App\Support\Stock\AdjustmentApproval;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\View\View;
 
 class StockAdjustmentController extends Controller
@@ -170,12 +172,34 @@ class StockAdjustmentController extends Controller
     private function adjustableProducts(): array
     {
         return Product::active()
-            ->with(['variations' => fn ($query) => $query->where('is_default', false)->select('id', 'product_id', 'name')->orderBy('name')])
+            ->with(['variations' => fn ($query) => $query->where('is_default', false)->select('id', 'product_id', 'name')->orderBy('name')->with('units:id,variation_id,uuid,name,factor,precision')])
+            ->with('defaultVariation.units:id,variation_id,uuid,name,factor,precision')
             ->select('id', 'name')->orderBy('name')->get()
             ->map(fn (Product $product): array => [
                 'id' => $product->id,
                 'name' => $product->name,
-                'variations' => $product->variations->map(fn ($variation): array => ['id' => $variation->id, 'name' => (string) $variation->name])->values()->all(),
+                // The units a line can be entered in (stage 11, step 4): the product's own (a simple product's
+                // hidden variation) and each variation's.
+                'units' => $this->unitOptions($product->defaultVariation?->units ?? collect()),
+                'variations' => $product->variations->map(fn ($variation): array => [
+                    'id' => $variation->id,
+                    'name' => (string) $variation->name,
+                    'units' => $this->unitOptions($variation->units),
+                ])->values()->all(),
             ])->all();
+    }
+
+    /**
+     * @param  Collection<int, ProductUnit>  $units
+     * @return list<array{uuid: string, name: string, factor: string, precision: int}>
+     */
+    private function unitOptions($units): array
+    {
+        return $units->sortBy('factor')->map(fn ($unit): array => [
+            'uuid' => (string) $unit->uuid,
+            'name' => (string) $unit->name,
+            'factor' => (string) $unit->factor,
+            'precision' => (int) $unit->precision,
+        ])->values()->all();
     }
 }

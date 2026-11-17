@@ -73,7 +73,7 @@
                                 <div class="row">
                                     <div class="col-6">
                                         <p class="text-muted mb-1">Stock:</p>
-                                        <p class="fw-medium">{{ $product->stock_quantity }} units</p>
+                                        <p class="fw-medium">{{ $product->stockLabel() }}</p>
                                     </div>
                                     <div class="col-6">
                                         <p class="text-muted mb-1">Low Stock Alert:</p>
@@ -150,7 +150,7 @@
                                     </tr>
                                     <tr>
                                         <th scope="row">Stock Quantity:</th>
-                                        <td>{{ $product->stock_quantity }} units</td>
+                                        <td>{{ $product->stockLabel() }}</td>
                                     </tr>
                                     <tr>
                                         <th scope="row">Low Stock Threshold:</th>

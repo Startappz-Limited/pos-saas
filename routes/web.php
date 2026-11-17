@@ -41,6 +41,7 @@ use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProductImportController;
 use App\Http\Controllers\ProductPurchaseCostController;
 use App\Http\Controllers\ProductSyncController;
+use App\Http\Controllers\ProductUnitController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PurchaseOrderController;
 use App\Http\Controllers\PurchaseReturnController;
@@ -221,6 +222,12 @@ Route::middleware(['auth', 'business'])->group(function () {
     Route::get('products/import/confirm', [ProductImportController::class, 'confirm'])->name('products.import.confirm');
     Route::post('products/import/confirm', [ProductImportController::class, 'decide'])->middleware(['throttle:10,1', ProtectAgainstSpam::class])->name('products.import.decide');
     Route::resource('products', ProductController::class);
+    // The units a product's variations are sold and bought in (stage 11, step 2).
+    Route::get('products/{product}/units', [ProductUnitController::class, 'index'])->name('products.units.index');
+    Route::post('products/{product}/units', [ProductUnitController::class, 'store'])->name('products.units.store');
+    Route::put('products/{product}/units/{unit:uuid}', [ProductUnitController::class, 'update'])->withoutScopedBindings()->name('products.units.update');
+    Route::delete('products/{product}/units/{unit:uuid}', [ProductUnitController::class, 'destroy'])->withoutScopedBindings()->name('products.units.destroy');
+
     // A product barcode waiting for a unit: assign it to one of the product's units, or drop it (stage 11, step 7).
     Route::post('products/{product}/barcodes/{waitingBarcode:uuid}/assign', [ProductBarcodeController::class, 'assign'])->withoutScopedBindings()->name('products.barcodes.assign');
     Route::post('products/{product}/barcodes/{waitingBarcode:uuid}/drop', [ProductBarcodeController::class, 'drop'])->withoutScopedBindings()->name('products.barcodes.drop');

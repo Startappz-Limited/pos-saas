@@ -4,7 +4,9 @@ namespace App\Http\Requests;
 
 use App\Enums\AdjustmentReason;
 use App\Models\Product;
+use App\Models\ProductUnit;
 use App\Models\StockAdjustment;
+use App\Rules\QuantityForUnit;
 use App\Support\Stock\Expiry;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -43,7 +45,10 @@ class StoreStockAdjustmentRequest extends FormRequest
             'items' => ['required', 'array', 'min:1'],
             'items.*.product_id' => ['required', 'exists:products,id'],
             'items.*.variation_id' => ['nullable', 'exists:product_variations,id'],
-            'items.*.quantity_change' => ['required', 'integer', 'not_in:0', 'between:-1000000,1000000'],
+            // Signed, in the line's unit when it names one (stage 11, step 4), else in base units; its decimals
+            // are checked against that unit below.
+            'items.*.quantity_change' => ['required', 'numeric', 'not_in:0', 'between:-1000000,1000000'],
+            'items.*.unit_id' => ['nullable', 'uuid'],
             'items.*.item_notes' => ['nullable', 'string', 'max:500'],
             // An increase line's own batch, expiry and cost; a decrease line's chosen batch
             // (stage 11, step 5).
@@ -95,7 +100,7 @@ class StoreStockAdjustmentRequest extends FormRequest
             $needsNamedBatch = in_array($reason, [AdjustmentReason::DAMAGED, AdjustmentReason::EXPIRED, AdjustmentReason::QUALITY_ISSUE], true);
 
             foreach ((array) $this->input('items', []) as $index => $item) {
-                $change = (int) $item['quantity_change'];
+                $change = (float) $item['quantity_change'];
 
                 if (($reason->direction() === 'increase' && $change < 0) || ($reason->direction() === 'decrease' && $change > 0)) {
                     $validator->errors()->add("items.{$index}.quantity_change", $reason->direction() === 'increase'
@@ -120,6 +125,20 @@ class StoreStockAdjustmentRequest extends FormRequest
                 $variation = $variationId !== null
                     ? $product->variations->firstWhere('id', (int) $variationId)
                     : $product->defaultVariation()->first();
+
+                if ($variation !== null) {
+                    // The unit the quantity is entered in (its own, else the base unit), and its decimals.
+                    $unit = ! empty($item['unit_id']) ? ProductUnit::resolveFor($variation, (string) $item['unit_id']) : null;
+
+                    if (! empty($item['unit_id']) && $unit === null) {
+                        $validator->errors()->add("items.{$index}.unit_id", __('That unit isn\'t one of this product\'s units.'));
+                    }
+
+                    $precision = $unit?->precision ?? $variation->baseUnit()->value('precision') ?? 0;
+                    (new QuantityForUnit((int) $precision))->validate("items.{$index}.quantity_change", ltrim((string) $item['quantity_change'], '-+'), function (string $message) use ($validator, $index): void {
+                        $validator->errors()->add("items.{$index}.quantity_change", $message);
+                    });
+                }
 
                 if ($variation === null || ! $variation->track_batches) {
                     continue;

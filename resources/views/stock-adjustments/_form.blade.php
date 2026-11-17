@@ -10,7 +10,8 @@
         ? $stockAdjustment->items->map(fn ($item) => [
             'product_id' => $item->product_id,
             'variation_id' => $item->variation?->is_default ? null : $item->variation_id,
-            'quantity_change' => $item->quantity_change,
+            'quantity_change' => $item->unit_quantity ?? $item->quantity_change,
+            'unit_id' => $item->unit?->uuid,
             'item_notes' => $item->item_notes,
         ])->values()->all()
         : []);
@@ -124,6 +125,7 @@
                             <tr>
                                 <th>{{ __('Product') }}</th>
                                 <th>{{ __('Variation') }}</th>
+                                <th>{{ __('Unit') }}</th>
                                 <th>{{ __('Change (+/−)') }}</th>
                                 <th>{{ __('Notes') }}</th>
                                 <th><span class="visually-hidden">{{ __('Remove') }}</span></th>
@@ -259,9 +261,25 @@ document.addEventListener('DOMContentLoaded', function () {
         fillVariations(variation, line.product_id, line.variation_id);
         product.addEventListener('change', () => fillVariations(variation, product.value, null));
 
+        // The unit a line is entered in: its own units (blank: the base unit). Its decimals bound the quantity.
+        const unit = document.createElement('select');
+        unit.name = `items[${i}][unit_id]`;
+        unit.className = 'form-select form-select-sm';
+        unit.setAttribute('aria-label', text.unitLabel || 'Unit');
+        function fillUnits(selectedUuid) {
+            const found = products.find(p => String(p.id) === String(product.value));
+            const chosen = found && variation.value ? found.variations.find(v => String(v.id) === String(variation.value)) : null;
+            const units = chosen ? chosen.units : (found ? found.units : []);
+            unit.replaceChildren(option('', text.baseUnit || 'Base units', !selectedUuid));
+            units.forEach(u => unit.append(option(u.uuid, `${u.name} (${u.factor})`, u.uuid === selectedUuid)));
+        }
+        fillUnits(line.unit_id ?? null);
+        product.addEventListener('change', () => fillUnits(null));
+        variation.addEventListener('change', () => fillUnits(null));
+
         const quantity = document.createElement('input');
         quantity.type = 'number';
-        quantity.step = 1;
+        quantity.step = 'any';
         quantity.name = `items[${i}][quantity_change]`;
         quantity.className = 'form-control form-control-sm qty-input';
         quantity.required = true;
@@ -285,7 +303,7 @@ document.addEventListener('DOMContentLoaded', function () {
         remove.innerHTML = '<iconify-icon icon="solar:trash-bin-trash-bold-duotone" class="align-middle" aria-hidden="true"></iconify-icon>';
         remove.addEventListener('click', () => { row.remove(); summarise(); });
 
-        [product, variation, quantity, notes, remove].forEach(element => row.insertCell().append(element));
+        [product, variation, unit, quantity, notes, remove].forEach(element => row.insertCell().append(element));
         describeReason();
         summarise();
     }

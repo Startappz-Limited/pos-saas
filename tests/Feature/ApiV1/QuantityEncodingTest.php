@@ -1,7 +1,6 @@
 <?php
 
 use App\Actions\Sale\RecordSale;
-use App\Actions\Stock\TouchExpiredStock;
 use App\Enums\StockMovementType;
 use App\Models\Product;
 use App\Models\ProductUnit;
@@ -10,6 +9,7 @@ use App\Models\Sale;
 use App\Services\Stock\StockLedger;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Tests\Support\Till;
 use Tests\Support\TwoBusinesses;
@@ -169,7 +169,8 @@ it('pulls a stock row again after the shop\'s midnight, when one of its batches 
 
     // The shop's midnight passes; the touch runs (as the scheduler's every-15-minute run does).
     $this->travelTo(Carbon::parse('2026-11-17 10:00:00', 'Africa/Nairobi'));
-    $this->tenant->run($this->a->business, fn () => app(TouchExpiredStock::class)->execute());
+    // Run the command the scheduler runs (every 15 minutes), not the action behind it.
+    Artisan::call('stock:touch-expiring');
     $this->travel(5)->seconds();
 
     Till::freshRequest();

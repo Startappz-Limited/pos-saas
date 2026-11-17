@@ -2,6 +2,7 @@
 
 namespace App\Support\Stock;
 
+use App\Casts\Quantity;
 use App\Enums\AdjustmentReason;
 use App\Models\Business;
 use App\Models\ProductVariation;
@@ -71,7 +72,7 @@ final class AdjustmentApproval
             return true;
         }
 
-        if ($adjustment->reason === AdjustmentReason::RECOUNT && $adjustment->items->contains(fn (StockAdjustmentItem $item): bool => (int) $item->quantity_change < 0)) {
+        if ($adjustment->reason === AdjustmentReason::RECOUNT && $adjustment->items->contains(fn (StockAdjustmentItem $item): bool => (float) $item->quantity_change < 0)) {
             return true;
         }
 
@@ -81,7 +82,7 @@ final class AdjustmentApproval
             if ($cost === null) {
                 return true;
             }
-            $value += abs((int) $item->quantity_change) * $cost;
+            $value += abs((float) $item->quantity_change) * $cost;
         }
 
         return round($value + $this->autoAppliedToday($adjustment), 2) >= self::threshold($adjustment->shop?->business);
@@ -111,7 +112,7 @@ final class AdjustmentApproval
      */
     public function value(StockAdjustment $adjustment): float
     {
-        return round($adjustment->items->sum(fn (StockAdjustmentItem $item): float => abs((int) $item->quantity_change) * (float) $this->unitCost($item)), 2);
+        return round($adjustment->items->sum(fn (StockAdjustmentItem $item): float => abs((float) $item->quantity_change) * (float) $this->unitCost($item)), 2);
     }
 
     /**
@@ -123,8 +124,8 @@ final class AdjustmentApproval
      */
     public function unitCost(StockAdjustmentItem $item): ?float
     {
-        if ((int) $item->quantity_change < 0) {
-            return $this->ledger->costToConsume((int) $item->shop_id, $this->variationOf($item), (int) $item->quantity_change);
+        if ((float) $item->quantity_change < 0) {
+            return $this->ledger->costToConsume((int) $item->shop_id, $this->variationOf($item), Quantity::normalize($item->quantity_change));
         }
 
         return $item->unit_cost !== null ? (float) $item->unit_cost : null;

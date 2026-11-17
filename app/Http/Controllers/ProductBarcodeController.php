@@ -42,7 +42,8 @@ class ProductBarcodeController extends Controller
         DB::transaction(function () use ($unit, $waitingBarcode, $product): void {
             $this->audit($waitingBarcode, 'assigned', ['barcode' => $waitingBarcode->barcode, 'unit' => $unit->name, 'product' => $product->name]);
             $unit->update(['barcode' => $waitingBarcode->barcode]);
-            $waitingBarcode->delete();
+            // The reason-carrying event above is the one audit row for this change (no second delete row).
+            UnassignedBarcode::withoutEvents(fn () => $waitingBarcode->delete());
         });
 
         return back()->with('success', __('Barcode :barcode is now on the unit :unit.', ['barcode' => $waitingBarcode->barcode, 'unit' => $unit->name]));
@@ -57,7 +58,7 @@ class ProductBarcodeController extends Controller
 
         DB::transaction(function () use ($waitingBarcode, $product, $data): void {
             $this->audit($waitingBarcode, 'dropped', ['barcode' => $waitingBarcode->barcode, 'product' => $product->name, 'reason' => $data['reason']]);
-            $waitingBarcode->delete();
+            UnassignedBarcode::withoutEvents(fn () => $waitingBarcode->delete());
         });
 
         return back()->with('success', __('Barcode :barcode was dropped.', ['barcode' => $waitingBarcode->barcode]));
