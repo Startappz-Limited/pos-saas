@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Casts\Quantity;
 use App\Models\Customer;
 use App\Models\Product;
 use App\Models\ProductUnit;
@@ -9,6 +10,7 @@ use App\Models\ProductVariation;
 use App\Models\Sale;
 use App\Rules\KraPin;
 use App\Rules\QuantityForUnit;
+use App\Support\Stock\BaseQuantity;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Validator;
 
@@ -129,6 +131,13 @@ class StoreSaleRequest extends FormRequest
                             (string) $item['quantity'],
                             fn (string $message) => $validator->errors()->add("items.{$index}.quantity", $message)
                         );
+
+                        // Once the quantity is valid, it must also move at least one whole base unit's
+                        // worth exactly, or the sale would take no stock (BaseQuantity).
+                        if (! $validator->errors()->has("items.{$index}.quantity")
+                            && BaseQuantity::of(Quantity::normalize($item['quantity']), Quantity::normalize($unit?->factor ?? '1')) === null) {
+                            $validator->errors()->add("items.{$index}.quantity", 'That quantity is too small to sell in this unit: it makes less than one base unit, or a fraction of one.');
+                        }
                     }
                 }
             }

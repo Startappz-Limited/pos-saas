@@ -121,8 +121,13 @@ class StockLedger
             $boundary = $shop !== null ? Expiry::firstSellableDate($shop)->toDateString() : null;
             $fefo = $shop !== null && $shop->business?->stockConsumption() === 'fefo';
 
+            // A decrease that names its batch (stage 11, review follow-up) takes only from that batch: it
+            // never spills into other batches, and a shortfall is refused (the transaction rolls back).
+            $exactLayer = (bool) ($context['exact_layer'] ?? false) && $preferredLayerId !== null;
+
             $layers = DB::table('cost_layers')
                 ->where('shop_id', $shopId)->where('variation_id', $variation->id)->where('remaining_quantity', '>', 0)
+                ->when($exactLayer, fn ($query) => $query->where('id', $preferredLayerId))
                 ->when($excludeExpired && $boundary !== null, fn ($query) => $query->where(fn ($q) => $q->whereNull('expiry_date')->orWhere('expiry_date', '>=', $boundary)))
                 ->when($preferredLayerId, fn ($query) => $query->orderByRaw('case when id = ? then 0 else 1 end', [$preferredLayerId]))
                 ->when($fefo, fn ($query) => $query->orderByRaw('expiry_date is null')->orderBy('expiry_date'))
@@ -152,6 +157,13 @@ class StockLedger
                 $totalCost += $this->multiply($take, $cost);
                 $costKnown = $costKnown && $cost !== null;
                 $needed = bcsub($needed, $take, 3);
+            }
+
+            if ($exactLayer && bccomp($needed, '0', 3) > 0) {
+                throw BusinessRuleException::because(
+                    __('That batch has only :available left; :needed needed.', ['available' => bcsub($quantity, $needed, 3), 'needed' => $quantity]),
+                    'batch_insufficient',
+                );
             }
 
             // Sold below zero: allocated now at the last known cost, re-costed

@@ -16,6 +16,7 @@ use App\Models\User;
 use App\Services\Stock\StockLedger;
 use App\Support\Approvals\ApprovalInbox;
 use App\Support\Stock\AdjustmentApproval;
+use App\Support\Stock\BaseQuantity;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
@@ -157,7 +158,11 @@ class StockAdjustmentService
         // unit's factor. The figure as entered is kept beside it.
         $entered = Quantity::normalize($itemData['quantity_change']);
         $unit = ! empty($itemData['unit_id']) ? ProductUnit::resolveFor(ProductVariation::query()->withoutGlobalScope(ProductVariation::HIDE_DEFAULT)->findOrFail($variationId), (string) $itemData['unit_id']) : null;
-        $base = $unit !== null ? bcmul($entered, Quantity::normalize($unit->factor), 3) : $entered;
+        $base = $entered;
+        if ($unit !== null) {
+            $base = BaseQuantity::of($entered, Quantity::normalize($unit->factor))
+                ?? throw new BusinessRuleException(__('That quantity is too small to move in this unit: it makes less than one base unit, or a fraction of one.'));
+        }
 
         return StockAdjustmentItem::create([
             'stock_adjustment_id' => $adjustment->id,
@@ -286,7 +291,9 @@ class StockAdjustmentService
                 }
                 // The batch a decrease line named (damaged, expired, a quality issue) comes out of
                 // that batch, not the oldest (stage 11, step 5).
-                $change = $this->ledger->consume($shopId, $variation, bcmul($quantity, '-1', 3), StockMovementType::ADJUSTMENT_REMOVE, $item, $context, $item->cost_layer_id);
+                // A named batch is the only one the line may take from: a shortfall is refused, not spilled
+                // into other batches, and a duplicate write-off of the same batch fails here too.
+                $change = $this->ledger->consume($shopId, $variation, bcmul($quantity, '-1', 3), StockMovementType::ADJUSTMENT_REMOVE, $item, [...$context, 'exact_layer' => $item->cost_layer_id !== null], $item->cost_layer_id);
             }
 
             $item->update([

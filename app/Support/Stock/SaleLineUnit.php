@@ -3,6 +3,7 @@
 namespace App\Support\Stock;
 
 use App\Casts\Quantity;
+use App\Exceptions\BusinessRuleException;
 use App\Models\ProductUnit;
 use App\Models\ProductVariation;
 
@@ -25,9 +26,11 @@ class SaleLineUnit
         $unit ??= $variation->baseUnit;
 
         $quantity = Quantity::normalize($item['quantity']);
+        // A computed base quantity must be a positive figure the ledger can hold exactly (BaseQuantity):
+        // otherwise the sale would move no stock. A till's own figure is checked by its push instead.
         $baseQuantity = isset($item['base_quantity']) && $item['base_quantity'] !== null && $item['base_quantity'] !== ''
             ? Quantity::normalize($item['base_quantity'])
-            : bcmul($quantity, (string) ($unit?->factor ?? '1'), 3);
+            : (BaseQuantity::of($quantity, Quantity::normalize($unit?->factor ?? '1')) ?? throw new BusinessRuleException(__('That quantity is too small to sell in this unit: it makes less than one base unit, or a fraction of one.')));
 
         return ['unit' => $unit, 'quantity' => $quantity, 'base_quantity' => $baseQuantity];
     }

@@ -20,7 +20,9 @@ class QuantityForUnit implements ValidationRule
     {
         // The messages name no attribute: the callback receives the text as-is, so a `:attribute`
         // placeholder would reach the user unfilled.
-        if (! is_numeric($value)) {
+        // Plain decimal notation only: BCMath throws on exponents ("1e0") and on surrounding
+        // whitespace, which is_numeric() accepts, so those are refused here instead of erroring later.
+        if (! is_numeric($value) || preg_match('/^[+-]?(\d+\.?\d*|\.\d+)$/', (string) $value) !== 1) {
             $fail(__('Enter a number.'));
 
             return;

@@ -17,6 +17,7 @@ use App\Models\Sale;
 use App\Models\SyncIssue;
 use App\Services\Mpesa\TillPayments;
 use App\Services\Sync\TradingLease;
+use App\Support\Stock\BaseQuantity;
 use App\Support\Sync\SyncIssues;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
@@ -248,7 +249,10 @@ final class SaleHandler implements PushHandler
 
             if (isset($given['base_quantity']) && $given['base_quantity'] !== '') {
                 $quantity = Quantity::normalize($line['quantity']);
-                $expected = bcmul($quantity, Quantity::normalize($unit->factor), 3);
+                $expected = BaseQuantity::of($quantity, Quantity::normalize($unit->factor));
+                if ($expected === null) {
+                    throw new PushRefused(ApiErrorCode::ValidationFailed, __('The quantity is too small to sell in this unit.'), ['items' => [__('Quantity is too small for its unit.')]]);
+                }
                 // The till's own figure is taken as sent only when it is a plain, non-negative number:
                 // anything else is refused as a validation failure, not stored.
                 if (! is_numeric($given['base_quantity']) || (float) $given['base_quantity'] < 0 || (float) $given['base_quantity'] > 10000000) {

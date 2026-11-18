@@ -2,11 +2,14 @@
 
 namespace App\Http\Requests;
 
+use App\Casts\Quantity;
 use App\Enums\AdjustmentReason;
+use App\Models\CostLayer;
 use App\Models\Product;
 use App\Models\ProductUnit;
 use App\Models\StockAdjustment;
 use App\Rules\QuantityForUnit;
+use App\Support\Stock\BaseQuantity;
 use App\Support\Stock\Expiry;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -94,6 +97,10 @@ class StoreStockAdjustmentRequest extends FormRequest
                 return;
             }
 
+            // The shop the lines move stock at: the adjustment's own on edit, else the shop picked on create.
+            $adjustment = $this->route('stock_adjustment') ?? $this->route('stockAdjustment');
+            $shopId = $adjustment instanceof StockAdjustment ? $adjustment->shop_id : $this->input('shop_id');
+
             $reason = AdjustmentReason::from((string) $this->input('reason'));
             $products = Product::query()->with('variations:id,product_id,is_default,track_batches')
                 ->whereIn('id', collect($this->input('items', []))->pluck('product_id'))->get()->keyBy('id');
@@ -138,6 +145,32 @@ class StoreStockAdjustmentRequest extends FormRequest
                     (new QuantityForUnit((int) $precision))->validate("items.{$index}.quantity_change", ltrim((string) $item['quantity_change'], '-+'), function (string $message) use ($validator, $index): void {
                         $validator->errors()->add("items.{$index}.quantity_change", $message);
                     });
+
+                    // A line in a unit must move whole base units' worth exactly, or it would move no stock (BaseQuantity).
+                    if ($unit !== null && ! $validator->errors()->has("items.{$index}.quantity_change")
+                        && BaseQuantity::of(Quantity::normalize($item['quantity_change']), Quantity::normalize($unit->factor)) === null) {
+                        $validator->errors()->add("items.{$index}.quantity_change", __('That quantity is too small to move in this unit: it makes less than one base unit, or a fraction of one.'));
+                    }
+                }
+
+                // A batch the line names must be one of this shop's batches for this variation, and hold enough
+                // for a decrease (the ledger checks again at approval, when the batch may have been used).
+                if (! empty($item['cost_layer_id'])) {
+                    $layer = CostLayer::query()->find($item['cost_layer_id']);
+
+                    if ($layer === null || $variation === null || (int) $layer->shop_id !== (int) $shopId || (int) $layer->variation_id !== (int) $variation->id) {
+                        $validator->errors()->add("items.{$index}.cost_layer_id", __('That batch isn\'t one of this product\'s batches at this shop.'));
+                    } elseif ($change < 0 && ! $validator->errors()->has("items.{$index}.quantity_change")) {
+                        // The batch balance is in base units, so the line's quantity is converted to base units first:
+                        // one crate of 24 takes 24 bottles, and half a bottle's unit takes half of each entered.
+                        $lineUnit = ! empty($item['unit_id']) ? ProductUnit::resolveFor($variation, (string) $item['unit_id']) : null;
+                        $baseTaken = BaseQuantity::of(Quantity::normalize(ltrim((string) $item['quantity_change'], '-+')), Quantity::normalize($lineUnit?->factor ?? '1'));
+                        $available = Quantity::normalize($layer->remaining_quantity);
+
+                        if ($baseTaken !== null && bccomp($available, $baseTaken, 3) < 0) {
+                            $validator->errors()->add("items.{$index}.cost_layer_id", __('That batch has only :available base units left.', ['available' => $available]));
+                        }
+                    }
                 }
 
                 if ($variation === null || ! $variation->track_batches) {
