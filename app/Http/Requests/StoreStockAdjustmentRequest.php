@@ -97,7 +97,7 @@ class StoreStockAdjustmentRequest extends FormRequest
             $reason = AdjustmentReason::from((string) $this->input('reason'));
             $products = Product::query()->with('variations:id,product_id,is_default,track_batches')
                 ->whereIn('id', collect($this->input('items', []))->pluck('product_id'))->get()->keyBy('id');
-            $needsNamedBatch = in_array($reason, [AdjustmentReason::DAMAGED, AdjustmentReason::EXPIRED, AdjustmentReason::QUALITY_ISSUE], true);
+            $needsNamedBatch = $reason->requiresNamedBatch();
 
             foreach ((array) $this->input('items', []) as $index => $item) {
                 $change = (float) $item['quantity_change'];

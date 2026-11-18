@@ -9,6 +9,7 @@ use App\Enums\StockMovementType;
 use App\Exceptions\BusinessRuleException;
 use App\Models\CostLayer;
 use App\Models\Product;
+use App\Models\ProductUnit;
 use App\Models\ProductVariation;
 use App\Models\Refund;
 use App\Models\ReturnItem;
@@ -202,8 +203,26 @@ class ReturnService
         return [
             'unit_id' => $unit?->id,
             'quantity' => $quantity,
-            'base_quantity' => bcmul((string) $quantity, (string) ($unit?->factor ?? '1'), 3),
+            'base_quantity' => $this->returnBaseQuantity($saleItem, $quantity, $unit),
         ];
+    }
+
+    /**
+     * The base units a returned quantity puts back: in the same proportion as the sold line
+     * (its recorded base quantity over its quantity). A till may have synced a line whose base
+     * figure differs from the unit's current factor, and returning it at the factor would
+     * restock more than the sale removed. Falls back to the factor only for a line with no
+     * recorded base quantity.
+     */
+    private function returnBaseQuantity(SaleItem $saleItem, float $quantity, ?ProductUnit $unit): string
+    {
+        $soldQuantity = Quantity::normalize($saleItem->quantity ?? 0);
+
+        if (bccomp($soldQuantity, '0', 3) > 0 && $saleItem->base_quantity !== null) {
+            return bcdiv(bcmul(Quantity::normalize($quantity), Quantity::normalize($saleItem->base_quantity), 6), $soldQuantity, 3);
+        }
+
+        return bcmul(Quantity::normalize($quantity), (string) ($unit?->factor ?? '1'), 3);
     }
 
     public function approveReturn(SaleReturn $saleReturn, int $userId): SaleReturn

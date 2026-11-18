@@ -7,6 +7,7 @@ use App\Models\Product;
 use App\Models\ProductVariation;
 use App\Models\Shop;
 use App\Models\ShopVariation;
+use App\Rules\QuantityForUnit;
 use App\Services\ProductService;
 use App\Services\Stock\StockLedger;
 use Illuminate\Support\Collection;
@@ -430,7 +431,7 @@ class ImportProductsFromCsv
                 'unit' => ['nullable', 'string', 'max:255'],
                 'unit_precision' => ['nullable', 'integer', 'min:0', 'max:3'],
                 'pack_unit' => ['nullable', 'string', 'max:255'],
-                'pack_factor' => ['nullable', 'numeric', 'gt:0', 'required_with:pack_unit'],
+                'pack_factor' => ['nullable', 'numeric', 'min:0.001', new QuantityForUnit(3), 'required_with:pack_unit'],
                 'pack_barcode' => ['nullable', 'string', 'max:255'],
                 'pack_price' => ['nullable', 'numeric', 'min:0'],
             ]);

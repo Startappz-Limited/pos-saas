@@ -18,8 +18,10 @@ class QuantityForUnit implements ValidationRule
 
     public function validate(string $attribute, mixed $value, Closure $fail): void
     {
+        // The messages name no attribute: the callback receives the text as-is, so a `:attribute`
+        // placeholder would reach the user unfilled.
         if (! is_numeric($value)) {
-            $fail(__('The :attribute must be a number.'));
+            $fail(__('Enter a number.'));
 
             return;
         }
@@ -27,7 +29,7 @@ class QuantityForUnit implements ValidationRule
         $value = (string) $value;
 
         if (bccomp($value, '0', max($this->precision, 10)) <= 0) {
-            $fail(__('The :attribute must be greater than 0.'));
+            $fail(__('Enter a number greater than 0.'));
 
             return;
         }
@@ -35,8 +37,8 @@ class QuantityForUnit implements ValidationRule
         $truncated = bcadd($value, '0', $this->precision);
         if (bccomp($value, $truncated, 10) !== 0) {
             $fail($this->precision === 0
-                ? __('The :attribute must be a whole number.')
-                : __('The :attribute may have at most :precision decimal place(s).', ['precision' => $this->precision]));
+                ? __('Enter a whole number.')
+                : __('Use at most :precision decimal place(s).', ['precision' => $this->precision]));
         }
     }
 }

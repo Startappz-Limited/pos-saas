@@ -6,6 +6,7 @@ use App\Exceptions\BusinessRuleException;
 use App\Models\Product;
 use App\Models\ProductUnit;
 use App\Models\ProductVariation;
+use App\Rules\QuantityForUnit;
 use App\Rules\UniqueForTenant;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -106,7 +107,9 @@ class ProductUnitController extends Controller
         return $request->validate([
             'variation' => [$unit === null ? 'required' : 'nullable', 'uuid'],
             'name' => ['required', 'string', 'max:60'],
-            'factor' => ['required', 'numeric', 'gt:0', 'max:1000000'],
+            // A factor is stored at scale 3 (`Quantity`), so it must be at least 0.001 and have no more
+            // decimals: anything smaller would be stored as 0 and remove no stock on sale.
+            'factor' => ['required', 'numeric', 'min:0.001', 'max:1000000', new QuantityForUnit(3)],
             'precision' => ['required', 'integer', 'between:0,3'],
             'barcode' => ['nullable', 'string', 'max:100', (new UniqueForTenant(ProductUnit::class, 'barcode'))->ignore($unit?->id)],
             'selling_price' => ['nullable', 'numeric', 'min:0', 'max:10000000'],

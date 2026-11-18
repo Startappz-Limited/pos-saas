@@ -68,7 +68,24 @@ class StockMovement extends Model
 
     public function variation(): BelongsTo
     {
-        return $this->belongsTo(ProductVariation::class, 'variation_id');
+        // A simple product's movements sit on its hidden default variation, which the global scope
+        // would otherwise hide from this relation (and so from the movement screens).
+        return $this->belongsTo(ProductVariation::class, 'variation_id')
+            ->withoutGlobalScope(ProductVariation::HIDE_DEFAULT);
+    }
+
+    /**
+     * The quantity moved as a magnitude in its variation's base unit, at that unit's precision and
+     * named ("0.250 kg", "12 Tablet"). The direction is the movement type's, not a sign here.
+     */
+    public function quantityLabel(): string
+    {
+        $base = $this->variation?->baseUnit;
+        $precision = (int) ($base?->precision ?? 3);
+        $magnitude = Quantity::normalize(ltrim((string) $this->quantity, '-+'), $precision);
+        $formatted = number_format((float) $magnitude, $precision, '.', ',');
+
+        return $base?->name ? "{$formatted} {$base->name}" : $formatted;
     }
 
     public function reference(): MorphTo

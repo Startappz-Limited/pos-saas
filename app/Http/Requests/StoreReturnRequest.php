@@ -3,8 +3,10 @@
 namespace App\Http\Requests;
 
 use App\Enums\ReturnReason;
+use App\Support\Stock\ReturnQuantities;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Validator;
 
 class StoreReturnRequest extends FormRequest
 {
@@ -49,7 +51,22 @@ class StoreReturnRequest extends FormRequest
             'items.min' => 'At least one item must be selected for return.',
             'items.*.sale_item_id.required' => 'Each return item must reference a sale item.',
             'items.*.quantity.required' => 'Quantity is required for each return item.',
-            'items.*.quantity.min' => 'Return quantity must be at least 1.',
+            'items.*.quantity.min' => 'Return quantity must be greater than 0.',
         ];
+    }
+
+    /**
+     * A line's quantity is in the unit it was sold in, so its decimals are checked against that unit
+     * (stage 11): a whole-unit line refuses a fraction, a weight line takes its three decimals.
+     */
+    public function withValidator(Validator $validator): void
+    {
+        $validator->after(function (Validator $validator): void {
+            foreach (ReturnQuantities::errors((array) $this->input('items', [])) as $key => $messages) {
+                foreach ($messages as $message) {
+                    $validator->errors()->add($key, $message);
+                }
+            }
+        });
     }
 }

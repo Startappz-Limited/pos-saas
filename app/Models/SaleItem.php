@@ -88,4 +88,30 @@ class SaleItem extends Model
     {
         return $this->belongsTo(ProductUnit::class, 'unit_id')->withTrashed();
     }
+
+    /**
+     * The decimal places a quantity of this line may use: the sold unit's precision (stage 11), else
+     * the base unit's, else 3 (the stock's own scale, so a legacy line never refuses a fraction).
+     */
+    public function quantityPrecision(): int
+    {
+        if ($this->unit !== null) {
+            return (int) $this->unit->precision;
+        }
+
+        $variation = $this->variation ?? Product::query()->find($this->product_id)?->defaultVariation()->first();
+
+        return (int) ($variation?->baseUnit?->precision ?? 3);
+    }
+
+    /**
+     * The HTML `step` for a quantity input of this line, so a browser refuses what the server would
+     * ("1" for whole units, "0.001" for three decimals).
+     */
+    public function quantityStep(): string
+    {
+        $precision = $this->quantityPrecision();
+
+        return $precision === 0 ? '1' : '0.'.str_repeat('0', $precision - 1).'1';
+    }
 }

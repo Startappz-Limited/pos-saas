@@ -51,6 +51,15 @@ enum AdjustmentReason: string
      *
      * @return 'increase'|'decrease'|'either'
      */
+    /**
+     * Whether a decrease for this reason must name the batch it takes stock from (stage 11, step 5):
+     * damage, expiry and quality problems are about a particular batch; a loss is not.
+     */
+    public function requiresNamedBatch(): bool
+    {
+        return in_array($this, [self::DAMAGED, self::EXPIRED, self::QUALITY_ISSUE], true);
+    }
+
     public function direction(): string
     {
         return match ($this) {

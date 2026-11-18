@@ -13,8 +13,14 @@
             'quantity_change' => $item->unit_quantity ?? $item->quantity_change,
             'unit_id' => $item->unit?->uuid,
             'item_notes' => $item->item_notes,
+            'batch_number' => $item->batch_number,
+            'expiry_date' => $item->expiry_date?->format('Y-m-d'),
+            'cost_layer_id' => $item->cost_layer_id,
         ])->values()->all()
         : []);
+    // The reasons whose decrease must name its batch (stage 11, step 5), for the form's batch controls.
+    $namedBatchReasons = collect($adjustmentReasons)->filter(fn ($reason) => $reason->requiresNamedBatch())->map(fn ($reason) => $reason->value)->values();
+    $fixedShop = $editing ? (string) $stockAdjustment->shop_id : null;
     $directions = collect($adjustmentReasons)->mapWithKeys(fn ($reason) => [$reason->value => $reason->direction()]);
     $text = [
         'product' => __('— Select Product —'),
@@ -30,6 +36,14 @@
         'decrease' => __('This reason removes stock: enter negative numbers.'),
         'either' => __('Enter + for more stock and − for less.'),
         'recount' => __('Enter the difference you found, not the counted figure. Sales made while you counted are not allowed for.'),
+        'batchLabel' => __('Batch'),
+        'batchNumber' => __('Batch number'),
+        'expiryLabel' => __('Expiry date'),
+        'batchChoose' => __('Choose the batch'),
+        'batchFifo' => __('Oldest batch first (FIFO)'),
+        'batchNone' => __('No batches with stock here'),
+        'batchNoShop' => __('Choose a shop first'),
+        'notTracked' => __('Not tracked by batch'),
     ];
 @endphp
 
@@ -127,6 +141,7 @@
                                 <th>{{ __('Variation') }}</th>
                                 <th>{{ __('Unit') }}</th>
                                 <th>{{ __('Change (+/−)') }}</th>
+                                <th>{{ __('Batch') }}</th>
                                 <th>{{ __('Notes') }}</th>
                                 <th><span class="visually-hidden">{{ __('Remove') }}</span></th>
                             </tr>
@@ -190,6 +205,9 @@ document.addEventListener('DOMContentLoaded', function () {
     const lines = @json(array_values($lines));
     const directions = @json($directions);
     const text = @json($text);
+    const namedBatch = @json($namedBatchReasons);
+    const fixedShop = @json($fixedShop);
+    const rowsCtx = [];
     let index = 0;
 
     const tbody = document.getElementById('items-tbody');
@@ -224,6 +242,61 @@ document.addEventListener('DOMContentLoaded', function () {
             input.min = direction === 'increase' ? 1 : -1000000;
             input.max = direction === 'decrease' ? -1 : 1000000;
         });
+        rowsCtx.forEach(refreshBatch);
+    }
+
+    // The shop the batches belong to: fixed on edit, else the shop picked on create.
+    function shopValue() {
+        return fixedShop ?? (document.getElementById('adjustment-shop')?.value ?? '');
+    }
+
+    // A product's batch settings for the variation a line names (a simple product's hidden one when it has none).
+    function batchTarget(productId, variationId) {
+        const product = products.find(p => String(p.id) === String(productId));
+        if (!product) return null;
+        const id = product.variations.length > 0 ? variationId : product.defaultVariationId;
+        return id ? (product.batches[String(id)] ?? null) : null;
+    }
+
+    // Shows the batch controls a line needs for its reason and variation (stage 11, step 5): an increase
+    // names its batch and expiry; a decrease picks the batch it takes from, which a damage, expiry or quality
+    // reason must do. Disabled controls are not sent, so a hidden one never reaches the server.
+    function refreshBatch(ctx) {
+        const target = batchTarget(ctx.product.value, ctx.variation.value);
+        const direction = directions[reason.value];
+        const tracked = target !== null && target.track;
+        const incoming = tracked && (direction === 'increase' || direction === 'either');
+        const outgoing = tracked && (direction === 'decrease' || direction === 'either');
+
+        [ctx.batchNumber, ctx.expiry].forEach(input => {
+            input.hidden = !incoming;
+            input.disabled = !incoming;
+            input.required = incoming && direction === 'increase';
+        });
+
+        ctx.layer.hidden = !outgoing;
+        ctx.layer.disabled = !outgoing;
+        ctx.layer.required = outgoing && direction === 'decrease' && namedBatch.includes(reason.value);
+        ctx.dash.hidden = tracked;
+
+        if (outgoing) {
+            fillBatches(ctx, target);
+        }
+    }
+
+    function fillBatches(ctx, target) {
+        const shop = shopValue();
+        ctx.layer.replaceChildren();
+        if (shop === '') {
+            ctx.layer.append(option('', text.batchNoShop, true));
+            ctx.layer.disabled = true;
+            return;
+        }
+
+        const layers = target.layers.filter(layer => String(layer.shopId) === String(shop));
+        const blank = ctx.layer.required ? text.batchChoose : text.batchFifo;
+        ctx.layer.append(option('', layers.length > 0 ? blank : text.batchNone, true));
+        layers.forEach(layer => ctx.layer.append(option(layer.id, layer.label, String(layer.id) === ctx.selected)));
     }
 
     function fillVariations(select, productId, selectedId) {
@@ -288,6 +361,38 @@ document.addEventListener('DOMContentLoaded', function () {
         quantity.setAttribute('aria-label', text.changeLabel);
         quantity.addEventListener('input', summarise);
 
+        // The batch of this line (see refreshBatch): a batch number and expiry for an increase, a batch to take from for a decrease.
+        const batchBox = document.createElement('div');
+        batchBox.className = 'd-grid gap-1';
+        const batchNumber = document.createElement('input');
+        batchNumber.type = 'text';
+        batchNumber.name = `items[${i}][batch_number]`;
+        batchNumber.className = 'form-control form-control-sm';
+        batchNumber.placeholder = text.batchNumber;
+        batchNumber.setAttribute('aria-label', text.batchNumber);
+        batchNumber.value = line.batch_number ?? '';
+        const expiry = document.createElement('input');
+        expiry.type = 'date';
+        expiry.name = `items[${i}][expiry_date]`;
+        expiry.className = 'form-control form-control-sm';
+        expiry.setAttribute('aria-label', text.expiryLabel);
+        expiry.value = line.expiry_date ?? '';
+        const layer = document.createElement('select');
+        layer.name = `items[${i}][cost_layer_id]`;
+        layer.className = 'form-select form-select-sm';
+        layer.setAttribute('aria-label', text.batchLabel);
+        batchBox.append(batchNumber, expiry, layer);
+        const dash = document.createElement('span');
+        dash.className = 'text-muted small';
+        dash.textContent = text.notTracked;
+        const batchCell = document.createElement('div');
+        batchCell.append(batchBox, dash);
+        const batchCtx = { product, variation, batchNumber, expiry, layer, dash, selected: line.cost_layer_id ? String(line.cost_layer_id) : '' };
+        rowsCtx.push(batchCtx);
+        layer.addEventListener('change', () => { batchCtx.selected = layer.value; });
+        product.addEventListener('change', () => refreshBatch(batchCtx));
+        variation.addEventListener('change', () => refreshBatch(batchCtx));
+
         const notes = document.createElement('input');
         notes.type = 'text';
         notes.name = `items[${i}][item_notes]`;
@@ -301,14 +406,15 @@ document.addEventListener('DOMContentLoaded', function () {
         remove.className = 'btn btn-sm btn-soft-danger';
         remove.setAttribute('aria-label', text.remove);
         remove.innerHTML = '<iconify-icon icon="solar:trash-bin-trash-bold-duotone" class="align-middle" aria-hidden="true"></iconify-icon>';
-        remove.addEventListener('click', () => { row.remove(); summarise(); });
+        remove.addEventListener('click', () => { row.remove(); rowsCtx.splice(rowsCtx.indexOf(batchCtx), 1); summarise(); });
 
-        [product, variation, unit, quantity, notes, remove].forEach(element => row.insertCell().append(element));
+        [product, variation, unit, quantity, batchCell, notes, remove].forEach(element => row.insertCell().append(element));
         describeReason();
         summarise();
     }
 
     document.getElementById('add-item-btn').addEventListener('click', () => addLine());
+    document.getElementById('adjustment-shop')?.addEventListener('change', () => rowsCtx.forEach(refreshBatch));
     reason.addEventListener('change', describeReason);
 
     (lines.length ? lines : [{}]).forEach(line => addLine(line));
