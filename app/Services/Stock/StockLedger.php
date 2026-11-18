@@ -633,6 +633,14 @@ class StockLedger
     private function settleProvisional(int $shopId, ProductVariation $variation, int $layerId): void
     {
         $layer = DB::table('cost_layers')->where('id', $layerId)->first();
+
+        // An expired layer (a return of expired goods, say) is never sold, so it settles no sale: a sale still
+        // waiting for stock stays provisional until stock that can be sold arrives.
+        $shop = Shop::query()->find($shopId);
+        if ($layer->expiry_date !== null && $shop !== null && Carbon::parse($layer->expiry_date)->toDateString() < Expiry::firstSellableDate($shop)->toDateString()) {
+            return;
+        }
+
         $available = Quantity::normalize($layer->remaining_quantity);
         $cost = $layer->unit_cost === null ? null : (float) $layer->unit_cost;
 

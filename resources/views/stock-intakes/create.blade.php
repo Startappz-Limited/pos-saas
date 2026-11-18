@@ -210,7 +210,7 @@
                                     <input type="number" name="quantity_received"
                                         class="form-control @error('quantity_received') is-invalid @enderror"
                                         value="{{ old('quantity_received', isset($purchaseOrderItem) ? $purchaseOrderItem->quantity_remaining : '') }}"
-                                        min="0" step="0.01" required>
+                                        min="0.001" step="0.001" required>
                                     @error('quantity_received')
                                         <div class="invalid-feedback">{{ $message }}</div>
                                     @enderror
@@ -225,7 +225,7 @@
                                     <input type="number" name="quantity_accepted"
                                         class="form-control @error('quantity_accepted') is-invalid @enderror"
                                         value="{{ old('quantity_accepted', isset($purchaseOrderItem) ? $purchaseOrderItem->quantity_remaining : '') }}"
-                                        min="0" step="0.01" required>
+                                        min="0.001" step="0.001" required>
                                     @error('quantity_accepted')
                                         <div class="invalid-feedback">{{ $message }}</div>
                                     @enderror
@@ -234,7 +234,7 @@
                                     <label class="form-label">Quantity Rejected</label>
                                     <input type="number" name="quantity_rejected"
                                         class="form-control @error('quantity_rejected') is-invalid @enderror"
-                                        value="{{ old('quantity_rejected', 0) }}" min="0" step="0.01">
+                                        value="{{ old('quantity_rejected', 0) }}" min="0" step="0.001">
                                     @error('quantity_rejected')
                                         <div class="invalid-feedback">{{ $message }}</div>
                                     @enderror

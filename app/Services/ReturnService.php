@@ -292,7 +292,7 @@ class ReturnService
 
                 // Each piece goes back as the batch it was sold from, with that batch's expiry (review follow-up): an
                 // expired batch returns still expired, so it is never offered for sale again as if it were fresh.
-                foreach ($this->restockPieces($item->saleItem, $baseQuantity) as $piece) {
+                foreach ($this->restockPieces($item->saleItem, $baseQuantity, "Quarantined return {$saleReturn->return_number}") as $piece) {
                     app(StockLedger::class)->receive((int) $saleReturn->shop_id, $variation, $piece['quantity'], $costPerBaseUnit, StockMovementType::RETURN, [
                         'source_type' => CostLayer::SOURCE_SALE_RETURN,
                         'source_id' => $saleReturn->id,
@@ -309,46 +309,40 @@ class ReturnService
     }
 
     /**
-     * The batches a returned base quantity goes back into: the layers its sale line was costed from
-     * (cost allocations), in the same proportion as the sale, the last taking the remainder so the
-     * pieces sum exactly. A line with no recorded allocations (a legacy sale) goes back unbatched.
+     * The batches a returned base quantity goes back into. A sale line taken from a single known batch
+     * goes back to that batch with its expiry, exactly. A line taken from several batches cannot say which
+     * of them the returned item came from, so it goes back as one piece at the earliest expiry among them
+     * (never a later one than the item could have had). A line with an unknown batch (a provisional or
+     * missing allocation, or a sale before batches were recorded) is quarantined: it goes back already
+     * expired, so it is not sold until someone re-receives it after inspection.
      *
      * @return list<array{quantity: string, batch_number: ?string, expiry_date: ?string}>
      */
-    private function restockPieces(SaleItem $saleItem, string $baseQuantity): array
+    private function restockPieces(SaleItem $saleItem, string $baseQuantity, string $quarantineBatch): array
     {
-        $soldBase = Quantity::normalize($saleItem->base_quantity ?? 0);
         $allocations = CostAllocation::query()
             ->where('consumer_type', CostAllocation::CONSUMER_SALE_ITEM)->where('sale_item_id', $saleItem->id)
             ->orderBy('id')->get();
 
-        if ($allocations->isEmpty() || bccomp($soldBase, '0', 3) <= 0) {
-            return [['quantity' => $baseQuantity, 'batch_number' => null, 'expiry_date' => null]];
-        }
-
         $layers = CostLayer::query()->whereIn('id', $allocations->pluck('cost_layer_id')->filter())->get()->keyBy('id');
-        $pieces = [];
-        $remaining = $baseQuantity;
-        $last = $allocations->count() - 1;
+        $unknown = $allocations->isEmpty() || $allocations->contains(fn (CostAllocation $allocation): bool => $allocation->cost_layer_id === null || ! $layers->has($allocation->cost_layer_id));
 
-        foreach ($allocations->values() as $index => $allocation) {
-            $share = bcdiv(bcmul(Quantity::normalize($allocation->quantity_allocated), $baseQuantity, 6), $soldBase, 3);
-            $take = $index === $last || bccomp($share, $remaining, 3) > 0 ? $remaining : $share;
-
-            if (bccomp($take, '0', 3) <= 0) {
-                continue;
-            }
-
-            $layer = $allocation->cost_layer_id !== null ? $layers->get($allocation->cost_layer_id) : null;
-            $pieces[] = [
-                'quantity' => $take,
-                'batch_number' => $layer?->batch_number,
-                'expiry_date' => $layer?->expiry_date?->toDateString(),
-            ];
-            $remaining = bcsub($remaining, $take, 3);
+        if ($unknown) {
+            return [['quantity' => $baseQuantity, 'batch_number' => $quarantineBatch, 'expiry_date' => now()->subDay()->toDateString()]];
         }
 
-        return $pieces;
+        $batches = $allocations->map(fn (CostAllocation $allocation): CostLayer => $layers->get($allocation->cost_layer_id));
+
+        if ($batches->unique('id')->count() === 1) {
+            $layer = $batches->first();
+
+            return [['quantity' => $baseQuantity, 'batch_number' => $layer->batch_number, 'expiry_date' => $layer->expiry_date?->toDateString()]];
+        }
+
+        // Several batches: the earliest expiry wins, and a batch with no expiry counts as the latest.
+        $earliest = $batches->sortBy(fn (CostLayer $layer): string => $layer->expiry_date?->toDateString() ?? '9999-12-31')->first();
+
+        return [['quantity' => $baseQuantity, 'batch_number' => null, 'expiry_date' => $earliest->expiry_date?->toDateString()]];
     }
 
     public function inspectReturn(SaleReturn $saleReturn, int $userId, ?string $inspectionNotes = null): SaleReturn

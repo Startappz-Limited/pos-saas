@@ -2,6 +2,7 @@
 
 namespace App\Actions\PurchaseReturn;
 
+use App\Casts\Quantity;
 use App\Enums\PurchaseReturnStatus;
 use App\Enums\StockMovementType;
 use App\Exceptions\BusinessRuleException;
@@ -27,9 +28,10 @@ class MarkPurchaseReturnShippedAction
                 $variation = $item->product_variation_id
                     ? ProductVariation::withoutGlobalScope(ProductVariation::HIDE_DEFAULT)->findOrFail($item->product_variation_id)
                     : $item->product->defaultVariation()->firstOrFail();
-                $currentStock = $this->ledger->quantity((int) $purchaseReturn->shop_id, $variation->id);
+                // Exact, at the ledger's three decimals: a 2.5 kg return checks against 2.5 kg, not a whole figure.
+                $currentStock = $this->ledger->exactQuantity((int) $purchaseReturn->shop_id, $variation->id);
 
-                if ($currentStock < $item->quantity) {
+                if (bccomp($currentStock, Quantity::normalize($item->quantity), 3) < 0) {
                     throw new BusinessRuleException("Cannot return {$item->product->name}: only {$currentStock} units are available in stock.");
                 }
 
