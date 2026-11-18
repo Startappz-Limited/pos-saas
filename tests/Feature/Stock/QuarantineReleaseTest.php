@@ -5,6 +5,7 @@ use App\Enums\QuarantineStatus;
 use App\Enums\StockMovementType;
 use App\Exceptions\BusinessRuleException;
 use App\Models\AuditLog;
+use App\Models\CostAllocation;
 use App\Models\CostLayer;
 use App\Models\Product;
 use App\Models\Shop;
@@ -325,4 +326,106 @@ it('turns away a release of medical known-expired stock through the screen', fun
     ])->assertSessionHas('error');
 
     expect($layer->fresh()->remaining_quantity)->toBe('2.000');
+});
+
+// Review follow-up: medical expiry is judged now, released medical stock expires, availability, settlement, precision, keys.
+
+it('refuses a medical release once stock verified in date has since expired', function () {
+    $medical = ($this->product)(true);
+    $layer = ($this->stock)($medical, 3, ['batch_number' => 'LATE'] + unverifiedQuarantine());
+    $this->service->verify($layer, $this->owner, 'LATE', '2027-06-01');
+
+    $this->travelTo(Carbon::parse('2027-07-01 10:00:00', 'Africa/Nairobi'));
+
+    expect(fn () => $this->service->release($layer, $this->owner, '3', 'Still fine.', (string) Str::uuid()))
+        ->toThrow(BusinessRuleException::class, 'Expired medical stock cannot be released');
+    expect(StockRelease::query()->count())->toBe(0);
+});
+
+it('stops a released medical layer being sold once its expiry passes', function () {
+    $medical = ($this->product)(true);
+    $layer = ($this->stock)($medical, 2, ['batch_number' => 'MREL'] + unverifiedQuarantine());
+    $verified = $this->service->verify($layer, $this->owner, 'MREL', '2027-06-01');
+    $this->service->release($verified, $this->owner, '2', 'Verified and in date.', (string) Str::uuid());
+
+    expect($this->ledger->sellableQuantity($this->shop->id, $medical->defaultVariation->id))->toBe('2.000');
+
+    $this->travelTo(Carbon::parse('2027-07-01 10:00:00', 'Africa/Nairobi'));
+
+    // The release exempts only non-medical stock from expiry: this medical batch is expired, so it is not sold.
+    expect($this->ledger->sellableQuantity($this->shop->id, $medical->defaultVariation->id))->toBe('0.000')
+        ->and(fn () => $this->ledger->consume($this->shop->id, $medical->defaultVariation, 1, StockMovementType::SALE, $medical, ['exclude_expired' => true]))
+        ->toThrow(BusinessRuleException::class, 'Medical stock past its expiry cannot be sold');
+});
+
+it('refuses a medical sale that only expired stock could meet, whatever the caller', function () {
+    $medical = ($this->product)(true);
+    $expired = ($this->stock)($medical, 2, ['batch_number' => 'OLDM', 'expiry_date' => '2027-01-01']);
+
+    expect(fn () => $this->ledger->consume($this->shop->id, $medical->defaultVariation, 1, StockMovementType::SALE, $medical, ['exclude_expired' => true]))
+        ->toThrow(BusinessRuleException::class, 'Medical stock past its expiry cannot be sold');
+    expect($expired->fresh()->remaining_quantity)->toBe('2.000');
+});
+
+it('refuses any sale that only expired stock could meet when the till enforces stock', function () {
+    $product = ($this->product)(false);
+    $expired = ($this->stock)($product, 4, ['batch_number' => 'OLDN', 'expiry_date' => '2027-01-01']);
+
+    expect(fn () => $this->ledger->consume($this->shop->id, $product->defaultVariation, 1, StockMovementType::SALE, $product, [
+        'enforce_stock' => true, 'exclude_expired' => true,
+    ]))->toThrow(BusinessRuleException::class, 'Only 0.000 left');
+    expect($expired->fresh()->remaining_quantity)->toBe('4.000');
+});
+
+it('settles a provisional sale still waiting for stock when quarantined stock is released', function () {
+    $product = ($this->product)(false);
+    $layer = ($this->stock)($product, 3, expiredQuarantine('SETTLE'));
+
+    // Nothing is sellable, so a sale of 2 is taken provisionally and waits for stock.
+    $this->ledger->consume($this->shop->id, $product->defaultVariation, 2, StockMovementType::SALE, $product, ['exclude_expired' => true]);
+    expect(CostAllocation::query()->where('is_provisional', true)->count())->toBe(1);
+
+    $this->service->release($layer, $this->owner, '3', 'Checked; in date.', (string) Str::uuid());
+
+    // Only one unit is left after the sale: the released stock settles the provisional sale rather than reporting 3.
+    expect(CostAllocation::query()->where('is_provisional', true)->count())->toBe(0)
+        ->and($this->ledger->sellableQuantity($this->shop->id, $product->defaultVariation->id))->toBe('1.000')
+        ->and($this->ledger->exactQuantity($this->shop->id, $product->defaultVariation->id))->toBe('1.000');
+});
+
+it('refuses a fraction of a whole-unit layer on release', function () {
+    $whole = ($this->product)(false);
+    $whole->defaultVariation->baseUnit()->update(['precision' => 0]);
+    $layer = ($this->stock)($whole, 3, expiredQuarantine('WHOLE'));
+
+    expect(fn () => $this->service->release($layer, $this->owner, '1.5', 'Half a pack.', (string) Str::uuid()))
+        ->toThrow(BusinessRuleException::class, 'whole number');
+    expect($layer->fresh()->remaining_quantity)->toBe('3.000');
+
+    $this->service->release($layer, $this->owner, '1', 'One whole pack.', (string) Str::uuid());
+    expect($layer->fresh()->remaining_quantity)->toBe('2.000');
+});
+
+it('refuses a request key reused for a different release, and answers a true retry', function () {
+    $product = ($this->product)(false);
+    $first = ($this->stock)($product, 4, expiredQuarantine('KEY1'));
+    $second = ($this->stock)($product, 4, expiredQuarantine('KEY2'));
+    $key = (string) Str::uuid();
+
+    [$made] = $this->service->release($first, $this->owner, '1', 'First release.', $key);
+
+    // The same key for another layer, another quantity, or another reason is a different release: refused.
+    expect(fn () => $this->service->release($second, $this->owner, '1', 'First release.', $key))
+        ->toThrow(BusinessRuleException::class, 'already used for a different release');
+    expect(fn () => $this->service->release($first, $this->owner, '2', 'First release.', $key))
+        ->toThrow(BusinessRuleException::class, 'already used for a different release');
+    expect(fn () => $this->service->release($first, $this->owner, '1', 'Another reason.', $key))
+        ->toThrow(BusinessRuleException::class, 'already used for a different release');
+
+    // The same release, retried, is answered with the release it made, and moves nothing.
+    [$again, $replayed] = $this->service->release($first, $this->owner, '1', 'First release.', $key);
+    expect($replayed)->toBeTrue()
+        ->and($again->id)->toBe($made->id)
+        ->and($first->fresh()->remaining_quantity)->toBe('3.000')
+        ->and($second->fresh()->remaining_quantity)->toBe('4.000');
 });

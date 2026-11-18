@@ -29,10 +29,14 @@ final class SellableStock
         $boundary = Expiry::firstSellableDate($shop)->toDateString();
 
         return CostLayer::query()
-            ->where('shop_id', $shop->id)
-            ->when($variationId !== null, fn ($query) => $query->where('variation_id', $variationId))
-            ->where('remaining_quantity', '>', 0)
-            ->get(['variation_id', 'remaining_quantity', 'expiry_date', 'quarantine_status', 'stock_release_id'])
+            ->join('products', 'products.id', '=', 'cost_layers.product_id')
+            ->where('cost_layers.shop_id', $shop->id)
+            ->when($variationId !== null, fn ($query) => $query->where('cost_layers.variation_id', $variationId))
+            ->where('cost_layers.remaining_quantity', '>', 0)
+            ->get([
+                'cost_layers.variation_id', 'cost_layers.remaining_quantity', 'cost_layers.expiry_date',
+                'cost_layers.quarantine_status', 'cost_layers.stock_release_id', 'products.is_medical',
+            ])
             ->groupBy('variation_id')
             ->map(function (Collection $layers) use ($boundary): array {
                 $sellable = '0.000';
@@ -50,7 +54,10 @@ final class SellableStock
                         continue;
                     }
 
-                    if ($expiry !== null && $expiry < $boundary && $layer->stock_release_id === null) {
+                    // A released layer is exempt from expiry only for a non-medical product (read now, not stored).
+                    $waived = $layer->stock_release_id !== null && ! (bool) $layer->is_medical;
+
+                    if ($expiry !== null && $expiry < $boundary && ! $waived) {
                         $expired = bcadd($expired, $remaining, 3);
 
                         continue;

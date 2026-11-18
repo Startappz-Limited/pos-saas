@@ -57,25 +57,21 @@ it('consumes FIFO (oldest received) by default, and FEFO (soonest to expire) whe
         ->and((float) DB::table('cost_layers')->where('id', $newer->id)->value('remaining_quantity'))->toBe(5.0);
 });
 
-it('never takes an expired batch for a sale, leaving it untouched and flagging the sale expired_stock', function () {
+it('refuses a sale that only expired stock could meet, leaving the expired batch untouched', function () {
     $product = Product::factory()->create(['shop_id' => $this->shop->id, 'stock_quantity' => 0, 'selling_price' => 50]);
     $this->travelTo(Carbon::parse('2026-11-02 08:00:00', 'Africa/Nairobi'));
     layer($product, $this->shop, 'EXPIRED', '2026-01-01', '2026-10-31', quantity: 10);
 
+    // Expired stock is not sellable, so the sale is refused rather than completed on provisional stock.
     $this->actingAs($this->owner)->postJson(route('sales.store'), [
         'shop_id' => $this->shop->id, 'source_id' => $this->source, 'delivery_location' => 'In store',
         'walk_in_customer_name' => 'Walk In', 'walk_in_customer_phone' => '0700000000', 'payment_method' => 'cash',
         'items' => [['product_id' => $product->id, 'quantity' => 3, 'price' => 50]],
-    ])->assertOk();
+    ])->assertStatus(422);
 
-    $sale = Sale::latest('id')->firstOrFail();
-    // The 10 physical (expired) units are still there, untouched by the sale: 3 were sold
-    // provisionally (uncosted from a real batch), so the shop's own total still reads 7, not -3 —
-    // shop_variation counts physical units whatever their expiry, and there genuinely were enough.
     expect((float) DB::table('cost_layers')->where('batch_number', 'EXPIRED')->value('remaining_quantity'))->toBe(10.0)
-        ->and($this->ledger->quantity($this->shop->id, $product->defaultVariation->id))->toBe(7)
-        ->and(DB::table('cost_allocations')->where('is_provisional', true)->where('sale_item_id', $sale->items->sole()->id)->sum('quantity_allocated'))->toEqual(3)
-        ->and(SyncIssue::query()->where('type', SyncIssue::EXPIRED_STOCK)->where('key', 'like', "expired:{$sale->uuid}:%")->exists())->toBeTrue();
+        ->and(DB::table('cost_allocations')->where('is_provisional', true)->count())->toBe(0)
+        ->and(Sale::query()->count())->toBe(0);
 });
 
 it('expired_stock self-resolves once the shop\'s stock for that variation returns to zero or above', function () {

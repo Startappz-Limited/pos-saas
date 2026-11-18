@@ -36,9 +36,13 @@ class StockQuarantineController extends Controller
             ->with(['product:id,name', 'approver:id,name'])
             ->latest('approved_at')->limit(25)->get();
 
+        // Each layer's base-unit precision, so the release form only offers quantities the unit allows.
+        $precisions = $layers->getCollection()->mapWithKeys(fn (CostLayer $layer): array => [$layer->id => $this->quarantine->baseUnitPrecision($layer)]);
+
         return view('stock-quarantine.index', [
             'layers' => $layers,
             'blocked' => $blocked,
+            'precisions' => $precisions,
             'releases' => $releases,
         ]);
     }

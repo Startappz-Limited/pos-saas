@@ -171,3 +171,29 @@ it('receives the smallest quantity its unit allows, and refuses a fraction of a 
     $intake($weight, '0.001')->assertSessionHasNoErrors();
     $intake($whole, '0.5')->assertSessionHasErrors('quantity_received');
 });
+
+it('returns an ordinary product sold from one unbatched layer as sellable: no batch or expiry applies to it', function () {
+    // An ordinary product: batches are not tracked, so there is no batch or expiry to establish. Its one unbatched layer is
+    // the provenance, and it is established. (A medical product, or one that tracks batches, is quarantined instead.)
+    $ordinary = Product::factory()->create(['shop_id' => $this->shop->id, 'stock_quantity' => 0, 'has_variations' => false, 'unit' => 'piece']);
+    $ordinary->defaultVariation->update(['track_batches' => false]);
+    $variation = $ordinary->defaultVariation;
+    $this->ledger->receive($this->shop->id, $variation, 5, 5.0, StockMovementType::INTAKE);
+
+    $sale = Sale::factory()->create(['shop_id' => $this->shop->id, 'status' => 'completed', 'customer_id' => null]);
+    $line = SaleItem::create([
+        'uuid' => (string) Str::uuid(), 'sale_id' => $sale->id, 'product_id' => $ordinary->id, 'variation_id' => $variation->id,
+        'quantity' => 1, 'base_quantity' => 1, 'unit_price' => 100, 'line_total' => 100, 'unit_cost' => 5, 'total_cost' => 5, 'status' => 'completed',
+    ]);
+    $this->ledger->consume($this->shop->id, $variation, 1, StockMovementType::SALE, $line);
+
+    $return = app(ReturnService::class)->createReturn([
+        'sale_id' => $sale->id, 'reason' => ReturnReason::WRONG_ITEM->value, 'items' => [['sale_item_id' => $line->id, 'quantity' => 1]],
+    ], $this->owner->id);
+    app(ReturnService::class)->approveReturn($return, $this->owner->id);
+    app(ReturnService::class)->receiveReturn($return);
+
+    $restocked = CostLayer::query()->where('source_type', CostLayer::SOURCE_SALE_RETURN)->firstOrFail();
+    expect($restocked->quarantine_status)->toBeNull()
+        ->and($this->ledger->sellableQuantity($this->shop->id, $variation->id))->toBe('5.000');
+});

@@ -1,14 +1,20 @@
 <?php
 
 use App\Enums\ApiErrorCode;
+use App\Enums\QuarantineStatus;
+use App\Enums\StockMovementType;
+use App\Models\CostLayer;
 use App\Models\Customer;
 use App\Models\Product;
 use App\Models\ProductUnit;
 use App\Models\Register;
 use App\Models\User;
+use App\Services\Stock\QuarantineService;
+use App\Services\Stock\StockLedger;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Tests\Support\Till;
 use Tests\Support\TwoBusinesses;
 
@@ -186,4 +192,29 @@ it('pages units by their update time, so a unit updated out of ID order is never
     expect($pulls)->toBeGreaterThan(1)
         ->and(array_unique($seen))->toHaveCount(count($all))
         ->and(array_diff($all, $seen))->toBeEmpty();
+});
+
+it('sends a quarantine release on the next incremental pull, from the cursor of the pull before it', function () {
+    $product = $this->tenant->run($this->a->business, function () {
+        $product = Product::factory()->create(['shop_id' => $this->shop1->id, 'stock_quantity' => 0, 'has_variations' => false]);
+        app(StockLedger::class)->receive($this->shop1->id, $product->defaultVariation, 3, 5.0, StockMovementType::RETURN, [
+            'batch_number' => 'SYNC', 'expiry_date' => '2027-01-01', 'quarantine_status' => QuarantineStatus::EXPIRED->value,
+        ]);
+
+        return $product;
+    });
+    $this->travel(2)->seconds();
+
+    $before = pullAsTill($this->token, null)->assertOk();
+    $row = fn ($response) => collect($response->json('data.stock'))->firstWhere('product_uuid', $product->uuid);
+    expect($row($before))->toMatchArray(['quarantined_quantity' => '3.000', 'sellable_quantity' => '0.000']);
+
+    // The release happens after that pull. The till asks for changes since its cursor, and must receive the release.
+    $this->travel(2)->seconds();
+    $layer = $this->tenant->run($this->a->business, fn () => CostLayer::query()->where('batch_number', 'SYNC')->firstOrFail());
+    $this->tenant->run($this->a->business, fn () => app(QuarantineService::class)->release($layer, $this->a->owner, '3', 'Checked and in date.', (string) Str::uuid()));
+    $this->travel(2)->seconds();
+
+    $after = pullAsTill($this->token, $before->json('meta.cursor'))->assertOk();
+    expect($row($after))->toMatchArray(['quarantined_quantity' => '0.000', 'sellable_quantity' => '3.000']);
 });

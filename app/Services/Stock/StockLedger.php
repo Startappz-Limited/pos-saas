@@ -19,6 +19,7 @@ use App\Support\Stock\Expiry;
 use App\Support\Stock\SellableStock;
 use App\Support\Sync\SyncIssues;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -105,13 +106,25 @@ class StockLedger
             // (adjustments, write-offs, purchase returns) never pass enforce_stock, so they are
             // unaffected. Checked right after the row lock above, so two simultaneous sales for the
             // shop's last unit can't both pass this check before either commits.
-            // Only quarantined stock is held out of the check here: expired batches are excluded from the layers a
-            // sale takes (exclude_expired), as before, so the check counts what a sale could still be given.
-            $sellableNow = ($context['enforce_stock'] ?? false) ? bcsub($before, $this->quarantinedQuantity($shopId, $variation->id), 3) : $before;
-            if (($context['enforce_stock'] ?? false) && empty($context['oversell_reason']) && bccomp($sellableNow, $quantity, 3) < 0) {
+            // The check counts only what a sale can be given: quarantined and expired stock is excluded, so an
+            // expired-only shelf cannot pass it. A medical product is held to this whatever the caller (every sale
+            // goes through sellItem(), which passes exclude_expired), since its expired stock is never sold.
+            $sale = (bool) ($context['exclude_expired'] ?? false);
+            $medical = (bool) DB::table('products')->where('id', $variation->product_id)->value('is_medical');
+            $enforce = (bool) ($context['enforce_stock'] ?? false);
+            $sellableNow = $enforce || ($sale && $medical) ? SellableStock::sellableOf(Shop::query()->findOrFail($shopId), $variation->id) : $before;
+
+            if ($enforce && empty($context['oversell_reason']) && bccomp($sellableNow, $quantity, 3) < 0) {
                 throw BusinessRuleException::because(
                     __('Only :available left of this item at this shop; :needed needed.', ['available' => $sellableNow, 'needed' => $quantity]),
                     'insufficient_stock',
+                );
+            }
+
+            if ($sale && $medical && bccomp($sellableNow, $quantity, 3) < 0) {
+                throw BusinessRuleException::because(
+                    __('Medical stock past its expiry cannot be sold: only :available sellable; :needed needed.', ['available' => $sellableNow, 'needed' => $quantity]),
+                    'medical_unsellable',
                 );
             }
 
@@ -133,7 +146,7 @@ class StockLedger
                 ->where('shop_id', $shopId)->where('variation_id', $variation->id)->where('remaining_quantity', '>', 0)
                 ->when($exactLayer, fn ($query) => $query->where('id', $preferredLayerId))
                 ->when(! ($context['include_quarantine'] ?? false), fn ($query) => $query->whereNull('quarantine_status'))
-                ->when($excludeExpired && $boundary !== null, fn ($query) => $query->where(fn ($q) => $q->whereNull('expiry_date')->orWhere('expiry_date', '>=', $boundary)->orWhereNotNull('stock_release_id')))
+                ->when($excludeExpired && $boundary !== null, fn ($query) => $query->where(fn ($q) => $q->whereNull('expiry_date')->orWhere('expiry_date', '>=', $boundary)->orWhere(fn ($waived) => $waived->whereNotNull('stock_release_id')->whereIn('product_id', $this->nonMedicalProducts()))))
                 ->when($preferredLayerId, fn ($query) => $query->orderByRaw('case when id = ? then 0 else 1 end', [$preferredLayerId]))
                 ->when($fefo, fn ($query) => $query->orderByRaw('expiry_date is null')->orderBy('expiry_date'))
                 ->orderBy('received_at')->orderBy('id')
@@ -421,6 +434,66 @@ class StockLedger
     }
 
     /**
+     * Locks a variation's stock row for the rest of the caller's transaction: the same first lock a sale takes, so a
+     * release and a sale of the same variation serialise. Call it before locking any layer.
+     */
+    public function lockVariationStock(int $shopId, ProductVariation $variation): void
+    {
+        $this->lockStock($shopId, $variation);
+    }
+
+    /**
+     * Moves a quantity out of a quarantined layer into a new sellable layer that keeps the batch, expiry and cost (stage 11,
+     * quarantine policy). On-hand stock does not change: the stock was on hand already, and only its status changes.
+     * The caller must hold the variation's stock lock and the source layer's lock, and must call settleReleased() after
+     * linking the new layer to its release record.
+     */
+    public function addQuarantineRelease(CostLayer $source, string $quantity): CostLayer
+    {
+        $remaining = Quantity::normalize($source->remaining_quantity);
+        $source->update([
+            'remaining_quantity' => bcsub($remaining, $quantity, 3),
+            'consumed_at' => bccomp($remaining, $quantity, 3) === 0 ? now() : null,
+        ]);
+
+        return CostLayer::query()->create([
+            'uuid' => (string) Str::uuid(),
+            'business_id' => $source->business_id,
+            'shop_id' => $source->shop_id,
+            'product_id' => $source->product_id,
+            'variation_id' => $source->variation_id,
+            'source_type' => CostLayer::SOURCE_QUARANTINE_RELEASE,
+            'source_id' => $source->id,
+            'unit_cost' => $source->unit_cost,
+            'batch_number' => $source->batch_number,
+            'expiry_date' => $source->expiry_date,
+            'original_quantity' => $quantity,
+            'remaining_quantity' => $quantity,
+            'received_at' => $source->received_at,
+        ]);
+    }
+
+    /**
+     * Settles the sales still waiting for stock with a released layer, and marks the variation's stock changed so an
+     * incremental sync sends it (stage 11, quarantine policy). Call it after the layer is linked to its release.
+     */
+    public function settleReleased(CostLayer $released): void
+    {
+        $variation = ProductVariation::withoutGlobalScope(ProductVariation::HIDE_DEFAULT)->findOrFail($released->variation_id);
+
+        $this->settleProvisional($released->shop_id, $variation, $released->id);
+        $this->touch($released->shop_id, $released->variation_id);
+    }
+
+    /**
+     * Products that are not medical: the only ones whose released stock is exempt from expiry.
+     */
+    private function nonMedicalProducts(): Builder
+    {
+        return DB::table('products')->where('is_medical', false)->select('id');
+    }
+
+    /**
      * The shop's stock of a variation, in whole base units (rounded down, as
      * every whole-number integration point reads it). exactQuantity() gives
      * the full decimal figure.
@@ -659,7 +732,9 @@ class StockLedger
         if ($layer->quarantine_status !== null) {
             return;
         }
-        if ($layer->expiry_date !== null && $shop !== null && $layer->stock_release_id === null && Carbon::parse($layer->expiry_date)->toDateString() < Expiry::firstSellableDate($shop)->toDateString()) {
+        // A released layer is exempt from expiry only for a non-medical product (checked when it is read, not stored).
+        $waived = $layer->stock_release_id !== null && ! (bool) DB::table('products')->where('id', $layer->product_id)->value('is_medical');
+        if ($layer->expiry_date !== null && $shop !== null && ! $waived && Carbon::parse($layer->expiry_date)->toDateString() < Expiry::firstSellableDate($shop)->toDateString()) {
             return;
         }
 

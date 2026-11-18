@@ -75,7 +75,7 @@
                                                             @csrf
                                                             <input type="hidden" name="request_key" value="{{ \Illuminate\Support\Str::uuid() }}">
                                                             <div class="col-3">
-                                                                <input type="number" name="quantity" class="form-control form-control-sm" step="0.001" min="0.001" max="{{ $layer->remaining_quantity }}" value="{{ $layer->remaining_quantity }}" required aria-label="{{ __('Quantity to release') }}">
+                                                                <input type="number" name="quantity" class="form-control form-control-sm" step="{{ ($precisions[$layer->id] ?? 3) === 0 ? '1' : '0.001' }}" min="{{ ($precisions[$layer->id] ?? 3) === 0 ? '1' : '0.001' }}" max="{{ $layer->remaining_quantity }}" value="{{ $layer->remaining_quantity }}" required aria-label="{{ __('Quantity to release') }}">
                                                             </div>
                                                             <div class="col-7">
                                                                 <input type="text" name="reason" class="form-control form-control-sm" placeholder="{{ __('Why it is safe to release') }}" required maxlength="500" aria-label="{{ __('Reason for release') }}">
