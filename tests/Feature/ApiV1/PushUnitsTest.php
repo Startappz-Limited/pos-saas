@@ -174,3 +174,14 @@ it('refuses a till base quantity that is negative or not a number, and stores no
 
     expect(Sale::query()->withoutGlobalScopes()->count())->toBe($salesBefore);
 });
+
+it('refuses a till sale whose base quantity is zero: it would record a sale that removes no stock', function () {
+    $crate = crateOf($this->product);
+    $before = Sale::query()->withoutGlobalScopes()->count();
+
+    $line = ['product_id' => $this->product->id, 'quantity' => 3, 'price' => 2800, 'unit_id' => $crate->uuid, 'base_quantity' => 0];
+    $result = unitPush($this->token, [unitSale($line)])->assertOk()->json('data.results.0');
+
+    expect($result['status'])->not->toBe('applied')
+        ->and(Sale::query()->withoutGlobalScopes()->count())->toBe($before);
+});

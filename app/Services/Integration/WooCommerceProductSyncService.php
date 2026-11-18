@@ -366,7 +366,7 @@ class WooCommerceProductSyncService
                 'regular_price' => (string) $product->selling_price,
                 'description' => $product->description ?? '',
                 'manage_stock' => $product->track_stock,
-                'stock_quantity' => app(StockLedger::class)->quantity($shop->id, $product->defaultVariation()->firstOrFail()->id),
+                'stock_quantity' => app(StockLedger::class)->sellable($shop->id, $product->defaultVariation()->firstOrFail()->id),
                 'status' => $product->isActive() ? 'publish' : 'draft',
             ];
 
@@ -459,7 +459,7 @@ class WooCommerceProductSyncService
 
             $response = Http::withBasicAuth($consumerKey, $consumerSecret)
                 ->put("{$storeUrl}/wp-json/wc/v3/products/{$sync->platform_product_id}", [
-                    'stock_quantity' => app(StockLedger::class)->quantity($shop->id, $product->defaultVariation()->firstOrFail()->id),
+                    'stock_quantity' => app(StockLedger::class)->sellable($shop->id, $product->defaultVariation()->firstOrFail()->id),
                     'manage_stock' => $product->track_stock,
                 ]);
 

@@ -2,6 +2,8 @@
 
 use App\Enums\ApiErrorCode;
 use App\Models\Customer;
+use App\Models\Product;
+use App\Models\ProductUnit;
 use App\Models\Register;
 use App\Models\User;
 use App\Support\Tenancy\TenantContext;
@@ -154,4 +156,34 @@ it('starts afresh from a cursor it can\'t read', function () {
 it('refuses a token that is not bound to a till', function () {
     pullAsTill(Till::signIn($this->a->owner))->assertForbidden()
         ->assertJsonPath('code', ApiErrorCode::RegisterTokenRequired->value);
+});
+
+it('pages units by their update time, so a unit updated out of ID order is never skipped', function () {
+    $units = $this->tenant->run($this->a->business, function () {
+        $variation = Product::factory()->create(['shop_id' => $this->shop1->id, 'has_variations' => false])->defaultVariation;
+
+        return collect(range(1, 5))->map(fn () => ProductUnit::factory()->create(['variation_id' => $variation->id]));
+    });
+
+    // Lowest id updated most recently: time order is the reverse of id order.
+    foreach ($units->values() as $index => $unit) {
+        DB::table('product_units')->where('id', $unit->id)->update(['updated_at' => now()->subMinutes($index)->toDateTimeString()]);
+    }
+    $this->travel(2)->seconds();
+
+    $seen = [];
+    $cursor = null;
+    $pulls = 0;
+    do {
+        $response = pullAsTill($this->token, $cursor, 2)->assertOk();
+        array_push($seen, ...collect($response->json('data.units'))->pluck('uuid')->all());
+        $cursor = $response->json('meta.cursor');
+        $pulls++;
+    } while ($response->json('meta.has_more') && $pulls < 40);
+
+    $all = $this->tenant->run($this->a->business, fn () => ProductUnit::query()->withTrashed()->pluck('uuid')->all());
+
+    expect($pulls)->toBeGreaterThan(1)
+        ->and(array_unique($seen))->toHaveCount(count($all))
+        ->and(array_diff($all, $seen))->toBeEmpty();
 });

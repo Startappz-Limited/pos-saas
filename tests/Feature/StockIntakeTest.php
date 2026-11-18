@@ -10,6 +10,7 @@ use App\Models\Shop;
 use App\Models\StockIntake;
 use App\Models\Supplier;
 use App\Models\User;
+use App\Services\Stock\StockLedger;
 use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Permission;
 
@@ -503,4 +504,24 @@ test('manual intake without PO creates successfully', function () {
         'shop_id' => $shop->id,
         'purchase_order_id' => null,
     ]);
+});
+
+test('a delivery of fractional units is received at its exact quantity, not truncated', function () {
+    Permission::create(['name' => 'stock-intake.approve']);
+    $this->user->givePermissionTo('stock-intake.approve');
+
+    $shop = Shop::factory()->create();
+    $product = Product::factory()->create(['shop_id' => $shop->id, 'stock_quantity' => 0]);
+    $stockIntake = StockIntake::factory()->pending()->create([
+        'shop_id' => $shop->id,
+        'product_id' => $product->id,
+        'quantity_received' => 2.5,
+        'quantity_accepted' => 2.5,
+    ]);
+
+    $this->post(route('stock-intakes.complete', $stockIntake))->assertRedirect();
+
+    // Read at the ledger's exact scale: the product's integer stock figure would show 2.
+    expect(app(StockLedger::class)->exactQuantity($shop->id, $product->defaultVariation->id))->toBe('2.500')
+        ->and((string) $stockIntake->fresh()->quantity_accepted)->toBe('2.500');
 });

@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Casts\Quantity;
 use App\Enums\PurchaseReturnReason;
 use App\Enums\PurchaseReturnStatus;
 use App\Enums\StockIntakeStatus;
@@ -234,11 +235,12 @@ class StorePurchaseReturnRequest extends FormRequest
                 $validator->errors()->add("items.{$index}.product_id", 'The selected product does not match the stock intake.');
             }
 
-            $acceptedQuantity = (int) $stockIntake->quantity_accepted;
-            $returnedQuantity = (int) ($alreadyReturned[$stockIntake->id] ?? 0);
-            $availableQuantity = max(0, $acceptedQuantity - $returnedQuantity);
+            // Compared at three decimals, like the intake and the return line: a 2.5 kg intake returns up to 2.5 kg.
+            $acceptedQuantity = Quantity::normalize($stockIntake->quantity_accepted);
+            $returnedQuantity = Quantity::normalize($alreadyReturned[$stockIntake->id] ?? 0);
+            $availableQuantity = bccomp($acceptedQuantity, $returnedQuantity, 3) > 0 ? bcsub($acceptedQuantity, $returnedQuantity, 3) : '0.000';
 
-            if ((int) $item['quantity'] > $availableQuantity) {
+            if (bccomp(Quantity::normalize($item['quantity']), $availableQuantity, 3) > 0) {
                 $validator->errors()->add("items.{$index}.quantity", "Only {$availableQuantity} units remain available to return from this stock intake.");
             }
         }

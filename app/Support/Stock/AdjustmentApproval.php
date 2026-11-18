@@ -125,7 +125,7 @@ final class AdjustmentApproval
     public function unitCost(StockAdjustmentItem $item): ?float
     {
         if ((float) $item->quantity_change < 0) {
-            return $this->ledger->costToConsume((int) $item->shop_id, $this->variationOf($item), Quantity::normalize($item->quantity_change));
+            return $this->ledger->costToConsume((int) $item->shop_id, $this->variationOf($item), Quantity::normalize($item->quantity_change), $item->cost_layer_id, $item->cost_layer_id !== null);
         }
 
         return $item->unit_cost !== null ? (float) $item->unit_cost : null;

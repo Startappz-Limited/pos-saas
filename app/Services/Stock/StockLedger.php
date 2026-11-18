@@ -344,14 +344,26 @@ class StockLedger
      * applied): the batches oldest first, then the fallback cost for a
      * shortfall, as consume() would. Null when any unit's cost is unknown.
      */
-    public function costToConsume(int $shopId, ProductVariation $variation, int|float|string $quantity): ?float
+    public function costToConsume(int $shopId, ProductVariation $variation, int|float|string $quantity, ?int $preferredLayerId = null, bool $exactLayer = false): ?float
     {
         $quantity = $this->absQuantity($quantity);
         $needed = $quantity;
         $total = 0.0;
 
-        foreach (DB::table('cost_layers')->where('shop_id', $shopId)->where('variation_id', $variation->id)->where('remaining_quantity', '>', 0)
-            ->orderBy('received_at')->orderBy('id')->get(['remaining_quantity', 'unit_cost']) as $layer) {
+        // The same layers, in the same order, as consume() will take them, so an approval is valued at what it
+        // will actually move: the named batch alone when one is chosen, else the preferred one first, then FEFO or FIFO.
+        $shop = Shop::query()->find($shopId);
+        $fefo = $shop !== null && $shop->business?->stockConsumption() === 'fefo';
+        $exact = $exactLayer && $preferredLayerId !== null;
+
+        $layers = DB::table('cost_layers')->where('shop_id', $shopId)->where('variation_id', $variation->id)->where('remaining_quantity', '>', 0)
+            ->when($exact, fn ($query) => $query->where('id', $preferredLayerId))
+            ->when($preferredLayerId, fn ($query) => $query->orderByRaw('case when id = ? then 0 else 1 end', [$preferredLayerId]))
+            ->when($fefo, fn ($query) => $query->orderByRaw('expiry_date is null')->orderBy('expiry_date'))
+            ->orderBy('received_at')->orderBy('id')
+            ->get(['remaining_quantity', 'unit_cost']);
+
+        foreach ($layers as $layer) {
             if (bccomp($needed, '0', 3) <= 0) {
                 break;
             }
@@ -365,6 +377,10 @@ class StockLedger
         }
 
         if (bccomp($needed, '0', 3) > 0) {
+            // A named batch cannot be spilled into, so its shortfall has no cost (consume() refuses it).
+            if ($exact) {
+                return null;
+            }
             $fallback = $this->fallbackCost($shopId, $variation);
             if ($fallback === null) {
                 return null;
@@ -406,6 +422,32 @@ class StockLedger
     public function quantity(int $shopId, int $variationId): int
     {
         return (int) $this->exactQuantity($shopId, $variationId);
+    }
+
+    /**
+     * The shop's sellable stock of a variation, whole units as the online stores take them: the total less the
+     * batches already expired (their expiry is before the shop's first sellable day, the same line sellItem()
+     * uses), floored at zero. The stores are sent this, so they stop offering what can no longer be sold.
+     */
+    public function sellable(int $shopId, int $variationId): int
+    {
+        $shop = Shop::query()->find($shopId);
+        $total = $this->exactQuantity($shopId, $variationId);
+
+        if ($shop === null) {
+            return (int) $total;
+        }
+
+        $boundary = Expiry::firstSellableDate($shop)->toDateString();
+        $expired = DB::table('cost_layers')
+            ->where('shop_id', $shopId)->where('variation_id', $variationId)
+            ->where('remaining_quantity', '>', 0)->where('expiry_date', '<', $boundary)
+            ->pluck('remaining_quantity')
+            ->reduce(fn (string $carry, mixed $remaining): string => bcadd($carry, Quantity::normalize($remaining), 3), '0.000');
+
+        $sellable = bcsub($total, $expired, 3);
+
+        return bccomp($sellable, '0', 3) > 0 ? (int) $sellable : 0;
     }
 
     /**

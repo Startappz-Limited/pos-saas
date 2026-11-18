@@ -261,6 +261,12 @@ final class SaleHandler implements PushHandler
 
                 $tillFigure = Quantity::normalize($given['base_quantity']);
 
+                // A positive sale must move stock: a till's zero (even one that agrees with a zero expectation)
+                // would record a sale that removes nothing.
+                if (bccomp($tillFigure, '0', 3) <= 0) {
+                    throw new PushRefused(ApiErrorCode::ValidationFailed, __('The base quantity must be above zero.'), ['items' => [__('Base quantity must be above zero.')]]);
+                }
+
                 if (bccomp($expected, $tillFigure, 3) !== 0) {
                     $mismatches[$index] = [
                         'unit' => $unit->name,

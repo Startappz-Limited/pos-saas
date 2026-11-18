@@ -381,7 +381,7 @@ class PurchaseReturnController extends Controller
             'product_variation_id' => $stockIntake->product_variation_id,
             'product_name' => $stockIntake->product?->name ?? 'Unknown product',
             'reference' => $stockIntake->purchaseOrder?->order_number ?? $stockIntake->intake_number,
-            'available_quantity' => (int) $stockIntake->quantity_accepted,
+            'available_quantity' => (float) $stockIntake->quantity_accepted,
             'unit_cost' => (float) ($stockIntake->purchaseOrderItem?->unit_cost ?? $stockIntake->product?->cost_price ?? 0),
             'condition' => $stockIntake->quality_status?->value,
             'notes' => $stockIntake->quality_notes,

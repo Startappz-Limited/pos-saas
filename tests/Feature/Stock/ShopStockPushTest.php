@@ -80,3 +80,18 @@ it('pushes nothing for a shop without a store, or while a store\'s figures are b
 
     Queue::assertNotPushed(PushShopStockJob::class);
 });
+
+it('sends a store only its sellable stock: expired batches are left out of the figure', function () {
+    Queue::fake();
+    // 7 units of an expired batch (expiry long past) and 3 of a healthy one.
+    $this->ledger->receive($this->nairobi->id, $this->product->defaultVariation, 7, 10, StockMovementType::INTAKE, ['batch_number' => 'OLD', 'expiry_date' => '2000-01-01']);
+    $this->ledger->receive($this->nairobi->id, $this->product->defaultVariation, 3, 10, StockMovementType::INTAKE, ['batch_number' => 'NEW', 'expiry_date' => '2099-01-01']);
+    expect($this->ledger->quantity($this->nairobi->id, $this->product->defaultVariation->id))->toBe(10)
+        ->and($this->ledger->sellable($this->nairobi->id, $this->product->defaultVariation->id))->toBe(3);
+
+    Http::fake(['*' => Http::response(['id' => 1])]);
+    app()->call([new PushShopStockJob($this->nairobi->id, $this->product->id), 'handle']);
+
+    Http::assertSent(fn (Request $request) => $request->url() === 'https://nairobi.example/wp-json/wc/v3/products/wc-NRB'
+        && $request['stock_quantity'] === 3);
+});

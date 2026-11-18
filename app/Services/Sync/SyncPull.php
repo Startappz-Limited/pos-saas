@@ -229,7 +229,7 @@ class SyncPull
             'payment_requests' => [PaymentRequest::query()->where('payment_requests.shop_id', $register->shop_id), fn (PaymentRequest $request): array => $request->present()],
             // Units of measure (stage 11, step 2) for the business's variations. A deleted unit is
             // sent as an update, flagged, and never as a deletion: a past receipt still names it.
-            'units' => [ProductUnit::query()->withTrashed()->with(['variation:id,uuid,product_id,is_default', 'variation.product:id,uuid'])->orderBy('product_units.id'), fn (ProductUnit $unit): array => [
+            'units' => [ProductUnit::query()->withTrashed()->with(['variation:id,uuid,product_id,is_default', 'variation.product:id,uuid']), fn (ProductUnit $unit): array => [
                 'uuid' => $unit->uuid,
                 'variation_uuid' => $unit->variation?->is_default ? null : $unit->variation?->uuid,
                 'product_uuid' => $unit->variation?->product?->uuid,

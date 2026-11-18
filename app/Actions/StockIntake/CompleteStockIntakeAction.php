@@ -2,6 +2,7 @@
 
 namespace App\Actions\StockIntake;
 
+use App\Casts\Quantity;
 use App\Enums\PurchaseOrderStatus;
 use App\Enums\StockIntakeStatus;
 use App\Enums\StockMovementType;
@@ -42,8 +43,9 @@ class CompleteStockIntakeAction
             // The accepted units join the intake's shop as a FIFO cost layer, at
             // the purchase order line's cost when there is one (stage 1b).
             $product = $stockIntake->product;
-            $quantity = (int) $stockIntake->quantity_accepted;
-            if ($product && $quantity > 0) {
+            // The accepted quantity at its three decimals (a 2.5 kg delivery adds 2.5, not 2).
+            $quantity = Quantity::normalize($stockIntake->quantity_accepted);
+            if ($product && bccomp($quantity, '0', 3) > 0) {
                 $variation = $stockIntake->product_variation_id
                     ? ProductVariation::withoutGlobalScope(ProductVariation::HIDE_DEFAULT)->findOrFail($stockIntake->product_variation_id)
                     : $product->defaultVariation()->firstOrFail();
