@@ -206,6 +206,12 @@
                                         <div class="form-text mt-0">
                                             {{ __('A new product starts with no stock. Receive it afterwards with a stock intake.') }}
                                         </div>
+<div class="form-check form-switch mt-2">
+                                            <input class="form-check-input" type="checkbox" role="switch" id="is_medical" name="is_medical"
+                                                value="1" @checked(old('is_medical', false))>
+                                            <label class="form-check-label" for="is_medical">{{ __('Medical product') }}</label>
+                                        </div>
+                                        <div class="form-text">{{ __('Medical stock that is expired, or whose expiry is unverified, is never released for sale by approval.') }}</div>
                                         <div class="form-check form-switch mt-2">
                                             <input class="form-check-input" type="checkbox" role="switch" id="track_batches" name="track_batches"
                                                 value="1" @checked(old('track_batches', $trackBatchesDefault ?? false))>

@@ -260,6 +260,12 @@
                                             {{ __('or an') }}
                                             <a href="{{ route('stock-adjustments.create') }}">{{ __('adjustment') }}</a>.
                                         </div>
+<div class="form-check form-switch mt-2">
+                                            <input class="form-check-input" type="checkbox" role="switch" id="is_medical" name="is_medical"
+                                                value="1" @checked(old('is_medical', $product->is_medical))>
+                                            <label class="form-check-label" for="is_medical">{{ __('Medical product') }}</label>
+                                        </div>
+                                        <div class="form-text">{{ __('Medical stock that is expired, or whose expiry is unverified, is never released for sale by approval.') }}</div>
                                         <div class="form-check form-switch mt-2">
                                             <input class="form-check-input" type="checkbox" role="switch" id="track_batches" name="track_batches"
                                                 value="1" @checked(old('track_batches', $trackBatches))>

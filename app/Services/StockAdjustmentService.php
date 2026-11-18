@@ -293,7 +293,7 @@ class StockAdjustmentService
                 // that batch, not the oldest (stage 11, step 5).
                 // A named batch is the only one the line may take from: a shortfall is refused, not spilled
                 // into other batches, and a duplicate write-off of the same batch fails here too.
-                $change = $this->ledger->consume($shopId, $variation, bcmul($quantity, '-1', 3), StockMovementType::ADJUSTMENT_REMOVE, $item, [...$context, 'exact_layer' => $item->cost_layer_id !== null], $item->cost_layer_id);
+                $change = $this->ledger->consume($shopId, $variation, bcmul($quantity, '-1', 3), StockMovementType::ADJUSTMENT_REMOVE, $item, [...$context, 'exact_layer' => $item->cost_layer_id !== null, 'include_quarantine' => $item->cost_layer_id !== null], $item->cost_layer_id);
             }
 
             $item->update([

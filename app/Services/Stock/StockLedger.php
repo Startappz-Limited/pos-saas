@@ -16,6 +16,7 @@ use App\Models\StockAdjustmentItem;
 use App\Models\StockMovement;
 use App\Observers\ProductObserver;
 use App\Support\Stock\Expiry;
+use App\Support\Stock\SellableStock;
 use App\Support\Sync\SyncIssues;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
@@ -104,9 +105,12 @@ class StockLedger
             // (adjustments, write-offs, purchase returns) never pass enforce_stock, so they are
             // unaffected. Checked right after the row lock above, so two simultaneous sales for the
             // shop's last unit can't both pass this check before either commits.
-            if (($context['enforce_stock'] ?? false) && empty($context['oversell_reason']) && bccomp($before, $quantity, 3) < 0) {
+            // Only quarantined stock is held out of the check here: expired batches are excluded from the layers a
+            // sale takes (exclude_expired), as before, so the check counts what a sale could still be given.
+            $sellableNow = ($context['enforce_stock'] ?? false) ? bcsub($before, $this->quarantinedQuantity($shopId, $variation->id), 3) : $before;
+            if (($context['enforce_stock'] ?? false) && empty($context['oversell_reason']) && bccomp($sellableNow, $quantity, 3) < 0) {
                 throw BusinessRuleException::because(
-                    __('Only :available left of this item at this shop; :needed needed.', ['available' => $before, 'needed' => $quantity]),
+                    __('Only :available left of this item at this shop; :needed needed.', ['available' => $sellableNow, 'needed' => $quantity]),
                     'insufficient_stock',
                 );
             }
@@ -128,7 +132,8 @@ class StockLedger
             $layers = DB::table('cost_layers')
                 ->where('shop_id', $shopId)->where('variation_id', $variation->id)->where('remaining_quantity', '>', 0)
                 ->when($exactLayer, fn ($query) => $query->where('id', $preferredLayerId))
-                ->when($excludeExpired && $boundary !== null, fn ($query) => $query->where(fn ($q) => $q->whereNull('expiry_date')->orWhere('expiry_date', '>=', $boundary)))
+                ->when(! ($context['include_quarantine'] ?? false), fn ($query) => $query->whereNull('quarantine_status'))
+                ->when($excludeExpired && $boundary !== null, fn ($query) => $query->where(fn ($q) => $q->whereNull('expiry_date')->orWhere('expiry_date', '>=', $boundary)->orWhereNotNull('stock_release_id')))
                 ->when($preferredLayerId, fn ($query) => $query->orderByRaw('case when id = ? then 0 else 1 end', [$preferredLayerId]))
                 ->when($fefo, fn ($query) => $query->orderByRaw('expiry_date is null')->orderBy('expiry_date'))
                 ->orderBy('received_at')->orderBy('id')
@@ -344,7 +349,7 @@ class StockLedger
      * applied): the batches oldest first, then the fallback cost for a
      * shortfall, as consume() would. Null when any unit's cost is unknown.
      */
-    public function costToConsume(int $shopId, ProductVariation $variation, int|float|string $quantity, ?int $preferredLayerId = null, bool $exactLayer = false): ?float
+    public function costToConsume(int $shopId, ProductVariation $variation, int|float|string $quantity, ?int $preferredLayerId = null, bool $exactLayer = false, bool $includeQuarantine = false): ?float
     {
         $quantity = $this->absQuantity($quantity);
         $needed = $quantity;
@@ -357,6 +362,7 @@ class StockLedger
         $exact = $exactLayer && $preferredLayerId !== null;
 
         $layers = DB::table('cost_layers')->where('shop_id', $shopId)->where('variation_id', $variation->id)->where('remaining_quantity', '>', 0)
+            ->when(! $includeQuarantine, fn ($query) => $query->whereNull('quarantine_status'))
             ->when($exact, fn ($query) => $query->where('id', $preferredLayerId))
             ->when($preferredLayerId, fn ($query) => $query->orderByRaw('case when id = ? then 0 else 1 end', [$preferredLayerId]))
             ->when($fefo, fn ($query) => $query->orderByRaw('expiry_date is null')->orderBy('expiry_date'))
@@ -431,23 +437,34 @@ class StockLedger
      */
     public function sellable(int $shopId, int $variationId): int
     {
+        return (int) $this->sellableQuantity($shopId, $variationId);
+    }
+
+    /**
+     * The shop's sellable stock of a variation at scale 3: what sales may take, excluding quarantined stock and
+     * expired batches that no approved release covers. Floored at zero.
+     */
+    public function sellableQuantity(int $shopId, int $variationId): string
+    {
         $shop = Shop::query()->find($shopId);
-        $total = $this->exactQuantity($shopId, $variationId);
 
         if ($shop === null) {
-            return (int) $total;
+            return $this->exactQuantity($shopId, $variationId);
         }
 
-        $boundary = Expiry::firstSellableDate($shop)->toDateString();
-        $expired = DB::table('cost_layers')
-            ->where('shop_id', $shopId)->where('variation_id', $variationId)
-            ->where('remaining_quantity', '>', 0)->where('expiry_date', '<', $boundary)
-            ->pluck('remaining_quantity')
-            ->reduce(fn (string $carry, mixed $remaining): string => bcadd($carry, Quantity::normalize($remaining), 3), '0.000');
+        $sellable = SellableStock::sellableOf($shop, $variationId);
 
-        $sellable = bcsub($total, $expired, 3);
+        return bccomp($sellable, '0', 3) > 0 ? $sellable : '0.000';
+    }
 
-        return bccomp($sellable, '0', 3) > 0 ? (int) $sellable : 0;
+    /**
+     * The shop's quarantined stock of a variation, at scale 3: on hand, but held out of sale until approved.
+     */
+    public function quarantinedQuantity(int $shopId, int $variationId): string
+    {
+        $shop = Shop::query()->find($shopId);
+
+        return $shop === null ? '0.000' : (SellableStock::forShop($shop, $variationId)->get($variationId)['quarantined'] ?? '0.000');
     }
 
     /**
@@ -592,6 +609,8 @@ class StockLedger
             // variation tracking batches gives both; this just carries whatever it was given.
             'batch_number' => $context['batch_number'] ?? null,
             'expiry_date' => isset($context['expiry_date']) ? Carbon::parse($context['expiry_date'])->toDateString() : null,
+            'quarantine_status' => $context['quarantine_status'] ?? null,
+            'quarantine_reason' => $context['quarantine_reason'] ?? null,
             'original_quantity' => $quantity,
             'remaining_quantity' => $quantity,
             'received_at' => $context['received_at'] ?? now(),
@@ -637,7 +656,10 @@ class StockLedger
         // An expired layer (a return of expired goods, say) is never sold, so it settles no sale: a sale still
         // waiting for stock stays provisional until stock that can be sold arrives.
         $shop = Shop::query()->find($shopId);
-        if ($layer->expiry_date !== null && $shop !== null && Carbon::parse($layer->expiry_date)->toDateString() < Expiry::firstSellableDate($shop)->toDateString()) {
+        if ($layer->quarantine_status !== null) {
+            return;
+        }
+        if ($layer->expiry_date !== null && $shop !== null && $layer->stock_release_id === null && Carbon::parse($layer->expiry_date)->toDateString() < Expiry::firstSellableDate($shop)->toDateString()) {
             return;
         }
 

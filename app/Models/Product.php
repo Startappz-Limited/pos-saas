@@ -33,6 +33,7 @@ class Product extends Model
         'business_id',
         'uuid',
         'name',
+        'is_medical',
         'slug',
         'description',
         'sku',
@@ -61,6 +62,7 @@ class Product extends Model
     {
         return [
             'status' => ProductStatus::class,
+            'is_medical' => 'boolean',
             'cost_price' => 'decimal:2',
             'selling_price' => 'decimal:2',
             'wholesale_price' => 'decimal:2',

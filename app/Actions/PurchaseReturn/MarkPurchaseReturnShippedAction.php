@@ -41,6 +41,8 @@ class MarkPurchaseReturnShippedAction
                     : null;
 
                 $this->ledger->consume((int) $purchaseReturn->shop_id, $variation, $item->quantity, StockMovementType::SUPPLIER_RETURN, $item, [
+                    // A supplier return is one of the ways quarantined stock leaves (stage 11, quarantine policy).
+                    'include_quarantine' => true,
                     'reference' => $purchaseReturn,
                     'notes' => "Returned to supplier via {$purchaseReturn->return_number}.",
                     'user_id' => $userId,

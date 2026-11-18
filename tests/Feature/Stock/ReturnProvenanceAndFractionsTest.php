@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\PurchaseOrderStatus;
+use App\Enums\QuarantineStatus;
 use App\Enums\ReturnReason;
 use App\Enums\StockMovementType;
 use App\Models\CostAllocation;
@@ -112,9 +113,10 @@ it('quarantines a return whose sale has no recorded batch: it goes back already 
     $line = ($this->sold)(1);
     ($this->returnAll)($line, 1);
 
+    // Quarantined as unverified (its batch cannot be established), with no expiry invented for it.
     $quarantine = CostLayer::query()->where('source_type', CostLayer::SOURCE_SALE_RETURN)->firstOrFail();
-    expect($quarantine->expiry_date->toDateString())->toBeLessThan('2027-05-01')
-        ->and($quarantine->batch_number)->toStartWith('Quarantined return')
+    expect($quarantine->quarantine_status)->toBe(QuarantineStatus::UNVERIFIED)
+        ->and($quarantine->expiry_date)->toBeNull()
         ->and($this->ledger->exactQuantity($this->shop->id, $this->variation->id))->toBe('6.000')
         ->and($this->ledger->sellable($this->shop->id, $this->variation->id))->toBe(5);
 });

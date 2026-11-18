@@ -59,6 +59,7 @@ use App\Http\Controllers\StockAdjustmentController;
 use App\Http\Controllers\StockExpiryController;
 use App\Http\Controllers\StockIntakeController;
 use App\Http\Controllers\StockMovementController;
+use App\Http\Controllers\StockQuarantineController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\SyncIssueController;
 use App\Http\Controllers\TenantFileController;
@@ -528,6 +529,10 @@ Route::middleware(['auth', 'business'])->group(function () {
     Route::resource('stock-adjustments', StockAdjustmentController::class)->except('destroy');
     Route::post('stock-adjustments/{stockAdjustment}/cancel', [StockAdjustmentController::class, 'cancel'])->name('stock-adjustments.cancel');
     Route::post('stock-adjustments/{stockAdjustment}/approve', [StockAdjustmentController::class, 'approve'])->name('stock-adjustments.approve');
+    // Quarantined stock (stage 11, quarantine policy): inspect, verify a batch and expiry, release for sale.
+    Route::get('stock-quarantine', [StockQuarantineController::class, 'index'])->name('stock-quarantine.index');
+    Route::post('stock-quarantine/{costLayer:uuid}/verify', [StockQuarantineController::class, 'verify'])->name('stock-quarantine.verify');
+    Route::post('stock-quarantine/{costLayer:uuid}/release', [StockQuarantineController::class, 'release'])->name('stock-quarantine.release');
     Route::post('stock-adjustments/{stockAdjustment}/reject', [StockAdjustmentController::class, 'reject'])->name('stock-adjustments.reject');
 
     // Expiring stock and "Write off expired" (stage 11, step 5): the write-off files an adjustment.

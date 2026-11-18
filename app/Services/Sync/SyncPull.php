@@ -60,7 +60,7 @@ class SyncPull
     /** @var array<int, int> units pending stock-adjustment decreases would remove, by variation */
     private array $pendingRemoval = [];
 
-    /** @var Collection<int, array{sellable: string, expired: string, next_expiry: ?string}> the shop's sellable stock, by variation (stage 11, step 8) */
+    /** @var Collection<int, array{sellable: string, quarantined: string, expired: string, next_expiry: ?string}> the shop's sellable stock, by variation (stage 11, step 8) */
     private Collection $sellable;
 
     public function __construct(private TenantContext $tenant) {}
@@ -258,6 +258,7 @@ class SyncPull
                 'base_reorder_level' => Encode::exact($stock->reorder_level, 3),
                 'sellable_quantity' => $this->sellable->get((int) $stock->variation_id)['sellable'] ?? '0.000',
                 'expired_quantity' => $this->sellable->get((int) $stock->variation_id)['expired'] ?? '0.000',
+                'quarantined_quantity' => $this->sellable->get((int) $stock->variation_id)['quarantined'] ?? '0.000',
                 'next_expiry' => $this->sellable->get((int) $stock->variation_id)['next_expiry'] ?? null,
                 'selling_price' => self::money($stock->selling_price),
                 'wholesale_price' => self::money($stock->wholesale_price),

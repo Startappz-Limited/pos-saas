@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\StockMovementType;
 use App\Http\Middleware\ResolveTenant;
 use App\Models\AbandonedCart;
 use App\Models\Attribute;
@@ -10,6 +11,7 @@ use App\Models\BusinessInvite;
 use App\Models\Campaign;
 use App\Models\CashRegister;
 use App\Models\Category;
+use App\Models\CostLayer;
 use App\Models\CreditAccount;
 use App\Models\DeliveryCompany;
 use App\Models\EcommerceOrder;
@@ -27,6 +29,7 @@ use App\Models\SocialAccount;
 use App\Models\StockAdjustment;
 use App\Models\SyncIssue;
 use App\Services\Billing\AiCredits;
+use App\Services\Stock\StockLedger;
 use App\Support\Tenancy\BusinessLink;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Model;
@@ -87,6 +90,12 @@ function recordOfB(TwoBusinesses $fixture, string $resource): Model
         'shops' => $b->shops[1],
         'social-accounts' => SocialAccount::factory()->create($shop),
         'stock-adjustments' => StockAdjustment::factory()->create([...$shop, 'type' => 'decrease', 'reason' => 'damaged', 'status' => 'pending', 'created_by' => $b->cashier->id]),
+        // A quarantined layer of B's shop (stage 11, quarantine policy): an unverified batch awaiting verification or release.
+        'stock-quarantine' => (function () use ($b): CostLayer {
+            app(StockLedger::class)->receive($b->shops[0]->id, $b->product->defaultVariation, 2, 5.0, StockMovementType::RETURN, ['quarantine_status' => 'unverified']);
+
+            return CostLayer::query()->latest('id')->firstOrFail();
+        })(),
         'suppliers' => $b->supplier,
         'sync-issues' => SyncIssue::create(['type' => SyncIssue::POSSIBLE_DUPLICATE_CUSTOMER, 'key' => 'customer:b', 'details' => ['customer' => (string) $b->customer->uuid, 'duplicate_of' => (string) $b->customer->uuid]]),
         'users' => $b->cashier,
@@ -118,6 +127,8 @@ const WEB_RESOURCES = [
     'social-accounts' => ['update', 'destroy'],
     // No destroy: adjustments are cancelled and keep their numbers (stage 10, step 1g).
     'stock-adjustments' => ['show', 'update', 'cancel', 'approve', 'reject'],
+    // Quarantined stock: verified or released by a user with stock.release-quarantine (stage 11, quarantine policy).
+    'stock-quarantine' => ['verify', 'release'],
     'suppliers' => ['show', 'update', 'destroy'],
     'users' => ['show', 'update', 'destroy', 'till-pin.reset', 'till-pin.unlock'],
     'invites' => ['resend', 'destroy', 'role'],

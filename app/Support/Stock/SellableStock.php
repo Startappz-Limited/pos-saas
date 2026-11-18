@@ -8,28 +8,35 @@ use App\Models\Shop;
 use Illuminate\Support\Collection;
 
 /**
- * What a shop can sell of each variation, by batch (stage 11, step 8): the
- * sellable quantity (not expired), the expired quantity, and the next expiry
- * still ahead. One query per shop, so the pull reads all its variations without
- * a query each. Expiry is judged by {@see Expiry}, the same rule `consume()`
- * uses, and sums are bcmath strings.
+ * What a shop can sell of each variation, by batch (stage 11, step 8): the sellable quantity, the quarantined
+ * quantity (held, never sold until an approved release), the expired quantity, and the next expiry still ahead.
+ * One query per shop (or per variation), so the pull reads all its variations without a query each.
+ *
+ * The rule, for each layer with stock left:
+ *   - quarantined when quarantine_status is set (it is never sold);
+ *   - expired when its expiry is before the shop's first sellable day and no approved release covers it;
+ *   - sellable otherwise. An approved release (stock_release_id) keeps its original expiry but is sellable.
+ *
+ * Expiry is judged by {@see Expiry}, the same rule `consume()` uses, and sums are bcmath strings.
  */
 final class SellableStock
 {
     /**
-     * @return Collection<int, array{sellable: string, expired: string, next_expiry: ?string}> keyed by variation id
+     * @return Collection<int, array{sellable: string, quarantined: string, expired: string, next_expiry: ?string}> keyed by variation id
      */
-    public static function forShop(Shop $shop): Collection
+    public static function forShop(Shop $shop, ?int $variationId = null): Collection
     {
         $boundary = Expiry::firstSellableDate($shop)->toDateString();
 
         return CostLayer::query()
             ->where('shop_id', $shop->id)
+            ->when($variationId !== null, fn ($query) => $query->where('variation_id', $variationId))
             ->where('remaining_quantity', '>', 0)
-            ->get(['variation_id', 'remaining_quantity', 'expiry_date'])
+            ->get(['variation_id', 'remaining_quantity', 'expiry_date', 'quarantine_status', 'stock_release_id'])
             ->groupBy('variation_id')
             ->map(function (Collection $layers) use ($boundary): array {
                 $sellable = '0.000';
+                $quarantined = '0.000';
                 $expired = '0.000';
                 $next = null;
 
@@ -37,7 +44,13 @@ final class SellableStock
                     $remaining = Quantity::normalize($layer->getRawOriginal('remaining_quantity'));
                     $expiry = $layer->expiry_date?->toDateString();
 
-                    if ($expiry !== null && $expiry < $boundary) {
+                    if ($layer->getRawOriginal('quarantine_status') !== null) {
+                        $quarantined = bcadd($quarantined, $remaining, 3);
+
+                        continue;
+                    }
+
+                    if ($expiry !== null && $expiry < $boundary && $layer->stock_release_id === null) {
                         $expired = bcadd($expired, $remaining, 3);
 
                         continue;
@@ -50,7 +63,15 @@ final class SellableStock
                     }
                 }
 
-                return ['sellable' => $sellable, 'expired' => $expired, 'next_expiry' => $next];
+                return ['sellable' => $sellable, 'quarantined' => $quarantined, 'expired' => $expired, 'next_expiry' => $next];
             });
+    }
+
+    /**
+     * The sellable quantity of one variation, as a scale-3 string (zero when it has no stock).
+     */
+    public static function sellableOf(Shop $shop, int $variationId): string
+    {
+        return self::forShop($shop, $variationId)->get($variationId)['sellable'] ?? '0.000';
     }
 }

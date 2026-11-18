@@ -130,6 +130,8 @@ class PermissionSeeder extends Seeder
 
             // Stock menu (intake, adjustments, movements, alerts): Phase 5
             'stock.view',
+            // Verify and release quarantined stock (stage 11, quarantine policy); the owner has it as super-admin.
+            'stock.release-quarantine',
 
             // Stock Intake
             'stock-intake.view',

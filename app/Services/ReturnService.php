@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Casts\Quantity;
+use App\Enums\QuarantineStatus;
 use App\Enums\ReturnReason;
 use App\Enums\ReturnStatus;
 use App\Enums\StockMovementType;
@@ -18,6 +19,8 @@ use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Models\SaleReturn;
 use App\Services\Stock\StockLedger;
+use App\Support\Stock\Expiry;
+use App\Support\Stock\QuarantinePolicy;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -292,7 +295,8 @@ class ReturnService
 
                 // Each piece goes back as the batch it was sold from, with that batch's expiry (review follow-up): an
                 // expired batch returns still expired, so it is never offered for sale again as if it were fresh.
-                foreach ($this->restockPieces($item->saleItem, $baseQuantity, "Quarantined return {$saleReturn->return_number}") as $piece) {
+                $boundary = Expiry::firstSellableDate($saleReturn->shop)->toDateString();
+                foreach ($this->restockPieces($item->saleItem, $baseQuantity, $variation, $boundary, (string) $saleReturn->return_number) as $piece) {
                     app(StockLedger::class)->receive((int) $saleReturn->shop_id, $variation, $piece['quantity'], $costPerBaseUnit, StockMovementType::RETURN, [
                         'source_type' => CostLayer::SOURCE_SALE_RETURN,
                         'source_id' => $saleReturn->id,
@@ -300,6 +304,8 @@ class ReturnService
                         'notes' => "Customer return {$saleReturn->return_number}.",
                         'batch_number' => $piece['batch_number'],
                         'expiry_date' => $piece['expiry_date'],
+                        'quarantine_status' => $piece['quarantine']?->value,
+                        'quarantine_reason' => $piece['reason'],
                     ]);
                 }
             }
@@ -309,40 +315,54 @@ class ReturnService
     }
 
     /**
-     * The batches a returned base quantity goes back into. A sale line taken from a single known batch
-     * goes back to that batch with its expiry, exactly. A line taken from several batches cannot say which
-     * of them the returned item came from, so it goes back as one piece at the earliest expiry among them
-     * (never a later one than the item could have had). A line with an unknown batch (a provisional or
-     * missing allocation, or a sale before batches were recorded) is quarantined: it goes back already
-     * expired, so it is not sold until someone re-receives it after inspection.
+     * The stock a returned base quantity goes back into, and whether it is quarantined (stage 11, quarantine policy).
      *
-     * @return list<array{quantity: string, batch_number: ?string, expiry_date: ?string}>
+     * A sale line taken from one known batch goes back to that batch with its expiry, exactly. A line taken from
+     * several batches cannot say which one the returned item came from, so it goes back as one piece at the earliest
+     * expiry among them, with its batch unverified. A line with no recorded batch (a provisional or missing
+     * allocation, or a sale recorded before batches) is unverified too. Quarantine follows {@see QuarantinePolicy}.
+     *
+     * @return list<array{quantity: string, batch_number: ?string, expiry_date: ?string, quarantine: ?QuarantineStatus, reason: ?string}>
      */
-    private function restockPieces(SaleItem $saleItem, string $baseQuantity, string $quarantineBatch): array
+    private function restockPieces(SaleItem $saleItem, string $baseQuantity, ProductVariation $variation, string $boundary, string $returnNumber): array
     {
         $allocations = CostAllocation::query()
             ->where('consumer_type', CostAllocation::CONSUMER_SALE_ITEM)->where('sale_item_id', $saleItem->id)
             ->orderBy('id')->get();
 
         $layers = CostLayer::query()->whereIn('id', $allocations->pluck('cost_layer_id')->filter())->get()->keyBy('id');
-        $unknown = $allocations->isEmpty() || $allocations->contains(fn (CostAllocation $allocation): bool => $allocation->cost_layer_id === null || ! $layers->has($allocation->cost_layer_id));
+        $unrecorded = $allocations->isEmpty() || $allocations->contains(fn (CostAllocation $allocation): bool => $allocation->cost_layer_id === null || ! $layers->has($allocation->cost_layer_id));
 
-        if ($unknown) {
-            return [['quantity' => $baseQuantity, 'batch_number' => $quarantineBatch, 'expiry_date' => now()->subDay()->toDateString()]];
-        }
+        $batches = $unrecorded ? collect() : $allocations->map(fn (CostAllocation $allocation): CostLayer => $layers->get($allocation->cost_layer_id));
+        $single = ! $unrecorded && $batches->unique('id')->count() === 1;
 
-        $batches = $allocations->map(fn (CostAllocation $allocation): CostLayer => $layers->get($allocation->cost_layer_id));
-
-        if ($batches->unique('id')->count() === 1) {
+        if ($single) {
             $layer = $batches->first();
 
-            return [['quantity' => $baseQuantity, 'batch_number' => $layer->batch_number, 'expiry_date' => $layer->expiry_date?->toDateString()]];
+            return [QuarantinePolicy::classify(
+                quantity: $baseQuantity,
+                batch: $layer->batch_number,
+                expiry: $layer->expiry_date?->toDateString(),
+                tracksBatches: (bool) $variation->track_batches,
+                medical: (bool) $variation->product?->is_medical,
+                boundary: $boundary,
+                returnNumber: $returnNumber,
+            )];
         }
 
-        // Several batches: the earliest expiry wins, and a batch with no expiry counts as the latest.
-        $earliest = $batches->sortBy(fn (CostLayer $layer): string => $layer->expiry_date?->toDateString() ?? '9999-12-31')->first();
+        // Unknown or several batches: the batch cannot be established. The earliest expiry among them is kept
+        // (a batch with no expiry counts as the latest) so the verifier sees the most cautious date.
+        $earliest = $unrecorded ? null : $batches->sortBy(fn (CostLayer $layer): string => $layer->expiry_date?->toDateString() ?? '9999-12-31')->first();
 
-        return [['quantity' => $baseQuantity, 'batch_number' => null, 'expiry_date' => $earliest->expiry_date?->toDateString()]];
+        return [QuarantinePolicy::classify(
+            quantity: $baseQuantity,
+            batch: null,
+            expiry: $earliest?->expiry_date?->toDateString(),
+            tracksBatches: true,
+            medical: (bool) $variation->product?->is_medical,
+            boundary: $boundary,
+            returnNumber: $returnNumber,
+        )];
     }
 
     public function inspectReturn(SaleReturn $saleReturn, int $userId, ?string $inspectionNotes = null): SaleReturn

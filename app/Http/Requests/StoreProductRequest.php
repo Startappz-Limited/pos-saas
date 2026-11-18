@@ -48,6 +48,7 @@ class StoreProductRequest extends FormRequest
             'track_stock' => ['nullable', 'boolean'],
             // Requires a batch number and expiry on every line that receives stock (stage 11, step 5).
             'track_batches' => ['nullable', 'boolean'],
+            'is_medical' => ['nullable', 'boolean'],
             'has_variations' => ['nullable', 'boolean'],
             'variations' => ['nullable', 'array'],
             'variations.*.name' => ['required_with:has_variations', 'string', 'max:255'],

@@ -83,6 +83,10 @@
                                 <a href="{{ route('stock-adjustments.index') }}"
                                     class="{{ request()->routeIs('stock-adjustments.*') ? 'active' : '' }}">Adjustments</a>
                             </li>
+                            <li>
+                                <a href="{{ route('stock-quarantine.index') }}"
+                                    class="{{ request()->routeIs('stock-quarantine.*') ? 'active' : '' }}">Quarantine</a>
+                            </li>
                         </ul>
                     </div>
                 </li>
