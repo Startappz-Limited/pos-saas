@@ -267,7 +267,7 @@ test('shipping approved supplier return deducts stock and records movement', fun
     $response->assertRedirect();
 
     expect($purchaseReturn->fresh()->status)->toBe(PurchaseReturnStatus::SHIPPED)
-        ->and($product->fresh()->stock_quantity)->toBe(6);
+        ->and($product->fresh()->stock_quantity)->toBe('6.000');
 
     $this->assertDatabaseHas('stock_movements', [
         'shop_id' => $shop->id,
@@ -313,7 +313,7 @@ test('full access user can approve and return to supplier in one action', functi
         ->and($purchaseReturn->shipped_by)->toBe($this->user->id)
         ->and($purchaseReturn->approved_at)->not->toBeNull()
         ->and($purchaseReturn->shipped_at)->not->toBeNull()
-        ->and($product->fresh()->stock_quantity)->toBe(7);
+        ->and($product->fresh()->stock_quantity)->toBe('7.000');
 });
 
 test('completed workflow action buttons are hidden for full access user', function () {

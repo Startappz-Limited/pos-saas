@@ -18,6 +18,7 @@ use App\Models\Category;
 use App\Models\Customer;
 use App\Models\DeliveryCompany;
 use App\Models\Product;
+use App\Models\ProductUnit;
 use App\Models\ProductVariation;
 use App\Models\Sale;
 use App\Models\SaleItem;
@@ -130,11 +131,13 @@ class SaleController extends Controller
             ->get();
 
         // Per-shop stock for each card in one query (stage 1b).
-        $products = Product::with(['variations' => fn ($query) => $query->withStockOnHand()])
+        $products = Product::with(['variations' => fn ($query) => $query->withStockOnHand(), 'defaultVariation:id,product_id'])
             ->withStockOnHand()
             ->where('status', 'active')
             ->orderBy('name')
             ->get();
+
+        $saleUnits = $this->saleUnitsFor($products);
 
         $saleSources = SaleSource::active()
             ->ordered()
@@ -149,7 +152,46 @@ class SaleController extends Controller
         // so leaving the field editable would just mislead the cashier.
         $vatRegistered = (bool) Shop::whereKey($shopId)->value('vat_registered');
 
-        return view('sales.create', compact('customers', 'products', 'activeRegister', 'saleSources', 'deliveryCompanies', 'shops', 'shopId', 'vatRegistered'));
+        return view('sales.create', compact('customers', 'products', 'saleUnits', 'activeRegister', 'saleSources', 'deliveryCompanies', 'shops', 'shopId', 'vatRegistered'));
+    }
+
+    /**
+     * The units each variation can be sold in (stage 11, review follow-up), keyed by variation id, for the
+     * sale form's unit selector: the base unit first, then packs. A disabled or deleted unit isn't offered
+     * (StoreSaleRequest refuses it too). One query for every product on the form.
+     *
+     * @param  Collection<int, Product>  $products
+     * @return array<int, list<array{uuid: string, name: string, factor: string, precision: int, is_base: bool, selling_price: ?string, wholesale_price: ?string}>>
+     */
+    private function saleUnitsFor(Collection $products): array
+    {
+        $variationIds = $products->flatMap(fn (Product $product) => [
+            $product->defaultVariation?->id,
+            ...$product->variations->pluck('id'),
+        ])->filter()->unique()->values();
+
+        if ($variationIds->isEmpty()) {
+            return [];
+        }
+
+        return ProductUnit::query()
+            ->whereIn('variation_id', $variationIds)
+            ->where('can_sell', true)
+            ->orderByDesc('is_base')
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->get()
+            ->groupBy('variation_id')
+            ->map(fn ($units) => $units->map(fn (ProductUnit $unit): array => [
+                'uuid' => $unit->uuid,
+                'name' => $unit->name,
+                'factor' => (string) $unit->factor,
+                'precision' => (int) $unit->precision,
+                'is_base' => (bool) $unit->is_base,
+                'selling_price' => $unit->selling_price,
+                'wholesale_price' => $unit->wholesale_price,
+            ])->values()->all())
+            ->all();
     }
 
     /**

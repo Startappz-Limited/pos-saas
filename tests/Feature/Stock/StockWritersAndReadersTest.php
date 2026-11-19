@@ -193,6 +193,6 @@ describe('readers', function () {
         $cashier->shops()->attach($this->otherShop);
         $this->actingAs($cashier);
 
-        expect($this->product->fresh()->stock_quantity)->toBe(10);
+        expect($this->product->fresh()->stock_quantity)->toBe('10.000');
     });
 });

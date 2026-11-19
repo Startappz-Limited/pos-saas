@@ -31,10 +31,11 @@ class ProductUnit extends Model
     use SoftDeletes;
 
     /**
-     * Tables whose lines name a unit (`unit_id`), checked by isUsed(). Stage
-     * 12 adds GRN, purchase-order and transfer lines.
+     * Tables whose lines name a unit (`unit_id`), checked by isUsed(). An adjustment line counts too, even
+     * while pending: it is converted at the factor when saved and again when edited, so a factor changed in
+     * between would move a different base quantity. Stage 12 adds GRN, purchase-order and transfer lines.
      */
-    public const USED_ON = ['sale_items', 'return_items'];
+    public const USED_ON = ['sale_items', 'return_items', 'stock_adjustment_items'];
 
     /**
      * Internal columns stay out of the API's JSON: the business and who changed a unit.

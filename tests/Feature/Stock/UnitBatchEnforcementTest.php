@@ -161,10 +161,13 @@ it('compares a batch in base units: a crate of 24 needs 24 bottles, not one', fu
 it('compares a batch in base units for a factor below one: half-bottle units take half a bottle each', function () {
     $half = ProductUnit::factory()->create(['variation_id' => $this->variation->id, 'name' => 'Half bottle', 'factor' => '0.500', 'precision' => 0]);
 
-    // OLD holds 2 bottles: four half-bottles are 2 bottles, which it covers; five are 2.5, which it does not.
+    // OLD holds 2 bottles: four half-bottles are 2 bottles, which it covers; six are 3, which it does not.
     ($this->writeOff)($this->clerk, ['quantity_change' => -4, 'unit_id' => $half->uuid, 'cost_layer_id' => $this->old->id])->assertSessionHasNoErrors();
-    ($this->writeOff)($this->clerk, ['quantity_change' => -5, 'unit_id' => $half->uuid, 'cost_layer_id' => $this->old->id])
+    ($this->writeOff)($this->clerk, ['quantity_change' => -6, 'unit_id' => $half->uuid, 'cost_layer_id' => $this->old->id])
         ->assertSessionHasErrors('items.0.cost_layer_id');
+    // Five are 2.5 bottles, which a whole-bottle product can't hold at all (BaseQuantity, base precision).
+    ($this->writeOff)($this->clerk, ['quantity_change' => -5, 'unit_id' => $half->uuid, 'cost_layer_id' => $this->old->id])
+        ->assertSessionHasErrors('items.0.quantity_change');
 
     expect(StockAdjustment::query()->count())->toBe(1);
 });

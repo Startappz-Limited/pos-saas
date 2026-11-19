@@ -148,7 +148,7 @@ class StoreStockAdjustmentRequest extends FormRequest
 
                     // A line in a unit must move whole base units' worth exactly, or it would move no stock (BaseQuantity).
                     if ($unit !== null && ! $validator->errors()->has("items.{$index}.quantity_change")
-                        && BaseQuantity::of(Quantity::normalize($item['quantity_change']), Quantity::normalize($unit->factor)) === null) {
+                        && BaseQuantity::of(Quantity::normalize($item['quantity_change']), Quantity::normalize($unit->factor), (int) ($variation->baseUnit()->value('precision') ?? 3)) === null) {
                         $validator->errors()->add("items.{$index}.quantity_change", __('That quantity is too small to move in this unit: it makes less than one base unit, or a fraction of one.'));
                     }
                 }

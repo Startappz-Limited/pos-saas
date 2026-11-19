@@ -5,8 +5,8 @@ namespace App\Http\Requests;
 use App\Models\Product;
 use App\Models\ProductVariation;
 use App\Models\PurchaseOrderItem;
-use App\Rules\QuantityForUnit;
 use App\Support\Stock\Expiry;
+use App\Support\Stock\IntakeQuantities;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Validator;
@@ -66,7 +66,7 @@ class StoreStockIntakeRequest extends FormRequest
     public function withValidator(Validator $validator): void
     {
         $validator->after(function ($validator) {
-            $this->validateQuantityPrecision($validator);
+            $this->addErrors($validator, IntakeQuantities::errors($this->resolveVariation(), $this->only(IntakeQuantities::FIELDS)));
 
             if ($this->purchase_order_item_id) {
                 $item = PurchaseOrderItem::find($this->purchase_order_item_id);
@@ -79,17 +79,6 @@ class StoreStockIntakeRequest extends FormRequest
                 }
             }
 
-            $accepted = (float) ($this->quantity_accepted ?? 0);
-            $rejected = (float) ($this->quantity_rejected ?? 0);
-            $received = (float) ($this->quantity_received ?? 0);
-
-            if (($accepted + $rejected) > $received) {
-                $validator->errors()->add(
-                    'quantity_accepted',
-                    'Accepted + rejected quantities cannot exceed the received quantity.'
-                );
-            }
-
             // A variation that tracks batches needs both, on any line that receives stock
             // (stage 11, step 5).
             $variation = $this->resolveVariation();
@@ -100,23 +89,14 @@ class StoreStockIntakeRequest extends FormRequest
     }
 
     /**
-     * The quantities of a line are in its variation's base unit: their decimals are checked against that unit's
-     * precision. A zero accepted or rejected figure is fine (nothing accepted or rejected), so only non-zero ones are checked.
+     * @param  array<string, list<string>>  $errors
      */
-    private function validateQuantityPrecision(Validator $validator): void
+    private function addErrors(Validator $validator, array $errors): void
     {
-        $precision = (int) ($this->resolveVariation()?->baseUnit?->precision ?? 3);
-
-        foreach (['quantity_received', 'quantity_accepted', 'quantity_rejected'] as $field) {
-            $value = $this->input($field);
-
-            if (! is_numeric($value) || (float) $value === 0.0) {
-                continue;
-            }
-
-            (new QuantityForUnit($precision))->validate($field, (string) $value, function (string $message) use ($validator, $field): void {
+        foreach ($errors as $field => $messages) {
+            foreach ($messages as $message) {
                 $validator->errors()->add($field, $message);
-            });
+            }
         }
     }
 

@@ -253,7 +253,7 @@ class Product extends Model
         $quantity = $this->stock_quantity ?? 0;
 
         if ($this->has_variations || $this->defaultVariation === null) {
-            return (string) $quantity;
+            return self::quantityLabel($quantity);
         }
 
         return UnitBreakdown::describe($this->defaultVariation, $quantity);

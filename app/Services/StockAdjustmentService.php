@@ -157,10 +157,11 @@ class StockAdjustmentService
         // A line entered in a unit (stage 11, step 4) moves its base quantity: the signed figure times the
         // unit's factor. The figure as entered is kept beside it.
         $entered = Quantity::normalize($itemData['quantity_change']);
-        $unit = ! empty($itemData['unit_id']) ? ProductUnit::resolveFor(ProductVariation::query()->withoutGlobalScope(ProductVariation::HIDE_DEFAULT)->findOrFail($variationId), (string) $itemData['unit_id']) : null;
+        $variation = ProductVariation::query()->withoutGlobalScope(ProductVariation::HIDE_DEFAULT)->findOrFail($variationId);
+        $unit = ! empty($itemData['unit_id']) ? ProductUnit::resolveFor($variation, (string) $itemData['unit_id']) : null;
         $base = $entered;
         if ($unit !== null) {
-            $base = BaseQuantity::of($entered, Quantity::normalize($unit->factor))
+            $base = BaseQuantity::of($entered, Quantity::normalize($unit->factor), (int) ($variation->baseUnit?->precision ?? 3))
                 ?? throw new BusinessRuleException(__('That quantity is too small to move in this unit: it makes less than one base unit, or a fraction of one.'));
         }
 

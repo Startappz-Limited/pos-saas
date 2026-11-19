@@ -512,6 +512,8 @@ test('a delivery of fractional units is received at its exact quantity, not trun
 
     $shop = Shop::factory()->create();
     $product = Product::factory()->create(['shop_id' => $shop->id, 'stock_quantity' => 0]);
+    // Sold by weight: a whole-unit product would refuse the 2.5 (IntakeQuantities).
+    $product->defaultVariation->baseUnit()->update(['precision' => 3]);
     $stockIntake = StockIntake::factory()->pending()->create([
         'shop_id' => $shop->id,
         'product_id' => $product->id,

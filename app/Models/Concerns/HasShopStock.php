@@ -36,7 +36,7 @@ use Illuminate\Support\Facades\Log;
  */
 trait HasShopStock
 {
-    private ?int $pendingStock = null;
+    private ?string $pendingStock = null;
 
     public static function bootHasShopStock(): void
     {
@@ -49,14 +49,19 @@ trait HasShopStock
         $this->makeHidden('stock_on_hand');
     }
 
-    public function getStockQuantityAttribute(): int
+    /**
+     * The stock in base units as a scale-3 string ("0.750"), like every quantity a model gives (stage 11,
+     * `App\Casts\Quantity`): an integer would show 0.750 kg as 0, out of stock. The flat API sends it as a
+     * number (EncodeFlatQuantities); views show it with `stockFigure()` (or a product's unit breakdown, `Product::stockLabel()`).
+     */
+    public function getStockQuantityAttribute(): string
     {
         if (array_key_exists('stock_on_hand', $this->attributes)) {
-            return (int) $this->attributes['stock_on_hand'];
+            return Quantity::normalize($this->attributes['stock_on_hand'] ?? 0);
         }
 
         if (! $this->exists) {
-            return (int) $this->pendingStock;
+            return Quantity::normalize($this->pendingStock ?? 0);
         }
 
         $query = app(StockQuery::class);
@@ -64,9 +69,29 @@ trait HasShopStock
         return $this->stockKey() === 'product_id' ? $query->forProduct($this->id) : $query->forVariation($this->id);
     }
 
+    /**
+     * The stock for a screen: the figure without trailing zeros ("0.75", "12"), so a whole-unit product
+     * reads as before and a weight shows its fraction.
+     */
+    public function stockFigure(): string
+    {
+        return self::quantityLabel($this->stock_quantity);
+    }
+
+    /**
+     * A scale-3 quantity without trailing zeros ("0.75", "12", "-3").
+     */
+    public static function quantityLabel(int|float|string|null $quantity): string
+    {
+        $text = Quantity::normalize($quantity ?? 0);
+        $text = str_contains($text, '.') ? rtrim(rtrim($text, '0'), '.') : $text;
+
+        return $text === '-0' ? '0' : $text;
+    }
+
     public function setStockQuantityAttribute(mixed $value): void
     {
-        $this->pendingStock = $value === null || $value === '' ? null : (int) $value;
+        $this->pendingStock = $value === null || $value === '' ? null : Quantity::normalize($value);
         unset($this->attributes['stock_on_hand']);
     }
 

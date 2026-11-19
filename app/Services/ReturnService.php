@@ -217,16 +217,45 @@ class ReturnService
      * figure differs from the unit's current factor, and returning it at the factor would
      * restock more than the sale removed. Falls back to the factor only for a line with no
      * recorded base quantity.
+     *
+     * The proportion is taken cumulatively: the base units owed for everything returned of the
+     * line so far (earlier live returns plus this one), less what those earlier returns already
+     * put back. Truncating each return on its own would lose a remainder every time (three
+     * returns of one from a line of three at 1.000 base would restock 0.999); cumulatively, the
+     * last return takes whatever is left, so the line's returns add up to its base quantity.
+     * A return that would put back nothing is refused.
      */
     private function returnBaseQuantity(SaleItem $saleItem, float $quantity, ?ProductUnit $unit): string
     {
         $soldQuantity = Quantity::normalize($saleItem->quantity ?? 0);
+        $returned = Quantity::normalize($quantity);
 
         if (bccomp($soldQuantity, '0', 3) > 0 && $saleItem->base_quantity !== null) {
-            return bcdiv(bcmul(Quantity::normalize($quantity), Quantity::normalize($saleItem->base_quantity), 6), $soldQuantity, 3);
+            $soldBase = Quantity::normalize($saleItem->base_quantity);
+            $earlier = ReturnItem::query()
+                ->where('sale_item_id', $saleItem->id)
+                ->whereHas('saleReturn', fn ($query) => $query->where('status', '!=', ReturnStatus::REJECTED))
+                ->get(['quantity', 'base_quantity']);
+            $earlierQuantity = $earlier->reduce(fn (string $sum, ReturnItem $item): string => bcadd($sum, Quantity::normalize($item->quantity), 3), '0');
+            $earlierBase = $earlier->reduce(fn (string $sum, ReturnItem $item): string => bcadd($sum, Quantity::normalize($item->base_quantity), 3), '0');
+
+            $cumulative = bcadd($earlierQuantity, $returned, 3);
+            $owed = bccomp($cumulative, $soldQuantity, 3) === 0
+                ? $soldBase
+                : bcdiv(bcmul($cumulative, $soldBase, 6), $soldQuantity, 3);
+            $base = bcsub($owed, $earlierBase, 3);
+        } else {
+            $base = bcmul($returned, Quantity::normalize($unit?->factor ?? '1'), 3);
         }
 
-        return bcmul(Quantity::normalize($quantity), (string) ($unit?->factor ?? '1'), 3);
+        if (bccomp($base, '0', 3) <= 0) {
+            throw BusinessRuleException::because(
+                __('That quantity is too small to return on its own: it puts back less than the smallest stock figure. Return more of the line at once.'),
+                'return_quantity_too_small'
+            );
+        }
+
+        return $base;
     }
 
     public function approveReturn(SaleReturn $saleReturn, int $userId): SaleReturn

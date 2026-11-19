@@ -30,7 +30,7 @@ class SaleLineUnit
         // otherwise the sale would move no stock. A till's own figure is checked by its push instead.
         $baseQuantity = isset($item['base_quantity']) && $item['base_quantity'] !== null && $item['base_quantity'] !== ''
             ? Quantity::normalize($item['base_quantity'])
-            : (BaseQuantity::of($quantity, Quantity::normalize($unit?->factor ?? '1')) ?? throw new BusinessRuleException(__('That quantity is too small to sell in this unit: it makes less than one base unit, or a fraction of one.')));
+            : (BaseQuantity::of($quantity, Quantity::normalize($unit?->factor ?? '1'), (int) ($variation->baseUnit?->precision ?? 3)) ?? throw new BusinessRuleException(__('That quantity is too small to sell in this unit: it makes less than one base unit, or a fraction of one.')));
 
         return ['unit' => $unit, 'quantity' => $quantity, 'base_quantity' => $baseQuantity];
     }

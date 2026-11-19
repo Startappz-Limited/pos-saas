@@ -2,6 +2,7 @@
 
 namespace App\Actions;
 
+use App\Casts\Quantity;
 use App\Exceptions\BusinessRuleException;
 use App\Jobs\SyncOrderStatusJob;
 use App\Models\CashRegister;
@@ -86,9 +87,10 @@ class ConvertEcommerceOrderToSale
                 ->keyBy('id');
 
             foreach ($items as $itemData) {
-                $quantity = (int) $itemData['quantity'];
+                // A decimal quantity at the ledger's three places (1.5 kg stays 1.5; stage 11).
+                $quantity = Quantity::normalize($itemData['quantity']);
                 $unitPrice = (float) $itemData['unit_price'];
-                $lineTotal = $quantity * $unitPrice;
+                $lineTotal = round((float) $quantity * $unitPrice, 2);
                 $subtotal += $lineTotal;
 
                 // Calculate cost from matched product
@@ -108,7 +110,7 @@ class ConvertEcommerceOrderToSale
                     }
                 }
 
-                $totalCost += $quantity * $unitCost;
+                $totalCost += (float) bcmul($quantity, (string) $unitCost, 4);
             }
 
             $discountAmount = (float) ($order->discount_total ?? 0);
@@ -181,9 +183,9 @@ class ConvertEcommerceOrderToSale
 
             // Create sale items and decrement stock
             foreach ($items as $itemData) {
-                $quantity = (int) $itemData['quantity'];
+                $quantity = Quantity::normalize($itemData['quantity']);
                 $unitPrice = (float) $itemData['unit_price'];
-                $lineTotal = $quantity * $unitPrice;
+                $lineTotal = round((float) $quantity * $unitPrice, 2);
 
                 $productId = $itemData['product_id'];
                 $variationId = $itemData['variation_id'] ?? null;
@@ -204,7 +206,7 @@ class ConvertEcommerceOrderToSale
                     }
                 }
 
-                $totalItemCost = $quantity * $unitCost;
+                $totalItemCost = round((float) bcmul($quantity, (string) $unitCost, 4), 2);
                 $profit = $lineTotal - $totalItemCost;
                 $profitMargin = $lineTotal > 0 ? ($profit / $lineTotal) * 100 : 0;
                 // Online stores sell base units (stage 11, step 3).
@@ -231,9 +233,12 @@ class ConvertEcommerceOrderToSale
                 ]);
 
                 // Take the stock for matched products from the shop, costed
-                // oldest layers first.
-                if ($product) {
-                    app(StockLedger::class)->sellItem($saleItem, $variation ?? $product->defaultVariation()->firstOrFail());
+                // oldest layers first: a variation line from its variation (it used to
+                // take nothing, since $product is only loaded for a line without one),
+                // a simple product's line from its default variation.
+                $stockVariation = $variation ?? $product?->defaultVariation()->firstOrFail();
+                if ($stockVariation) {
+                    app(StockLedger::class)->sellItem($saleItem, $stockVariation);
                 }
             }
             // FIFO cost and profit onto the sale held in memory (a reload would

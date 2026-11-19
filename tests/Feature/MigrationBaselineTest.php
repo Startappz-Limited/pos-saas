@@ -75,6 +75,10 @@ const WIDENED_LEGACY_COLUMNS = [
     'stock_adjustment_items.quantity_after',
     'stock_adjustment_items.quantity_before',
     'stock_adjustment_items.quantity_change',
+    // decimal(15,2) to decimal(15,3), as the ledger holds intake quantities (2026_11_18_000001).
+    'stock_intakes.quantity_accepted',
+    'stock_intakes.quantity_received',
+    'stock_intakes.quantity_rejected',
     'stock_movements.quantity',
     'stock_movements.quantity_after',
     'stock_movements.quantity_before',

@@ -88,8 +88,8 @@ class ProductController extends Controller
         $stockShop = Shop::query()->find($product->stockShopId());
         $variation = $product->defaultVariation()->first();
         $stockInShop = $stockShop && $variation
-            ? (int) ShopVariation::query()->where('shop_id', $stockShop->id)->where('variation_id', $variation->id)->value('stock_quantity')
-            : 0;
+            ? Product::quantityLabel(ShopVariation::query()->where('shop_id', $stockShop->id)->where('variation_id', $variation->id)->value('stock_quantity'))
+            : '0';
 
         $trackBatches = (bool) $variation?->track_batches;
 

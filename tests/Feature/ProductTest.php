@@ -254,7 +254,7 @@ test('product out of stock state works', function () {
     $product = Product::factory()->outOfStock()->create();
 
     expect($product->status)->toBe(ProductStatus::OUT_OF_STOCK)
-        ->and($product->stock_quantity)->toBe(0);
+        ->and($product->stock_quantity)->toBe('0.000');
 });
 
 test('availableAt and canBeSoldAt answer per shop (stage 11, step 4)', function () {

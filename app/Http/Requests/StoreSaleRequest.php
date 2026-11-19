@@ -29,6 +29,22 @@ class StoreSaleRequest extends FormRequest
     }
 
     /**
+     * Whether a line may name a deleted or no-longer-sellable unit: only for a sale a till already recorded
+     * offline (the sync push), never for a new online sale.
+     */
+    protected bool $recordedUnits = false;
+
+    /**
+     * Accepts units removed or stopped since the sale was rung: the sync push calls this for a till's sale.
+     */
+    public function acceptRecordedUnits(): static
+    {
+        $this->recordedUnits = true;
+
+        return $this;
+    }
+
+    /**
      * Get the validation rules that apply to the request.
      */
     public function rules(): array
@@ -124,6 +140,10 @@ class StoreSaleRequest extends FormRequest
 
                     if ($unitId && ! $unit) {
                         $validator->errors()->add("items.{$index}.unit_id", 'That unit was not found for this product.');
+                    } elseif ($unit && ! $this->recordedUnits && ($unit->trashed() || ! $unit->can_sell)) {
+                        // A new sale sells only in a unit the business still sells in; a till's offline sale
+                        // already happened, and may name a unit removed since (acceptRecordedUnits()).
+                        $validator->errors()->add("items.{$index}.unit_id", 'That unit is no longer sold for this product.');
                     } else {
                         $unit ??= $variation->baseUnit;
                         (new QuantityForUnit($unit?->precision ?? 0))->validate(
@@ -135,7 +155,7 @@ class StoreSaleRequest extends FormRequest
                         // Once the quantity is valid, it must also move at least one whole base unit's
                         // worth exactly, or the sale would take no stock (BaseQuantity).
                         if (! $validator->errors()->has("items.{$index}.quantity")
-                            && BaseQuantity::of(Quantity::normalize($item['quantity']), Quantity::normalize($unit?->factor ?? '1')) === null) {
+                            && BaseQuantity::of(Quantity::normalize($item['quantity']), Quantity::normalize($unit?->factor ?? '1'), (int) ($variation->baseUnit?->precision ?? 3)) === null) {
                             $validator->errors()->add("items.{$index}.quantity", 'That quantity is too small to sell in this unit: it makes less than one base unit, or a fraction of one.');
                         }
                     }

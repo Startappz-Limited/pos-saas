@@ -348,7 +348,7 @@
                                                 <td><a href="{{ route('products.show', $product['id']) }}"
                                                         class="text-body">{{ $product['name'] }}</a></td>
                                                 <td>{{ $product['sku'] }}</td>
-                                                <td class="fw-medium">{{ $product['stock_quantity'] }}</td>
+                                                <td class="fw-medium">{{ \App\Models\Product::quantityLabel($product['stock_quantity']) }}</td>
                                                 <td>
                                                     @if ($product['stock_quantity'] <= 0)
                                                         <span class="badge bg-danger-subtle text-danger">Out of Stock</span>

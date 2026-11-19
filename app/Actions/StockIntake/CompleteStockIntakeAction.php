@@ -12,6 +12,7 @@ use App\Models\ProductVariation;
 use App\Models\PurchaseOrder;
 use App\Models\StockIntake;
 use App\Services\Stock\StockLedger;
+use App\Support\Stock\IntakeQuantities;
 use Illuminate\Support\Facades\DB;
 
 class CompleteStockIntakeAction
@@ -20,6 +21,20 @@ class CompleteStockIntakeAction
     {
         if (! $stockIntake->canComplete()) {
             throw new BusinessRuleException('Stock intake cannot be completed in current status.');
+        }
+
+        // The accepted quantity (the figure the ledger receives) must still fit the base unit (IntakeQuantities):
+        // an intake saved before the edit checks existed, or by any other path, can't put a fraction of a whole
+        // unit on the ledger.
+        $variation = $stockIntake->product_variation_id
+            ? ProductVariation::withoutGlobalScope(ProductVariation::HIDE_DEFAULT)->find($stockIntake->product_variation_id)
+            : $stockIntake->product?->defaultVariation()->first();
+        $errors = IntakeQuantities::errors($variation, $stockIntake->only(['quantity_accepted']), checkTotal: false);
+        if ($errors !== []) {
+            throw BusinessRuleException::because(
+                __('This intake\'s quantities don\'t fit the product\'s unit: :message Edit the intake, then complete it.', ['message' => collect($errors)->flatten()->first()]),
+                'intake_quantity_invalid'
+            );
         }
 
         return DB::transaction(function () use ($stockIntake, $userId) {

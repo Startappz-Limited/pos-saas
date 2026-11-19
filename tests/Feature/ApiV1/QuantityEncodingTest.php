@@ -59,6 +59,8 @@ function receiptOf(Sale $sale)
 
 it('sends a fractional receipt line as a number, with its unit and exact figures beside it', function () {
     $product = $this->tenant->run($this->a->business, fn () => Product::factory()->create(['shop_id' => $this->shop->id, 'stock_quantity' => 0]));
+    // Sold by weight: a whole-piece base unit would refuse 2.5 (BaseQuantity, base precision).
+    $this->tenant->run($this->a->business, fn () => $product->defaultVariation->baseUnit()->update(['precision' => 3]));
     $kg = $this->tenant->run($this->a->business, fn () => ProductUnit::factory()->create([
         'variation_id' => $product->defaultVariation->id, 'name' => 'Bag of rice (kg)', 'factor' => '1.000', 'precision' => 3,
     ]));
@@ -185,6 +187,8 @@ it('pulls a stock row again after the shop\'s midnight, when one of its batches 
 it('sends every quantity as the encoding says: numbers where the contract has numbers, exact strings elsewhere', function () {
     $product = $this->tenant->run($this->a->business, fn () => Product::factory()->create(['shop_id' => $this->shop->id, 'stock_quantity' => 0]));
     $this->tenant->run($this->a->business, fn () => app(StockLedger::class)->receive($this->shop->id, $product->defaultVariation, '3.250', 5.0, StockMovementType::INTAKE));
+    // Sold by weight: a whole-piece base unit would refuse 1.25 (BaseQuantity, base precision).
+    $this->tenant->run($this->a->business, fn () => $product->defaultVariation->baseUnit()->update(['precision' => 3]));
     $kg = $this->tenant->run($this->a->business, fn () => ProductUnit::factory()->create([
         'variation_id' => $product->defaultVariation->id, 'name' => 'Kilogram', 'factor' => '1.000', 'precision' => 3,
     ]));

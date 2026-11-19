@@ -161,6 +161,8 @@ final class SaleHandler implements PushHandler
     {
         $class = $item->accepting('as_recorded') ? HeldSaleRequest::class : StoreSaleRequest::class;
         $request = $class::createFrom(Request::create('/', 'POST', $data));
+        // The till rang this sale already, possibly in a unit removed or stopped since: it is recorded as sold.
+        $request->acceptRecordedUnits();
         $request->setContainer(app())->setRedirector(app('redirect'));
         $request->setUserResolver(fn () => $item->user);
         $request->validateResolved();

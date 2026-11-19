@@ -2,6 +2,7 @@
 
 namespace App\Services\Stock;
 
+use App\Casts\Quantity;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
@@ -45,13 +46,19 @@ class StockQuery
             ->whereIn('shop_variation.shop_id', $this->shops());
     }
 
-    public function forProduct(int $productId): int
+    /**
+     * The stock of a product, in base units, as a scale-3 string (stage 11: a 0.750 kg holding is not 0).
+     */
+    public function forProduct(int $productId): string
     {
-        return (int) DB::table('shop_variation')->where('product_id', $productId)->whereIn('shop_id', $this->shops())->sum('stock_quantity');
+        return Quantity::normalize(DB::table('shop_variation')->where('product_id', $productId)->whereIn('shop_id', $this->shops())->sum('stock_quantity') ?? 0);
     }
 
-    public function forVariation(int $variationId): int
+    /**
+     * The stock of a variation, in base units, as a scale-3 string.
+     */
+    public function forVariation(int $variationId): string
     {
-        return (int) DB::table('shop_variation')->where('variation_id', $variationId)->whereIn('shop_id', $this->shops())->sum('stock_quantity');
+        return Quantity::normalize(DB::table('shop_variation')->where('variation_id', $variationId)->whereIn('shop_id', $this->shops())->sum('stock_quantity') ?? 0);
     }
 }

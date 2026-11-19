@@ -355,7 +355,7 @@ describe('converting to a sale', function () {
             ->and($sale->payment_status)->toBe('paid')
             ->and($sale->status)->toBe('completed')
             ->and($sale->items->sole()->tax_amount)->toEqual(160.0)
-            ->and($product->fresh()->stock_quantity)->toBe(9)
+            ->and($product->fresh()->stock_quantity)->toBe('9.000')
             ->and($cart->status)->toBe(AbandonedCartStatus::Converted)
             ->and($cart->sale_id)->toBe($sale->id)
             ->and($cart->converted_by)->toBe($this->user->id);
