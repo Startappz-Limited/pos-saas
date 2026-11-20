@@ -8,6 +8,7 @@ enum AlertType: string
     case LOW_STOCK = 'low_stock';
     case OUT_OF_STOCK = 'out_of_stock';
     case STOCK_EXPIRING = 'stock_expiring';
+    case STOCK_EXPIRED = 'stock_expired';
     case REORDER_POINT = 'reorder_point';
 
     // Sales
@@ -52,6 +53,7 @@ enum AlertType: string
             self::LOW_STOCK => 'Low Stock Alert',
             self::OUT_OF_STOCK => 'Out of Stock',
             self::STOCK_EXPIRING => 'Stock Expiring Soon',
+            self::STOCK_EXPIRED => 'Expired Stock',
             self::REORDER_POINT => 'Reorder Point Reached',
             self::SALE_COMPLETED => 'Sale Completed',
             self::LARGE_SALE => 'Large Sale Alert',
@@ -83,6 +85,7 @@ enum AlertType: string
     {
         return match ($this) {
             self::OUT_OF_STOCK,
+            self::STOCK_EXPIRED,
             self::CREDIT_LIMIT_EXCEEDED,
             self::BUDGET_EXCEEDED,
             self::SYSTEM_ERROR => AlertSeverity::HIGH,
@@ -109,7 +112,7 @@ enum AlertType: string
     {
         return match ($this) {
             self::LOW_STOCK, self::OUT_OF_STOCK, self::REORDER_POINT => 'solar:box-bold',
-            self::STOCK_EXPIRING => 'solar:calendar-bold',
+            self::STOCK_EXPIRING, self::STOCK_EXPIRED => 'solar:calendar-bold',
             self::SALE_COMPLETED, self::LARGE_SALE => 'solar:cart-large-bold',
             self::REFUND_PROCESSED => 'solar:undo-left-bold',
             self::SALES_TARGET_MET => 'solar:cup-star-bold',

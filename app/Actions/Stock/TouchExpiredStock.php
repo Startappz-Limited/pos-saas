@@ -2,6 +2,7 @@
 
 namespace App\Actions\Stock;
 
+use App\Jobs\CheckShopLowStockJob;
 use App\Jobs\PushShopStockJob;
 use App\Models\CostLayer;
 use App\Models\Shop;
@@ -77,6 +78,9 @@ class TouchExpiredStock
         foreach ($variations->pluck('product_id')->unique() as $productId) {
             PushShopStockJob::dispatch($shop->id, (int) $productId);
         }
+
+        // Batches that expired or came into the window raise or move their expiry alerts, and low stock is re-judged.
+        CheckShopLowStockJob::dispatch($shop->id);
 
         return $variations->count();
     }

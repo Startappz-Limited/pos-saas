@@ -246,6 +246,10 @@ class AppServiceProvider extends ServiceProvider
 
             if ($businessId !== null) {
                 $context->addHidden(TenantContext::CONTEXT_KEY, $businessId);
+            } else {
+                // Context outlives the business that set it: a job dispatched with no business must not inherit one
+                // left behind by an earlier run in the same process.
+                $context->forgetHidden(TenantContext::CONTEXT_KEY);
             }
         });
 

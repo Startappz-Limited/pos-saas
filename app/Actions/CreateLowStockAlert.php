@@ -39,6 +39,8 @@ class CreateLowStockAlert
             'current_quantity' => $data['current_quantity'],
             'threshold_quantity' => $data['threshold_quantity'],
             'status' => AlertStatus::PENDING,
+            // A scheduled or stock-triggered check has no user: the alert is the system's, and names nobody.
+            'source' => $data['created_by'] === null ? 'system' : 'user',
             'created_by' => $data['created_by'],
             'updated_by' => $data['created_by'],
         ]);

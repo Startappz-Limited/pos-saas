@@ -179,7 +179,7 @@ describe('readers', function () {
     it('reports each listed shop\'s own stock in the flat API\'s pivot', function () {
         $owner = User::factory()->create();
         $owner->assignRole(ownerRole());
-        $this->product->shops()->attach([$this->shop->id, $this->otherShop->id]);
+        $this->product->shops()->syncWithoutDetaching([$this->shop->id, $this->otherShop->id]);
         Sanctum::actingAs($owner, ['*']);
 
         $shops = collect($this->getJson("/api/products/{$this->product->uuid}")->json('data.shops'));

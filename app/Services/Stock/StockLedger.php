@@ -5,6 +5,7 @@ namespace App\Services\Stock;
 use App\Casts\Quantity;
 use App\Enums\StockMovementType;
 use App\Exceptions\BusinessRuleException;
+use App\Jobs\CheckShopLowStockJob;
 use App\Jobs\PushShopStockJob;
 use App\Models\CostAllocation;
 use App\Models\CostLayer;
@@ -610,11 +611,49 @@ class StockLedger
     private function changeStock(int $shopId, ProductVariation $variation, int|float|string $delta): void
     {
         $delta = Quantity::normalize($delta);
+        $before = $this->levelOf($shopId, $variation);
 
         DB::table('shop_variation')->where('shop_id', $shopId)->where('variation_id', $variation->id)
             ->update(['stock_quantity' => DB::raw('stock_quantity + ('.$delta.')'), 'updated_at' => now()]);
 
+        $after = $this->levelOf($shopId, $variation);
+        if ($before !== null && $after !== null && $this->crossesReorderLevel($before, $after)) {
+            // Stage 11c, step 2: the shop's low-stock and expiry alerts are re-judged, once the change commits.
+            CheckShopLowStockJob::dispatch($shopId)->afterCommit();
+        }
+
         $this->pushStock($shopId, $variation);
+    }
+
+    /**
+     * The shop's stock of a tracked variation and its reorder level, in base units; null when it isn't tracked.
+     *
+     * @return array{0: string, 1: string}|null
+     */
+    private function levelOf(int $shopId, ProductVariation $variation): ?array
+    {
+        $row = DB::table('shop_variation')
+            ->join('products', 'products.id', '=', 'shop_variation.product_id')
+            ->where('shop_variation.shop_id', $shopId)
+            ->where('shop_variation.variation_id', $variation->id)
+            ->where('products.track_stock', true)
+            ->first(['shop_variation.stock_quantity', DB::raw('coalesce(shop_variation.reorder_level, products.reorder_level) as threshold')]);
+
+        return $row === null ? null : [Quantity::normalize($row->stock_quantity), Quantity::normalize($row->threshold ?? 0)];
+    }
+
+    /**
+     * Whether a change moved the stock to or from its reorder level: at or below it on one side, above it on the other.
+     *
+     * @param  array{0: string, 1: string}  $before
+     * @param  array{0: string, 1: string}  $after
+     */
+    private function crossesReorderLevel(array $before, array $after): bool
+    {
+        $wasLow = bccomp($before[0], $before[1], 3) <= 0;
+        $isLow = bccomp($after[0], $after[1], 3) <= 0;
+
+        return $wasLow !== $isLow;
     }
 
     /**

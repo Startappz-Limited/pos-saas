@@ -5,6 +5,7 @@ use App\Models\LowStockAlert;
 use App\Models\Product;
 use App\Models\Shop;
 use App\Models\User;
+use Illuminate\Support\Facades\Queue;
 use Spatie\Permission\Models\Permission;
 
 /**
@@ -14,6 +15,10 @@ use Spatie\Permission\Models\Permission;
  * previously left half-applied.
  */
 beforeEach(function () {
+    // Stock changes queue a re-check of the shop's alerts (stage 11c, step 2). These tests set alert states by hand,
+    // so the re-check is held back: it would resolve a fixture whose product is not really low.
+    Queue::fake();
+
     foreach (['alerts.view', 'alerts.create', 'alerts.update'] as $name) {
         Permission::findOrCreate($name);
     }
