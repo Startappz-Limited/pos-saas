@@ -2,9 +2,9 @@
 
 namespace App\Actions;
 
-use App\Support\Tenancy\TenantContext;
+use App\Models\Shop;
+use App\Services\Stock\LowStockQuery;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\DB;
 
 class CheckLowStockLevels
 {
@@ -23,31 +23,21 @@ class CheckLowStockLevels
      */
     public function execute(int $shopId, ?int $userId = null): Collection
     {
-        $low = DB::table('shop_variation')
-            ->tap(fn ($query) => app(TenantContext::class)->restrictToShops($query, 'shop_variation.shop_id'))
-            ->join('products', 'products.id', '=', 'shop_variation.product_id')
-            ->join('product_variations', 'product_variations.id', '=', 'shop_variation.variation_id')
-            ->where('shop_variation.shop_id', $shopId)
-            ->where('products.track_stock', true)
-            ->whereNull('products.deleted_at')
-            // Simple products through their default variation; the others per variation.
-            ->whereRaw('product_variations.is_default = case when products.has_variations = 1 then 0 else 1 end')
-            ->whereRaw('shop_variation.stock_quantity <= coalesce(shop_variation.reorder_level, products.reorder_level)')
-            ->orderBy('shop_variation.id')
-            ->get([
-                'shop_variation.product_id',
-                'shop_variation.variation_id',
-                'shop_variation.stock_quantity',
-                'product_variations.is_default',
-                DB::raw('coalesce(shop_variation.reorder_level, products.reorder_level) as threshold'),
-            ]);
+        // The one low-stock definition (LowStockQuery): sellable stock, in base units.
+        // A shop outside the current business is not found, so it has no alerts (as the shop-scoped query had none).
+        $shop = Shop::query()->find($shopId);
+        if ($shop === null) {
+            return collect();
+        }
 
-        return $low->map(fn (object $row) => $this->createAlert->execute([
+        $low = app(LowStockQuery::class)->forShop($shop);
+
+        return $low->map(fn (array $row) => $this->createAlert->execute([
             'shop_id' => $shopId,
-            'product_id' => $row->product_id,
-            'variation_id' => $row->is_default ? null : $row->variation_id,
-            'current_quantity' => (int) $row->stock_quantity,
-            'threshold_quantity' => (int) $row->threshold,
+            'product_id' => $row['product_id'],
+            'variation_id' => $row['is_default'] ? null : $row['variation_id'],
+            'current_quantity' => $row['sellable'],
+            'threshold_quantity' => $row['threshold'],
             // No user (a scheduled check) records no creator, never user 1, who may be another business's.
             'created_by' => $userId,
         ]));

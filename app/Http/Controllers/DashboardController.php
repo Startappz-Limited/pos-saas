@@ -10,6 +10,7 @@ use App\Models\Sale;
 use App\Models\SalePayment;
 use App\Models\Shop;
 use App\Models\User;
+use App\Services\Stock\LowStockQuery;
 use App\Support\Tenancy\TenantContext;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder as EloquentBuilder;
@@ -176,17 +177,15 @@ class DashboardController extends Controller
             ]);
 
         // Low Stock Products — scoped to the product's owning shop.
+        // One definition of low (stage 11c, step 1): LowStockQuery, for the dashboard's shop else the viewer's.
+        $lowStockIds = app(LowStockQuery::class)->forViewer($selectedShopId)->pluck('product_id')->unique();
         $lowStockProductsQuery = Product::query()
             ->where('products.status', 'active')
+            ->whereIn('products.id', $lowStockIds)
             ->select('products.id', 'products.name', 'products.sku')
-            // Per-shop stock (stage 1b): the dashboard's shop, else the
-            // shops the viewer may access.
             ->withStockOnHand()
-            ->whereStock('<=', 'reorder_level')
             ->orderBy('stock_on_hand', 'asc')
             ->take(5);
-
-        $this->applyShopFilter($lowStockProductsQuery, $user, $selectedShopId, 'products.shop_id');
 
         $lowStockProducts = $lowStockProductsQuery->get()
             ->map(function ($product) {

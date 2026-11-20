@@ -7,6 +7,7 @@ use App\Models\Product;
 use App\Models\Role;
 use App\Models\Shop;
 use App\Models\User;
+use App\Services\Stock\LowStockQuery;
 use App\Services\Stock\StockLedger;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -289,11 +290,12 @@ test('stockValueAt sums the batches, with unknown-cost batches apart', function 
         ->and($value['unknown_quantity'])->toBe('4.000');
 });
 
-test('product low stock state works', function () {
-    $product = Product::factory()->lowStock()->create();
+test('a product is low when its sellable stock is at or below the reorder level', function () {
+    $shop = Shop::factory()->create();
+    $product = Product::factory()->create(['shop_id' => $shop->id, 'track_stock' => true, 'reorder_level' => 10, 'stock_quantity' => 0]);
+    app(StockLedger::class)->receive($shop->id, $product->defaultVariation, 9, 5, StockMovementType::INTAKE);
 
-    expect($product->isLowStock())->toBeTrue()
-        ->and($product->stock_quantity)->toBeLessThanOrEqual($product->reorder_level);
+    expect(app(LowStockQuery::class)->isLow($shop, $product->defaultVariation->id))->toBeTrue();
 });
 
 // Helper Method Tests
@@ -344,13 +346,14 @@ test('active scope returns only active products', function () {
     expect($activeProducts)->toHaveCount(3);
 });
 
-test('lowStock scope returns products below reorder level', function () {
-    Product::factory()->lowStock()->count(3)->create();
-    Product::factory()->create(['stock_quantity' => 50]);
+test('the low-stock list returns the products below their reorder level, and no others', function () {
+    $shop = Shop::factory()->create();
+    $low = Product::factory()->create(['shop_id' => $shop->id, 'track_stock' => true, 'reorder_level' => 10, 'stock_quantity' => 0]);
+    app(StockLedger::class)->receive($shop->id, $low->defaultVariation, 3, 5, StockMovementType::INTAKE);
+    $fine = Product::factory()->create(['shop_id' => $shop->id, 'track_stock' => true, 'reorder_level' => 10, 'stock_quantity' => 0]);
+    app(StockLedger::class)->receive($shop->id, $fine->defaultVariation, 50, 5, StockMovementType::INTAKE);
 
-    $lowStockProducts = Product::lowStock()->get();
-
-    expect($lowStockProducts)->toHaveCount(3);
+    expect(app(LowStockQuery::class)->forShop($shop)->pluck('product_id')->all())->toBe([$low->id]);
 });
 
 // Relationship Tests

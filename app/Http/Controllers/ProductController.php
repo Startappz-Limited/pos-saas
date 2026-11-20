@@ -144,7 +144,8 @@ class ProductController extends Controller
         $this->authorize('viewAny', Product::class);
 
         $products = $this->productService->getLowStockProducts(
-            perPage: $request->get('per_page', 15)
+            perPage: $request->get('per_page', 15),
+            shopId: $request->integer('shop_id') ?: null,
         );
 
         return view('products.low-stock', compact('products'));

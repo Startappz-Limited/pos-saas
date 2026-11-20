@@ -108,4 +108,17 @@ class ProductFactory extends Factory
             'selling_price' => 1999,
         ]);
     }
+
+    /**
+     * A product saved against a shop is stocked there (CreateProductAction writes the shop_product row, which
+     * LowStockQuery reads as "active in the shop"): the factory does the same when given a shop.
+     */
+    public function configure(): static
+    {
+        return $this->afterCreating(function (Product $product): void {
+            if ($product->shop_id !== null && ! $product->shops()->whereKey($product->shop_id)->exists()) {
+                $product->shops()->attach($product->shop_id, ['is_active' => true, 'reorder_level' => $product->reorder_level]);
+            }
+        });
+    }
 }

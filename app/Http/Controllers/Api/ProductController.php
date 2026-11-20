@@ -176,7 +176,8 @@ class ProductController extends Controller
     public function lowStock(Request $request): JsonResponse
     {
         $products = $this->productService->getLowStockProducts(
-            perPage: $request->input('per_page', 15)
+            perPage: $request->input('per_page', 15),
+            shopId: $request->integer('shop_id') ?: null,
         );
 
         return response()->json([
