@@ -30,6 +30,7 @@ class LowStockQuery
     public function forShop(Shop $shop): Collection
     {
         $candidates = DB::table('shop_variation')
+            ->tap(fn ($query) => app(TenantContext::class)->restrictToShops($query, 'shop_variation.shop_id'))
             ->join('products', 'products.id', '=', 'shop_variation.product_id')
             ->join('product_variations', 'product_variations.id', '=', 'shop_variation.variation_id')
             ->join('shop_product', fn ($join) => $join->on('shop_product.product_id', '=', 'products.id')->on('shop_product.shop_id', '=', 'shop_variation.shop_id'))

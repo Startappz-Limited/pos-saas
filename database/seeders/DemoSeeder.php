@@ -448,7 +448,8 @@ class DemoSeeder extends Seeder
                     'created_by' => $this->owner->id,
                 ]);
 
-                $product->shops()->attach($shop->id, ['reorder_level' => 20]);
+                // The factory already linked the product to its shop: set the shop's reorder level.
+                $product->shops()->updateExistingPivot($shop->id, ['reorder_level' => 20]);
                 $product->syncShopVariationRows();
 
                 return $product;

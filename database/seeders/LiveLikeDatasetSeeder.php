@@ -288,7 +288,11 @@ class LiveLikeDatasetSeeder extends Seeder
                 // stock lives in shop_variation (stage 1b). Drawn anyway, so
                 // the rest of the dataset keeps its random sequence.
                 fake()->numberBetween(50, 400);
-                $product->shops()->attach($shop->id, ['reorder_level' => 10]);
+                // The factory already linked the product to its shop (its reorder level is the product's): set the listing's.
+                $product->shops()->updateExistingPivot($shop->id, ['reorder_level' => 10]);
+            } else {
+                // Not listed at its shop: the factory's link comes off.
+                $product->shops()->detach($shop->id);
             }
             if ($i % 7 === 0) {
                 // A second shop also holds some of it.
