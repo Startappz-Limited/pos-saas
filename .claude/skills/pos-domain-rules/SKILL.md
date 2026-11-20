@@ -210,6 +210,35 @@ promotions and wholesale tiers silently stop applying.
 - **Copy and verify (release 1 of step 7).** `catalogue:copy-to-units` (dry run unless `--apply`) and
   `catalogue:verify-units` (read-only). The old columns are dropped only in release 2, after verify passes.
 
+## Low stock, alerts and snapshots (stage 11c)
+
+- **One low-stock definition.** `App\Services\Stock\LowStockQuery` judges a shop's variations: sellable stock (expired and
+  quarantined batches excluded), in base units, against the shop's reorder level before the product's. The report
+  (Stock → Low stock), the product list, the dashboard, the alerts and both low-stock API routes all read it.
+- **Alerts clear themselves.** `CheckLowStockLevels` resolves an open low-stock alert as `stock_recovered` (no user) when
+  its item is back above its level; a new one opens if it drops again. `CheckShopLowStockJob` re-judges a shop, queued
+  by the expiry touch and by any stock change that crosses a reorder level, unique per shop while waiting. A system run
+  records `source = system` and no `created_by`.
+- **Expiring stock alerts.** `SyncExpiringStockAlerts` keeps one alert per batch, keyed `expiring:{shop}:{batch}` in its
+  data: STOCK_EXPIRING inside the business's window (`settings.stock.expiring_alert_days`, 30 by default), STOCK_EXPIRED
+  once it has expired, cleared when the batch has no stock left.
+- **Snapshots.** `inventory_snapshots` are per shop, variation and day, and always name their variation; the unique key
+  is (shop, variation, date, kind). `kind`: daily, month_end, manual. `source`: on_time, rebuilt, late. `stock:snapshot`
+  (every 15 minutes) takes every day since a shop's last run, each as it stood at its local midnight
+  (`CreateInventorySnapshot::execute(..., at:)`). `stock:prune-snapshots` (daily) deletes daily snapshots older than 13
+  months; month-end and manual ones are kept.
+- **Rebuilding a day.** A past day's stock is the current stock with every later movement undone (`quantity_before` /
+  `quantity_after`); its value is each batch that existed then, with consumption after midnight added back, restores
+  after midnight of earlier consumption taken off, and quarantine releases after midnight added back. Consumption counts
+  by when it settled (`settled_at`), not when it was allocated. Every change to a batch names it on the movement
+  (`stock_movements.layers`); a release names the consumption time of each allocation it restores, and a quarantine
+  release is a movement of no stock (`StockMovementType::QUARANTINE_RELEASE`). A day the ledger can't reconcile
+  (a later addition with no batch record, or batches that don't sum to the stock) takes the current figures, marked
+  `late`, and so does a day before the business's ledger began (`stock:ledger-start` records it; without it, the first
+  batch's time).
+- **Never write a batch's remaining quantity without a movement.** The rebuild relies on it: a change that moves stock
+  or batches must record its layers on the movement that goes with it.
+
 ## Money and quantity invariants
 
 - Money is `decimal(10,2)` everywhere. Never store money in a float column, and be careful comparing

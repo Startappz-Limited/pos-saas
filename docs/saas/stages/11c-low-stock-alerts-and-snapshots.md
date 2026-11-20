@@ -98,6 +98,13 @@ got how much back.
 
 ## Work
 
+> **Status (20 November 2026).** Steps 1 to 5 are built on `feat/low-stock-and-snapshots`, with targeted suites passing
+> and the full SQLite and MySQL runs still to do. Built: one low-stock definition (`LowStockQuery`) and its report,
+> the purchase-order draft, the inventory route; self-clearing alerts and expiring/expired stock alerts; daily snapshots
+> with kinds, sources, retention and the valuation report; movements that name their batches, the quarantine release
+> movement, the exact rebuild of past days, the nightly catch-up and `stock:ledger-start`; docs. Open: the migrations
+> have not run on UAT (rehearse on `rehearsal_testing` first); the till's offline low-stock view belongs to the app.
+
 Every part keeps to the tenancy rules: `BelongsToBusiness` / `BelongsToShop`, business-aware `exists:`, a
 `ResourceMatrixTest` row for every new route, a manager reaches only their shops.
 

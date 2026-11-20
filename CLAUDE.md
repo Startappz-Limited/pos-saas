@@ -292,6 +292,9 @@ php artisan saas:import-legacy --from=dataset_testing --database=import_testing 
 php artisan migrate --database=audit --path=database/migrations/audit
 # (the SQLite file is gitignored — `touch database/audit.sqlite` first if missing)
 php artisan audit:backfill-business            # dry run; --apply fills business_id on older audit rows
+# Stock snapshots (stage 11c): scheduled every 15 minutes and daily. A business's ledger start is recorded once, first:
+php artisan stock:ledger-start --business=1         # dry run; --apply records the first batch's time (days before are 'late')
+php artisan stock:snapshot                          # the nightly run, also by hand (takes every day since a shop's last run)
 # Commands on tenant data act for one business (stage 1c): --business=<id or uuid>, required when
 # there are several. Files from before stage 1c move into the business's folder:
 php artisan files:move-to-business --business=1   # dry run; --apply, then --apply --delete-originals
