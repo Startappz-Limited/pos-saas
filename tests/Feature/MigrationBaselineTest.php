@@ -37,6 +37,8 @@ const INTENDED_COLUMN_CHANGES = [
     // are kept (stage 10, step 1g).
     'stock_adjustment_items.quantity_before' => 'nullable',
     'stock_adjustment_items.quantity_after' => 'nullable',
+    // Every snapshot names its variation (stage 11c, step 3): a NULL in the unique key is repeatable on MySQL.
+    'inventory_snapshots.variation_id' => 'required',
 ];
 
 /**
@@ -113,7 +115,7 @@ it('keeps every legacy table and column, so the import can carry all data across
                 $lost[] = "{$table}.{$column}: removed";
             } elseif ($now['type'] !== $was['type'] && ! legacyColumnWidened("{$table}.{$column}", $was['type'], $now['type'])) {
                 $lost[] = "{$table}.{$column}: type {$was['type']} became {$now['type']}";
-            } elseif ($now['nullable'] !== $was['nullable'] && (INTENDED_COLUMN_CHANGES["{$table}.{$column}"] ?? null) !== 'nullable') {
+            } elseif ($now['nullable'] !== $was['nullable'] && ! array_key_exists("{$table}.{$column}", INTENDED_COLUMN_CHANGES)) {
                 $lost[] = "{$table}.{$column}: nullable changed";
             }
         }

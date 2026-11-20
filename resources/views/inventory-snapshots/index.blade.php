@@ -10,6 +10,21 @@
                 <div class="card">
                     <div class="card-header d-flex justify-content-between align-items-center">
                         <h4 class="card-title mb-0">Inventory Snapshots</h4>
+                        <div class="d-flex gap-2">
+                            <a href="{{ route('inventory-snapshots.valuationReport') }}" class="btn btn-sm btn-light">{{ __('Valuation report') }}</a>
+                            @can('create', App\Models\InventorySnapshot::class)
+                                <form method="POST" action="{{ route('inventory-snapshots.generate') }}" class="d-flex gap-2">
+                                    @csrf
+                                    @honeypot
+                                    <select name="shop_id" class="form-select form-select-sm" required aria-label="{{ __('Shop') }}">
+                                        @foreach ($shops as $shop)
+                                            <option value="{{ $shop->id }}">{{ $shop->name }}</option>
+                                        @endforeach
+                                    </select>
+                                    <button type="submit" class="btn btn-sm btn-primary">{{ __('Take manual snapshot') }}</button>
+                                </form>
+                            @endcan
+                        </div>
                     </div>
 
                     <div class="card-body">
@@ -52,7 +67,13 @@
                                 <tbody>
                                     @forelse($snapshots as $snapshot)
                                         <tr>
-                                            <td>{{ $snapshot->snapshot_date?->format('M d, Y') ?? '—' }}</td>
+                                            <td>
+                                                {{ $snapshot->snapshot_date?->format('M d, Y') ?? '—' }}
+                                                <span class="badge bg-secondary-subtle text-secondary">{{ $snapshot->kind }}</span>
+                                                @if ($snapshot->source !== 'on_time')
+                                                    <span class="badge bg-{{ $snapshot->source === 'late' ? 'warning' : 'info' }}-subtle text-{{ $snapshot->source === 'late' ? 'warning' : 'info' }}">{{ $snapshot->source }}</span>
+                                                @endif
+                                            </td>
                                             <td>{{ $snapshot->shop?->name ?? '—' }}</td>
                                             <td>
                                                 @if ($snapshot->product)
