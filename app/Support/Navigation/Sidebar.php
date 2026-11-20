@@ -188,7 +188,6 @@ final class Sidebar
             ['title' => __('Catalogue'), 'items' => [
                 self::group('products', __('Products'), 'solar:t-shirt-bold-duotone', [
                     self::link(__('All products'), 'products.index', self::canList(Product::class), ['products.index', 'products.create', 'products.show', 'products.edit', 'products.import.*']),
-                    self::link(__('Low stock'), 'products.lowStock', self::canList(Product::class)),
                     self::link(__('Purchase costs'), 'products.purchase-costs.index', fn (User $user): bool => $user->can('setCost', Product::class), ['products.purchase-costs.*']),
                     self::link(__('Pricing rules'), 'pricing-rules.index', self::canList(PricingRule::class), ['pricing-rules.*']),
                 ]),
@@ -201,6 +200,7 @@ final class Sidebar
                     self::link(__('Stock intake'), 'stock-intakes.index', self::canList(StockIntake::class), ['stock-intakes.*']),
                     self::link(__('Adjustments'), 'stock-adjustments.index', self::canList(StockAdjustment::class), ['stock-adjustments.*']),
                     self::link(__('Expiring stock'), 'stock.expiring', self::holds('stock.view'), ['stock.expiring*']),
+                    self::link(__('Low stock'), 'stock.low-stock', self::holds('stock.view'), ['stock.low-stock*']),
                     self::link(__('Movements'), 'stock-movements.index', self::canList(StockMovement::class), ['stock-movements.*']),
                     self::link(__('Snapshots'), 'inventory-snapshots.index', self::canList(InventorySnapshot::class), ['inventory-snapshots.*']),
                     self::link(__('Low-stock alerts'), 'low-stock-alerts.index', self::canList(LowStockAlert::class), ['low-stock-alerts.*']),

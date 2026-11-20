@@ -106,7 +106,7 @@
                                 <iconify-icon icon="solar:refresh-bold-duotone" class="align-middle me-1"></iconify-icon>
                                 Sync Products
                             </button>
-                            <a href="{{ route('products.lowStock') }}" class="btn btn-warning btn-sm">
+                            <a href="{{ route('stock.low-stock') }}" class="btn btn-warning btn-sm">
                                 <iconify-icon icon="solar:danger-triangle-bold-duotone"
                                     class="align-middle me-1"></iconify-icon>
                                 Low Stock

@@ -58,6 +58,7 @@ use App\Http\Controllers\SocialAccountController;
 use App\Http\Controllers\StockAdjustmentController;
 use App\Http\Controllers\StockExpiryController;
 use App\Http\Controllers\StockIntakeController;
+use App\Http\Controllers\StockLowStockController;
 use App\Http\Controllers\StockMovementController;
 use App\Http\Controllers\StockQuarantineController;
 use App\Http\Controllers\SupplierController;
@@ -538,6 +539,10 @@ Route::middleware(['auth', 'business'])->group(function () {
     // Expiring stock and "Write off expired" (stage 11, step 5): the write-off files an adjustment.
     Route::get('stock/expiring', [StockExpiryController::class, 'index'])->name('stock.expiring');
     Route::post('stock/expiring/write-off', [StockExpiryController::class, 'writeOff'])->name('stock.expiring.write-off');
+
+    // Low stock (stage 11c, step 1): the one report, from LowStockQuery; selected rows become a draft purchase order.
+    Route::get('stock/low-stock', [StockLowStockController::class, 'index'])->name('stock.low-stock');
+    Route::post('stock/low-stock/purchase-order', [StockLowStockController::class, 'createPurchaseOrder'])->name('stock.low-stock.purchase-order');
 });
 
 require __DIR__.'/auth.php';
