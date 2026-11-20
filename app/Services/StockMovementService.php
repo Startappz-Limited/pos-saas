@@ -19,7 +19,7 @@ class StockMovementService
      */
     public function getAllMovements(int $perPage = 15): LengthAwarePaginator
     {
-        return StockMovement::with(['shop', 'product', 'variation', 'creator'])
+        return StockMovement::with(['shop', 'product', 'variation.baseUnit', 'creator'])
             ->recent()
             ->paginate($perPage);
     }
@@ -29,7 +29,7 @@ class StockMovementService
      */
     public function getShopMovements(int $shopId, int $perPage = 15): LengthAwarePaginator
     {
-        return StockMovement::with(['product', 'variation', 'creator'])
+        return StockMovement::with(['product', 'variation.baseUnit', 'creator'])
             ->forShop($shopId)
             ->recent()
             ->paginate($perPage);
@@ -73,7 +73,7 @@ class StockMovementService
      */
     public function getMovementsByType(StockMovementType $type, int $perPage = 15): LengthAwarePaginator
     {
-        return StockMovement::with(['shop', 'product', 'variation', 'creator'])
+        return StockMovement::with(['shop', 'product', 'variation.baseUnit', 'creator'])
             ->ofType($type)
             ->recent()
             ->paginate($perPage);
@@ -84,7 +84,7 @@ class StockMovementService
      */
     public function getAdditions(int $perPage = 15): LengthAwarePaginator
     {
-        return StockMovement::with(['shop', 'product', 'variation', 'creator'])
+        return StockMovement::with(['shop', 'product', 'variation.baseUnit', 'creator'])
             ->additions()
             ->recent()
             ->paginate($perPage);
@@ -95,7 +95,7 @@ class StockMovementService
      */
     public function getDeductions(int $perPage = 15): LengthAwarePaginator
     {
-        return StockMovement::with(['shop', 'product', 'variation', 'creator'])
+        return StockMovement::with(['shop', 'product', 'variation.baseUnit', 'creator'])
             ->deductions()
             ->recent()
             ->paginate($perPage);
@@ -136,7 +136,7 @@ class StockMovementService
      */
     public function getRecentMovements(int $limit = 10): Collection
     {
-        return StockMovement::with(['shop', 'product', 'variation', 'creator'])
+        return StockMovement::with(['shop', 'product', 'variation.baseUnit', 'creator'])
             ->recent()
             ->limit($limit)
             ->get();

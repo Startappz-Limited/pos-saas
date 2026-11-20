@@ -5,10 +5,16 @@ namespace App\Http\Requests;
 use App\Models\EcommerceOrder;
 use App\Models\Product;
 use App\Models\ProductVariation;
+use App\Rules\QuantityForUnit;
 use Illuminate\Foundation\Http\FormRequest;
 
 class ConvertOrderToSaleRequest extends FormRequest
 {
+    /**
+     * Platforms whose order lines take only whole quantities (both APIs type them as integers).
+     */
+    public const WHOLE_QUANTITY_PLATFORMS = ['woocommerce', 'shopify'];
+
     /**
      * The same policy check as the controller's, made here so a caller who
      * may not do this is refused with 403 before their input is validated.
@@ -38,7 +44,9 @@ class ConvertOrderToSaleRequest extends FormRequest
             'items.*.order_item_id' => ['nullable', 'exists:ecommerce_order_items,id'],
             'items.*.product_id' => ['required', 'exists:products,id'],
             'items.*.variation_id' => ['nullable', 'exists:product_variations,id'],
-            'items.*.quantity' => ['required', 'integer', 'min:1', 'max:10000'],
+            // Decimals up to the ledger's three; the matched product's base-unit precision is checked in
+            // withValidator() (1.5 kg converts, 1.5 tablets doesn't).
+            'items.*.quantity' => ['required', 'numeric', 'min:0.001', 'max:10000'],
             'items.*.unit_price' => ['required', 'numeric', 'min:0', 'max:1000000'],
         ];
     }
@@ -80,14 +88,32 @@ class ConvertOrderToSaleRequest extends FormRequest
                     $validator->errors()->add("items.{$index}.variation_id", 'A variation must be selected for this product.');
                 }
 
+                $variation = null;
                 if ($variationId) {
-                    $variationExists = ProductVariation::where('id', $variationId)
+                    $variation = ProductVariation::where('id', $variationId)
                         ->where('product_id', $productId)
-                        ->exists();
+                        ->first();
 
-                    if (! $variationExists) {
+                    if (! $variation) {
                         $validator->errors()->add("items.{$index}.variation_id", 'The selected variation does not belong to this product.');
                     }
+                }
+                $variation ??= $product->defaultVariation()->first();
+
+                // WooCommerce and Shopify hold whole quantities only, and converting pushes the lines back to the
+                // website: a fraction would reach it rounded down, so it is refused here instead.
+                if (isset($item['quantity']) && is_numeric($item['quantity']) && in_array($order?->platform, self::WHOLE_QUANTITY_PLATFORMS, true)
+                    && floor((float) $item['quantity']) !== (float) $item['quantity']) {
+                    $validator->errors()->add("items.{$index}.quantity", __('The website only takes whole quantities, so an order line can\'t be a fraction.'));
+                }
+
+                // Online stores sell base units, so the quantity takes the base unit's decimals.
+                if ($variation && isset($item['quantity']) && ! $validator->errors()->has("items.{$index}.quantity")) {
+                    (new QuantityForUnit((int) ($variation->baseUnit?->precision ?? 0)))->validate(
+                        "items.{$index}.quantity",
+                        (string) $item['quantity'],
+                        fn (string $message) => $validator->errors()->add("items.{$index}.quantity", $message)
+                    );
                 }
             }
         });

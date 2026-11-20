@@ -24,9 +24,10 @@ class StockIntakeFactory extends Factory
      */
     public function definition(): array
     {
-        $quantityReceived = fake()->randomFloat(2, 10, 500);
-        $rejectionRate = fake()->randomFloat(2, 0, 0.1);
-        $quantityRejected = $quantityReceived * $rejectionRate;
+        // Whole quantities: a factory product's base unit is a whole piece, and a fraction of one is refused
+        // (IntakeQuantities).
+        $quantityReceived = fake()->numberBetween(10, 500);
+        $quantityRejected = (int) floor($quantityReceived * fake()->randomFloat(2, 0, 0.1));
         $quantityAccepted = $quantityReceived - $quantityRejected;
 
         return [
@@ -85,8 +86,8 @@ class StockIntakeFactory extends Factory
         return $this->state(function (array $attributes) {
             $quantityReceived = $attributes['quantity_received'];
             $rejectionRate = fake()->randomFloat(2, 0.15, 0.35);
-            $quantityRejected = $quantityReceived * $rejectionRate;
-            $quantityAccepted = $quantityReceived - $quantityRejected;
+            $quantityRejected = (int) floor((float) $quantityReceived * $rejectionRate);
+            $quantityAccepted = (int) $quantityReceived - $quantityRejected;
 
             return [
                 'quantity_rejected' => $quantityRejected,

@@ -176,6 +176,23 @@ Stage file: [22-etims.md](./22-etims.md).
 Stage file: [23-stocktakes-in-the-app.md](./23-stocktakes-in-the-app.md).
 - [ ] Counting in the app: written when that stage is planned in full.
 
+## Review of main, 17 November 2026
+Stage file: [25-broken-pages-dead-code-and-hardening.md](./25-broken-pages-dead-code-and-hardening.md). From the
+review of `main` at `0e288c4`; the first item gates the rest of this checklist.
+- [ ] `php artisan mobile:contract-diff` has been run with the app on the machine. It has not been run in any stage
+      from 0 to 10a (PROGRESS.md records "not run" each time), so every difference it reports is new.
+- [ ] Doesn't call `GET api/inventory`, `api/inventory/shop/{shop}`, `api/inventory/product/{product}` or
+      `POST api/register` (all four have always answered 500; stage 25, point 1 removes them unless the app calls
+      them).
+- [ ] Handles 402 `subscription_inactive`, `plan_limit_reached` and `feature_unavailable` (Phase 4) with their own
+      messages, not its generic error; billing isn't enforced on live businesses before this.
+- [ ] Doesn't treat `super-admin` as the owner's role: since Phase 3 the owner's role is reported as `admin`
+      (`authorization_helper.dart` was never searched; PROGRESS.md, stage 5 follow-up).
+- [ ] Shows profile photos without loading `{base_url}{profile_photo}` unsigned: a new photo's path is private since
+      stage 1c and is served only to a signed-in web session (PROGRESS.md, stage 1c follow-up).
+- [ ] `SYNC_MIN_VERSION_DISPOSITIONS` is set on the server to the first app version that reads `disposition`, in the
+      same release (stage 10, step 5c part 2: unset today, so every till gets Phase 7's codes).
+
 ## Counts
 
 | Stage | Checks |
@@ -194,4 +211,5 @@ Stage file: [23-stocktakes-in-the-app.md](./23-stocktakes-in-the-app.md).
 | 21 | 1 |
 | 22 | 1 |
 | 23 | 1 (placeholder) |
-| **Total** | **50** |
+| Review of main, 17 November 2026 | 6 |
+| **Total** | **56** |

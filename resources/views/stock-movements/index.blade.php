@@ -49,9 +49,9 @@
                                             </td>
                                             <td class="text-center">
                                                 @if($movement->movement_type->value === 'in')
-                                                    <span class="text-success">+{{ number_format($movement->quantity) }}</span>
+                                                    <span class="text-success">+{{ $movement->quantityLabel() }}</span>
                                                 @else
-                                                    <span class="text-danger">-{{ number_format($movement->quantity) }}</span>
+                                                    <span class="text-danger">-{{ $movement->quantityLabel() }}</span>
                                                 @endif
                                             </td>
                                             <td>

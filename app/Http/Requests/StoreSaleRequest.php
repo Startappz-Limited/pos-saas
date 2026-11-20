@@ -2,11 +2,15 @@
 
 namespace App\Http\Requests;
 
+use App\Casts\Quantity;
 use App\Models\Customer;
 use App\Models\Product;
+use App\Models\ProductUnit;
 use App\Models\ProductVariation;
 use App\Models\Sale;
 use App\Rules\KraPin;
+use App\Rules\QuantityForUnit;
+use App\Support\Stock\BaseQuantity;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Validator;
 
@@ -22,6 +26,22 @@ class StoreSaleRequest extends FormRequest
     public function authorize(): bool
     {
         return $this->user()?->can('create', Sale::class) ?? false;
+    }
+
+    /**
+     * Whether a line may name a deleted or no-longer-sellable unit: only for a sale a till already recorded
+     * offline (the sync push), never for a new online sale.
+     */
+    protected bool $recordedUnits = false;
+
+    /**
+     * Accepts units removed or stopped since the sale was rung: the sync push calls this for a till's sale.
+     */
+    public function acceptRecordedUnits(): static
+    {
+        $this->recordedUnits = true;
+
+        return $this;
     }
 
     /**
@@ -41,7 +61,8 @@ class StoreSaleRequest extends FormRequest
             'items' => ['required', 'array', 'min:1'],
             'items.*.product_id' => ['required', 'exists:products,id'],
             'items.*.variation_id' => ['nullable', 'exists:product_variations,id'],
-            'items.*.quantity' => ['required', 'integer', 'min:1', 'max:10000'],
+            'items.*.quantity' => ['required', 'numeric', 'min:0.001', 'max:10000'],
+            'items.*.unit_id' => ['nullable', 'string'],
             'items.*.price' => ['required', 'numeric', 'min:0', 'max:1000000'],
             'discount_amount' => ['nullable', 'numeric', 'min:0', 'max:1000000'],
             // Only honoured for shops that are not VAT registered. For a
@@ -56,6 +77,9 @@ class StoreSaleRequest extends FormRequest
             'payment_method' => ['required', 'in:cash,card,bank_transfer,mobile_money,credit'],
             'is_cod' => ['nullable', 'boolean'],
             'notes' => ['nullable', 'string', 'max:1000'],
+            // Pushes the sale through below the shop's stock (stage 11 step 4 follow-up); ignored
+            // for anyone without sales.oversell.
+            'oversell_reason' => ['nullable', 'string', 'max:500'],
         ];
     }
 
@@ -93,6 +117,7 @@ class StoreSaleRequest extends FormRequest
                 }
 
                 // Validate that variation belongs to the selected product
+                $variation = null;
                 if ($variationId) {
                     $variation = ProductVariation::where('id', $variationId)
                         ->where('product_id', $productId)
@@ -103,6 +128,36 @@ class StoreSaleRequest extends FormRequest
                             "items.{$index}.variation_id",
                             'The selected variation does not belong to this product.'
                         );
+                    }
+                }
+                $variation ??= $product->defaultVariation()->first();
+
+                // The unit sold, and the quantity against its precision (stage 11, step 3):
+                // a fraction of a whole-unit item (a tablet, a piece) is refused online.
+                if ($variation && isset($item['quantity'])) {
+                    $unitId = $item['unit_id'] ?? null;
+                    $unit = $unitId ? ProductUnit::resolveFor($variation, $unitId) : null;
+
+                    if ($unitId && ! $unit) {
+                        $validator->errors()->add("items.{$index}.unit_id", 'That unit was not found for this product.');
+                    } elseif ($unit && ! $this->recordedUnits && ($unit->trashed() || ! $unit->can_sell)) {
+                        // A new sale sells only in a unit the business still sells in; a till's offline sale
+                        // already happened, and may name a unit removed since (acceptRecordedUnits()).
+                        $validator->errors()->add("items.{$index}.unit_id", 'That unit is no longer sold for this product.');
+                    } else {
+                        $unit ??= $variation->baseUnit;
+                        (new QuantityForUnit($unit?->precision ?? 0))->validate(
+                            "items.{$index}.quantity",
+                            (string) $item['quantity'],
+                            fn (string $message) => $validator->errors()->add("items.{$index}.quantity", $message)
+                        );
+
+                        // Once the quantity is valid, it must also move at least one whole base unit's
+                        // worth exactly, or the sale would take no stock (BaseQuantity).
+                        if (! $validator->errors()->has("items.{$index}.quantity")
+                            && BaseQuantity::of(Quantity::normalize($item['quantity']), Quantity::normalize($unit?->factor ?? '1'), (int) ($variation->baseUnit?->precision ?? 3)) === null) {
+                            $validator->errors()->add("items.{$index}.quantity", 'That quantity is too small to sell in this unit: it makes less than one base unit, or a fraction of one.');
+                        }
                     }
                 }
             }
@@ -147,7 +202,7 @@ class StoreSaleRequest extends FormRequest
         }
 
         $subtotal = round(collect($items)->sum(
-            fn (mixed $item): float => is_array($item) ? round((int) ($item['quantity'] ?? 0) * (float) ($item['price'] ?? 0), 2) : 0.0
+            fn (mixed $item): float => is_array($item) ? round((float) ($item['quantity'] ?? 0) * (float) ($item['price'] ?? 0), 2) : 0.0
         ), 2);
 
         if (round((float) $discount, 2) > $subtotal) {

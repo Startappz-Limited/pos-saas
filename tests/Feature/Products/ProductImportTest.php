@@ -5,6 +5,7 @@ use App\Models\Product;
 use App\Models\Shop;
 use App\Models\ShopVariation;
 use App\Models\User;
+use App\Services\Stock\StockLedger;
 use App\Support\Tenancy\TenantContext;
 use App\Support\Tenancy\TenantFiles;
 use Illuminate\Http\UploadedFile;
@@ -17,7 +18,10 @@ use Spatie\Permission\Models\Permission;
  * list; the page's column table and template; column names matched loosely
  * and through alternatives; a missing required column or a bad line refuses
  * the file; ignored columns are a warning; products already in the system (by
- * SKU) are confirmed first, and updating SETS their stock in the chosen shop.
+ * SKU) are confirmed first. Stock changes only through intakes, adjustments,
+ * stocktakes and sales (decided after stage 11, step 4): the file's "stock"
+ * column is read for the opening-stock summary only, and updating an existing
+ * product only ever touches its low-stock threshold.
  */
 beforeEach(function () {
     seedRolesAndPermissions();
@@ -77,21 +81,22 @@ describe('the page', function () {
         $template = $this->actingAs($this->owner)->get(route('products.import.template'))->assertOk()->streamedContent();
         $lines = array_values(array_filter(explode("\n", $template)));
 
-        expect($lines[0])->toBe('name,selling_price,sku,barcode,category,cost_price,wholesale_price,stock,reorder_level,unit')
+        expect($lines[0])->toBe('name,selling_price,sku,barcode,category,cost_price,wholesale_price,stock,reorder_level,unit,unit_precision,pack_unit,pack_factor,pack_barcode,pack_price')
             ->and($lines)->toHaveCount(3);
 
         uploadProducts($this, $this->owner, $this->shop, $template)->assertRedirect(route('products.index'))->assertSessionHas('success');
-        expect(stockIn(productNamed('Wireless Mouse'), $this->shop))->toBe(20)
+        expect(stockIn(productNamed('Wireless Mouse'), $this->shop))->toBe(0)
             ->and(productNamed('Wireless Mouse')->reorder_level)->toBe(5)
             ->and(Product::query()->where('name', 'USB Cable 1m')->exists())->toBeTrue();
     });
 });
 
 describe('columns', function () {
-    it('reads the stock under any accepted name', function (string $header) {
-        uploadProducts($this, $this->owner, $this->shop, "name,selling_price,{$header}\nTea,100,12\n")->assertSessionHas('success');
+    it('recognises the stock column under any accepted name, without applying it', function (string $header) {
+        uploadProducts($this, $this->owner, $this->shop, "name,selling_price,{$header}\nTea,100,12\n")
+            ->assertSessionHas('success', '1 new product imported into Main Street, the file lists 12 units of opening stock to receive with a stock intake.');
 
-        expect(stockIn(productNamed('Tea'), $this->shop))->toBe(12);
+        expect(stockIn(productNamed('Tea'), $this->shop))->toBe(0);
     })->with(['stock', 'stock_quantity', 'quantity', 'qty', 'opening_stock', 'Stock Quantity', 'QTY']);
 
     it('reads the threshold under any accepted name', function (string $header) {
@@ -105,10 +110,10 @@ describe('columns', function () {
             ->assertSessionHas('success');
 
         $coffee = productNamed('Coffee');
-        expect(stockIn($coffee, $this->shop))->toBe(40)
+        expect(stockIn($coffee, $this->shop))->toBe(0)
             ->and($coffee->reorder_level)->toBe(6)
             ->and((float) $coffee->selling_price)->toBe(350.0)
-            ->and(DB::table('stock_movements')->where('product_id', $coffee->id)->count())->toBe(1);
+            ->and(DB::table('stock_movements')->where('product_id', $coffee->id)->count())->toBe(0);
     });
 
     it('refuses the whole file when a required column is missing, naming it', function () {
@@ -141,17 +146,18 @@ describe('columns', function () {
 
     it('says how many products and units of opening stock went in', function () {
         uploadProducts($this, $this->owner, $this->shop, "name,selling_price,stock\nTea,100,5\nCoffee,200,7\n")
-            ->assertSessionHas('success', '2 new products imported into Main Street, with 12 units of opening stock.');
+            ->assertSessionHas('success', '2 new products imported into Main Street, the file lists 12 units of opening stock to receive with a stock intake.');
     });
 });
 
 describe('products already in the system', function () {
     beforeEach(function () {
-        uploadProducts($this, $this->owner, $this->shop, "name,selling_price,sku,stock,reorder_level\nTea,100,TEA-1,10,4\n")->assertSessionHas('success');
+        uploadProducts($this, $this->owner, $this->shop, "name,selling_price,sku,reorder_level\nTea,100,TEA-1,4\n")->assertSessionHas('success');
         $this->tea = productNamed('Tea');
+        app(StockLedger::class)->setLevel($this->shop->id, $this->tea->defaultVariation()->first(), 10);
     });
 
-    it('asks first, changing nothing, and shows current against the file', function () {
+    it('asks first, changing nothing, and shows current stock against the file\'s figure, for reference', function () {
         uploadProducts($this, $this->owner, $this->shop, "name,selling_price,sku,stock,reorder_level\nTea renamed,999,tea-1,25,8\nCoffee,200,COF-1,3,2\n")
             ->assertRedirect(route('products.import.confirm'));
 
@@ -161,29 +167,29 @@ describe('products already in the system', function () {
         $this->tenant->forget();
         $this->actingAs($this->owner)->get(route('products.import.confirm'))->assertOk()
             ->assertSeeText('1 product whose SKU already exists, and 1 new one')
-            ->assertSee('10', false)->assertSee('<strong>25</strong>', false)->assertSee('<strong>8</strong>', false)
+            ->assertSee('10', false)->assertSee('file: 25', false)->assertSee('<strong>8</strong>', false)
             ->assertSeeText('Will change');
     });
 
-    it('updates by setting stock to the file\'s figure in the chosen shop, imports the new ones, and keeps names and prices', function () {
+    it('updates only the threshold, never stock, imports the new ones, and keeps names and prices', function () {
         uploadProducts($this, $this->owner, $this->shop, "name,selling_price,sku,stock,reorder_level\nTea renamed,999,TEA-1,25,8\nCoffee,200,COF-1,3,2\n");
 
         $this->tenant->forget();
         $this->actingAs($this->owner)->post(route('products.import.decide'), ['decision' => 'update'])
             ->assertRedirect(route('products.index'))
-            ->assertSessionHas('success', '1 new product imported into Main Street, with 3 units of opening stock. 1 existing product updated (stock set to the file\'s figure).');
+            ->assertSessionHas('success', '1 new product imported into Main Street, the file lists 3 units of opening stock to receive with a stock intake. 1 existing product\'s threshold updated.');
 
         $tea = $this->tea->fresh();
-        expect(stockIn($tea, $this->shop))->toBe(25)
-            ->and(ShopVariation::query()->where('shop_id', $this->shop->id)->where('variation_id', $tea->defaultVariation()->first()->id)->value('reorder_level'))->toBe(8)
+        expect(stockIn($tea, $this->shop))->toBe(10)
+            ->and(ShopVariation::query()->where('shop_id', $this->shop->id)->where('variation_id', $tea->defaultVariation()->first()->id)->value('reorder_level'))->toBe('8.000')
             ->and($tea->name)->toBe('Tea')
             ->and((float) $tea->selling_price)->toBe(100.0)
-            ->and(stockIn(productNamed('Coffee'), $this->shop))->toBe(3)
+            ->and(stockIn(productNamed('Coffee'), $this->shop))->toBe(0)
             ->and(session('product_import.pending'))->toBeNull()
             ->and(Storage::disk(TenantFiles::PRIVATE_DISK)->allFiles())->toBe([]);
     });
 
-    it('leaves stock as it is when the same file is uploaded again: 10 stays 10, not 20', function () {
+    it('leaves stock as it is when the same file is uploaded again, applying no change', function () {
         uploadProducts($this, $this->owner, $this->shop, "name,selling_price,sku,stock,reorder_level\nTea,100,TEA-1,10,4\n")
             ->assertRedirect(route('products.import.confirm'));
 
@@ -193,17 +199,18 @@ describe('products already in the system', function () {
         $this->actingAs($this->owner)->post(route('products.import.decide'), ['decision' => 'update'])
             ->assertSessionHas('success', fn (string $message): bool => str_contains($message, '1 existing product already matched the file'));
 
+        // 1 movement: the beforeEach's baseline setLevel; the import adds none.
         expect(stockIn($this->tea, $this->shop))->toBe(10)
             ->and(DB::table('stock_movements')->where('product_id', $this->tea->id)->count())->toBe(1);
     });
 
-    it('lowers stock too, recording the adjustment', function () {
+    it('never changes stock via import, even when the file\'s figure is lower', function () {
         uploadProducts($this, $this->owner, $this->shop, "name,selling_price,sku,stock\nTea,100,TEA-1,6\n");
         $this->tenant->forget();
         $this->actingAs($this->owner)->post(route('products.import.decide'), ['decision' => 'update']);
 
-        expect(stockIn($this->tea, $this->shop))->toBe(6)
-            ->and(DB::table('stock_movements')->where('product_id', $this->tea->id)->count())->toBe(2);
+        expect(stockIn($this->tea, $this->shop))->toBe(10)
+            ->and(DB::table('stock_movements')->where('product_id', $this->tea->id)->count())->toBe(1);
     });
 
     it('leaves an existing product\'s stock alone when the file\'s cell is empty', function () {
@@ -249,13 +256,13 @@ describe('products already in the system', function () {
             ->and(Storage::disk(TenantFiles::PRIVATE_DISK)->allFiles())->toBe([]);
     });
 
-    it('sets the stock in the shop chosen on the import page', function () {
+    it('never sets stock in the shop chosen on the import page either', function () {
         $branch = Shop::factory()->create(['name' => 'Branch']);
-        uploadProducts($this, $this->owner, $branch, "name,selling_price,sku,stock\nTea,100,TEA-1,7\n");
+        uploadProducts($this, $this->owner, $branch, "name,selling_price,sku,stock,reorder_level\nTea,100,TEA-1,7,2\n");
         $this->tenant->forget();
         $this->actingAs($this->owner)->post(route('products.import.decide'), ['decision' => 'update']);
 
-        expect(stockIn($this->tea, $branch))->toBe(7)
+        expect(stockIn($this->tea, $branch))->toBe(0)
             ->and(stockIn($this->tea, $this->shop))->toBe(10);
     });
 

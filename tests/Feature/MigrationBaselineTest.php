@@ -53,6 +53,46 @@ const REBUILT_LEGACY_TABLES = ['cost_layers', 'cost_allocations'];
  */
 const MOVED_LEGACY_COLUMNS = ['products.stock_quantity', 'product_variations.stock_quantity', 'shop_product.stock_quantity'];
 
+/**
+ * Legacy columns widened on purpose to a decimal (stage 11, step 1): every stock
+ * quantity to decimal(15,3) and the costs per base unit to decimal(15,4), values
+ * unchanged. A whole number or a decimal is still carried across exactly; only a
+ * column listed here may change from one numeric type to a decimal.
+ */
+const WIDENED_LEGACY_COLUMNS = [
+    'abandoned_cart_items.quantity',
+    'ecommerce_order_items.quantity',
+    'inventory_snapshots.quantity_on_hand',
+    'low_stock_alerts.current_quantity',
+    'low_stock_alerts.threshold_quantity',
+    'purchase_order_items.quantity_ordered',
+    'purchase_order_items.quantity_received',
+    'purchase_order_items.quantity_remaining',
+    'purchase_return_items.quantity',
+    'return_items.quantity',
+    'sale_items.quantity',
+    'sale_items.unit_cost',
+    'stock_adjustment_items.quantity_after',
+    'stock_adjustment_items.quantity_before',
+    'stock_adjustment_items.quantity_change',
+    // decimal(15,2) to decimal(15,3), as the ledger holds intake quantities (2026_11_18_000001).
+    'stock_intakes.quantity_accepted',
+    'stock_intakes.quantity_received',
+    'stock_intakes.quantity_rejected',
+    'stock_movements.quantity',
+    'stock_movements.quantity_after',
+    'stock_movements.quantity_before',
+    'stock_movements.unit_cost',
+    'product_variations.cost_price',
+];
+
+function legacyColumnWidened(string $column, string $was, string $now): bool
+{
+    return in_array($column, WIDENED_LEGACY_COLUMNS, true)
+        && preg_match('/^(tinyint|smallint|int|integer|bigint|decimal|numeric)/', $was) === 1
+        && preg_match('/^(decimal|numeric)/', $now) === 1;
+}
+
 it('keeps every legacy table and column, so the import can carry all data across', function () {
     $legacy = json_decode(file_get_contents(legacySchemaFixture()), true);
     $current = SchemaSnapshot::of();
@@ -71,7 +111,7 @@ it('keeps every legacy table and column, so the import can carry all data across
 
             if ($now === null) {
                 $lost[] = "{$table}.{$column}: removed";
-            } elseif ($now['type'] !== $was['type']) {
+            } elseif ($now['type'] !== $was['type'] && ! legacyColumnWidened("{$table}.{$column}", $was['type'], $now['type'])) {
                 $lost[] = "{$table}.{$column}: type {$was['type']} became {$now['type']}";
             } elseif ($now['nullable'] !== $was['nullable'] && (INTENDED_COLUMN_CHANGES["{$table}.{$column}"] ?? null) !== 'nullable') {
                 $lost[] = "{$table}.{$column}: nullable changed";

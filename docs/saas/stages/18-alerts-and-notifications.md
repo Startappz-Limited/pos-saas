@@ -109,6 +109,15 @@ Checked against `main` after Phase 7 (`832f684`), 27 October 2026.
 - [ ] **Daily digest:** a person who chose it gets one message at their digest time listing the day's alerts instead of
       one each.
 - [ ] A preferences page under the person's profile edits `notification_preferences`.
+- [ ] **The empty alert and notification classes** (review of `main`, 17 November 2026; nothing refers to them): the
+      actions `CreateAlert`, `ResolveAlert`, `SendNotification` and `GenerateOverdueNotice`, the service
+      `NotificationService` and the models `AlertRecipient`, `NotificationLog`, `NotificationPreference` and
+      `OverdueNotice` are each filled by the step that first uses them (with fillable fields, relations and a tenant
+      scope) or removed at the end of the stage; none is left empty
+      ([stage 25](./25-broken-pages-dead-code-and-hardening.md), step 3, leaves them to this stage).
+- [ ] **`customers.creditAlerts`** (`customers/credit-alerts/list`) renders a view that doesn't exist; stage 25, step 1
+      removes the route. Credit warnings are listed on this stage's alerts page, filtered by type, and anything that
+      linked to the old route points there.
 - [ ] SMS and WhatsApp to staff go through the business's own messaging credentials (Phase 3); WhatsApp to staff uses
       Baileys, since Cloud API free-form text fails outside a 24-hour window (CLAUDE.md).
 - [ ] Tests: a person with email off gets in-app only; an alert in quiet hours is held and sent after; a critical alert

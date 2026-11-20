@@ -150,7 +150,8 @@
                                                             name="items[{{ $index }}][sale_item_id]"
                                                             value="{{ $item->id }}" @disabled(!$isSelected)>
                                                         <input type="number" name="items[{{ $index }}][quantity]"
-                                                            class="form-control form-control-sm" min="1"
+                                                            class="form-control form-control-sm" min="{{ $item->quantityStep() }}"
+                                                            step="{{ $item->quantityStep() }}"
                                                             max="{{ $item->quantity }}"
                                                             value="{{ old("items.{$index}.quantity", 1) }}"
                                                             @disabled(!$isSelected)>

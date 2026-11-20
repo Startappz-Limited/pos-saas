@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Casts\Quantity;
 use App\Enums\ProductStatus;
 use App\Enums\TaxClass;
 use App\Models\Concerns\BelongsToBusiness;
@@ -12,6 +13,8 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Str;
 
 class ProductVariation extends Model
@@ -40,6 +43,7 @@ class ProductVariation extends Model
         'image',
         'status',
         'is_default',
+        'track_batches',
     ];
 
     protected function casts(): array
@@ -48,7 +52,8 @@ class ProductVariation extends Model
             'status' => ProductStatus::class,
             'attributes' => 'array',
             'is_default' => 'boolean',
-            'cost_price' => 'decimal:2',
+            'track_batches' => 'boolean',
+            'cost_price' => Quantity::class.':4',
             'selling_price' => 'decimal:2',
             'wholesale_price' => 'decimal:2',
             'tax_class' => TaxClass::class,
@@ -81,8 +86,54 @@ class ProductVariation extends Model
             }
         });
 
-        // Every variation has a stock row in each of its product's shops.
-        static::created(fn (self $variation) => $variation->product()->withoutGlobalScopes()->first()?->syncShopVariationRows());
+        // Every variation has a stock row in each of its product's shops, and
+        // exactly one base unit (stage 11, step 2).
+        static::created(function (self $variation): void {
+            $product = $variation->product()->withoutGlobalScopes()->first();
+            $product?->syncShopVariationRows();
+            $variation->createBaseUnit($product);
+        });
+    }
+
+    /**
+     * The one base unit every variation has (factor 1, the stock's own
+     * precision): named after the product's `unit` field, with the
+     * variation's own barcode, or the product's when this is the default
+     * variation of a product with no real variations of its own (today's
+     * behaviour, carried into the new home).
+     */
+    public function createBaseUnit(?Product $product = null): ProductUnit
+    {
+        $product ??= $this->product()->withoutGlobalScopes()->first();
+        $name = $product?->unit ?: 'piece';
+        $barcode = $this->barcode;
+        if (blank($barcode) && $this->is_default && $product !== null && ! $product->has_variations) {
+            $barcode = $product->barcode;
+        }
+
+        return $this->units()->create([
+            'business_id' => $this->business_id,
+            'name' => $name,
+            'factor' => 1,
+            'precision' => ProductUnit::guessPrecision($name),
+            'barcode' => $barcode,
+            'selling_price' => $this->selling_price,
+            'wholesale_price' => $this->wholesale_price,
+            'is_base' => true,
+            'can_sell' => true,
+            'can_buy' => true,
+            'is_default_purchase' => true,
+        ]);
+    }
+
+    public function units(): HasMany
+    {
+        return $this->hasMany(ProductUnit::class, 'variation_id');
+    }
+
+    public function baseUnit(): HasOne
+    {
+        return $this->hasOne(ProductUnit::class, 'variation_id')->where('is_base', true);
     }
 
     // Relationships
@@ -106,16 +157,6 @@ class ProductVariation extends Model
     public function isActive(): bool
     {
         return $this->status === ProductStatus::ACTIVE;
-    }
-
-    public function isOutOfStock(): bool
-    {
-        return $this->stock_quantity <= 0;
-    }
-
-    public function canBeSold(): bool
-    {
-        return $this->status->canBeSold() && $this->stock_quantity > 0;
     }
 
     /**
@@ -164,6 +205,12 @@ class ProductVariation extends Model
     protected function stockVariation(): ?ProductVariation
     {
         return $this;
+    }
+
+    /** Whether this variation's product tracks stock (stage 11, step 4). */
+    protected function tracksStock(): bool
+    {
+        return (bool) (Product::withoutGlobalScopes()->find($this->product_id)?->track_stock ?? true);
     }
 
     /**

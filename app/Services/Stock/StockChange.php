@@ -10,12 +10,13 @@ use App\Models\StockMovement;
 final class StockChange
 {
     /**
+     * @param  string  $quantity  base units moved, as a scale-3 decimal string (stage 11, step 1)
      * @param  float  $totalCost  cost of the units, unknown costs counted as zero
      * @param  bool  $costKnown  false when any unit's cost is unknown
      */
     public function __construct(
         public readonly StockMovement $movement,
-        public readonly int $quantity,
+        public readonly string $quantity,
         public readonly float $totalCost,
         public readonly bool $costKnown,
     ) {}
@@ -25,6 +26,6 @@ final class StockChange
      */
     public function unitCost(): float
     {
-        return $this->quantity > 0 ? round($this->totalCost / $this->quantity, 2) : 0.0;
+        return bccomp($this->quantity, '0', 3) > 0 ? round($this->totalCost / (float) $this->quantity, 2) : 0.0;
     }
 }

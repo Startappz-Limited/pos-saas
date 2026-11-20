@@ -54,7 +54,7 @@
                                 <table class="table table-sm table-borderless">
                                     <tr>
                                         <td class="text-muted" style="width: 150px;">Quantity:</td>
-                                        <td class="fw-medium">{{ number_format($inventorySnapshot->quantity_on_hand) }}</td>
+                                        <td class="fw-medium">{{ $inventorySnapshot->variation ? \App\Support\Stock\UnitBreakdown::describe($inventorySnapshot->variation, $inventorySnapshot->quantity_on_hand) : number_format($inventorySnapshot->quantity_on_hand) }}</td>
                                     </tr>
                                     <tr>
                                         <td class="text-muted">Total Value:</td>

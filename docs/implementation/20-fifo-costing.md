@@ -1,4 +1,9 @@
 # Module 20: FIFO Costing
+
+> **Superseded (stage 11, step 9).** FIFO costing is built on `cost_layers` and `StockLedger` (stage 1b); FEFO and
+> expiry are in stage 11, step 5. The unused `CostingMethod` enum and `CostingService` stub are removed; the
+> `sale_item_stock_allocations` table stays until its drop is decided.
+
 ## Stock Taking & Sales Management System
 
 > **Important:** This module follows the guidelines defined in `.ai/general/` folder.

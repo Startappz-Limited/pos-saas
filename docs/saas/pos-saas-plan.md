@@ -753,6 +753,8 @@ answered.
   - A `StockMovement` for every sale, written by one shared stock service rather than inline in each path.
   - **Costing:** the unused FIFO tables are dropped or adopted (Open question 5); profit and
     `RecomputeSaleProfit` use the per-shop cost.
+    *Stage 11, step 9 (17 November 2026): the unused `CostingMethod` enum, `CostingService` and
+    `SaleItemStockAllocation` model are removed; the `sale_item_stock_allocations` table stays until its drop is decided.*
   - **Registers:** `Register`; `CashRegister` becomes register sessions tied to a register; a **default
     register per shop** for the legacy API (4.8).
   - **Invoice numbers:** `InvoiceNumberService` moves to per-register series, keeping its existing row

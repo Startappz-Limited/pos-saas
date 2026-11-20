@@ -166,6 +166,7 @@
                                     <tr>
                                         <th>Product</th>
                                         <th class="text-nowrap" style="min-width: 120px;">Variation</th>
+                                        <th class="text-nowrap" style="min-width: 110px;">{{ __('Unit') }}</th>
                                         <th class="text-nowrap" style="min-width: 100px;">Quantity</th>
                                         <th class="text-nowrap" style="min-width: 120px;">Price</th>
                                         <th class="text-nowrap" style="min-width: 120px;">Subtotal</th>
@@ -183,7 +184,7 @@
                                                     class="form-select product-select d-none" required>
                                                     <option value="">Select Product</option>
                                                     @foreach ($products as $product)
-                                                        <option value="{{ $product->id }}" data-price="{{ $product->selling_price }}" data-wholesale-price="{{ $product->wholesale_price }}" data-has-variations="{{ $product->has_variations ? 'true' : 'false' }}" data-variations="{{ $product->variations->toJson() }}">{{ $product->name }} ({{ $product->sku }})</option>
+                                                        <option value="{{ $product->id }}" data-price="{{ $product->selling_price }}" data-wholesale-price="{{ $product->wholesale_price }}" data-has-variations="{{ $product->has_variations ? 'true' : 'false' }}" data-variations="{{ $product->variations->toJson() }}" data-default-variation="{{ $product->defaultVariation?->id }}">{{ $product->name }} ({{ $product->sku }})</option>
                                                     @endforeach
                                                 </select>
                                                 <div class="product-results position-absolute bg-white border rounded shadow-sm d-none"
@@ -197,9 +198,15 @@
                                                 <option value="">No variation</option>
                                             </select>
                                         </td>
+                                        <td data-label="{{ __('Unit') }}">
+                                            <select name="items[0][unit_id]" class="form-select unit-select"
+                                                aria-label="{{ __('Unit') }}" disabled>
+                                                <option value="">{{ __('Base unit') }}</option>
+                                            </select>
+                                        </td>
                                         <td data-label="Quantity">
                                             <input type="number" name="items[0][quantity]"
-                                                class="form-control item-quantity" value="1" min="1"
+                                                class="form-control item-quantity" value="1" min="1" step="1"
                                                 required>
                                         </td>
                                         <td data-label="Price">
@@ -575,6 +582,74 @@
         <script>
             let itemIndex = 1;
             let currentCustomerType = 'retail'; // Default to retail pricing
+            // The units each variation sells in, by variation id (base unit first), from the controller.
+            const SALE_UNITS = @json($saleUnits);
+            const BASE_UNIT_LABEL = @json(__('Base unit'));
+
+            // The element whose data-price/data-wholesale-price give the row's base-unit price: the chosen
+            // variation's option, else the product's.
+            function priceSource(row) {
+                const variationSelect = row.querySelector('.variation-select');
+                if (variationSelect && variationSelect.value) {
+                    return variationSelect.options[variationSelect.selectedIndex];
+                }
+                const productSelect = row.querySelector('.product-select');
+                return productSelect.value ? productSelect.options[productSelect.selectedIndex] : null;
+            }
+
+            // Fills the row's unit selector with the units of variationId (stage 11): one unit (or none known)
+            // leaves it disabled on the base unit, which the server assumes when no unit is sent.
+            function populateUnits(row, variationId) {
+                const unitSelect = row.querySelector('.unit-select');
+                const units = (variationId && SALE_UNITS[variationId]) || [];
+                unitSelect.innerHTML = '';
+                if (units.length === 0) {
+                    unitSelect.add(new Option(BASE_UNIT_LABEL, ''));
+                }
+                units.forEach(function(unit) {
+                    const option = new Option(unit.name, unit.is_base ? '' : unit.uuid);
+                    option.dataset.factor = unit.factor;
+                    option.dataset.precision = unit.precision;
+                    option.dataset.isBase = unit.is_base ? 'true' : 'false';
+                    option.dataset.sellingPrice = unit.selling_price ?? '';
+                    option.dataset.wholesalePrice = unit.wholesale_price ?? '';
+                    unitSelect.add(option);
+                });
+                unitSelect.disabled = units.length < 2;
+                applyUnit(row);
+            }
+
+            // The selected unit's price and quantity decimals: a pack's own price, else the base price times its
+            // factor; a whole unit steps by 1, a weight by its precision (0.001 kg).
+            function applyUnit(row) {
+                const unitSelect = row.querySelector('.unit-select');
+                const quantityInput = row.querySelector('.item-quantity');
+                const option = unitSelect.options[unitSelect.selectedIndex];
+                const precision = option && option.dataset.precision !== undefined ? parseInt(option.dataset.precision, 10) || 0 : 0;
+                const step = precision > 0 ? (1 / Math.pow(10, precision)).toFixed(precision) : '1';
+                quantityInput.step = step;
+                quantityInput.min = step;
+
+                const source = priceSource(row);
+                // A product with variations has no price of its own until a variation is chosen.
+                if (!source || source.dataset.hasVariations === 'true') {
+                    return;
+                }
+                const basePrice = getPrice(source);
+                let price = basePrice;
+                if (option && option.dataset.isBase === 'false') {
+                    const factor = parseFloat(option.dataset.factor) || 1;
+                    const retail = option.dataset.sellingPrice !== '' ? parseFloat(option.dataset.sellingPrice) : (parseFloat(source.dataset.price) || 0) * factor;
+                    price = retail;
+                    if (currentCustomerType === 'wholesale') {
+                        const ownWholesale = parseFloat(option.dataset.wholesalePrice);
+                        const baseWholesale = parseFloat(source.dataset.wholesalePrice);
+                        price = ownWholesale || (baseWholesale ? baseWholesale * factor : retail);
+                    }
+                }
+                row.querySelector('.item-price').value = price.toFixed(2);
+                updateRowSubtotal(row);
+            }
 
             // Listen for customer type changes
             document.getElementById('customer_id').addEventListener('change', function(e) {
@@ -596,11 +671,9 @@
                         return;
                     }
 
-                    // Update product price based on customer type
+                    // Update product price based on customer type, in the row's unit
                     if (productSelect.value) {
-                        const selectedOption = productSelect.options[productSelect.selectedIndex];
-                        row.querySelector('.item-price').value = getPrice(selectedOption).toFixed(2);
-                        updateRowSubtotal(row);
+                        applyUnit(row);
                     }
                 });
             }
@@ -692,7 +765,8 @@
                     searchInput.style.backgroundColor = '#fff';
                     searchInput.blur();
 
-                    // Handle variations
+                    // Handle variations; the row's units follow the variation (none chosen yet: base unit only)
+                    populateUnits(row, null);
                     if (item.dataset.hasVariations === 'true') {
                         const variations = JSON.parse(item.dataset.variations);
                         variationSelect.innerHTML = '<option value="">Select variation</option>';
@@ -711,9 +785,9 @@
                         variationSelect.disabled = true;
                         variationSelect.required = false;
 
-                        // Use customer-type-appropriate price
-                        row.querySelector('.item-price').value = getPrice(item).toFixed(2);
-                        updateRowSubtotal(row);
+                        // Use customer-type-appropriate price, in the default variation's units
+                        const productOption = productSelect.options[productSelect.selectedIndex];
+                        populateUnits(row, productOption.dataset.defaultVariation);
                     }
                 }
 
@@ -743,6 +817,10 @@
                         row.querySelector('.item-price').value = price;
                         updateRowSubtotal(row);
                     }
+                    populateUnits(row, e.target.value || null);
+                }
+                if (e.target.classList.contains('unit-select')) {
+                    applyUnit(e.target.closest('.item-row'));
                 }
             });
 
@@ -759,6 +837,12 @@
                     }
                     if (input.classList.contains('item-quantity')) {
                         input.value = 1;
+                        input.min = 1;
+                        input.step = 1;
+                    } else if (input.classList.contains('unit-select')) {
+                        input.innerHTML = '';
+                        input.add(new Option(BASE_UNIT_LABEL, ''));
+                        input.disabled = true;
                     } else if (input.classList.contains('product-search')) {
                         input.value = '';
                         input.style.color = '#000';

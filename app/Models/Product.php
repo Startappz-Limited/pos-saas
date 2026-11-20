@@ -8,12 +8,14 @@ use App\Models\Concerns\Auditable;
 use App\Models\Concerns\BelongsToBusiness;
 use App\Models\Concerns\HasShopStock;
 use App\Models\Concerns\RecordsSyncDeletion;
+use App\Support\Stock\UnitBreakdown;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\DB;
@@ -31,6 +33,7 @@ class Product extends Model
         'business_id',
         'uuid',
         'name',
+        'is_medical',
         'slug',
         'description',
         'sku',
@@ -59,6 +62,7 @@ class Product extends Model
     {
         return [
             'status' => ProductStatus::class,
+            'is_medical' => 'boolean',
             'cost_price' => 'decimal:2',
             'selling_price' => 'decimal:2',
             'wholesale_price' => 'decimal:2',
@@ -73,6 +77,23 @@ class Product extends Model
     public function uniqueIds(): array
     {
         return ['uuid'];
+    }
+
+    /**
+     * A product with real variations sends no barcode of its own in its JSON: that barcode waits for
+     * a unit (stage 11, step 7) and nothing sends it until it is assigned.
+     *
+     * @return array<string, mixed>
+     */
+    public function attributesToArray(): array
+    {
+        $attributes = parent::attributesToArray();
+
+        if ($this->has_variations && array_key_exists('barcode', $attributes)) {
+            $attributes['barcode'] = null;
+        }
+
+        return $attributes;
     }
 
     public function getRouteKeyName(): string
@@ -111,6 +132,20 @@ class Product extends Model
             if ($product->isDirty('sku') && blank($product->sku)) {
                 $product->sku = static::generateSku();
             }
+        });
+
+        // A deleted product's units go with it (stage 11, step 2): keeps its
+        // barcode free to reuse, since a variation (which doesn't soft-delete)
+        // would otherwise still hold it on its base unit. A raw update, not
+        // delete(): the base-unit guard is for someone removing a unit from a
+        // product still in use, not this cleanup. Units soft-delete (not the
+        // variation, which has no deleted_at), so nothing that already names
+        // one, or will via unit_id, loses its reference.
+        static::deleted(function (Product $product): void {
+            DB::table('product_units')
+                ->whereIn('variation_id', $product->sellableVariations()->pluck('id'))
+                ->whereNull('deleted_at')
+                ->update(['deleted_at' => now(), 'updated_at' => now()]);
         });
     }
 
@@ -172,6 +207,12 @@ class Product extends Model
         return $this->defaultVariation()->first();
     }
 
+    /** Whether this product tracks stock (stage 11, step 4). */
+    protected function tracksStock(): bool
+    {
+        return (bool) $this->track_stock;
+    }
+
     /**
      * The variations people created; the default variation isn't one of them.
      */
@@ -196,6 +237,40 @@ class Product extends Model
     public function sellableVariations(): HasMany
     {
         return $this->hasMany(ProductVariation::class)->withoutGlobalScope(ProductVariation::HIDE_DEFAULT);
+    }
+
+    /**
+     * The units of every sellable variation, the default one's included (stage 11, step 8): what
+     * the flat API sends as a product's `units`. A deleted unit is left off (soft deletes).
+     */
+    /**
+     * The stock for a stock screen, in the largest sensible unit with the remainder (stage 11, step 2),
+     * for a simple product. A product with real variations shows its plain figure, since its variations
+     * don't share one unit.
+     */
+    public function stockLabel(): string
+    {
+        $quantity = $this->stock_quantity ?? 0;
+
+        if ($this->has_variations || $this->defaultVariation === null) {
+            return self::quantityLabel($quantity);
+        }
+
+        return UnitBreakdown::describe($this->defaultVariation, $quantity);
+    }
+
+    /**
+     * Barcodes of this product waiting for a unit (stage 11, step 7).
+     */
+    public function unassignedBarcodes(): HasMany
+    {
+        return $this->hasMany(UnassignedBarcode::class);
+    }
+
+    public function units(): HasManyThrough
+    {
+        return $this->hasManyThrough(ProductUnit::class, ProductVariation::class, 'product_id', 'variation_id')
+            ->withoutGlobalScope(ProductVariation::HIDE_DEFAULT);
     }
 
     /**
@@ -326,19 +401,9 @@ class Product extends Model
         return $this->status === ProductStatus::ACTIVE;
     }
 
-    public function isOutOfStock(): bool
-    {
-        return $this->stock_quantity <= 0;
-    }
-
     public function isLowStock(): bool
     {
         return $this->stock_quantity <= $this->reorder_level;
-    }
-
-    public function canBeSold(): bool
-    {
-        return $this->status->canBeSold() && ($this->stock_quantity > 0 || ! $this->track_stock);
     }
 
     /**
@@ -358,23 +423,25 @@ class Product extends Model
         return $this->hasPurchaseCost() && (float) $this->cost_price > (float) $this->selling_price;
     }
 
+    /**
+     * Margin as a percentage, with the money rules sales use (stage 11, step 9): bcmath, rounded to
+     * two decimals, no float drift.
+     */
     public function getProfitMarginAttribute(): float
     {
-        if ($this->selling_price <= 0) {
+        if ((float) $this->selling_price <= 0) {
             return 0;
         }
 
-        return (($this->selling_price - (float) $this->cost_price) / $this->selling_price) * 100;
+        return (float) bcmul(bcdiv($this->profit, (string) $this->selling_price, 6), '100', 2);
     }
 
+    /**
+     * Profit per unit, to the cent, as a sale's line profit is (stage 11, step 9).
+     */
     public function getProfitAttribute(): float
     {
-        return $this->selling_price - (float) $this->cost_price;
-    }
-
-    public function getTotalStockValueAttribute(): float
-    {
-        return $this->stock_quantity * (float) $this->cost_price;
+        return (float) bcsub(number_format((float) $this->selling_price, 2, '.', ''), number_format((float) $this->cost_price, 2, '.', ''), 2);
     }
 
     /**

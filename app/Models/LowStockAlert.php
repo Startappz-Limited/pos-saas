@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Casts\Quantity;
 use App\Enums\AlertStatus;
 use App\Models\Concerns\BelongsToShop;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
@@ -32,8 +33,8 @@ class LowStockAlert extends Model
     {
         return [
             'status' => AlertStatus::class,
-            'current_quantity' => 'integer',
-            'threshold_quantity' => 'integer',
+            'current_quantity' => Quantity::class,
+            'threshold_quantity' => Quantity::class,
             'acknowledged_at' => 'datetime',
         ];
     }

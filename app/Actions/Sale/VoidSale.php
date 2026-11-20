@@ -41,10 +41,11 @@ class VoidSale
     public function execute(Sale $sale, string $reason, ?User $by, bool $approvedRequest = false, ?Register $till = null, ?CarbonInterface $recordedAt = null): array
     {
         $result = DB::transaction(function () use ($sale, $reason, $by, $approvedRequest, $till, $recordedAt): array {
-            $units = 0;
+            $units = '0.000';
             foreach ($sale->items()->orderBy('id')->get() as $item) {
-                $units += $this->ledger->release($item, StockMovementType::SALE_VOID, ['reference' => $sale, 'user_id' => $by?->id, 'notes' => "Sale {$sale->invoice_number} voided."])?->quantity ?? 0;
+                $units = bcadd($units, $this->ledger->release($item, StockMovementType::SALE_VOID, ['reference' => $sale, 'user_id' => $by?->id, 'notes' => "Sale {$sale->invoice_number} voided."])?->quantity ?? '0', 3);
             }
+            $units = (int) $units;
 
             // Before the status changes: what it took, and whether its session counted it.
             $money = $this->refunds->settle($sale, $by, $approvedRequest, $till, $recordedAt);

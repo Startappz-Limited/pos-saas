@@ -63,6 +63,12 @@ Checked against `main` after Phase 7 (`832f684`), 27 October 2026.
 - [ ] `ExpenseService` (filled): create, update, submit, approve, reject, mark paid, settle from the register, each in
       a transaction, used by the web and flat API controllers alike; every status change writes
       `expense_approval_history` (from, to, who, comment).
+- [ ] **The empty expense classes** (review of `main`, 17 November 2026; nothing refers to them): the actions
+      `CreateExpense`, `ApproveExpense`, `RejectExpense`, `MarkExpenseAsPaid`, `SubmitExpenseForApproval`,
+      `CreateExpenseCategory` and `UpdateExpenseCategory` are removed (the service holds the logic);
+      `ExpenseCategoryService` is filled or removed; the models `ExpenseApprovalHistory` and `ExpenseReceipt` get their
+      fillable fields, relations and tenant scope when this step and step 4 first write them
+      ([stage 25](./25-broken-pages-dead-code-and-hardening.md), step 3, leaves them to this stage).
 
 ### 2. Approval as stage 10's pattern
 - [ ] `ExpenseApproval::needsSecondPerson($expense)`: the category requires approval, or the amount is above the

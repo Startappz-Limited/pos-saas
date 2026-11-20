@@ -58,7 +58,6 @@ class ProductController extends Controller
             'selling_price' => ['required', 'numeric', 'min:0'],
             'status' => ['nullable', Rule::enum(ProductStatus::class)],
             'wholesale_price' => ['nullable', 'numeric', 'min:0'],
-            'stock_quantity' => ['required', 'integer', 'min:0'],
             'reorder_level' => ['nullable', 'integer', 'min:0'],
             'track_stock' => ['nullable', 'boolean'],
             'unit' => ['nullable', 'string', 'max:50'],
@@ -72,7 +71,7 @@ class ProductController extends Controller
 
         $validated['created_by'] = auth()->id();
         $product = $this->productService->createProduct($validated);
-        $product->load(['category', 'supplier', 'variations']);
+        $product->load(['category', 'supplier', 'variations', 'units']);
 
         return response()->json([
             'success' => true,
@@ -85,7 +84,7 @@ class ProductController extends Controller
     {
         $this->authorize('view', $product);
 
-        $product->load(['category', 'supplier', 'variations', 'shops']);
+        $product->load(['category', 'supplier', 'variations', 'units', 'shops']);
 
         return response()->json([
             'success' => true,
@@ -108,7 +107,6 @@ class ProductController extends Controller
             'selling_price' => ['sometimes', 'numeric', 'min:0'],
             'status' => ['sometimes', Rule::enum(ProductStatus::class)],
             'wholesale_price' => ['nullable', 'numeric', 'min:0'],
-            'stock_quantity' => ['sometimes', 'integer', 'min:0'],
             'reorder_level' => ['nullable', 'integer', 'min:0'],
             'track_stock' => ['nullable', 'boolean'],
             'unit' => ['nullable', 'string', 'max:50'],
@@ -128,7 +126,7 @@ class ProductController extends Controller
 
         $validated['updated_by'] = auth()->id();
         $product = $this->productService->updateProduct($product, $validated);
-        $product->load(['category', 'supplier', 'variations']);
+        $product->load(['category', 'supplier', 'variations', 'units']);
 
         return response()->json([
             'success' => true,

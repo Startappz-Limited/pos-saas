@@ -2,6 +2,7 @@
 
 namespace App\Support\Stock;
 
+use App\Casts\Quantity;
 use App\Enums\AdjustmentReason;
 use App\Models\Business;
 use App\Models\ProductVariation;
@@ -33,8 +34,9 @@ use Illuminate\Support\Collection;
  * offered (purchase returns).
  *
  * The cost value is Σ |quantity| × unit cost over the lines (gross, never
- * netted), a decrease at the cost the ledger would consume now, an increase at
- * the shop's latest batch cost of the variation, else unknown.
+ * netted), a decrease at the cost the ledger would consume now, an increase
+ * only at the cost entered on the line (stage 11, step 5) — never the
+ * shop's latest batch cost silently, else unknown.
  */
 final class AdjustmentApproval
 {
@@ -70,7 +72,7 @@ final class AdjustmentApproval
             return true;
         }
 
-        if ($adjustment->reason === AdjustmentReason::RECOUNT && $adjustment->items->contains(fn (StockAdjustmentItem $item): bool => (int) $item->quantity_change < 0)) {
+        if ($adjustment->reason === AdjustmentReason::RECOUNT && $adjustment->items->contains(fn (StockAdjustmentItem $item): bool => (float) $item->quantity_change < 0)) {
             return true;
         }
 
@@ -80,7 +82,7 @@ final class AdjustmentApproval
             if ($cost === null) {
                 return true;
             }
-            $value += abs((int) $item->quantity_change) * $cost;
+            $value += abs((float) $item->quantity_change) * $cost;
         }
 
         return round($value + $this->autoAppliedToday($adjustment), 2) >= self::threshold($adjustment->shop?->business);
@@ -110,20 +112,23 @@ final class AdjustmentApproval
      */
     public function value(StockAdjustment $adjustment): float
     {
-        return round($adjustment->items->sum(fn (StockAdjustmentItem $item): float => abs((int) $item->quantity_change) * (float) $this->unitCost($item)), 2);
+        return round($adjustment->items->sum(fn (StockAdjustmentItem $item): float => abs((float) $item->quantity_change) * (float) $this->unitCost($item)), 2);
     }
 
     /**
-     * The unit cost a line moves stock at; null when unknown.
+     * The unit cost a line moves stock at; null when unknown. A decrease
+     * costs at what the ledger would consume it from now; an increase costs
+     * only at what was entered (stage 11, step 5) — never the shop's latest
+     * batch cost silently, so this agrees with what apply() actually moves
+     * stock at.
      */
     public function unitCost(StockAdjustmentItem $item): ?float
     {
-        $variation = $this->variationOf($item);
-        $shopId = (int) $item->shop_id;
+        if ((float) $item->quantity_change < 0) {
+            return $this->ledger->costToConsume((int) $item->shop_id, $this->variationOf($item), Quantity::normalize($item->quantity_change), $item->cost_layer_id, $item->cost_layer_id !== null, $item->cost_layer_id !== null);
+        }
 
-        return (int) $item->quantity_change < 0
-            ? $this->ledger->costToConsume($shopId, $variation, (int) $item->quantity_change)
-            : $this->ledger->latestBatchCost($shopId, $variation);
+        return $item->unit_cost !== null ? (float) $item->unit_cost : null;
     }
 
     public function variationOf(StockAdjustmentItem $item): ProductVariation

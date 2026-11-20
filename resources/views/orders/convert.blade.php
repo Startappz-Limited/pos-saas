@@ -171,6 +171,8 @@
                             <div class="col-12">
                                 <label for="delivery_location" class="form-label">Delivery Location</label>
                                 @php
+                                    // The website takes whole quantities only (WooCommerce, Shopify).
+                                    $wholeQuantitiesOnly = in_array($order->platform, \App\Http\Requests\ConvertOrderToSaleRequest::WHOLE_QUANTITY_PLATFORMS, true);
                                     $shippingAddr = $order->shipping_address;
                                     $defaultLocation = '';
                                     if ($shippingAddr) {
@@ -264,7 +266,7 @@
                                                 <input type="number" name="items[{{ $index }}][quantity]"
                                                     class="form-control item-quantity text-center"
                                                     value="{{ old("items.{$index}.quantity", $item->quantity) }}"
-                                                    min="1" step="1" required>
+                                                    min="{{ $wholeQuantitiesOnly ? 1 : 0.001 }}" step="{{ $wholeQuantitiesOnly ? 1 : 'any' }}" required>
                                                 @error("items.{$index}.quantity")
                                                     <div class="invalid-feedback d-block">{{ $message }}</div>
                                                 @enderror
@@ -316,8 +318,8 @@
                         </td>
                         <td>
                             <input type="number" name="items[INDEX][quantity]"
-                                class="form-control item-quantity text-center" value="1" min="1"
-                                step="1" required>
+                                class="form-control item-quantity text-center" value="1" min="{{ $wholeQuantitiesOnly ? 1 : 0.001 }}"
+                                step="{{ $wholeQuantitiesOnly ? 1 : 'any' }}" required>
                         </td>
                         <td>
                             <div class="input-group">
@@ -565,11 +567,13 @@
                 'sku' => $product->sku,
                 'price' => (float) $product->selling_price,
                 'has_variations' => (bool) $product->has_variations,
+                'precision' => (int) ($product->defaultVariation?->baseUnit?->precision ?? 0),
                 'variations' => $product->variations
                     ->map(function ($variation) {
                         return [
                             'id' => $variation->id,
                             'name' => $variation->name,
+                            'precision' => (int) ($variation->baseUnit?->precision ?? 0),
                             'price' => (float) $variation->selling_price,
                             'sku' => $variation->sku,
                         ];
@@ -658,6 +662,7 @@
                         variation.id
                     );
                     option.dataset.price = variation.price;
+                    option.dataset.precision = variation.precision;
                     variationSelect.add(option);
                 });
                 variationSelect.disabled = false;
@@ -671,7 +676,21 @@
                 }
             }
 
+            // The website takes whole quantities only (WooCommerce, Shopify): no fraction, whatever the unit.
+            const wholeQuantitiesOnly = @json($wholeQuantitiesOnly);
+
+            // The quantity's step follows the base unit's decimals: 1 for whole units, 0.001 for kg. The server
+            // checks the same precision.
+            function setQuantityPrecision(row, precision) {
+                precision = wholeQuantitiesOnly ? 0 : precision;
+                const input = row.querySelector('.item-quantity');
+                const step = precision > 0 ? (1 / Math.pow(10, precision)).toFixed(precision) : '1';
+                input.step = step;
+                input.min = step;
+            }
+
             function applyProductToRow(row, product, updatePrice = true) {
+                setQuantityPrecision(row, product.precision || 0);
                 row.querySelector('.product-select').value = product.id;
                 row.querySelector('.product-search').value = productLabel(product);
                 updateVariationSelect(row, product);
@@ -784,6 +803,7 @@
 
                 const row = event.target.closest('.order-item-row');
                 const selectedOption = event.target.options[event.target.selectedIndex];
+                setQuantityPrecision(row, parseInt(selectedOption?.dataset.precision || '0', 10) || 0);
 
                 if (selectedOption?.dataset.price) {
                     row.querySelector('.item-price').value = selectedOption.dataset.price;

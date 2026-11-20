@@ -98,6 +98,9 @@ Checked against `main` after Phase 7 (`832f684`), 27 October 2026.
 - [ ] Fix the cause found (expected: a shared fake disk or a `TenantFiles` cache keyed without the business between
       tests); each test fakes its own disk.
 - [ ] Acceptance: 20 random-order runs of `tests/Feature` pass on SQLite and MySQL.
+- [ ] Added 17 November 2026 (test review): the same random-order run is extended to the whole suite, with the seed
+      printed on failure, in [stage 26](./26-test-suite-speed-edge-cases-and-journeys.md), step 4; step 2's pull-order
+      test at 20,000 products is its step 2f.
 
 ## Contract
 

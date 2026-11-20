@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Casts\Quantity;
 use Database\Factories\PurchaseReturnItemFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -33,7 +34,7 @@ class PurchaseReturnItem extends Model
     protected function casts(): array
     {
         return [
-            'quantity' => 'integer',
+            'quantity' => Quantity::class,
             'unit_cost' => 'decimal:2',
             'line_total' => 'decimal:2',
         ];

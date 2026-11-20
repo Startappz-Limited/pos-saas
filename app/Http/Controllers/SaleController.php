@@ -18,6 +18,7 @@ use App\Models\Category;
 use App\Models\Customer;
 use App\Models\DeliveryCompany;
 use App\Models\Product;
+use App\Models\ProductUnit;
 use App\Models\ProductVariation;
 use App\Models\Sale;
 use App\Models\SaleItem;
@@ -29,6 +30,7 @@ use App\Rules\UniqueForTenant;
 use App\Services\InvoiceNumberService;
 use App\Services\Stock\StockLedger;
 use App\Support\Sales\VoidButton;
+use App\Support\Stock\SaleLineUnit;
 use App\Support\Sync\SyncIssues;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Collection;
@@ -129,11 +131,13 @@ class SaleController extends Controller
             ->get();
 
         // Per-shop stock for each card in one query (stage 1b).
-        $products = Product::with(['variations' => fn ($query) => $query->withStockOnHand()])
+        $products = Product::with(['variations' => fn ($query) => $query->withStockOnHand(), 'defaultVariation:id,product_id'])
             ->withStockOnHand()
             ->where('status', 'active')
             ->orderBy('name')
             ->get();
+
+        $saleUnits = $this->saleUnitsFor($products);
 
         $saleSources = SaleSource::active()
             ->ordered()
@@ -148,7 +152,46 @@ class SaleController extends Controller
         // so leaving the field editable would just mislead the cashier.
         $vatRegistered = (bool) Shop::whereKey($shopId)->value('vat_registered');
 
-        return view('sales.create', compact('customers', 'products', 'activeRegister', 'saleSources', 'deliveryCompanies', 'shops', 'shopId', 'vatRegistered'));
+        return view('sales.create', compact('customers', 'products', 'saleUnits', 'activeRegister', 'saleSources', 'deliveryCompanies', 'shops', 'shopId', 'vatRegistered'));
+    }
+
+    /**
+     * The units each variation can be sold in (stage 11, review follow-up), keyed by variation id, for the
+     * sale form's unit selector: the base unit first, then packs. A disabled or deleted unit isn't offered
+     * (StoreSaleRequest refuses it too). One query for every product on the form.
+     *
+     * @param  Collection<int, Product>  $products
+     * @return array<int, list<array{uuid: string, name: string, factor: string, precision: int, is_base: bool, selling_price: ?string, wholesale_price: ?string}>>
+     */
+    private function saleUnitsFor(Collection $products): array
+    {
+        $variationIds = $products->flatMap(fn (Product $product) => [
+            $product->defaultVariation?->id,
+            ...$product->variations->pluck('id'),
+        ])->filter()->unique()->values();
+
+        if ($variationIds->isEmpty()) {
+            return [];
+        }
+
+        return ProductUnit::query()
+            ->whereIn('variation_id', $variationIds)
+            ->where('can_sell', true)
+            ->orderByDesc('is_base')
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->get()
+            ->groupBy('variation_id')
+            ->map(fn ($units) => $units->map(fn (ProductUnit $unit): array => [
+                'uuid' => $unit->uuid,
+                'name' => $unit->name,
+                'factor' => (string) $unit->factor,
+                'precision' => (int) $unit->precision,
+                'is_base' => (bool) $unit->is_base,
+                'selling_price' => $unit->selling_price,
+                'wholesale_price' => $unit->wholesale_price,
+            ])->values()->all())
+            ->all();
     }
 
     /**
@@ -207,6 +250,9 @@ class SaleController extends Controller
         $this->authorize('create', Sale::class);
 
         $validated = $request->validated();
+        // sales.oversell (decided 5 November 2026, stage 11): a reason sent with no permission is
+        // simply ignored, so a sale over stock is always refused unless the user actually holds it.
+        $oversellReason = $request->user()->can('sales.oversell') ? ($validated['oversell_reason'] ?? null) : null;
 
         DB::beginTransaction();
         try {
@@ -318,7 +364,10 @@ class SaleController extends Controller
             foreach ($validated['items'] as $index => $item) {
                 $product = $productsById[$item['product_id']];
                 $variation = isset($item['variation_id']) ? $variationsById[$item['variation_id']] ?? null : null;
+                $variation ??= $product->defaultVariation()->firstOrFail();
                 $line = $totals->line($index);
+                // The unit sold and its base quantity (stage 11, step 3).
+                $lineUnit = SaleLineUnit::resolve($variation, $item);
 
                 $saleItem = SaleItem::create([
                     'uuid' => (string) Str::uuid(),
@@ -326,7 +375,9 @@ class SaleController extends Controller
                     'product_id' => $item['product_id'],
                     'shop_id' => $shopId,
                     'variation_id' => $item['variation_id'] ?? null,
-                    'quantity' => $item['quantity'],
+                    'unit_id' => $lineUnit['unit']?->id,
+                    'quantity' => $lineUnit['quantity'],
+                    'base_quantity' => $lineUnit['base_quantity'],
                     'unit_price' => $item['price'],
                     'line_total' => $line['line_total'],
                     'tax_class' => $line['tax_class'],
@@ -340,8 +391,12 @@ class SaleController extends Controller
                     'status' => 'completed',
                 ]);
 
-                // Take the stock from the line's shop, costed oldest layers first.
-                app(StockLedger::class)->sellItem($saleItem, $variation ?? $product->defaultVariation()->firstOrFail());
+                // Take the stock from the line's shop, costed oldest layers first. Refuses below the
+                // shop's stock (sales.oversell above) unless $oversellReason overrides it.
+                app(StockLedger::class)->sellItem($saleItem, $variation, [
+                    'enforce_stock' => true,
+                    'oversell_reason' => $oversellReason,
+                ]);
             }
             // FIFO cost and profit onto the sale held in memory (a reload would
             // turn the response's money fields into strings on MySQL).
@@ -356,8 +411,12 @@ class SaleController extends Controller
 
             DB::commit();
 
-            // Sold below zero: on the till sync review (stage 10, step 1a).
-            app(SyncIssues::class)->recordNegativeStock($sale);
+            // Sold below zero: on the till sync review (stage 10, step 1a), with who pushed it
+            // through and why when sales.oversell was used (stage 11 step 4 follow-up).
+            app(SyncIssues::class)->recordNegativeStock($sale, override: $oversellReason !== null
+                ? ['by' => $request->user()->name, 'reason' => $oversellReason] : null);
+            // Short only because sellable stock was expired (stage 11, step 5).
+            app(SyncIssues::class)->recordExpiredStock($sale);
 
             // Send WhatsApp notifications to customer
             $this->sendSaleNotifications($sale);
@@ -435,7 +494,7 @@ class SaleController extends Controller
     {
         $this->authorize('view', $sale);
 
-        $sale->load(['customer', 'shop', 'items.product', 'items.variation', 'createdBy', 'source']);
+        $sale->load(['customer', 'shop', 'items.product', 'items.variation', 'items.unit', 'createdBy', 'source']);
 
         return view('sales.receipt', compact('sale'));
     }

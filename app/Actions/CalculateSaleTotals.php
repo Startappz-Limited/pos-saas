@@ -6,6 +6,7 @@ use App\Models\Product;
 use App\Models\ProductVariation;
 use App\Models\Shop;
 use App\Services\TaxService;
+use App\Support\Stock\SaleLineUnit;
 use App\Support\Tax\SaleTotals;
 use Illuminate\Support\Collection;
 
@@ -61,7 +62,8 @@ class CalculateSaleTotals
                 ? ($variationsById[$item['variation_id']] ?? null)
                 : null;
 
-            $quantity = (int) $item['quantity'];
+            // Decimal: a sale line's quantity is in whatever unit it was sold in (stage 11, step 3).
+            $quantity = (float) $item['quantity'];
             $unitPrice = (float) $item['price'];
 
             // A purchase cost may legitimately be unknown (NULL) for imported
@@ -70,7 +72,13 @@ class CalculateSaleTotals
             $unitCost = (float) (($variation ? $variation->cost_price : $product?->cost_price) ?? 0);
 
             $lineTotal = round($quantity * $unitPrice, 2);
-            $lineCost = round($quantity * $unitCost, 2);
+            // Cost is per base unit: a crate line costs its base quantity (quantity x factor) at the base
+            // cost. The line's unit cost is then per the unit sold, as its price is (stage 11, step 3).
+            $baseQuantity = $variation !== null && $variation->exists
+                ? (float) SaleLineUnit::resolve($variation, $item)['base_quantity']
+                : $quantity;
+            $lineCost = round($baseQuantity * $unitCost, 2);
+            $unitCost = $quantity > 0 ? round($lineCost / $quantity, 4) : 0.0;
 
             $subtotal += $lineTotal;
             $totalCost += $lineCost;

@@ -2,17 +2,21 @@
 
 namespace App\Services;
 
+use App\Casts\Quantity;
 use App\Enums\AdjustmentType;
 use App\Enums\StockMovementType;
 use App\Exceptions\BusinessRuleException;
 use App\Models\CostLayer;
 use App\Models\Product;
+use App\Models\ProductUnit;
+use App\Models\ProductVariation;
 use App\Models\StockAdjustment;
 use App\Models\StockAdjustmentItem;
 use App\Models\User;
 use App\Services\Stock\StockLedger;
 use App\Support\Approvals\ApprovalInbox;
 use App\Support\Stock\AdjustmentApproval;
+use App\Support\Stock\BaseQuantity;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
@@ -79,7 +83,7 @@ class StockAdjustmentService
         return DB::transaction(function () use ($data, $userId) {
             $adjustment = StockAdjustment::create([
                 'shop_id' => $data['shop_id'],
-                'type' => AdjustmentType::fromChanges(array_map(fn (array $item): int => (int) $item['quantity_change'], $data['items'])),
+                'type' => AdjustmentType::fromChanges(array_map(fn (array $item): float => (float) $item['quantity_change'], $data['items'])),
                 'reason' => $data['reason'],
                 'notes' => $data['notes'] ?? null,
                 'status' => 'pending',
@@ -128,7 +132,7 @@ class StockAdjustmentService
                 foreach ($data['items'] as $item) {
                     $this->addItem($adjustment, $item);
                 }
-                $adjustment->update(['type' => AdjustmentType::fromChanges(array_map(fn (array $item): int => (int) $item['quantity_change'], $data['items']))]);
+                $adjustment->update(['type' => AdjustmentType::fromChanges(array_map(fn (array $item): float => (float) $item['quantity_change'], $data['items']))]);
                 $this->touchPendingDecreases($adjustment);
             }
 
@@ -139,22 +143,41 @@ class StockAdjustmentService
     /**
      * A draft line: its variation (the product's default one for a product without
      * variations) and its signed change. Its before and after figures are written
-     * when stock moves (apply()), never at draft time.
+     * when stock moves (apply()), never at draft time. An increase line may carry its
+     * own batch, expiry and cost; a decrease line, the batch it takes from
+     * (stage 11, step 5).
      *
-     * @param  array{product_id: int, variation_id?: int|null, quantity_change: int, item_notes?: string|null}  $itemData
+     * @param  array{product_id: int, variation_id?: int|null, quantity_change: int, item_notes?: string|null, cost_layer_id?: int|null, batch_number?: string|null, expiry_date?: string|null, unit_cost?: float|null}  $itemData
      */
     public function addItem(StockAdjustment $adjustment, array $itemData): StockAdjustmentItem
     {
         $product = Product::findOrFail($itemData['product_id']);
         $variationId = $itemData['variation_id'] ?? $product->defaultVariation()->firstOrFail()->id;
 
+        // A line entered in a unit (stage 11, step 4) moves its base quantity: the signed figure times the
+        // unit's factor. The figure as entered is kept beside it.
+        $entered = Quantity::normalize($itemData['quantity_change']);
+        $variation = ProductVariation::query()->withoutGlobalScope(ProductVariation::HIDE_DEFAULT)->findOrFail($variationId);
+        $unit = ! empty($itemData['unit_id']) ? ProductUnit::resolveFor($variation, (string) $itemData['unit_id']) : null;
+        $base = $entered;
+        if ($unit !== null) {
+            $base = BaseQuantity::of($entered, Quantity::normalize($unit->factor), (int) ($variation->baseUnit?->precision ?? 3))
+                ?? throw new BusinessRuleException(__('That quantity is too small to move in this unit: it makes less than one base unit, or a fraction of one.'));
+        }
+
         return StockAdjustmentItem::create([
             'stock_adjustment_id' => $adjustment->id,
             'product_id' => $product->id,
             'variation_id' => $variationId,
             'shop_id' => $adjustment->shop_id,
-            'quantity_change' => (int) $itemData['quantity_change'],
+            'quantity_change' => $base,
+            'unit_id' => $unit?->id,
+            'unit_quantity' => $unit !== null ? $entered : null,
             'item_notes' => $itemData['item_notes'] ?? null,
+            'cost_layer_id' => $itemData['cost_layer_id'] ?? null,
+            'batch_number' => $itemData['batch_number'] ?? null,
+            'expiry_date' => $itemData['expiry_date'] ?? null,
+            'unit_cost' => $itemData['unit_cost'] ?? null,
         ]);
     }
 
@@ -254,17 +277,24 @@ class StockAdjustmentService
 
         foreach ($adjustment->items as $item) {
             $variation = $this->approval->variationOf($item);
-            $quantity = (int) $item->quantity_change;
+            $quantity = Quantity::normalize($item->quantity_change);
 
-            if ($quantity > 0) {
-                $change = $this->ledger->receive($shopId, $variation, $quantity, $this->ledger->latestBatchCost($shopId, $variation), StockMovementType::ADJUSTMENT_ADD, [
+            if (bccomp($quantity, '0', 3) > 0) {
+                // Without a cost entered, the increase is received at an unknown cost (stage 11,
+                // step 5): never the fallback cost silently, unlike other increases.
+                $change = $this->ledger->receive($shopId, $variation, $quantity, $item->unit_cost !== null ? (float) $item->unit_cost : null, StockMovementType::ADJUSTMENT_ADD, [
                     ...$context, 'source_type' => CostLayer::SOURCE_ADJUSTMENT, 'source_id' => $adjustment->id,
+                    'batch_number' => $item->batch_number, 'expiry_date' => $item->expiry_date,
                 ]);
             } else {
-                if ($this->ledger->quantity($shopId, $variation->id) + $quantity < 0) {
+                if (bccomp(bcadd($this->ledger->exactQuantity($shopId, $variation->id), $quantity, 3), '0', 3) < 0) {
                     throw new BusinessRuleException("Cannot apply this adjustment: it would take {$item->product->name} below zero.");
                 }
-                $change = $this->ledger->consume($shopId, $variation, -$quantity, StockMovementType::ADJUSTMENT_REMOVE, $item, $context);
+                // The batch a decrease line named (damaged, expired, a quality issue) comes out of
+                // that batch, not the oldest (stage 11, step 5).
+                // A named batch is the only one the line may take from: a shortfall is refused, not spilled
+                // into other batches, and a duplicate write-off of the same batch fails here too.
+                $change = $this->ledger->consume($shopId, $variation, bcmul($quantity, '-1', 3), StockMovementType::ADJUSTMENT_REMOVE, $item, [...$context, 'exact_layer' => $item->cost_layer_id !== null, 'include_quarantine' => $item->cost_layer_id !== null], $item->cost_layer_id);
             }
 
             $item->update([

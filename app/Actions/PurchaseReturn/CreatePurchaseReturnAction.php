@@ -2,6 +2,7 @@
 
 namespace App\Actions\PurchaseReturn;
 
+use App\Casts\Quantity;
 use App\Enums\PurchaseReturnStatus;
 use App\Models\PurchaseReturn;
 use App\Models\PurchaseReturnItem;
@@ -57,9 +58,9 @@ class CreatePurchaseReturnAction
         foreach ($items as $itemData) {
             $stockIntake = $stockIntakes->get($itemData['stock_intake_id'] ?? null);
             $returnItem = $returnItems->get($itemData['return_item_id'] ?? null);
-            $quantity = (int) $itemData['quantity'];
+            $quantity = Quantity::normalize($itemData['quantity']);
             $unitCost = $this->resolveUnitCost($itemData, $stockIntake, $returnItem);
-            $lineTotal = $quantity * $unitCost;
+            $lineTotal = round((float) $quantity * $unitCost, 2);
             $totalAmount += $lineTotal;
 
             PurchaseReturnItem::create([

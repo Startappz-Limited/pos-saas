@@ -123,6 +123,28 @@
                     <div class="form-text mb-3">{{ __('The day is the shop\'s local day. Past the limit, use a return. The limit applies to the owner too.') }}</div>
 
                     <h5 class="mt-4 mb-3">{{ __('Stock') }}</h5>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label" for="type">{{ __('What kind of business') }}</label>
+                            <select name="type" id="type" class="form-select @error('type') is-invalid @enderror">
+                                <option value="">{{ __('Not set') }}</option>
+                                @foreach ($businessTypes as $type)
+                                    <option value="{{ $type->value }}" @selected(old('type', $business->type?->value) === $type->value)>{{ $type->label() }}</option>
+                                @endforeach
+                            </select>
+                            <div class="form-text">{{ __('Sets a default for new products; changing it never touches existing ones.') }}</div>
+                            @error('type')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label" for="consumption">{{ __('Stock is sold') }}</label>
+                            <select name="consumption" id="consumption" class="form-select @error('consumption') is-invalid @enderror">
+                                <option value="fifo" @selected(old('consumption', $consumption) === 'fifo')>{{ __('Oldest received first (FIFO)') }}</option>
+                                <option value="fefo" @selected(old('consumption', $consumption) === 'fefo')>{{ __('Soonest to expire first (FEFO)') }}</option>
+                            </select>
+                            <div class="form-text">{{ __('A new business takes its type\'s default; changing the type later doesn\'t change this.') }}</div>
+                            @error('consumption')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+                    </div>
                     <div class="mb-3">
                         <label class="form-label" for="adjustment_approval_threshold">{{ __('Adjustment approval threshold') }}</label>
                         @if (auth()->user()->isBusinessOwner())

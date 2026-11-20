@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\StockMovementType;
 use App\Models\Customer;
 use App\Models\Product;
 use App\Models\Sale;
@@ -8,6 +9,7 @@ use App\Models\SaleSource;
 use App\Models\Shop;
 use App\Models\User;
 use App\Services\ReportService;
+use App\Services\Stock\StockLedger;
 use Spatie\Permission\Models\Permission;
 
 beforeEach(function () {
@@ -20,6 +22,15 @@ beforeEach(function () {
     Permission::findOrCreate('sales.create');
     $this->user->givePermissionTo('sales.create');
 });
+
+/**
+ * Stock at the shop that sells it (a product's own stock_quantity is read-only since stage 11,
+ * step 4, and a sale beyond the shop's stock is refused, step 4's second follow-up).
+ */
+function stockAtShop(Shop $shop, Product $product, int $quantity): void
+{
+    app(StockLedger::class)->receive($shop->id, $product->defaultVariation, $quantity, (float) $product->cost_price, StockMovementType::INTAKE, ['received_at' => now()->subDay()]);
+}
 
 // Stage 10, step 1a (decided 27 October 2026): a sale takes stock from the shop that sells it, so
 // every line is the selling shop's, whichever shop each product was first stocked at.
@@ -38,6 +49,10 @@ test('a sale mixing products first stocked at two shops attributes every line to
         'selling_price' => 200,
         'cost_price' => 80,
     ]);
+
+    // Sold at shop A, so A holds both products' stock, whichever shop each was first stocked at.
+    stockAtShop($this->shopA, $productA, 10);
+    stockAtShop($this->shopA, $productB, 10);
 
     $customer = Customer::factory()->create([
         'shop_id' => $this->shopA->id,
@@ -73,6 +88,9 @@ test('shop performance report counts a sale\'s revenue under the shop that sold 
     $productB = Product::factory()->create([
         'shop_id' => $this->shopB->id, 'stock_quantity' => 10, 'selling_price' => 200, 'cost_price' => 80,
     ]);
+    // Sold at shop B, so B holds both products' stock.
+    stockAtShop($this->shopB, $productA, 10);
+    stockAtShop($this->shopB, $productB, 10);
     $customer = Customer::factory()->create(['shop_id' => $this->shopA->id, 'customer_type' => 'retail']);
 
     $this->post(route('sales.store'), [

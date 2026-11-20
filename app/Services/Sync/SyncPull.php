@@ -7,6 +7,7 @@ use App\Models\Customer;
 use App\Models\PaymentRequest;
 use App\Models\PricingRule;
 use App\Models\Product;
+use App\Models\ProductUnit;
 use App\Models\ProductVariation;
 use App\Models\Register;
 use App\Models\Sale;
@@ -16,6 +17,8 @@ use App\Models\SyncDeletion;
 use App\Models\SyncPushReceipt;
 use App\Models\TillPin;
 use App\Models\User;
+use App\Support\Quantities\Encode;
+use App\Support\Stock\SellableStock;
 use App\Support\Tenancy\TenantContext;
 use App\Support\Tenancy\TenantFiles;
 use Closure;
@@ -49,13 +52,16 @@ use Illuminate\Support\Collection;
 class SyncPull
 {
     /** The paged entities, in the order the till should apply them. */
-    public const ENTITIES = ['categories', 'products', 'variations', 'pricing_rules', 'customers', 'stock', 'payment_requests', 'sale_voids', 'resolved_items'];
+    public const ENTITIES = ['categories', 'products', 'variations', 'units', 'pricing_rules', 'customers', 'stock', 'payment_requests', 'sale_voids', 'resolved_items'];
 
     /** Entities paged by a column other than `updated_at`. */
     private const PAGED_BY = ['sale_voids' => 'voided_at'];
 
     /** @var array<int, int> units pending stock-adjustment decreases would remove, by variation */
     private array $pendingRemoval = [];
+
+    /** @var Collection<int, array{sellable: string, quarantined: string, expired: string, next_expiry: ?string}> the shop's sellable stock, by variation (stage 11, step 8) */
+    private Collection $sellable;
 
     public function __construct(private TenantContext $tenant) {}
 
@@ -69,6 +75,7 @@ class SyncPull
         $data = [];
         $hasMore = false;
         $this->pendingRemoval = $this->pendingRemovals($register);
+        $this->sellable = SellableStock::forShop($register->shop);
 
         foreach (self::ENTITIES as $entity) {
             [$query, $present] = $this->entity($entity, $register);
@@ -155,7 +162,8 @@ class SyncPull
                 'uuid' => $product->uuid,
                 'name' => $product->name,
                 'sku' => $product->sku,
-                'barcode' => $product->barcode,
+                // A barcode of a product with real variations waits for a unit (stage 11, step 7): not sent.
+                'barcode' => $product->has_variations ? null : $product->barcode,
                 'category_uuid' => $product->category?->uuid,
                 'selling_price' => self::money($product->selling_price),
                 'wholesale_price' => self::money($product->wholesale_price),
@@ -180,6 +188,8 @@ class SyncPull
                 'selling_price' => self::money($variation->selling_price),
                 'wholesale_price' => self::money($variation->wholesale_price),
                 'tax_class' => self::plain($variation->tax_class),
+                // Whether the variation's stock is kept by batch, with a number and expiry (stage 11, step 5).
+                'track_batches' => (bool) $variation->track_batches,
                 'status' => self::plain($variation->status),
                 'updated_at' => $variation->updated_at?->toIso8601String(),
             ]],
@@ -217,12 +227,39 @@ class SyncPull
             ]],
             // M-Pesa at this shop's tills: what became of each request (Phase 7).
             'payment_requests' => [PaymentRequest::query()->where('payment_requests.shop_id', $register->shop_id), fn (PaymentRequest $request): array => $request->present()],
+            // Units of measure (stage 11, step 2) for the business's variations. A deleted unit is
+            // sent as an update, flagged, and never as a deletion: a past receipt still names it.
+            'units' => [ProductUnit::query()->withTrashed()->with(['variation:id,uuid,product_id,is_default', 'variation.product:id,uuid']), fn (ProductUnit $unit): array => [
+                'uuid' => $unit->uuid,
+                'variation_uuid' => $unit->variation?->is_default ? null : $unit->variation?->uuid,
+                'product_uuid' => $unit->variation?->product?->uuid,
+                'name' => $unit->name,
+                'factor' => Encode::exact($unit->factor, 3),
+                'precision' => (int) $unit->precision,
+                'barcode' => $unit->barcode,
+                'selling_price' => self::money($unit->selling_price),
+                'wholesale_price' => self::money($unit->wholesale_price),
+                'is_base' => (bool) $unit->is_base,
+                'can_sell' => $unit->deleted_at === null && (bool) $unit->can_sell,
+                'can_buy' => $unit->deleted_at === null && (bool) $unit->can_buy,
+                'sort_order' => (int) $unit->sort_order,
+                'deleted_at' => $unit->deleted_at?->toIso8601String(),
+                'updated_at' => $unit->updated_at?->toIso8601String(),
+            ]],
             'stock' => [ShopVariation::query()->where('shop_variation.shop_id', $register->shop_id)->with(['product:id,uuid', 'variation:id,uuid,is_default']), fn (ShopVariation $stock): array => [
                 'product_uuid' => $stock->product?->uuid,
                 // The hidden default variation of a product without variations is null.
                 'variation_uuid' => $stock->variation?->is_default ? null : $stock->variation?->uuid,
-                'quantity' => (int) $stock->stock_quantity,
-                'reorder_level' => $stock->reorder_level,
+                // Whole numbers, rounded down (an old app shows slightly less than exists, never more);
+                // the exact figures are strings (stage 11, step 8).
+                'quantity' => Encode::pullWhole($stock->stock_quantity),
+                'reorder_level' => Encode::pullWhole($stock->reorder_level),
+                'base_quantity' => Encode::exact($stock->stock_quantity, 3),
+                'base_reorder_level' => Encode::exact($stock->reorder_level, 3),
+                'sellable_quantity' => $this->sellable->get((int) $stock->variation_id)['sellable'] ?? '0.000',
+                'expired_quantity' => $this->sellable->get((int) $stock->variation_id)['expired'] ?? '0.000',
+                'quarantined_quantity' => $this->sellable->get((int) $stock->variation_id)['quarantined'] ?? '0.000',
+                'next_expiry' => $this->sellable->get((int) $stock->variation_id)['next_expiry'] ?? null,
                 'selling_price' => self::money($stock->selling_price),
                 'wholesale_price' => self::money($stock->wholesale_price),
                 'is_active' => (bool) $stock->is_active,
@@ -261,7 +298,7 @@ class SyncPull
             ->where('shop_id', $register->shop_id)->where('quantity_change', '<', 0)->whereNotNull('variation_id')
             ->get(['variation_id', 'quantity_change'])
             ->groupBy('variation_id')
-            ->map(fn ($lines): int => (int) -$lines->sum('quantity_change'))
+            ->map(fn ($lines): int => (int) ceil(-$lines->sum('quantity_change'))) // rounded up: a fraction still warns the till
             ->all();
     }
 
@@ -314,6 +351,10 @@ class SyncPull
                 'timezone' => $business->timezone,
                 'receipt_header' => $business->receipt_header,
                 'receipt_footer' => $business->receipt_footer,
+            ],
+            // How the business takes stock out of its batches (stage 11, step 5): the till shows it with the stock.
+            'stock' => [
+                'consumption' => $business->stockConsumption(),
             ],
             'shop' => [
                 'uuid' => $shop->uuid,

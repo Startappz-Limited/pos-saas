@@ -66,8 +66,8 @@ it('receives stock into a shop as a cost layer, with a movement', function () {
         ->and((float) $layer->unit_cost)->toBe(35.5)
         ->and((int) $layer->business_id)->toBe($this->shop->business_id)
         ->and($change->movement->movement_type)->toBe(StockMovementType::INTAKE)
-        ->and($change->movement->quantity_before)->toBe(0)
-        ->and($change->movement->quantity_after)->toBe(10);
+        ->and($change->movement->quantity_before)->toBe('0.000')
+        ->and($change->movement->quantity_after)->toBe('10.000');
 });
 
 it('costs a sale from the oldest layers first', function () {
@@ -85,7 +85,7 @@ it('costs a sale from the oldest layers first', function () {
         ->and((float) $item->sale->fresh()->total_cost)->toBe(50.0)
         ->and((float) $item->sale->fresh()->total_profit)->toBe(350.0)
         ->and(DB::table('cost_layers')->orderBy('id')->pluck('remaining_quantity')->map(fn ($q) => (int) $q)->all())->toBe([0, 4])
-        ->and(StockMovement::where('movement_type', StockMovementType::SALE)->sole()->quantity_after)->toBe(4);
+        ->and(StockMovement::where('movement_type', StockMovementType::SALE)->sole()->quantity_after)->toBe('4.000');
     expectLayersMatchStock($this->ledger, $this->shop, $this->variation);
 });
 
@@ -119,7 +119,7 @@ it('accepts a sale below zero, costing the shortfall at the last known cost', fu
 
     $provisional = CostAllocation::where('sale_item_id', $item->id)->where('is_provisional', true)->sole();
     expect($this->ledger->quantity($this->shop->id, $this->variation->id))->toBe(-3)
-        ->and($provisional->quantity_allocated)->toBe(3)
+        ->and($provisional->quantity_allocated)->toBe('3.000')
         ->and((float) $provisional->unit_cost)->toBe(10.0)
         ->and($provisional->cost_layer_id)->toBeNull()
         ->and($change->totalCost)->toBe(50.0)
@@ -157,7 +157,7 @@ it('re-costs part of a shortfall when too little stock arrives', function () {
 
     $allocations = CostAllocation::where('sale_item_id', $item->id)->orderBy('id')->get();
     expect($allocations->map(fn ($a) => [$a->quantity_allocated, (float) $a->unit_cost, $a->is_provisional])->all())
-        ->toEqualCanonicalizing([[3, 40.0, true], [2, 30.0, false]])
+        ->toEqualCanonicalizing([['3.000', 40.0, true], ['2.000', 30.0, false]])
         // 3 still provisional at 40, 2 settled at 30.
         ->and((float) $item->fresh()->total_cost)->toBe(180.0)
         ->and($this->ledger->quantity($this->shop->id, $this->variation->id))->toBe(-3);

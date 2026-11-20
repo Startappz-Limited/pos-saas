@@ -383,7 +383,7 @@ per-policy super-admin bypasses. Treat `.claude/` as authoritative for Claude Co
   API, online orders, abandoned carts) takes the shop's **web series** `nextWeb()`
   (`INV-{shop}-W-{year}-{n}`, stage 10). Register codes are `R` + digits (`W` reserved). The year is the
   shop's local date. Nothing may parse an invoice number: treat it as an opaque string.
-- **Money/stock**: amounts are `decimal(10,2)`; stock quantities are integers.
+- **Money/stock**: amounts are `decimal(10,2)`; stock quantities are `decimal(15,3)` and unit costs per base unit `decimal(15,4)` (stage 11): read and compare them with `bcmath`, never float. Stock is held and sold in base units; a sale line names a unit (`unit_id`) and its `base_quantity`. Expiry and FEFO are in `App\Support\Stock\Expiry`; `cost_layers` carry the batch number and expiry.
   **Since SaaS stage 1b every stock change goes through `StockLedger`** (`receive`, `consume`,
   `sellItem`, `setLevel`): it locks the `shop_variation` row, changes it by a delta, writes a
   `StockMovement`, and creates or consumes FIFO cost layers per shop and variation. All four sale paths

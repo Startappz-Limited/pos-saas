@@ -2,9 +2,13 @@
 
 namespace App\Models\Concerns;
 
+use App\Casts\Quantity;
+use App\Models\ProductVariation;
+use App\Models\Shop;
 use App\Services\Stock\StockLedger;
 use App\Services\Stock\StockQuery;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -17,14 +21,22 @@ use Illuminate\Support\Facades\Log;
  *   query with withStockOnHand().
  * - Setting it (forms, the flat API, factories) moves the stock in the
  *   product's own shop to that figure when the record is saved, through the
- *   ledger: an adjustment, with a movement and FIFO layers.
+ *   ledger: an adjustment, with a movement and FIFO layers. Kept for tests and
+ *   other callers with no cost to give; `App\Actions\Product\Concerns\
+ *   AppliesOpeningStock` (stage 11, step 4) is what the product form and the
+ *   flat API use instead, since it can pass the cost entered.
+ *
+ * Also the shop-aware stock questions (stage 11, step 4), replacing the old
+ * shop-blind `isOutOfStock()`/`canBeSold()`/`getTotalStockValueAttribute()`:
+ * `availableAt()`, `canBeSoldAt()`, `stockValueAt()`. Expired batches aren't
+ * shown apart yet (stage 11, step 5 adds expiry to cost layers).
  *
  * The using model defines stockKey() (the shop_variation column to match),
- * stockShopId() and stockVariation().
+ * stockShopId(), stockVariation() and tracksStock().
  */
 trait HasShopStock
 {
-    private ?int $pendingStock = null;
+    private ?string $pendingStock = null;
 
     public static function bootHasShopStock(): void
     {
@@ -37,14 +49,19 @@ trait HasShopStock
         $this->makeHidden('stock_on_hand');
     }
 
-    public function getStockQuantityAttribute(): int
+    /**
+     * The stock in base units as a scale-3 string ("0.750"), like every quantity a model gives (stage 11,
+     * `App\Casts\Quantity`): an integer would show 0.750 kg as 0, out of stock. The flat API sends it as a
+     * number (EncodeFlatQuantities); views show it with `stockFigure()` (or a product's unit breakdown, `Product::stockLabel()`).
+     */
+    public function getStockQuantityAttribute(): string
     {
         if (array_key_exists('stock_on_hand', $this->attributes)) {
-            return (int) $this->attributes['stock_on_hand'];
+            return Quantity::normalize($this->attributes['stock_on_hand'] ?? 0);
         }
 
         if (! $this->exists) {
-            return (int) $this->pendingStock;
+            return Quantity::normalize($this->pendingStock ?? 0);
         }
 
         $query = app(StockQuery::class);
@@ -52,9 +69,29 @@ trait HasShopStock
         return $this->stockKey() === 'product_id' ? $query->forProduct($this->id) : $query->forVariation($this->id);
     }
 
+    /**
+     * The stock for a screen: the figure without trailing zeros ("0.75", "12"), so a whole-unit product
+     * reads as before and a weight shows its fraction.
+     */
+    public function stockFigure(): string
+    {
+        return self::quantityLabel($this->stock_quantity);
+    }
+
+    /**
+     * A scale-3 quantity without trailing zeros ("0.75", "12", "-3").
+     */
+    public static function quantityLabel(int|float|string|null $quantity): string
+    {
+        $text = Quantity::normalize($quantity ?? 0);
+        $text = str_contains($text, '.') ? rtrim(rtrim($text, '0'), '.') : $text;
+
+        return $text === '-0' ? '0' : $text;
+    }
+
     public function setStockQuantityAttribute(mixed $value): void
     {
-        $this->pendingStock = $value === null || $value === '' ? null : (int) $value;
+        $this->pendingStock = $value === null || $value === '' ? null : Quantity::normalize($value);
         unset($this->attributes['stock_on_hand']);
     }
 
@@ -99,5 +136,70 @@ trait HasShopStock
         }
 
         app(StockLedger::class)->setLevel($shopId, $variation, $target, ['reference' => $this, 'notes' => 'Stock figure set on the product.']);
+    }
+
+    /**
+     * Stock of $variation (this model's own variation — its default one, for
+     * a product — when none given) at $shop, in base units.
+     */
+    public function availableAt(Shop $shop, ?ProductVariation $variation = null): string
+    {
+        $variation ??= $this->stockVariation();
+
+        return app(StockLedger::class)->exactQuantity($shop->id, $variation->id);
+    }
+
+    /**
+     * Whether $variation (this model's own, when it's a variation) can be
+     * sold at $shop: the status allows it, and either stock isn't tracked or
+     * the shop holds at least $quantity. Informational only — it answers "is
+     * this in stock here", not "is this sale allowed": the actual refusal,
+     * where the overselling policy (stage 11, step 4 follow-up) applies one,
+     * is enforced inside StockLedger itself, under its row lock, so a
+     * check-then-sell race between two callers can't both pass this method
+     * and then both oversell. Expired batches are not excluded here: the sale
+     * refuses them under the same lock (`StockLedger::consume()`, stage 11,
+     * step 5), so this figure can be higher than what a sale can take.
+     */
+    public function canBeSoldAt(Shop $shop, ?ProductVariation $variation = null, string $quantity = '1'): bool
+    {
+        if (! $this->status->canBeSold()) {
+            return false;
+        }
+
+        if (! $this->tracksStock()) {
+            return true;
+        }
+
+        return bccomp($this->availableAt($shop, $variation), $quantity, 3) >= 0;
+    }
+
+    /**
+     * The value of stock held at $shop (every shop the viewer may access,
+     * when none given): the batches' remaining quantity times their cost.
+     * Batches with no known cost are counted apart, not as zero. Expired
+     * batches aren't separated yet (stage 11, step 5).
+     *
+     * @return array{known: float, unknown_quantity: string}
+     */
+    public function stockValueAt(?Shop $shop = null): array
+    {
+        $query = DB::table('cost_layers')->where($this->stockKey(), $this->id)->where('remaining_quantity', '>', 0);
+        $shop !== null ? $query->where('shop_id', $shop->id) : $query->whereIn('shop_id', app(StockQuery::class)->shops());
+
+        $known = 0.0;
+        $unknownQuantity = '0.000';
+
+        foreach ($query->get(['remaining_quantity', 'unit_cost']) as $layer) {
+            $quantity = Quantity::normalize($layer->remaining_quantity);
+            if ($layer->unit_cost === null) {
+                $unknownQuantity = bcadd($unknownQuantity, $quantity, 3);
+
+                continue;
+            }
+            $known += (float) bcmul($quantity, (string) $layer->unit_cost, 6);
+        }
+
+        return ['known' => round($known, 2), 'unknown_quantity' => $unknownQuantity];
     }
 }

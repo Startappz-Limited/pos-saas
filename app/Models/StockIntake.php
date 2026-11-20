@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Casts\Quantity;
 use App\Enums\StockIntakeQualityStatus;
 use App\Enums\StockIntakeStatus;
 use App\Models\Concerns\BelongsToShop;
@@ -55,9 +56,9 @@ class StockIntake extends Model
         return [
             'status' => StockIntakeStatus::class,
             'intake_date' => 'date',
-            'quantity_received' => 'decimal:2',
-            'quantity_accepted' => 'decimal:2',
-            'quantity_rejected' => 'decimal:2',
+            'quantity_received' => Quantity::class,
+            'quantity_accepted' => Quantity::class,
+            'quantity_rejected' => Quantity::class,
             'quality_status' => StockIntakeQualityStatus::class,
             'quality_checks' => 'array',
             'expiry_date' => 'date',

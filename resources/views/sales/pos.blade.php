@@ -105,7 +105,7 @@
                             data-product-id="{{ $product->id }}" data-product-name="{{ $product->name }}"
                             data-product-sku="{{ $product->sku }}" data-product-price="{{ $product->selling_price }}"
                             data-product-wholesale-price="{{ $product->wholesale_price }}"
-                            data-product-stock="{{ $product->stock_quantity }}"
+                            data-product-stock="{{ $product->stockFigure() }}"
                             data-product-category="{{ $product->category_id }}"
                             data-product-has-variations="{{ $product->has_variations ? 'true' : 'false' }}"
                             data-product-variations='@json($product->variations)'
@@ -124,7 +124,7 @@
                                     @if ($product->stock_quantity <= 0)
                                         <span class="product-stock text-danger">Out of stock</span>
                                     @else
-                                        <span class="product-stock">{{ $product->stock_quantity }} in stock</span>
+                                        <span class="product-stock">{{ $product->stockFigure() }} in stock</span>
                                     @endif
                                 </div>
                             </div>

@@ -180,7 +180,8 @@ class EcommerceOrderController extends Controller
         $activeRegister = CashRegister::getActiveRegister();
         $websiteSource = SaleSource::where('name', 'Website')->first();
         $deliveryCompanies = DeliveryCompany::orderBy('name')->get();
-        $products = Product::with('variations')
+        // Each base unit's precision sets the quantity step (stage 11): 1.5 kg, but whole tablets.
+        $products = Product::with(['variations.baseUnit', 'defaultVariation.baseUnit'])
             ->where('status', 'active')
             ->orderBy('name')
             ->get();

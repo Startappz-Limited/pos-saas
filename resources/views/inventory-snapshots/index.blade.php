@@ -64,7 +64,7 @@
                                                     <span class="text-muted">—</span>
                                                 @endif
                                             </td>
-                                            <td class="text-center">{{ number_format($snapshot->quantity_on_hand) }}</td>
+                                            <td class="text-center">{{ $snapshot->variation ? \App\Support\Stock\UnitBreakdown::describe($snapshot->variation, $snapshot->quantity_on_hand) : number_format($snapshot->quantity_on_hand) }}</td>
                                             <td class="text-end">{{ format_currency($snapshot->total_value) }}</td>
                                             <td class="text-end">{{ format_currency($snapshot->retail_value) }}</td>
                                             <td>

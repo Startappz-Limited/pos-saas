@@ -4,7 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Enums\AdjustmentReason;
 use App\Http\Requests\StoreStockAdjustmentRequest;
+use App\Models\CostLayer;
 use App\Models\Product;
+use App\Models\ProductUnit;
+use App\Models\ProductVariation;
 use App\Models\Shop;
 use App\Models\StockAdjustment;
 use App\Services\Stock\StockLedger;
@@ -12,6 +15,7 @@ use App\Services\StockAdjustmentService;
 use App\Support\Stock\AdjustmentApproval;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\View\View;
 
 class StockAdjustmentController extends Controller
@@ -169,13 +173,100 @@ class StockAdjustmentController extends Controller
      */
     private function adjustableProducts(): array
     {
-        return Product::active()
-            ->with(['variations' => fn ($query) => $query->where('is_default', false)->select('id', 'product_id', 'name')->orderBy('name')])
-            ->select('id', 'name')->orderBy('name')->get()
-            ->map(fn (Product $product): array => [
-                'id' => $product->id,
-                'name' => $product->name,
-                'variations' => $product->variations->map(fn ($variation): array => ['id' => $variation->id, 'name' => (string) $variation->name])->values()->all(),
-            ])->all();
+        $products = Product::active()
+            ->with(['variations' => fn ($query) => $query->where('is_default', false)->select('id', 'product_id', 'name', 'track_batches')->orderBy('name')->with('units:id,variation_id,uuid,name,factor,precision')])
+            ->with('defaultVariation.units:id,variation_id,uuid,name,factor,precision')
+            ->select('id', 'name')->orderBy('name')->get();
+
+        $openBatches = $this->openBatches($products);
+
+        return $products->map(fn (Product $product): array => [
+            'id' => $product->id,
+            'name' => $product->name,
+            // The units a line can be entered in (stage 11, step 4): the product's own (a simple product's
+            // hidden variation) and each variation's.
+            'units' => $this->unitOptions($product->defaultVariation?->units ?? collect()),
+            'defaultVariationId' => $product->defaultVariation?->id,
+            'variations' => $product->variations->map(fn ($variation): array => [
+                'id' => $variation->id,
+                'name' => (string) $variation->name,
+                'units' => $this->unitOptions($variation->units),
+            ])->values()->all(),
+            // Each variation's batch tracking and open batches, the default one included for a simple product
+            // (stage 11, step 5): the form shows batch fields only where the line's variation tracks them.
+            'batches' => $this->batchesOf(collect([$product->defaultVariation])->merge($product->variations)->filter(), $openBatches),
+        ])->all();
+    }
+
+    /**
+     * The open batches (cost layers with stock left) of the batch-tracked variations among these
+     * products, grouped by variation.
+     *
+     * @param  Collection<int, Product>  $products
+     * @return Collection<int, Collection<int, CostLayer>>
+     */
+    private function openBatches(Collection $products): Collection
+    {
+        $variationIds = $products
+            ->flatMap(fn (Product $product): array => [$product->defaultVariation?->id, ...$product->variations->pluck('id')->all()])
+            ->filter()->values();
+
+        $trackedIds = ProductVariation::withoutGlobalScope(ProductVariation::HIDE_DEFAULT)
+            ->where('track_batches', true)->whereIn('id', $variationIds)->pluck('id');
+
+        return CostLayer::query()
+            ->where('remaining_quantity', '>', 0)
+            ->whereIn('variation_id', $trackedIds)
+            ->orderBy('expiry_date')->orderBy('received_at')->orderBy('id')
+            ->get()
+            ->groupBy('variation_id');
+    }
+
+    /**
+     * @param  Collection<int, ProductVariation>  $variations
+     * @param  Collection<int, Collection<int, CostLayer>>  $openBatches
+     * @return array<int, array{track: bool, layers: list<array{id: int, shopId: int, label: string}>}>
+     */
+    private function batchesOf(Collection $variations, Collection $openBatches): array
+    {
+        return $variations->mapWithKeys(fn (ProductVariation $variation): array => [
+            $variation->id => [
+                'track' => (bool) $variation->track_batches,
+                'layers' => $variation->track_batches
+                    ? $openBatches->get($variation->id, collect())->map(fn (CostLayer $layer): array => [
+                        'id' => $layer->id,
+                        'shopId' => $layer->shop_id,
+                        'label' => $this->batchLabel($layer),
+                    ])->values()->all()
+                    : [],
+            ],
+        ])->all();
+    }
+
+    /**
+     * "BATCH-7 · expires 2026-12-01 · 12 left", for the batch a decrease takes stock from.
+     */
+    private function batchLabel(CostLayer $layer): string
+    {
+        $batch = $layer->batch_number ?: __('No batch number');
+        $left = rtrim(rtrim((string) $layer->remaining_quantity, '0'), '.');
+
+        return $layer->expiry_date === null
+            ? __('Batch :batch, no expiry, :left left', ['batch' => $batch, 'left' => $left])
+            : __('Batch :batch, expires :expiry, :left left', ['batch' => $batch, 'expiry' => $layer->expiry_date->format('Y-m-d'), 'left' => $left]);
+    }
+
+    /**
+     * @param  Collection<int, ProductUnit>  $units
+     * @return list<array{uuid: string, name: string, factor: string, precision: int}>
+     */
+    private function unitOptions($units): array
+    {
+        return $units->sortBy('factor')->map(fn ($unit): array => [
+            'uuid' => (string) $unit->uuid,
+            'name' => (string) $unit->name,
+            'factor' => (string) $unit->factor,
+            'precision' => (int) $unit->precision,
+        ])->values()->all();
     }
 }

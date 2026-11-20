@@ -63,7 +63,7 @@ it('puts a line taken from two batches back into both', function () {
     $change = $this->ledger->release($line, StockMovementType::SALE_VOID);
 
     expect(($this->layers)())->toBe([['intake', 10.0, 3], ['intake', 20.0, 5]])
-        ->and($change->quantity)->toBe(6)
+        ->and($change->quantity)->toBe('6.000')
         ->and($change->movement->movement_type)->toBe(StockMovementType::SALE_VOID)
         ->and((float) $change->movement->unit_cost)->toBe(round((3 * 10 + 3 * 20) / 6, 2))
         ->and($this->ledger->quantity($this->shop->id, $this->variation->id))->toBe(8)

@@ -61,7 +61,14 @@ abstract class Controller extends BaseController
         $message = $prefix !== null ? "{$prefix} {$message}" : $message;
 
         if (request()->expectsJson()) {
-            return response()->json(['success' => false, 'message' => $message], $expected ? 422 : 500);
+            return response()->json([
+                'success' => false,
+                'message' => $message,
+                // A machine-readable reason (stage 11 step 4 follow-up), as BusinessRuleException's
+                // own render() already sends when nothing here catches it first. Omitted when null,
+                // same as render() does.
+                ...($expected && $e->errorCode !== null ? ['code' => $e->errorCode] : []),
+            ], $expected ? 422 : 500);
         }
 
         return back()->withInput()->with('error', $message);

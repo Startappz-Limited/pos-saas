@@ -7,6 +7,7 @@ use App\Enums\TaxClass;
 use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Models\SalePayment;
+use App\Support\Quantities\Encode;
 use App\Support\Sales\VoidWindow;
 
 /**
@@ -28,7 +29,7 @@ class SaleReceipt
      */
     public function build(Sale $sale): array
     {
-        $sale->loadMissing(['shop.business', 'items.product', 'items.variation', 'payments', 'createdBy:id,name', 'customer:id,name,phone,tax_pin', 'register.register:id,code,name']);
+        $sale->loadMissing(['shop.business', 'items.product', 'items.variation', 'items.unit', 'payments', 'createdBy:id,name', 'customer:id,name,phone,tax_pin', 'register.register:id,code,name']);
         $shop = $sale->shop;
         $business = $shop?->business;
         $timezone = $shop?->timezone ?: ($business?->timezone ?: config('app.timezone'));
@@ -61,7 +62,12 @@ class SaleReceipt
             'lines' => $sale->items->map(fn (SaleItem $item): array => [
                 'name' => $item->product?->name,
                 'variation' => $item->variation && ! $item->variation->is_default ? $item->variation->name : null,
-                'quantity' => (int) $item->quantity,
+                // A JSON number: whole values as integers, a fraction only where a unit has one (stage 11, step 8).
+                'quantity' => Encode::flat($item->quantity),
+                'unit_name' => $item->unit?->name,
+                // The line's quantity in its unit, to the unit's decimals, and in base units, both exact.
+                'quantity_exact' => Encode::exact($item->quantity, (int) ($item->unit?->precision ?? 3)),
+                'base_quantity' => Encode::exact($item->base_quantity ?? $item->quantity, 3),
                 'unit_price' => $money($item->unit_price),
                 'total' => $money($item->line_total),
                 'tax_code' => TaxClass::tryFrom((string) $item->tax_class)?->kraCode(),

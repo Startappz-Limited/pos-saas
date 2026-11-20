@@ -8,8 +8,10 @@ use App\Models\Sale;
 use App\Models\SaleReturn;
 use App\Models\Shop;
 use App\Services\ReturnService;
+use App\Support\Stock\ReturnQuantities;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class ReturnController extends Controller
@@ -140,12 +142,18 @@ class ReturnController extends Controller
             'restocking_fee' => ['nullable', 'numeric', 'min:0'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.sale_item_id' => ['required', 'exists:sale_items,id'],
-            'items.*.quantity' => ['required', 'integer', 'min:1'],
+            'items.*.quantity' => ['required', 'numeric', 'min:0.001'],
             'items.*.condition' => ['nullable', 'string', 'in:new,opened,damaged,defective'],
             'items.*.condition_notes' => ['nullable', 'string', 'max:500'],
             'items.*.return_to_supplier' => ['nullable', 'boolean'],
             'items.*.return_to_supplier_notes' => ['nullable', 'string', 'max:500'],
         ]);
+
+        // A fraction is refused for a whole-unit line and allowed for a weight line (stage 11).
+        $quantityErrors = ReturnQuantities::errors($validated['items']);
+        if ($quantityErrors !== []) {
+            throw ValidationException::withMessages($quantityErrors);
+        }
 
         try {
             $this->returnService->updateReturn($return, $validated);

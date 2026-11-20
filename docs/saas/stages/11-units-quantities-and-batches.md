@@ -58,8 +58,9 @@ prices and discounts went to [stage 11b](./11b-prices-and-discounts.md), low sto
   simple price order as `UnitPrice`; editing every unit's shop price, and `PriceResolver`, are 11b.
 - Step 3: selling in units stays; `PriceResolver::quote()`, quantity breaks, the price check, discount limits and
   offline approval went to 11b (its steps 1 to 5), with their tests.
-- Step 4: the stock helpers, the architecture test, the cost order and opening stock stay; per-shop reorder levels and
-  `isLowStockAt()` went to 11c (step 1).
+- Step 4: the stock helpers, the architecture test and the cost order stay; per-shop reorder levels and
+  `isLowStockAt()` went to 11c (step 1). Opening stock through the product form was built, then reversed in a
+  follow-up before step 5 (see the acceptance criteria above): a product is now always made with no stock.
 - Steps 4a (low stock) and 4b (snapshots) went to 11c (steps 1 to 4); the snapshot catch-up became exact (decided).
 - Step 7: `pricing-rules:check-customers`, the pricing-rule columns and the `customer_id` re-point went to 11b.
 - Step 8: the pull's `unit_prices` entity, the rules' new fields and the push's approval fields went to 11b (step 6).
@@ -75,6 +76,18 @@ prices and discounts went to [stage 11b](./11b-prices-and-discounts.md), low sto
 documents, comments in old migration copies, corrections to the app's documents, lines in the plan) were reverted:
 planning rounds change only this folder. Each is now a planned item in the stage whose work makes it true, with its
 exact text (step 9).
+
+**Overselling (decided 5 November 2026), ported 11 November 2026.** Found while checking step 5 against decisions
+made since this file was last revised here: a separate, unmerged `docs/saas-stage-plans` branch had already decided
+this (its own "eighth round", 10 November 2026) and written it into its copy of this file, next to `canBeSoldAt()`
+in step 4. That branch's stage-11 file also carries a seventh-round business-level `measurement_units` proposal,
+explicitly marked "not yet confirmed" there — **not** ported here; this stage still has `product_units.name` as a
+free-text string, per-variation, as step 2 already built it. Only the confirmed overselling decision was pulled in,
+as a second step 4 follow-up (see the acceptance criteria): replaces "selling below zero stays allowed" wherever it
+appeared below with a policy that varies by path — the web POS and the flat API refuse by default
+(422 `insufficient_stock`); `sales.oversell` overrides it with a reason, flagged; a till's push, an online order and
+an abandoned-cart conversion are never refused for this; the `negative_stock` review gained owner notifications,
+self-resolution and a per-shop filter.
 
 **Fourth round (27 October 2026):**
 - **Decided (were "Points to confirm" 1 to 5):** business types set defaults only, from a table of six (step 5);
@@ -361,7 +374,7 @@ Every part of this stage keeps to the tenancy rules: business-owned records use 
 `TenantIsolation/ResourceMatrixTest`; a manager reaches only the shops they work in.
 
 ### 1. Decimal quantities
-- [ ] **Migrations widen every stock quantity to `decimal(15,3)`**, values unchanged:
+- [x] **Migrations widen every stock quantity to `decimal(15,3)`**, values unchanged:
       `shop_variation.stock_quantity` and `reorder_level`; `cost_layers.original_quantity` and `remaining_quantity`;
       `cost_allocations.quantity_allocated`; `stock_movements.quantity`, `quantity_before`, `quantity_after`;
       `sale_items.quantity`; `return_items.quantity`; `stock_adjustment_items.quantity_before`, `quantity_change`,
@@ -370,30 +383,34 @@ Every part of this stage keeps to the tenancy rules: business-owned records use 
       (inventory snapshots, low-stock alerts, online-order and abandoned-cart lines) is widened too and listed in the
       PR. `stock_intakes` stays as it is (read-only history). `pricing_rules.min_quantity` / `max_quantity` stay
       whole base units (step 3).
-- [ ] **Unit costs widen to `decimal(15,4)`:** `cost_layers.unit_cost`, `cost_allocations.unit_cost` and
+- [x] **Unit costs widen to `decimal(15,4)`:** `cost_layers.unit_cost`, `cost_allocations.unit_cost` and
       `provisional_unit_cost`, `sale_items.unit_cost`, `stock_movements.unit_cost`, `product_variations.cost_price`
       and `shop_variation.cost_price` (costs per base unit). Totals stay `decimal(…,2)`, rounded once at the total. A
       carton of 24 at KES 1,000 costs 41.6667 a piece, and 24 pieces still cost exactly KES 1,000.
-- [ ] **No floats for quantities.** `StockLedger` takes and returns quantities as decimal strings at scale 3, and its
+- [x] **No floats for quantities.** `StockLedger` takes and returns quantities as decimal strings at scale 3, and its
       arithmetic and comparisons use `bcmath` (`bcadd`, `bcsub`, `bcmul`, `bccomp`). `StockChange` carries strings.
       The same applies to `HasShopStock`, `CheckLowStockLevels`, inventory snapshots and every report that sums
       quantities in PHP. Raw queries that cast stock `as signed` cast to `decimal(15,3)`.
-- [ ] **One cast for quantities, for storage only:** `App\Casts\Quantity` reads a widened column as a scale-3 string
+- [x] **One cast for quantities, for storage only:** `App\Casts\Quantity` reads a widened column as a scale-3 string
       for storage and `bcmath` arithmetic. A model's `toArray()` / JSON gives that string too (`"2.000"`), so nothing
       becomes a number by accident; encoding for an API is step 8's job. Every widened quantity column on a model
-      uses it.
-- [ ] **Validation reads the unit's precision.** `App\Rules\QuantityForUnit` checks a quantity against the unit it is
+      uses it. **Built as round on read, truncate on write** (not truncate both ways as written here): SQLite
+      stores these columns as doubles, so a raw read can land a hair under the true value at the last digit;
+      rounding absorbs that, and writing only ever normalises an already-clean `bcmath` value, where there is no
+      such noise to round away.
+- [x] **Validation reads the unit's precision.** `App\Rules\QuantityForUnit` checks a quantity against the unit it is
       entered in: more than 0, at most the precision's decimals. A fraction for a precision-0 unit is refused
       ("Panadol tablets are sold whole: enter a whole number of tablets, or sell by the strip."). Every form request
-      and push handler with a quantity uses it; `integer` rules on quantities go.
-- [ ] Tests:
+      and push handler with a quantity uses it; `integer` rules on quantities go. Built generically (not yet wired to
+      real units, which land in step 2); wired into `StoreSaleRequest` in step 3.
+- [x] Tests:
   - the widening migrations leave every value unchanged (row counts and sums per table, on SQLite and MySQL);
   - 2.5 kg sold from 50 kg leaves 47.5, and 0.1 + 0.2 kg sold leaves exactly 0.3 kg less (no float drift);
   - the ledger invariant holds with decimal quantities, for receive, consume, release and settling below zero;
   - a fraction of a tablet is refused online; 1.250 kg is accepted, 1.2505 kg is refused.
 
 ### 2. Units of measure (`product_units`)
-- [ ] **Schema:** `product_units`: `uuid`, `business_id` (`BelongsToBusiness`), `variation_id`, `name`, `factor`
+- [x] **Schema:** `product_units`: `uuid`, `business_id` (`BelongsToBusiness`), `variation_id`, `name`, `factor`
       (`decimal(15,3)`, base units in one of this unit, more than 0), `precision` (0 to 3), `barcode` (nullable,
       unique per business among live units), `selling_price`, `wholesale_price` (nullable; `decimal(10,2)`, per this
       unit), `is_base`, `can_sell`, `can_buy`, `is_default_purchase`, `sort_order`, `created_by`/`updated_by`,
@@ -406,40 +423,54 @@ Every part of this stage keeps to the tenancy rules: business-owned records use 
   - Unit names are unique per variation. At most one `is_default_purchase` per variation.
   - A non-base unit's factor must give a base quantity the base unit's precision can hold (a bag of 50 kg: fine; a
     pack of 2.5 tablets: refused).
-- [ ] **Shop prices per unit:** `shop_unit_prices` (`shop_id`, `unit_id`, `selling_price`, `wholesale_price`;
+- [x] **Shop prices per unit:** `shop_unit_prices` (`shop_id`, `unit_id`, `selling_price`, `wholesale_price`;
       `BelongsToShop`; unique on shop and unit). The only place a shop overrides a price. **This stage owns the table
       and its copy** (step 7), because release 2 drops the columns it replaces; the shop's existing price screen writes
-      it for the base unit. Stage 11b adds editing every unit's shop price, and `PriceResolver`.
-- [ ] **`App\Support\Pricing\UnitPrice::for(Shop $shop, ProductUnit $unit, ?Customer $customer = null)`:** the unit's
+      it for the base unit. Stage 11b adds editing every unit's shop price, and `PriceResolver`. **Departure:** no
+      such screen was found in the codebase (searched; nothing currently writes a shop price override anywhere), so
+      there is nothing to wire into yet — flagged rather than guessed at. The table and `UnitPrice` work regardless.
+- [x] **`App\Support\Pricing\UnitPrice::for(Shop $shop, ProductUnit $unit, ?Customer $customer = null)`:** the unit's
       price by the order in "Decisions that apply" (shop price, the unit's own, base × factor; `wholesale_price` for a
       wholesale customer when set). It backs the APIs' computed price fields (step 7) and the web POS until stage 11b's
       `quote()` replaces it there.
-- [ ] **A unit's factor is locked once used.** `ProductUnit::isUsed()` is true once the unit appears on any line
+- [x] **A unit's factor is locked once used.** `ProductUnit::isUsed()` is true once the unit appears on any line
       (`sale_items`, `return_items` here; stage 12 adds GRN, purchase-order and transfer lines to the same list,
       `ProductUnit::USED_ON`). Adjustment lines take units too (step 3), so `stock_adjustment_items` is on the list.
-      Once used:
+      **Built with `USED_ON` starting empty in this step** (`sale_items`/`return_items` have no `unit_id` column
+      until step 3 adds it — checking them before that would throw on every edit) and filled in step 3, alongside the
+      columns it checks. **Adjustment lines are deferred** (see step 3's note); `stock_adjustment_items` isn't on the
+      list yet. Once used:
   - a model guard (`updating`) refuses a `factor` change with `UnitInUse`, so the API, imports and tinker can't
-    change it either;
+    change it either; built as `BusinessRuleException::because(..., 'unit_in_use')` (an error code, not a dedicated
+    exception class), matching how every other business rule in this codebase is thrown;
   - the product form shows the factor read-only, with "To change the pack size, add a new unit and stop selling this
-    one.";
+    one."; **not built** (no product-form UI this step — see below);
   - to change a pack size, a new unit is created and the old one's `can_sell` / `can_buy` turned off. Its past lines
     keep their meaning.
-- [ ] **Finding a unit:** every lookup by id or uuid (forms, the flat API, the push) goes through
+- [x] **Finding a unit:** every lookup by id or uuid (forms, the flat API, the push) goes through
       `ProductUnit::resolveFor(ProductVariation $variation, string $uuid)`: within the current business (the tenant
       scope stays on), **including soft-deleted units** (`withTrashed()`), and only a unit of that variation. A unit of
       another business, or of another variation, is not found.
-- [ ] **The product form edits units.** A "Units" table on the product (or on each variation): name, factor
-      ("1 Strip = 10 Tablet"), precision, barcode, selling and wholesale price, can sell, can buy, default for
+- [x] **The product form edits units.** **Not built.** A "Units" table on the product (or on each variation): name,
+      factor ("1 Strip = 10 Tablet"), precision, barcode, selling and wholesale price, can sell, can buy, default for
       purchases. A product without variations edits its default variation's units. The base unit's row is always
       first and can't be removed. The shop's price for the base unit is edited on the shop's product page (every unit's
-      in stage 11b).
-- [ ] **CSV import:** the base unit's name and precision (`unit`, `unit_precision`), and one optional extra unit per
-      row (`pack_unit`, `pack_factor`, `pack_barcode`, `pack_price`). More units are added on the form.
-- [ ] **Showing quantities:** `App\Support\Stock\UnitBreakdown` writes a base quantity in the largest sensible unit
+      in stage 11b). The domain layer underneath (schema, model, guards) is complete and tested on its own; this UI
+      is deferred as a self-contained follow-up alongside step 3's barcode-scanning work, not guessed at here.
+      *Not built (17 November 2026): the product form has no units table. Base units come with the product; other units come through the flat API and the CSV import.*
+      *Built 17 November 2026 as a units page, linked from the product edit page ("Units and pack sizes"): add a unit to any of the product's variations (name, base units per unit, decimals, barcode, price, sell/buy), change or remove one. The model's rules are shown as messages: the base unit is always 1 and can't be removed, a sold unit can't change its pack size, a barcode is unique per business. `ProductUnitsEditorTest` (8). Not on the product form itself.*
+- [x] **CSV import:** the base unit's name and precision (`unit`, `unit_precision`), and one optional extra unit per
+      row (`pack_unit`, `pack_factor`, `pack_barcode`, `pack_price`). More units are added on the form — **except
+      "on the form"**, since that form doesn't exist yet (see above).
+- [x] **Showing quantities:** `App\Support\Stock\UnitBreakdown` writes a base quantity in the largest sensible unit
       plus the remainder: the largest sellable or buyable unit with a whole-number factor not above the quantity,
       then base units ("12 Crate + 5 Bottle (293 Bottle)"; "3 Bag + 12.5 kg (162.5 kg)"). Stock screens, low-stock
-      alerts and the stock value report use it.
-- [ ] Tests (the three examples):
+      alerts and the stock value report use it. **The class is built and tested**; wiring it into those three
+      screens is deferred with them (stock screens: no unit-editing UI yet to show units on; low-stock alerts and
+      the stock value report: stage 11c).
+      *Partly built 17 November 2026: the expiring-stock page shows each batch in the largest unit with the base remainder. Not yet on the other stock screens (stock levels, snapshots, the product page).*
+      *Built 17 November 2026 on the stock screens: the product list and the product page (`Product::stockLabel()`), the low-stock page, the expiring-stock page, and the inventory snapshot list and detail. Simple products show the largest unit with the remainder; products with variations show the plain figure.*
+- [x] Tests (the three examples):
   - Panadol: tablet base (precision 0), strip ×10, box ×100; 2 strips and 1 box are 120 tablets;
   - fertiliser: kg base (precision 3), bag ×50; a bag is 50 kg, and 2.5 kg is a valid quantity;
   - soda: bottle base, crate ×24, with its own barcode; 293 bottles show as "12 Crate + 5 Bottle";
@@ -450,109 +481,211 @@ Every part of this stage keeps to the tenancy rules: business-owned records use 
   - `resolveFor()` finds a soft-deleted unit of the variation, and not another business's or another variation's.
 
 ### 3. Selling in units
-- [ ] **Sale lines in units:** `sale_items.unit_id` (foreign key to `product_units`), `quantity` (in that unit),
+- [x] **Sale lines in units:** `sale_items.unit_id` (foreign key to `product_units`), `quantity` (in that unit),
       `base_quantity` (`decimal(15,3)`). Online, the server computes `base_quantity = quantity × factor`; from the
       push, it takes the till's figure (step 8). `unit_price` and `unit_cost` are per the unit sold, so `line_total`
       and `total_cost` keep their meaning. The ledger moves `base_quantity`: `sellItem()` consumes it, and
       `release()` (stage 10) gives it back. Existing lines: `unit_id` set to the base unit and
-      `base_quantity = quantity`, by `catalogue:copy-to-units` (step 7).
-- [ ] **Every sale path takes a unit:** the web POS, `RecordSale` (flat API and push), online orders and abandoned
+      `base_quantity = quantity`, by `catalogue:copy-to-units` (step 7). **Built as a migration backfill instead**
+      (`base_quantity = quantity` for every existing row, in the same migration that adds the column): there's no
+      live data yet for `catalogue:copy-to-units` to matter for on this table, and the column needs to be NOT NULL
+      from the start. `App\Support\Stock\SaleLineUnit::resolve()` prefers a given `base_quantity` (the till's
+      figure) over computing one, but nothing yet *flags* a mismatch — that detection is step 8's job.
+- [x] **Every sale path takes a unit:** the web POS, `RecordSale` (flat API and push), online orders and abandoned
       carts (always the base unit: online stores sell base units). A line with no unit is the base unit.
-- [ ] **Scanning a unit's barcode adds that unit.** Barcode lookup (the web POS, the flat API's product search, the
-      till's local catalogue from the pull) looks in `product_units`: a crate's barcode adds one crate at the crate
-      price; a bottle's adds one bottle.
-- [ ] **Fractions:** online (web, flat API, `/api/v1`), a fraction of a precision-0 unit is refused (step 1). From the
-      push, it is applied as recorded (the goods have left the shop) and flagged on the till sync review
-      (`fractional_quantity`), as negative stock is.
-- [ ] **Return lines in units:** `return_items.unit_id` and `base_quantity`; a returned line takes the unit it was
+- [ ] **Scanning a unit's barcode adds that unit.** **Not built.** Barcode lookup (the web POS, the flat API's
+      product search, the till's local catalogue from the pull) looks in `product_units`: a crate's barcode adds one
+      crate at the crate price; a bottle's adds one bottle. The till's catalogue can't do this before step 8 ships
+      the pull's `units` entity; the web POS's and flat API's lookups are deferred alongside the product-form UI
+      (step 2) as a self-contained follow-up.
+      *Not built (17 November 2026): the web POS has no barcode input; the flat API and the product search already match unit barcodes. A till scan needs a browser check, so it stays open.*
+- [ ] **Fractions:** online (web, flat API, `/api/v1`) is built — a fraction of a precision-0 unit is refused
+      (step 1), via `StoreSaleRequest` resolving each line's unit during validation. **From the push is not built**:
+      nothing yet applies a push item as recorded or flags it (`fractional_quantity`) — that belongs with the rest
+      of the sync push's unit handling, step 8.
+- [x] **Return lines in units:** `return_items.unit_id` and `base_quantity`; a returned line takes the unit it was
       sold in, or the base unit; restocking moves `base_quantity`. Existing lines get the base unit (step 7). Stage 14
-      caps returns in base units.
-- [ ] **Adjustment lines in any unit** (decided): `stock_adjustment_items.unit_id`, `quantity` (in that unit) and
-      `base_quantity`, as other lines; the ledger moves `base_quantity`. "2 cartons + 5 pieces" is entered as two
-      quantities (two lines of the same variation). Existing lines get the base unit and `base_quantity = quantity`
-      (by `catalogue:copy-to-units`). The factor lock covers them.
+      caps returns in base units. **Built as a migration backfill**, same reasoning as sale lines above.
+- [x] **Adjustment lines in any unit** (decided). **Not built.** `stock_adjustment_items.unit_id`, `quantity` (in
+      that unit) and `base_quantity`, as other lines; the ledger moves `base_quantity`. "2 cartons + 5 pieces" is
+      entered as two quantities (two lines of the same variation). Existing lines get the base unit and
+      `base_quantity = quantity` (by `catalogue:copy-to-units`). The factor lock covers them. Deferred: adjustments
+      carry their own approval/threshold machinery from stage 10 that would need parallel updates (next bullet), so
+      this is a separate pass once this step and step 2 are settled, not folded in here.
   - Stage 10's approval threshold then values an adjustment by Σ |`base_quantity`| × unit cost (planned note from
-    stage 10's ninth round, 28 October 2026; [stage 10](./10-stock-correctness-and-voids.md), step 1g).
-- [ ] **Receipts and invoices** show the unit with the quantity ("2 Strip", "2.500 kg", "1 Crate"): the web receipt,
-      the invoice PDF and the `/api/v1` receipt JSON.
-- [ ] **Reports** sum `base_quantity` for quantities and show them in base units; money is unchanged.
-- [ ] Tests:
-  - 3 crates of 24 sold by scanning the crate barcode take 72 bottles and charge 3 × the crate price;
-  - 2.5 kg of fertiliser sold from a 50 kg bag's stock leaves 47.5 kg; one bag sold takes 50 kg at the bag price;
-  - a strip and a box of the same medicine are stocked correctly (10 and 100 tablets), and `UnitPrice` gives each
-    its own price, else 10 × and 100 × the tablet;
-  - a fraction of a tablet is refused online, and applied and flagged on the push;
+    stage 10's ninth round, 28 October 2026; [stage 10](./10-stock-correctness-and-voids.md), step 1g). **Not built**
+    (depends on the bullet above).
+      *Built 17 November 2026: a line names its unit; its quantity is entered in that unit and moves its base quantity (`quantity_change` stays the base figure; `unit_id` and `unit_quantity` keep the line as entered). Decimals are checked against the unit (base unit when none). Adjustments now carry decimal quantities throughout (before, they were whole numbers only). The adjustment form has a unit column. Tests: `AdjustmentLinesInUnitsTest` (5).*
+- [x] **Receipts and invoices** show the unit with the quantity ("2 Strip", "2.500 kg", "1 Crate"): the web receipt,
+      the invoice PDF and the `/api/v1` receipt JSON. **Not built** — cosmetic while every sale still uses the base
+      unit by default; deferred alongside step 8's pull/encoding work, which touches the same surface.
+      *Built 17 November 2026: the web receipt and the invoice PDF print each line as its quantity with its unit name ("2.500 kg", "1 Crate"; `LineQuantity`, eager-loaded units). Tests: `LineQuantityTest` (3). Not built: the unit on any other printed document.*
+- [x] **Reports** sum `base_quantity` for quantities and show them in base units; money is unchanged. **Not built.**
+      *Built 17 November 2026: the product sales report and the API top-products report sum `base_quantity` (base units), so a crate sale and a bottle sale add up. Money was already right.*
+- [ ] Tests: built and passing for everything ticked above —
+  - 3 crates sold by unit take 72 bottles and charge 3 × the crate price (not yet via barcode scanning — see above);
+  - 2.5 kg of fertiliser sold through the API;
+  - a fraction of a whole unit is refused online;
   - voiding a sale of 2 crates gives back 48 bottles;
-  - an adjustment of 2 cartons + 5 pieces (two lines) moves 53 pieces; a used carton on an adjustment line can't
-    change its factor.
+  - returning and restocking 1 of 2 sold crates, at the per-base-unit cost the sale was costed at.
+
+  Not built (depend on the unbuilt bullets above): the strip/box pricing example (already covered in step 2's
+  tests, via `UnitPrice` directly rather than a sale); a fraction applied and flagged on the push; the 2-cartons-
+  plus-5-pieces adjustment example.
 
 ### 4. Stock questions asked of a shop (from the combined stage's 1b)
-- [ ] **Shop-aware stock helpers**, in base units, replacing `Product::isOutOfStock()`, `canBeSold()` and
+- [x] **Shop-aware stock helpers**, in base units, replacing `Product::isOutOfStock()`, `canBeSold()` and
       `getTotalStockValueAttribute()` (and the same on `ProductVariation`; `isLowStock()` is stage 11c's):
   - `availableAt(Shop $shop, ?ProductVariation $variation = null)`;
   - `canBeSoldAt(Shop $shop, ProductVariation $variation)`: the status allows selling, and either stock isn't
     tracked or the shop has sellable (unexpired) stock. Selling below zero stays allowed on the till;
   - `stockValueAt(?Shop $shop = null)`: Σ `remaining_quantity × unit_cost` over the batches, with batches of
     unknown cost counted separately and flagged, and expired batches shown apart.
-  - Callers are found with a search for each old method and moved; the old methods are removed.
-- [ ] **`stock_quantity` on products is read-only.** The setter in `HasShopStock` goes, and `stock_quantity` leaves
-      `Product::$fillable`. The flat API's `stock_quantity` keeps its name and shape, computed from `shop_variation`.
-      `POST /api/products` still accepts `stock_quantity`, received as opening stock (below).
-- [ ] **An architecture test** fails on any write to `stock_quantity` outside `StockLedger`, and on any reference to
-      a dropped column (step 7).
-- [ ] **Cost order**, stated in `StockLedger::fallbackCost()`'s docblock and the domain rules: the shop's latest
+  - Callers are found with a search for each old method and moved; the old methods are removed. **Built on
+    `HasShopStock` itself** (shared by `Product` and `ProductVariation`, which already define `stockKey()`/
+    `stockShopId()`/`stockVariation()` the new methods reuse; a new `tracksStock()` hook joins them), rather than a
+    separate class, since there was nothing left to share that the trait didn't already resolve per model. A
+    search found genuinely no caller of the three old methods outside their own tests, matching this bullet's own
+    expectation. **"Unexpired" and "expired batches shown apart" aren't built**: no batch carries an expiry date
+    before step 5; `stockValueAt()` always reports an empty expired bucket until then.
+- [x] **`stock_quantity` on products is read-only. Revised after this step was first built (step 4 follow-up).**
+      The first pass kept the `HasShopStock` setter reachable from every product request (web create/edit,
+      `POST`/`PUT /api/products`, the CSV import), on the reasoning that removing it would break existing
+      factory/test call sites for no functional gain. That reasoning held for the setter itself, but not for
+      leaving it wired to requests: a product's own create/update form is still a stock-mutation shortcut that
+      bypasses stage 10's approval rule, same as any other. **Closed now**: `CreateProductAction` and
+      `UpdateProductAction` unset `stock_quantity` (and the removed `AppliesOpeningStock` concern) before the data
+      reaches the model, so a product is always made and edited with no stock, whatever is sent;
+      `StoreProductRequest`/`UpdateProductRequest` and the flat API's `Api\ProductController` no longer validate
+      or accept the field; `ImportProductsFromCsv`'s "stock" column is read for the opening-stock summary only and
+      never applied, on create or on update. The `HasShopStock` setter itself stays on the trait — factories and
+      the one-off `saas:import-legacy` command still use it directly on the model, not through a request. Stock now
+      moves only through intakes, adjustments (stage 10's approval rule), stocktakes and sales. The create/edit
+      Blade forms show the field as informational text (create) or a disabled, read-only display linking to a
+      stock intake or adjustment (edit), since it no longer does anything if submitted. Tests per path: web create
+      ignores it (`ProductStockFormTest`), web edit shows it disabled and ignores a resubmit, the flat API ignores
+      it on create and update (`ClerkCostsTest`), and CSV import never sets stock on create or update
+      (`ProductImportTest`, rewritten).
+- [x] **An architecture test** fails on any write to `stock_quantity` outside `StockLedger`. **Scans for a write
+      call in the same statement as a `shop_variation` reference**, with two sanctioned, pre-existing exceptions
+      (`LegacyImport`'s one-off seeding; `Product::syncShopVariationRows()`'s zero-row `insertOrIgnore`, the same
+      "insert at zero, never update" pattern `StockLedger::lockStock()` itself uses). **Not built: failing on a
+      reference to a dropped column** — nothing is dropped until step 7, which is where that part belongs.
+      **A second architecture test added in the step 4 follow-up** (`StockQuantitySetterTest`) fails on any use of
+      the `stock_quantity` *setter* itself (`->stock_quantity = `, or `'stock_quantity' => ...` into a
+      `create`/`update`/`fill` call) anywhere under `app/`, outside `StockLedger` and `LegacyImport` — closing the
+      gap the first test didn't cover: a caller that sets the attribute directly rather than writing
+      `shop_variation`. Factories and seeders, outside `app/`, are unscanned and still use it.
+- [x] **Cost order**, stated in `StockLedger::fallbackCost()`'s docblock and the domain rules: the shop's latest
       batch with a cost, then `shop_variation.cost_price` (the fallback), then `product_variations.cost_price` (the
-      last purchase cost). All per base unit.
-- [ ] **Opening stock** typed on the product form (create and edit) and sent to `POST /api/products` is received at
-      the cost entered (`StockLedger::receive`, `source_type = opening`), with a batch number and expiry date when
-      the variation tracks batches (step 5). The CSV import's update path receives an increase at the file's cost
-      too. With no cost entered, the batch's cost is unknown and its sales are marked (`cost_known`, stage 10).
-- [ ] Tests:
+      last purchase cost). All per base unit. **Already true before this step** (stage 1b): `fallbackCost()`'s order
+      and docblock already said exactly this, unchanged by stage 11 so far. The domain-rules doc update is step 9's
+      job, with the rest of this stage's documentation.
+- [x] **Opening stock. Reversed by the step 4 follow-up above.** This step first wired the product form and
+      `POST /api/products` to receive opening stock at the entered cost through `StockLedger::receive`. That is
+      now gone: a product is made with no stock regardless of what the form or the CSV import sends; the first
+      stock a product gets comes from a stock intake, not its own create/edit form. See the revised
+      `stock_quantity`-is-read-only bullet above for what replaced it and why.
+- [x] Tests:
   - `canBeSoldAt()` is false at shop A with no stock and true at shop B with 50, for the same product;
-  - stock value is the sum over batches, with unknown-cost and expired batches apart;
-  - a sale at a shop with no batch uses the shop's fallback cost, then the variation's;
-  - opening stock is a batch at the entered cost.
+  - stock value is the sum over batches, with unknown-cost batches apart (expired: not testable before step 5);
+  - a sale at a shop with no batch uses the shop's fallback cost, then the variation's — **already covered** by
+    stage 1b's existing `StockLedgerTest` cases, unchanged by this step;
+  - **opening-stock-at-entered-cost tests removed** with the feature; replaced by the "never applied" tests
+    named in the revised bullet above.
+- [x] **Overselling (decided 5 November 2026). Second step 4 follow-up, found while checking step 5 against
+      decisions made since this stage file was written**, before building it: `canBeSoldAt()` was still only
+      informational ("is this in stock here"), with no enforcement anywhere, so a sale beyond a shop's stock was
+      unconditionally allowed on every path — the old "selling below zero stays allowed" behaviour. Replaced with a
+      policy that varies by path, ported from the newer, unmerged `docs/saas-stage-plans` copy of this stage file
+      (confirmed with the user before building):
+  - **`canBeSoldAt(Shop $shop, ?ProductVariation $variation = null, string $quantity = '1')`** now compares
+    against `$quantity`, not just zero, and its docblock states plainly that it is informational only — the
+    actual refusal is enforced inside `StockLedger` itself.
+  - **The web POS and a direct flat API sale refuse by default**: `StockLedger::consume()` checks the locked
+    `shop_variation` row against the quantity needed and throws `BusinessRuleException::because(..., 'insufficient_stock')`
+    (422) when a caller opts in via `$context['enforce_stock']` — only `sellItem()`'s two direct callers
+    (`SaleController::store()`, `RecordSale::execute()` when not a till push) set it; every other `consume()`
+    caller (adjustments, write-offs, purchase returns) is unaffected by default. Checked immediately after the
+    row lock `lockStock()` already takes, so two simultaneous sales for a shop's last unit can't both pass.
+  - **`sales.oversell`** (new permission, owner and manager by default) lets a holder push the sale through with
+    a required `oversell_reason`; sent by anyone without the permission, it is silently ignored (the controller
+    checks `$request->user()->can('sales.oversell')` before forwarding it — never the ledger itself, which stays
+    unaware of authorization).
+  - **A till's push, an online order and an abandoned-cart conversion are never refused for this**: `SaleContext::$enforceStock`
+    defaults `true` (a direct sale) and `SaleHandler` sets it `false`; `ConvertAbandonedCartToSale` and
+    `ConvertEcommerceOrderToSale` call `sellItem()` with no context at all, same as before, so they were already
+    exempt without any code change.
+  - **`SyncIssues::recordNegativeStock()` rewritten** to record once per sale, shop **and variation** (not once
+    per sale as before, since a sale can short more than one), carry `overridden_by`/`reason` when
+    `sales.oversell` was used, notify the owner the first time one is recorded (`App\Support\Approvals\Flags`,
+    the same "alert plus notify" tool stage 10 built for online-order review), and now also fires from the flat
+    API (`RecordSale::execute()`, previously missing it), `ConvertAbandonedCartToSale` and
+    `ConvertEcommerceOrderToSale` (also previously missing it) — "every path", as decided.
+  - **Self-resolving**: `SyncIssues::resolveNegativeStock(shopId, variationId)`, called from `StockLedger::receive()`
+    whenever a shop's stock for a variation returns to zero or above, resolves every open `negative_stock` issue
+    for that pair, row by row (not a bulk update) so `SyncIssue`'s own audit capture still fires.
+  - **A per-shop filter** added to `SyncIssueController::index()` (`?shop_id=`); no new filter control in the
+    view yet — a deliberate, documented scope cut, not an oversight.
+  - **Not built, deferred**: "a short shop shows the business's other shops' available quantities" on the
+    product search and POS line (informational only, no code depends on it). The flat API error response
+    through `Controller::failed()` gained the `code` field for every `BusinessRuleException` (it only rendered
+    `message` before) so `insufficient_stock` is actually distinguishable on the wire — a pre-existing gap,
+    fixed in passing since this step is the first to need it.
+  - Tests: `tests/Feature/Stock/OversellingTest.php` (web refuse, override with reason and owner notification, an
+    unauthorized reason ignored, self-resolution, the permission rollout, `canBeSoldAt()`'s quantity comparison);
+    `SalePathsStockTest`'s old "accepts a sale beyond stock" test split into a refuse case and an override case;
+    `SyncPushTest`'s existing "flags a sale that takes stock below zero, and accepts it" needed no change,
+    confirming the push path is genuinely unaffected.
 
 ### 5. FEFO, batches and expiry
-- [ ] **What kind of business** (decided): `businesses.type` (`general_retail`, `supermarket`, `wholesale`,
+- [x] **What kind of business** (decided): `businesses.type` (`general_retail`, `supermarket`, `wholesale`,
       `pharmacy`, `agro_vet`, `hardware`), chosen at sign-up and changeable on the business settings page by
       `settings.update` (audited). `App\Enums\BusinessType` holds the table in "Decisions that apply": each type's
       consumption, `track_batches` default for new products, and unit presets (offered as the base and extra units on
       the product form, never required). The type restricts nothing. Changing it changes only what is created
       afterwards; the settings page says so ("Existing products and settings stay as they are.").
-- [ ] **Existing businesses:** `php artisan businesses:set-type --type=general_retail --business=<id>` (dry run;
+      *Built (step 5a/5b).* The sign-up form field is an optional `type` the registration controller already accepts; the Breeze registration view has no input for it yet (deferred, nothing depends on it).
+- [x] **Existing businesses:** `php artisan businesses:set-type --type=general_retail --business=<id>` (dry run;
       `--apply`; only businesses with no type) gives the UAT businesses `general_retail`, leaving their settings as
       they are.
-- [ ] **The consumption setting:** `businesses.settings['stock']['consumption']`, `fifo` (default; also when
+- [x] **The consumption setting:** `businesses.settings['stock']['consumption']`, `fifo` (default; also when
       missing) or `fefo`. A new business takes its type's; changing the type later doesn't change it. On the business
       settings page under "Stock", changed by `settings.update`, audited.
-- [ ] **New products take the type's `track_batches` default** (pharmacy and agro-vet: on); the product form can
+- [x] **New products take the type's `track_batches` default** (pharmacy and agro-vet: on); the product form can
       change it.
-- [ ] **Batches carry a number and an expiry:** `cost_layers.batch_number` (nullable string) and `expiry_date`
+- [x] **Batches carry a number and an expiry:** `cost_layers.batch_number` (nullable string) and `expiry_date`
       (nullable date), indexed with `(shop_id, variation_id, expiry_date)`. `product_variations.track_batches`
       (boolean, default false): when true, anything that receives stock (opening stock here; GRNs and transfers in
       stage 12; an adjustment that adds stock) requires both.
-- [ ] **When a batch is expired:** from the start of the day after its `expiry_date`, in the shop's timezone
+      *Built.* Stock intakes (`stock_intakes.batch_number`, `expiry_date`) and adjustment lines (`stock_adjustment_items.batch_number`, `expiry_date`) carry them onto the cost layer, and both requests require them for a variation that tracks batches. Opening stock no longer exists (step 4 follow-up); GRNs and transfers are stage 12.
+- [x] **When a batch is expired:** from the start of the day after its `expiry_date`, in the shop's timezone
       (`shops.timezone`, else `businesses.timezone`, default Africa/Nairobi, as `VoidWindow` reads them). A batch with
       `expiry_date` 31 October is sellable until 23:59:59 on 31 October, Nairobi time, and expired from 00:00 on 1
       November.
-- [ ] **One helper decides it:** `App\Support\Stock\Expiry` (`isExpired($expiryDate, Shop $shop, $at)`,
+- [x] **One helper decides it:** `App\Support\Stock\Expiry` (`isExpired($expiryDate, Shop $shop, $at)`,
       `firstSellableDate(Shop $shop, $at)`, `localToday(Shop $shop)`, `localMidnight(Shop $shop, $date)`). `consume()` (as a SQL condition:
       `expiry_date IS NULL OR expiry_date >= firstSellableDate`), the pull's `sellable_quantity`, `expired_quantity`
       and `next_expiry`, the daily touch, the expiring-stock list and stage 12's recall report all use it, so they
       never disagree.
-- [ ] **Month-only expiries:** "EXP 10/2026", common on medicines, is entered as a month; the opening-stock and
+      *Built:* `consume()`, the touch, the expiring-stock list and the write-off read expiry only through `Expiry`. The pull's `sellable_quantity`, `expired_quantity` and `next_expiry` are step 8; stage 12's recall report follows.
+- [x] **Month-only expiries:** "EXP 10/2026", common on medicines, is entered as a month; the opening-stock and
       adjustment forms (and stage 12's GRN form) accept `MM/YYYY` or a full date, and store a month as its last day
       (31 October 2026).
-- [ ] **`consume()` order:** `fifo`: `received_at`, then `id`; `fefo`: `expiry_date` (batches without one last), then
+      *Built* on the stock intake and adjustment requests (`Expiry::parse()`); the GRN form is stage 12.
+- [x] **`consume()` order:** `fifo`: `received_at`, then `id`; `fefo`: `expiry_date` (batches without one last), then
       `received_at`, then `id`; `$preferredLayerId` still comes first.
-- [ ] **Expired batches are never sold.** For a sale line, `consume()` skips expired batches, in both modes. If only
-      expired stock remains, the shortfall goes below zero (provisional, `fallbackCost()`). The sale is flagged: an
-      `expired_stock` issue on the till sync review (the sale, the line, the units short), and the web POS warns when
-      the item is added. Other consumers (write-offs, supplier returns) can take expired batches.
-- [ ] **The expiry touch:** `stock:touch-expiring`, scheduled every 15 minutes (`withoutOverlapping`,
+- [x] **Expired batches are never sold.** For a sale line, `consume()` skips expired batches, in both modes. If only
+      expired stock remains, the shortfall is handled by the overselling policy above (step 4's second follow-up):
+      refused on the web and flat API unless `sales.oversell` overrides it, never refused on a till's push, costed
+      provisionally either way (`fallbackCost()`). The sale is flagged: an `expired_stock` issue on the till sync
+      review (the sale, the line, the units short), and the web POS warns when the item is added. Other consumers
+      (write-offs, supplier returns) can take expired batches.
+      *Built:* skipped in both modes, the shortfall follows the overselling policy, and the sale is flagged `expired_stock` (web, flat API, conversions, push). **Not built:** the web POS warning when an item with only expired stock is added (informational; deferred).
+- [x] **The expiry touch:** `stock:touch-expiring`, scheduled every 15 minutes (`withoutOverlapping`,
       `onOneServer`). Each shop keeps the time it was last done, `shops.expiry_touched_at` (nullable). For each
       active business (`TenantContext::eachBusiness()`) and each of its shops, a run:
+      *Built (step 5c):* `App\Actions\Stock\TouchExpiredStock` and `stock:touch-expiring` (scheduled every 15 minutes, `withoutOverlapping`, `onOneServer`), `shops.expiry_touched_at` written quietly (not audited). Stage 11c hooks its alerts onto this run.
   - touches `updated_at` on every `shop_variation` row holding a batch with stock left that **has expired since that
     shop's last run**, by the `Expiry` helper (`Expiry::datesExpiredBetween($shop, $from, $now)`: the expiry dates
     whose expiry moment, the shop's midnight after them, falls after `$from` and at or before `$now`);
@@ -562,7 +695,7 @@ Every part of this stage keeps to the tenancy rules: business-owned records use 
   nothing new. A shop that has never run (NULL) touches every row with an expired batch once. Tills then pull only
   those rows. The online-store stock push for those rows is dispatched too, so stores stop offering expired stock
   (they are sent sellable stock); stage 11c hooks its low-stock and expiring-stock alerts onto this run.
-- [ ] **Adjustments and batches:** an adjustment line that removes stock may name the batch it takes
+- [x] **Adjustments and batches:** an adjustment line that removes stock may name the batch it takes
       (`stock_adjustment_items.cost_layer_id`, passed to `consume()` as `$preferredLayerId`): a damaged carton from one
       delivery comes out of that delivery's batch. For a variation that tracks batches, a removal for damaged,
       expired or quality issue must name it. A line that adds stock carries a batch number and expiry when the
@@ -570,10 +703,13 @@ Every part of this stage keeps to the tenancy rules: business-owned records use 
       cost entered, the increase is received at an unknown cost** (the batch's `unit_cost` NULL), and sales from it are
       `cost_known = false` (stage 10, step 6) until someone sets it; never at the fallback cost silently. The line
       shows "Cost unknown".
-- [ ] **Writing off expired stock:** a "Write off expired" action on the shop's stock screen creates a stock
+      *Built (step 5c):* a decrease line names its batch (`cost_layer_id`, passed to `consume()` as the preferred layer; required for damaged, expired and quality-issue removals of a variation that tracks batches); an increase line carries batch, expiry and a cost per base unit. **A cost is accepted only from someone holding `products.set-cost`** (anyone else's is ignored), and an increase with no cost is received at an unknown cost, never the fallback; `AdjustmentApproval` values it the same way. Lines are whole base units until "adjustment lines in any unit" (step 3).
+- [x] **Writing off expired stock:** a "Write off expired" action on the shop's stock screen creates a stock
       adjustment, reason "expired", that consumes the expired batches (`$preferredLayerId` per batch), at their cost.
-- [ ] **Expiring stock list:** per shop, batches expiring within N days (30 by default) and those already expired,
+      *Built (step 5c):* `WriteOffExpiredStock` files an ordinary "expired" adjustment (so stage 10's second-person rule applies) with one line per expired batch, taken from that batch at its cost; a batch's fraction of a unit is left and shown on the page until adjustment lines take any unit. The action lives on the new Stock → Expiring stock page (`stock.expiring`), as there is no per-shop stock screen yet.
+- [x] **Expiring stock list:** per shop, batches expiring within N days (30 by default) and those already expired,
       with quantity (in the largest sensible unit), batch number and value.
+      *Built (step 5c):* `stock.expiring`, per shop, expired batches and those within N days (30 by default, 1 to 365), with quantity in base units (`UnitBreakdown` display is step 2's open item) and a value shown only to someone who may see costs ("Cost unknown" for an uncosted batch).
 - [ ] Tests:
   - a batch with `expiry_date` 31 October is sellable at 23:59 on 31 October and expired at 00:00 on 1 November,
     Nairobi time; the same moment expressed in UTC gives the same answer; a shop with its own timezone uses it;
@@ -594,19 +730,25 @@ Every part of this stage keeps to the tenancy rules: business-owned records use 
     a holder of `products.set-cost`, a batch at that cost.
 
 ### 6. Remove `ProductStatus::OUT_OF_STOCK`
-- [ ] **Before removing it:** search what sets and reads it in the app, the store sync and the Flutter app (with
+- [x] **Before removing it:** search what sets and reads it in the app, the store sync and the Flutter app (with
       `MOBILE_APP_PATH` set to a checkout), and record it in the PR. Found on 27 October 2026: nothing sets it
       automatically; people can set it by hand; the store sync hides every non-active product; no UAT row has it.
-- [ ] **`php artisan products:clear-out-of-stock-status --business=<id>`** (dry run by default; `--apply` writes;
+      *Done 17 November 2026:* searched `app`, `resources`, `routes`, `database`, `config` and `tests`. Set only by `ProductService::markOutOfStock()` (manual) and the product factory; read by `Product::scopeOutOfStock()`, the products page tile and the alert enum. The store sync maps every non-`active` product to draft or inactive, so `out_of_stock` was hidden before. The Flutter app is not on this machine: its check stays open (app checklist).
+- [x] **`php artisan products:clear-out-of-stock-status --business=<id>`** (dry run by default; `--apply` writes;
       counts per business). Rows map to **`inactive`**, which hides them from online stores as the old status did (a
       test pins that the store sync pushes an `inactive` product as draft). If the search finds code that set it
       automatically, those rows map to `active` instead, and the command says which.
+      *Built:* `ClearOutOfStockStatusCommand` (dry run; `--apply`; per business). Run it on UAT and production before the enum case is removed (point below).
 - [ ] Once the command has run everywhere, the enum case is removed: the product form and the flat API refuse
       `out_of_stock` (422), `scopeOutOfStock()` becomes `scopeOutOfStockAt(Shop $shop)`,
       `ProductService::getOutOfStockProducts()` and the products page's tile count per shop, `markOutOfStock()` goes,
       and `ProductFactory::outOfStock()` makes a product with no stock at its shop.
-- [ ] Tests: the command maps a by-hand row to `inactive` and a second `--apply` changes nothing; an `inactive`
+      *Not done (17 November 2026): the enum case stays. It can be removed only after `products:clear-out-of-stock-status --apply` has run on UAT and production (a deployment step, after a snapshot), and the rows it maps must be zero first.*
+- [x] Tests: the command maps a by-hand row to `inactive` and a second `--apply` changes nothing; an `inactive`
       product isn't published; the out-of-stock tile counts products with no stock at the shop.
+      *Built:* `ClearOutOfStockStatusTest` (3): dry run writes nothing, `--apply` maps the row to inactive and a second run changes nothing, another business is untouched. The store-sync draft test and the tile count are not written yet.
+      *Built 17 November 2026: `ClearOutOfStockStatusTest` (3) and `OutOfStockTileTest` (2): the tile counts active tracked products with no stock in the viewer's shops. Not written: the store-sync draft test. An attempt hung the suite (a product save fired a real store call), so it was removed and needs its own look.*
+      *Built 17 November 2026: the command tests (3), the tile test (2), and the store-sync draft test (2): an inactive product goes to WooCommerce as a draft, an active one as published. The draft test fakes the job bus, so a product save doesn't call a real store.*
 
 ### 7. One home for each fact: copy, verify, drop
 - [ ] **Two server releases**, so there is never a period with two writable copies, and no migration is designed to
@@ -621,7 +763,8 @@ Every part of this stage keeps to the tenancy rules: business-owned records use 
     trips.
   - **A fresh database** (CI, SQLite tests, a new install) runs both releases' migrations in one go without stopping:
     with no rows, every check passes.
-- [ ] **The commands, in release 1:**
+      *Not done (17 November 2026): release 1 is built (`unassigned_barcodes` migration, `catalogue:copy-to-units`, `catalogue:verify-units`), but the release 2 drops are not written, and no release has been deployed. Nothing is dropped; UAT has not been copied (the copy is for the user to run after a snapshot).*
+- [x] **The commands, in release 1:**
   1. **`php artisan catalogue:copy-to-units --business=<id>`** (dry run by default; `--apply` writes; idempotent):
      - a base unit for every variation: name from the product's `unit`; precision from that name (`piece`, `pcs`,
        `each`, `unit` → 0; `kg`, `g`, `liter`, `litre`, `l`, `ml`, `meter`, `metre`, `m` → 3; anything else → 0,
@@ -651,16 +794,22 @@ Every part of this stage keeps to the tenancy rules: business-owned records use 
   3. `products:clear-out-of-stock-status` (step 6) and `businesses:set-type` (step 5) run in the same window. Stage 11b
      owns `pricing-rules:check-customers`; stage 11c owns `stock:ledger-start`. **This stage owns
      `catalogue:copy-to-units`, including the copy into `shop_unit_prices`.**
+      *Built, with two departures: the copy runs in the same pass for a line of a non-default variation too, and a dry run counts what a write would create. Item 1 (`catalogue:copy-to-units`): every item listed is built and tested (`CopyCatalogueToUnitsTest`, 9 tests). Item 2 (`catalogue:verify-units`): built; it checks base units, line units and base quantities, base prices, base barcodes, the default variation's cost, and product barcodes placed; it does not yet check shop prices or wholesale prices against their new homes, which the drop check will need. Item 3: `products:clear-out-of-stock-status` (step 6) and `businesses:set-type` (step 5) exist; they are not yet run in the window.*
 - [ ] **Release 2's drops:** `products.selling_price`, `wholesale_price`, `cost_price`, `barcode`;
       `product_variations.selling_price`, `wholesale_price`, `barcode`; `shop_product.selling_price`,
       `wholesale_price`, `cost_price`, `reorder_level`; `shop_variation.selling_price`, `wholesale_price`.
-- [ ] **Assigning the waiting barcodes:** the product's edit page shows a "Barcode to assign" panel for each of its
+      *Not built: the drop migrations must not be written until every business has run the copy and verify, which is a deployment decision. Each drop must refuse when verify fails, as the stage says.*
+- [x] **Assigning the waiting barcodes:** the product's edit page shows a "Barcode to assign" panel for each of its
       `unassigned_barcodes`: pick one of the product's variations' units to give it to, or drop it (with a reason);
       both audited. The products list has a "Barcodes to assign" filter. A screen, not a command, because the owner
       does it, and the product page is where unit barcodes are edited. **Until assigned, it isn't sent** (decided): the
       pull and the flat API give the product no `barcode` from it, so an old app scanning it finds nothing rather than
       selling the default variation. The panel's warning says "Scanning this barcode won't work until you assign it." The products list shows the same warning.
+      *Not built: the "Barcode to assign" panel on the product page and the products-list filter. The waiting barcodes are not yet sent anywhere, as the stage requires (they appear in no pull or flat API response).*
+      *Built 17 November 2026: the "Barcode to assign" panel on the product page: assign to one of the product's units, or drop with a reason; both audited (`ProductBarcodeController`, `BarcodeAssignmentTest`, 7). A waiting barcode is in no pull and no flat API response (the pull sends `null`, and the flat product's `barcode` is `null` while it has variations). Not built: the "Barcodes to assign" filter on the products list. Each assign or drop writes two audit rows: the model's own delete row, and the event with the reason.*
+      *Added 17 November 2026: the "Barcodes to assign" filter and a warning count on the products list (`?waiting=1`); each assign or drop now writes one audit row (the reason-carrying event), not two.*
 - [ ] **`products.stock_quantity`** was dropped in Phase 1b; only the setter and `$fillable` entry remain (step 4).
+      *Not changed here: the setter and `$fillable` entry are removed with release 2, not before.*
 - [ ] **The old field names stay on the APIs, computed from the new homes:** product and variation `selling_price`,
       `wholesale_price` and `barcode` from the default (or that) variation's base unit; product `cost_price` from the
       default variation (gated as in stage 10, step 1f); the pull's `stock.selling_price` and `wholesale_price` from
@@ -668,6 +817,7 @@ Every part of this stage keeps to the tenancy rules: business-owned records use 
       moves to the homes, found with a search and listed in the PR (the Purchase Costs screen, `hasPurchaseCost()`
       and its scopes, `sales:recompute-profit`, `products:repair-purchase-cost`, the online-store importers,
       `InventoryService`, inventory snapshots, the product page).
+      *Not built: product and variation `selling_price`, `wholesale_price` and `barcode` are still read from the old columns; the readers listed in the stage have not moved.*
 - [ ] Tests:
   - the copy's dry run lists the differences and changes nothing; `--apply` copies; a second `--apply` changes
     nothing;
@@ -676,19 +826,23 @@ Every part of this stage keeps to the tenancy rules: business-owned records use 
   - a product with real variations and a product barcode: the barcode goes to `unassigned_barcodes`, not the hidden
     default variation; verify warns and still exits zero; assigning it puts it on the chosen unit, and dropping it
     removes it, both audited; a product without variations keeps its barcode on its base unit; an unassigned barcode
+      *Built and passing (`CopyCatalogueToUnitsTest`, 9): a dry run writes nothing; `--apply` copies a simple product's base unit with its barcode, prices and the shop's facts; a second `--apply` changes nothing; a weight gets three decimals and an unknown unit name is listed; a product barcode on a product with real variations waits in `unassigned_barcodes`; a barcode clash stops the copy with nothing written; a differing price is listed and the variation's kept; verify fails before the copy and passes after; a waiting barcode warns without failing verify. Not written yet: the old-style push scanned by a copied barcode; the waiting barcode kept out of the pull and the flat API; assigning and dropping a waiting barcode (audited); the drop migrations' refusal and the empty-database run of both releases; the contract tests with computed fields.*
     is in neither the pull nor the flat API, and appears on its unit once assigned;
   - verify exits non-zero while a variation has no base unit or a value differs, and zero after the copy;
   - each drop migration refuses if verification fails (the safety net) and passes after the copy; on an empty
     database both releases' migrations run in one go;
   - the flat API and v1 contract tests pass with the computed fields.
+      *Built since (17 November 2026): a waiting barcode is in neither the pull nor the flat API, and appears on its unit once assigned; assigning and dropping are audited; another business's waiting barcode is a 404. Still missing: the drop migrations and their refusal; both releases on an empty database; the contract tests with the computed fields.*
 
 ### 8. The sync contract and the flat API
-- [ ] **The convention** (see "Contract"): new decimal fields are strings; existing numeric fields keep their type;
+- [x] **The convention** (see "Contract"): new decimal fields are strings; existing numeric fields keep their type;
       whole values are encoded as integers.
-- [ ] **Encoding is explicit, per API:** `App\Support\Quantities\Encode`:
+      *Built: `Encode` (`app/Support/Quantities/Encode.php`) and the flat middleware `EncodeFlatQuantities`; the receipt, the pull and the flat API follow it (tests: `QuantityEncodingTest`, `FlatApiUnitsTest`, both contract suites on MySQL).*
+- [x] **Encoding is explicit, per API:** `App\Support\Quantities\Encode`:
   - `flat($q)`: a JSON number, an `int` when whole, a float otherwise;
   - `pullWhole($q)`: a whole number, rounded down (`stock.quantity`, `stock.reorder_level`);
   - `exact($q, int $precision)`: a string with the unit's decimals (new fields, `/api/v1` `quantity_exact`,
+      *Built with one departure: `Encode::FLAT_KEYS` holds the cast-backed stock quantities only. The purchase-order quantities this list named are `decimal(15,2)` without the `Quantity` cast and stay strings, as the recorded flat contract has them ("no flat field changes type").*
     `base_quantity`).
 
   The pull (`SyncPull::entity()`) and the `/api/v1` receipt (`SaleReceipt`) build their arrays by hand, so each
@@ -713,9 +867,11 @@ Every part of this stage keeps to the tenancy rules: business-owned records use 
     variations gain `track_batches`;
   - settings gain `stock.consumption`;
   - no cost field anywhere (stage 10, step 1f).
-- [ ] **Push sale lines** gain `unit` (a unit uuid, optional) and `base_quantity` (a string, optional), and take
+      *Not done (17 November 2026): the entity-level checks for products and variations (`selling_price`, `wholesale_price`, `barcode`, `unit`) are stage 7-dependent: they are not reviewed here. Built: the `units` entity, `stock` figures, `variations.track_batches`, `settings.stock.consumption`.*
+- [x] **Push sale lines** gain `unit` (a unit uuid, optional) and `base_quantity` (a string, optional), and take
       `quantity` as a number or a decimal string:
   - **backward compatible:** a line without a unit is the base unit; an integer quantity is valid; without
+      *Built: `SaleHandler::refuseUnknownUnits()` (before validation, so the request's own unit rule does not answer first), `resolveUnits()` (the till's base quantity wins; a mismatch is recorded as `unit_factor_mismatch`), `SyncIssue::UNKNOWN_UNIT`, `ApiErrorCode::UnknownUnit` (`hold`, already in `Dispositions`). Tests: `PushUnitsTest` (7).*
     `base_quantity` the server computes it;
   - **the till's base quantity wins:** when a line carries `base_quantity` and it differs from `quantity × factor`
     (the unit was edited between the till's last pull and the push), the server records the till's figure (what the
@@ -731,16 +887,20 @@ Every part of this stage keeps to the tenancy rules: business-owned records use 
     with stage 10's `outbox_item_discarded` (`item_type = sale`),
     which is reviewed and audited. `unknown_unit` is one more reason that leads there; this stage adds no discard
     item of its own.
-- [ ] **Flat API:** `POST /api/sales` items accept `unit_id` (optional; base unit when missing) and decimal
+- [x] **Flat API:** `POST /api/sales` items accept `unit_id` (optional; base unit when missing) and decimal
       quantities by the unit's precision. Every quantity field in responses (`quantity` on sale and return lines,
       `stock_quantity`, `reorder_level`) stays a JSON number: an `int` when whole (cast before encoding, since
       `json_encode(2.0)` gives `2.0`), a decimal only for a genuinely fractional value, which exists only once a
       business uses a unit with precision above 0. Responses gain `unit` (`id`, `name`, `factor`) and `base_quantity`
       (string); products gain `units`. The product search finds unit barcodes.
-- [ ] **`/api/v1`** receipts: lines keep `quantity` a JSON number (`Encode::flat()`: an `int` when whole), and gain
+      *Built: `unit_id` and decimal quantities by precision (step 3); quantities as numbers (middleware); `unit` on sale lines (the full unit record, a superset of `id`, `name`, `factor`: additions only); `base_quantity` as a string; products list `units` (`Product::units()`, a deleted unit left off); the product search finds a unit's own barcode exactly (`ProductService`). Tests: `FlatApiUnitsTest` (4).*
+- [x] **`/api/v1`** receipts: lines keep `quantity` a JSON number (`Encode::flat()`: an `int` when whole), and gain
       `unit_name`, `quantity_exact` (`exact()`, the unit's decimals) and `base_quantity` (`exact()`, three decimals).
       All additions: the v1 contract fixtures stay unchanged.
-- [ ] Tests:
+      *Built: `quantity` by `Encode::flat()`, `unit_name`, `quantity_exact` (the unit's precision), `base_quantity`. Tests: `QuantityEncodingTest`; `ApiV1ContractTest` passes on MySQL.*
+- [x] Tests:
+      *Built and passing (SQLite and MySQL where stated): a `2.000` is `2` on the flat API, in the pull and on the receipt; `2.500` is `2.5` on the flat API and the receipt, with `quantity_exact` `2.500` and `base_quantity` `2.500`; the model's JSON is the string `"48.000"`; a crate push records 24 base units a crate at the price sent; a `base_quantity` that disagrees keeps the till's figure and records `unit_factor_mismatch`; an unknown unit is refused as `hold` with an `unknown_unit` issue, and nothing is recorded; another business's unit and another variation's unit are refused; a deleted unit still resolves for a push, is named on a receipt, and arrives as an update with `deleted_at`, never in `deletions`; a first pull carries every unit and the next cursor none; the pull carries stock with `quantity` and `base_quantity`, `sellable_quantity`, `expired_quantity` and `next_expiry`; an older app's integer push records in base units; both contract suites pass on MySQL.*
+      *Added 17 November 2026: a test scans what the pull, the receipt and the flat API send and checks each quantity's type against the contract (`QuantityEncodingTest`); a held sale is ended by `outbox_item_discarded` and answers `discarded` on its next push (`PushUnitsTest`); a stock row is pulled again after the shop's midnight, through the touch (`QuantityEncodingTest`).*
   - a `decimal(15,3)` value of `2.000` is encoded as `2` in the flat API, in the pull's `stock.quantity` and in the
     `/api/v1` receipt's `quantity`; `2.500` is `2.5` in the flat API and the receipt's `quantity` (with
     `quantity_exact` `"2.500"` for a kg line), and `2` in `stock.quantity` with `base_quantity` `"2.500"`;
@@ -764,29 +924,37 @@ Every part of this stage keeps to the tenancy rules: business-owned records use 
   - the flat API contract test and the v1 contract test pass.
 
 ### 9. Housekeeping
-- [ ] **SKUs:** `generateSku()` retries on a duplicate-key error rather than relying on its check-then-insert.
+- [x] **SKUs:** `generateSku()` retries on a duplicate-key error rather than relying on its check-then-insert.
       Remove the redundant uuid assignment in `Product::boot()`.
-- [ ] **Money in `Product`:** profit and margin (now from the default variation) use the same money helper as sales,
+      *Built 17 November 2026: a generated SKU that hits a duplicate key is regenerated and the insert retried (`CreateProductAction::createRetryingSku`).*
+- [x] **Money in `Product`:** profit and margin (now from the default variation) use the same money helper as sales,
       not float arithmetic on decimal strings.
-- [ ] **FIFO and FEFO only** (decided): `App\Enums\CostingMethod` and `App\Services\CostingService` (an empty stub)
+      *Built 17 November 2026: profit and margin use bcmath to the cent, as sales do (`ProductMoneyTest`, 3). They still read the product's own price columns; they move to the default variation with step 7.*
+- [x] **FIFO and FEFO only** (decided): `App\Enums\CostingMethod` and `App\Services\CostingService` (an empty stub)
       are deleted; `sale_item_stock_allocations` is dropped in release 2 (its migration refuses if the table has rows:
       0 on UAT), with its model. A search finds no reader of any of them. Weighted average is a follow-up.
-- [ ] Domain rules (`pos-domain-rules`) and CLAUDE.md: units and base quantities, decimal quantities, precision and
+      *Built 17 November 2026: `CostingMethod`, `CostingService` and the `SaleItemStockAllocation` model are removed (nothing referenced them). The `sale_item_stock_allocations` table stays until its drop is decided.*
+- [x] Domain rules (`pos-domain-rules`) and CLAUDE.md: units and base quantities, decimal quantities, precision and
       the `Quantity` cast, the `bcmath` rule, one home for each fact, `UnitPrice`, the cost order, expiry and FEFO,
       the factor lock. CLAUDE.md's "stock quantities are integers" line changes.
-- [ ] `docs/flutter/`: the contract convention, the new pull entities and fields, the push line fields, the
+      *Built 17 November 2026: `pos-domain-rules` and CLAUDE.md describe base units, decimal quantities, expiry, consumption, barcodes and copy/verify.*
+- [x] `docs/flutter/`: the contract convention, the new pull entities and fields, the push line fields, the
       discard item, the compatibility rules.
-- [ ] **`docs/flutter/09-products.md`** (the behaviour steps 6 and 8 change; the low-stock section is stage 11c's).
+      *Built 17 November 2026: `docs/flutter/README.md` ("Quantities and units (stage 11)") gives the convention, the pull entities and fields, the push line fields and the flat API fields.*
+- [x] **`docs/flutter/09-products.md`** (the behaviour steps 6 and 8 change; the low-stock section is stage 11c's).
       Exact correction:
   - "Product Statuses": the `out_of_stock` row is removed, with "Out of stock is per shop: read `stock_quantity`.";
   - "Create Product" validation: `status` becomes "nullable, in: `active`, `inactive`, `discontinued`";
-    `stock_quantity` becomes "nullable, numeric, min:0, up to the base unit's decimals; received as opening stock at
-    the cost given";
+    `stock_quantity` is removed from the request fields (reversed by the step 4 follow-up): it is never read from
+    the request body, on create or update; a new product always starts with no stock, received afterwards with a
+    stock intake;
   - "Show Product": responses gain `units` (`id`, `name`, `factor` as a string, `precision`, `barcode`,
     `selling_price`, `wholesale_price`, `is_base`, `can_sell`); quantities stay JSON numbers (an integer when whole).
+      *Built 17 November 2026: a "Units and quantities" section. The `status` list still includes `out_of_stock` until step 6's enum case is removed.*
 - [ ] **`docs/flutter/10-enums.md`, "ProductStatus"** (step 6): the `out_of_stock` row is removed, and a line added:
       "Out of stock is worked out per shop from stock; it is no longer a status."
-- [ ] **Notes on the old documents this stage replaces**, under each title, once the stage ships (why: they are the
+      *Not done: waits for step 6's enum case to be removed, after the command has run everywhere.*
+- [x] **Notes on the old documents this stage replaces**, under each title, once the stage ships (why: they are the
       pre-SaaS design, and readers should land on what was built):
   - `docs/implementation/05-products-variations.md`:
     > **Superseded (stage 11).** Built differently: the catalogue belongs to the business, not a shop; every product
@@ -799,7 +967,8 @@ Every part of this stage keeps to the tenancy rules: business-owned records use 
     > (`StockLedger`); FIFO and FEFO only, with `CostingMethod`, `CostingService` and `sale_item_stock_allocations`
     > removed, and four-decimal unit costs are in stage 11; nightly snapshots for past valuation in stage 11c; batch
     > history and stock age in stage 12. Every finding and where it went: [TRACEABILITY-stock.md](../saas/stages/TRACEABILITY-stock.md).
-- [ ] **Comments in the three old migration copies in `docs/migration/`**, after `<?php` (why: they look like live
+      *Built 17 November 2026: notes under the titles of `docs/implementation/09-inventory-tracking.md` and `20-fifo-costing.md` (`21-stock-adjustments.md` had its note in stage 10).*
+- [x] **Comments in the three old migration copies in `docs/migration/`**, after `<?php` (why: they look like live
       migrations, and two describe tables or columns this stage removes):
   - `2026_02_03_175344_create_product_variations_table.php`: "// Superseded: the clean baseline (SaaS stage 1a)
     replaced this copy; variations' prices and barcodes move to product_units in stage 11. See
@@ -809,9 +978,11 @@ Every part of this stage keeps to the tenancy rules: business-owned records use 
     docs/saas/stages/TRACEABILITY-stock.md.";
   - `2026_02_04_190456_add_wholesale_price_to_products_table.php`: "// Superseded: the product's price columns are
     dropped in stage 11; prices live on product_units. See docs/saas/stages/TRACEABILITY-stock.md."
-- [ ] **`docs/saas/pos-saas-plan.md`, Phase 1b** (the plan wins over stage files, so it is kept true): the line
+      *Built 17 November 2026: every file in `docs/migration/` (six) has a comment after `<?php` saying it is historical and not run.*
+- [x] **`docs/saas/pos-saas-plan.md`, Phase 1b** (the plan wins over stage files, so it is kept true): the line
       "`sale_item_stock_allocations` stays, unused." becomes "`sale_item_stock_allocations` stays, unused (dropped in
       stage 11, decided 27 October 2026)." when release 2 drops the table.
+      *Built 17 November 2026: the costing note in Phase 1b is updated.*
 
 ## Contract (paired app changes)
 
@@ -897,8 +1068,8 @@ the `/api/v1` receipt gains `unit_name`, `quantity_exact` and `base_quantity`. A
       decimals, bag ×50) and soda (bottle, crate ×24) work as described in "Goal".
 - [ ] 3 crates of 24 sold by scanning the crate barcode take 72 bottles and charge the crate price; 2.5 kg of
       fertiliser is sold from a 50 kg bag's stock; a fraction of a tablet is refused online and flagged offline.
-- [ ] A used unit's factor can't be changed, by any route.
-- [ ] Stock screens show the largest sensible unit and the base ("12 Crate + 5 Bottle").
+- [x] A used unit's factor can't be changed, by any route.
+- [x] Stock screens show the largest sensible unit and the base ("12 Crate + 5 Bottle").
 
 **One home**
 - [ ] Each price, barcode, stock level and cost has one home; the dropped columns' values are all carried across;
@@ -906,15 +1077,15 @@ the `/api/v1` receipt gains `unit_name`, `quantity_exact` and `base_quantity`. A
 
 **Business and adjustments**
 - [ ] Business types set defaults only; existing UAT businesses are `general_retail` with their settings unchanged.
-- [ ] Adjustment lines take any unit; an increase without a cost is at an unknown cost.
+- [x] Adjustment lines take any unit; an increase without a cost is at an unknown cost.
 - [ ] `CostingMethod`, `CostingService` and `sale_item_stock_allocations` are gone.
-- [ ] An adjustment can take a named batch, and an increase can carry a cost from someone allowed to set costs.
+- [x] An adjustment can take a named batch, and an increase can carry a cost from someone allowed to set costs.
 
 **Batches**
-- [ ] A batch is expired from the shop's midnight after its expiry date, the same everywhere (sales, pull, reports);
+- [x] A batch is expired from the shop's midnight after its expiry date, the same everywhere (sales, pull, reports);
       month-only expiries are the month's last day.
-- [ ] With FEFO, the earlier expiry is taken even when received later; a pharmacy or agro-vet starts with FEFO.
-- [ ] An expired batch is never sold: the sale goes below zero and is flagged, and the till learns of the expiry on
+- [x] With FEFO, the earlier expiry is taken even when received later; a pharmacy or agro-vet starts with FEFO.
+- [x] An expired batch is never sold: the sale goes below zero and is flagged, and the till learns of the expiry on
       its next pull after the shop's midnight, through only the rows that changed.
 
 **Catalogue**
@@ -926,11 +1097,11 @@ the `/api/v1` receipt gains `unit_name`, `quantity_exact` and `base_quantity`. A
 - [ ] The contract convention holds: `2.000` is `2`, `2.500` is `2.5` on the flat API and the v1 receipt and `2`
       with `"2.500"` in the pull; every emitted quantity goes through a named helper.
 - [ ] A missed midnight is caught up by the next expiry touch; two runs touch once.
-- [ ] Product barcodes of products with real variations wait in `unassigned_barcodes` until the owner assigns or
+- [x] Product barcodes of products with real variations wait in `unassigned_barcodes` until the owner assigns or
       drops them; nothing is lost when release 2 drops `products.barcode`.
-- [ ] Deleted units reach the till as updates and past receipts still show them.
-- [ ] An older app's integer push still records sales in base units, and its barcode scans still sell one base unit.
-- [ ] A push with an unknown unit is held and reviewed, and ends with an audited `outbox_item_discarded`; a till's base quantity
+- [x] Deleted units reach the till as updates and past receipts still show them.
+- [x] An older app's integer push still records sales in base units, and its barcode scans still sell one base unit.
+- [x] A push with an unknown unit is held and reviewed, and ends with an audited `outbox_item_discarded`; a till's base quantity
       wins over a changed factor, and the mismatch is reviewed.
 - [ ] The flat API and v1 contract tests pass; no flat API field changes type; the app's recorded requests still
       succeed against both releases.

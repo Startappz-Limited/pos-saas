@@ -202,15 +202,22 @@
                             <div class="row">
                                 <div class="col-md-6">
                                     <div class="mb-3">
-                                        <label for="stock_quantity" class="form-label">{{ __('Opening stock') }}</label>
-                                        <input type="number" min="0"
-                                            class="form-control @error('stock_quantity') is-invalid @enderror"
-                                            id="stock_quantity" name="stock_quantity" aria-describedby="stock_quantity-help"
-                                            value="{{ old('stock_quantity', 0) }}">
-                                        <div class="form-text" id="stock_quantity-help">{{ __('How many are in the owning shop now.') }}</div>
-                                        @error('stock_quantity')
-                                            <div class="invalid-feedback">{{ $message }}</div>
-                                        @enderror
+                                        <label class="form-label">{{ __('Opening stock') }}</label>
+                                        <div class="form-text mt-0">
+                                            {{ __('A new product starts with no stock. Receive it afterwards with a stock intake.') }}
+                                        </div>
+<div class="form-check form-switch mt-2">
+                                            <input class="form-check-input" type="checkbox" role="switch" id="is_medical" name="is_medical"
+                                                value="1" @checked(old('is_medical', false))>
+                                            <label class="form-check-label" for="is_medical">{{ __('Medical product') }}</label>
+                                        </div>
+                                        <div class="form-text">{{ __('Medical stock that is expired, or whose expiry is unverified, is never released for sale by approval.') }}</div>
+                                        <div class="form-check form-switch mt-2">
+                                            <input class="form-check-input" type="checkbox" role="switch" id="track_batches" name="track_batches"
+                                                value="1" @checked(old('track_batches', $trackBatchesDefault ?? false))>
+                                            <label class="form-check-label" for="track_batches">{{ __('Track batches and expiry') }}</label>
+                                        </div>
+                                        <div class="form-text">{{ __('A batch number and expiry are then required every time stock is received.') }}</div>
                                     </div>
                                 </div>
                                 <div class="col-md-6">
@@ -304,12 +311,6 @@
                                                         class="form-control form-control-sm"
                                                         name="variations[{{ $index }}][wholesale_price]"
                                                         value="{{ $variation['wholesale_price'] ?? '' }}">
-                                                </div>
-                                                <div class="{{ $variationPriceCols }}">
-                                                    <label class="form-label">Stock Qty</label>
-                                                    <input type="number" class="form-control form-control-sm"
-                                                        name="variations[{{ $index }}][stock_quantity]"
-                                                        value="{{ $variation['stock_quantity'] ?? 0 }}">
                                                 </div>
                                             </div>
                                         </div>
@@ -510,11 +511,6 @@
                                 <label class="form-label">Wholesale Price</label>
                                 <input type="number" step="0.01" class="form-control form-control-sm"
                                     name="variations[${variationIndex}][wholesale_price]">
-                            </div>
-                            <div class="{{ $variationPriceCols }}">
-                                <label class="form-label">Stock Qty</label>
-                                <input type="number" class="form-control form-control-sm"
-                                    name="variations[${variationIndex}][stock_quantity]" value="0">
                             </div>
                         </div>
                     </div>

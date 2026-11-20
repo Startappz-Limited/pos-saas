@@ -31,7 +31,7 @@ class StockMovementController extends Controller
     {
         $this->authorize('view', $stockMovement);
 
-        $stockMovement->load(['shop', 'product', 'variation', 'creator', 'reference']);
+        $stockMovement->load(['shop', 'product', 'variation.baseUnit', 'creator', 'reference']);
 
         return view('stock-movements.show', compact('stockMovement'));
     }

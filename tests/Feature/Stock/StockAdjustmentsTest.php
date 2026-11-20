@@ -46,7 +46,10 @@ beforeEach(function () {
         $this->actingAs($user)->post(route('stock-adjustments.store'), [
             'shop_id' => $this->shop->id,
             'reason' => $reason,
-            'items' => array_map(fn (array $line): array => ['product_id' => $line[0]->product_id, 'variation_id' => $line[0]->is_default ? null : $line[0]->id, 'quantity_change' => $line[1]], $lines),
+            'items' => array_map(fn (array $line): array => [
+                'product_id' => $line[0]->product_id, 'variation_id' => $line[0]->is_default ? null : $line[0]->id, 'quantity_change' => $line[1],
+                ...($line[2] ?? []),
+            ], $lines),
         ]);
 
         return StockAdjustment::query()->latest('id')->first();
@@ -69,7 +72,7 @@ it('adjusts the variation it names, not the default one', function () {
     [$product, $red] = shirt();
     ($this->stock)($red, 5, 10);
 
-    $adjustment = ($this->adjust)($this->manager, 'found', [[$red, 2]]);
+    $adjustment = ($this->adjust)($this->manager, 'found', [[$red, 2, ['unit_cost' => 10]]]);
 
     expect($adjustment->status)->toBe('completed')
         ->and($adjustment->items->first()->variation_id)->toBe($red->id)
@@ -95,7 +98,7 @@ it('writes the before and after figures when it is approved, not when it is draf
     $this->actingAs($this->manager)->post(route('stock-adjustments.approve', $adjustment))->assertRedirect();
 
     $line = $adjustment->items()->first();
-    expect([$line->quantity_before, $line->quantity_after])->toBe([8, 6])
+    expect([$line->quantity_before, $line->quantity_after])->toBe(['8.000', '6.000'])
         ->and(($this->quantity)($this->default))->toBe(6);
 });
 
@@ -129,7 +132,7 @@ it('raises one line and lowers another in one recount, which waits because it lo
 it('applies a recount that only raises stock on saving', function () {
     ($this->stock)($this->default, 5, 10);
 
-    expect(($this->adjust)($this->manager, 'recount', [[$this->default, 2]])->status)->toBe('completed')
+    expect(($this->adjust)($this->manager, 'recount', [[$this->default, 2, ['unit_cost' => 10]]])->status)->toBe('completed')
         ->and(($this->quantity)($this->default))->toBe(7);
 });
 
@@ -149,7 +152,7 @@ it('applies the stock once on approval and can\'t be approved twice', function (
 it('lets a creator holding the approve permission apply found stock on saving, and holds a clerk\'s', function () {
     ($this->stock)($this->default, 5, 10);
 
-    $applied = ($this->adjust)($this->manager, 'found', [[$this->default, 3]]);
+    $applied = ($this->adjust)($this->manager, 'found', [[$this->default, 3, ['unit_cost' => 10]]]);
     expect($applied->status)->toBe('completed')
         ->and($applied->approved_by)->toBe($this->manager->id)
         ->and($applied->auto_applied)->toBeTrue()
@@ -196,14 +199,40 @@ it('values a recount by the units it moves both ways, so +100 and −100 above t
         ->and([($this->quantity)($red), ($this->quantity)($blue)])->toBe([10, 100]);
 });
 
-it('receives found stock at the shop\'s latest batch cost', function () {
-    ($this->stock)($this->default, 2, 10, '-3 days');
-    ($this->stock)($this->default, 2, 12, '-1 day');
-
-    $adjustment = ($this->adjust)($this->manager, 'found', [[$this->default, 2]]);
+it('receives found stock at the cost a holder of products.set-cost enters', function () {
+    $adjustment = ($this->adjust)($this->manager, 'found', [[$this->default, 2, ['unit_cost' => 15]]]);
 
     expect($adjustment->status)->toBe('completed')
-        ->and((float) DB::table('cost_layers')->where('source_type', 'adjustment')->where('source_id', $adjustment->id)->value('unit_cost'))->toBe(12.0);
+        ->and((float) DB::table('cost_layers')->where('source_type', 'adjustment')->where('source_id', $adjustment->id)->value('unit_cost'))->toBe(15.0);
+});
+
+it('requires a batch number and expiry on an increase line for a variation that tracks batches', function () {
+    $this->default->update(['track_batches' => true]);
+
+    ($this->adjust)($this->manager, 'found', [[$this->default, 2]]);
+    expect(StockAdjustment::count())->toBe(0);
+
+    $adjustment = ($this->adjust)($this->manager, 'found', [[$this->default, 2, ['batch_number' => 'B-1', 'expiry_date' => '10/2027', 'unit_cost' => 10]]]);
+    $layer = DB::table('cost_layers')->where('source_type', 'adjustment')->where('source_id', $adjustment->id)->sole();
+    expect($layer->batch_number)->toBe('B-1')
+        ->and($layer->expiry_date)->toBe('2027-10-31');
+});
+
+it('takes a damaged-stock decrease from the batch named, not the oldest, and refuses one with no batch named', function () {
+    $this->default->update(['track_batches' => true]);
+    ($this->stock)($this->default, 5, 10, '-3 days');
+    ($this->stock)($this->default, 5, 12, '-1 day');
+    $newerLayerId = DB::table('cost_layers')->where('variation_id', $this->default->id)->latest('id')->value('id');
+
+    ($this->adjust)($this->clerk, 'damaged', [[$this->default, -2]]);
+    expect(StockAdjustment::count())->toBe(0);
+
+    $adjustment = ($this->adjust)($this->clerk, 'damaged', [[$this->default, -2, ['cost_layer_id' => $newerLayerId]]]);
+    expect($adjustment->status)->toBe('pending');
+
+    $this->actingAs($this->manager)->post(route('stock-adjustments.approve', $adjustment))->assertRedirect();
+    expect((float) DB::table('cost_layers')->where('id', $newerLayerId)->value('remaining_quantity'))->toBe(3.0)
+        ->and((float) DB::table('cost_layers')->where('variation_id', $this->default->id)->where('id', '!=', $newerLayerId)->value('remaining_quantity'))->toBe(5.0);
 });
 
 it('holds found stock with no batch to cost it for a second person, then receives it at an unknown cost', function () {
@@ -324,3 +353,14 @@ it('holds quality issues and promotional giveaways for a second person, however 
     expect(($this->adjust)($this->manager, $reason, [[$this->default, -1]])->status)->toBe('pending')
         ->and(($this->quantity)($this->default))->toBe(5);
 })->with(['quality_issue', 'promotional_giveaway']);
+
+it('ignores a cost entered by someone who may not set costs, so their increase is received at an unknown cost', function () {
+    $adjustment = ($this->adjust)($this->clerk, 'found', [[$this->default, 3, ['unit_cost' => 1]]]);
+
+    expect($adjustment->items->first()->unit_cost)->toBeNull();
+
+    $this->actingAs($this->manager)->post(route('stock-adjustments.approve', $adjustment))->assertRedirect();
+
+    $layer = DB::table('cost_layers')->where('source_type', 'adjustment')->where('source_id', $adjustment->id)->sole();
+    expect($layer->unit_cost)->toBeNull();
+});

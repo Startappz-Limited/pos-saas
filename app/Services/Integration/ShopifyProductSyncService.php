@@ -377,7 +377,7 @@ class ShopifyProductSyncService
                                 ? (string) $options['compare_at_price']
                                 : null,
                             'inventory_management' => $product->track_stock ? 'shopify' : null,
-                            'inventory_quantity' => app(StockLedger::class)->quantity($shop->id, $product->defaultVariation()->firstOrFail()->id),
+                            'inventory_quantity' => app(StockLedger::class)->sellable($shop->id, $product->defaultVariation()->firstOrFail()->id),
                         ],
                     ],
                 ],
@@ -524,7 +524,7 @@ class ShopifyProductSyncService
             ])->post("https://{$shopDomain}/admin/api/2024-01/inventory_levels/set.json", [
                 'location_id' => $locationId,
                 'inventory_item_id' => $inventoryItemId,
-                'available' => app(StockLedger::class)->quantity($shop->id, $product->defaultVariation()->firstOrFail()->id),
+                'available' => app(StockLedger::class)->sellable($shop->id, $product->defaultVariation()->firstOrFail()->id),
             ]);
 
             if (! $response->successful()) {

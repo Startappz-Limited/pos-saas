@@ -2,13 +2,16 @@
 
 namespace App\Http\Requests;
 
+use App\Casts\Quantity;
 use App\Enums\PurchaseReturnReason;
 use App\Enums\PurchaseReturnStatus;
 use App\Enums\StockIntakeStatus;
 use App\Models\Product;
+use App\Models\ProductVariation;
 use App\Models\PurchaseReturnItem;
 use App\Models\ReturnItem;
 use App\Models\StockIntake;
+use App\Rules\QuantityForUnit;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Collection;
 use Illuminate\Validation\Rule;
@@ -109,7 +112,8 @@ class StorePurchaseReturnRequest extends FormRequest
             'items.*.return_item_id' => ['nullable', 'exists:return_items,id'],
             'items.*.product_id' => ['required', 'exists:products,id'],
             'items.*.product_variation_id' => ['nullable', 'exists:product_variations,id'],
-            'items.*.quantity' => ['required', 'integer', 'min:1'],
+            // A quantity in the product's base unit: a decimal for a weight, a whole number for a counted item (checked below).
+            'items.*.quantity' => ['required', 'numeric', 'min:0.001'],
             'items.*.unit_cost' => ['nullable', 'numeric', 'min:0'],
             'items.*.condition' => ['nullable', 'string', 'max:255'],
             'items.*.notes' => ['nullable', 'string', 'max:500'],
@@ -133,6 +137,7 @@ class StorePurchaseReturnRequest extends FormRequest
                 $this->validateStockIntakeItems($validator, $items);
                 $this->validateCustomerReturnItems($validator, $items);
                 $this->validateProductSuppliers($validator, $items);
+                $this->validateQuantities($validator, $items);
             },
         ];
     }
@@ -185,6 +190,32 @@ class StorePurchaseReturnRequest extends FormRequest
         }
     }
 
+    /**
+     * A line's quantity is in its variation's base unit, so its decimals are checked against that unit's
+     * precision: a whole-unit product refuses a fraction, a weight product takes its three decimals.
+     */
+    private function validateQuantities(Validator $validator, Collection $items): void
+    {
+        $products = Product::query()->whereIn('id', $items->pluck('product_id')->filter())->get()->keyBy('id');
+
+        foreach ($items as $index => $item) {
+            $product = $products->get($item['product_id'] ?? null);
+
+            if ($product === null || ! is_numeric($item['quantity'] ?? null)) {
+                continue;
+            }
+
+            $variation = ! empty($item['product_variation_id'])
+                ? ProductVariation::withoutGlobalScope(ProductVariation::HIDE_DEFAULT)->find($item['product_variation_id'])
+                : $product->defaultVariation()->first();
+            $precision = (int) ($variation?->baseUnit?->precision ?? 3);
+
+            (new QuantityForUnit($precision))->validate("items.{$index}.quantity", (string) $item['quantity'], function (string $message) use ($validator, $index): void {
+                $validator->errors()->add("items.{$index}.quantity", $message);
+            });
+        }
+    }
+
     private function validateStockIntakeItems(Validator $validator, Collection $items): void
     {
         $stockIntakeIds = $items->pluck('stock_intake_id')->filter()->unique()->values();
@@ -234,11 +265,12 @@ class StorePurchaseReturnRequest extends FormRequest
                 $validator->errors()->add("items.{$index}.product_id", 'The selected product does not match the stock intake.');
             }
 
-            $acceptedQuantity = (int) $stockIntake->quantity_accepted;
-            $returnedQuantity = (int) ($alreadyReturned[$stockIntake->id] ?? 0);
-            $availableQuantity = max(0, $acceptedQuantity - $returnedQuantity);
+            // Compared at three decimals, like the intake and the return line: a 2.5 kg intake returns up to 2.5 kg.
+            $acceptedQuantity = Quantity::normalize($stockIntake->quantity_accepted);
+            $returnedQuantity = Quantity::normalize($alreadyReturned[$stockIntake->id] ?? 0);
+            $availableQuantity = bccomp($acceptedQuantity, $returnedQuantity, 3) > 0 ? bcsub($acceptedQuantity, $returnedQuantity, 3) : '0.000';
 
-            if ((int) $item['quantity'] > $availableQuantity) {
+            if (bccomp(Quantity::normalize($item['quantity']), $availableQuantity, 3) > 0) {
                 $validator->errors()->add("items.{$index}.quantity", "Only {$availableQuantity} units remain available to return from this stock intake.");
             }
         }

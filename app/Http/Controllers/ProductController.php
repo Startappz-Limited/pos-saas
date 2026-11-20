@@ -9,7 +9,9 @@ use App\Models\Product;
 use App\Models\Shop;
 use App\Models\ShopVariation;
 use App\Models\Supplier;
+use App\Models\UnassignedBarcode;
 use App\Services\ProductService;
+use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -30,7 +32,8 @@ class ProductController extends Controller
             search: $request->get('search'),
             status: $request->get('status'),
             categoryId: $request->get('category_id'),
-            shopId: $request->get('shop_id')
+            shopId: $request->get('shop_id'),
+            waitingBarcodesOnly: $request->boolean('waiting'),
         );
 
         $statistics = $this->productService->getStatistics();
@@ -45,8 +48,10 @@ class ProductController extends Controller
         $categories = Category::active()->ordered()->get();
         $suppliers = Supplier::active()->orderBy('name')->get();
         $shops = Shop::active()->orderBy('name')->get();
+        // The business type's own default (stage 11, step 5); the checkbox can still change it.
+        $trackBatchesDefault = app(TenantContext::class)->business()->tracksBatchesByDefault();
 
-        return view('products.create', compact('categories', 'suppliers', 'shops'));
+        return view('products.create', compact('categories', 'suppliers', 'shops', 'trackBatchesDefault'));
     }
 
     public function store(StoreProductRequest $request): RedirectResponse
@@ -83,10 +88,15 @@ class ProductController extends Controller
         $stockShop = Shop::query()->find($product->stockShopId());
         $variation = $product->defaultVariation()->first();
         $stockInShop = $stockShop && $variation
-            ? (int) ShopVariation::query()->where('shop_id', $stockShop->id)->where('variation_id', $variation->id)->value('stock_quantity')
-            : 0;
+            ? Product::quantityLabel(ShopVariation::query()->where('shop_id', $stockShop->id)->where('variation_id', $variation->id)->value('stock_quantity'))
+            : '0';
 
-        return view('products.edit', compact('product', 'categories', 'suppliers', 'shops', 'stockShop', 'stockInShop'));
+        $trackBatches = (bool) $variation?->track_batches;
+
+        // Barcodes of this product waiting for a unit (stage 11, step 7): assigned or dropped below.
+        $waitingBarcodes = UnassignedBarcode::query()->where('product_id', $product->id)->orderBy('id')->get();
+
+        return view('products.edit', compact('product', 'categories', 'suppliers', 'shops', 'stockShop', 'stockInShop', 'trackBatches', 'waitingBarcodes'));
     }
 
     public function update(UpdateProductRequest $request, Product $product): RedirectResponse

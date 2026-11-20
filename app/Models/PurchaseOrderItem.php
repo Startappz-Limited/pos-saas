@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Casts\Quantity;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -40,9 +41,9 @@ class PurchaseOrderItem extends Model
     {
         return [
             'variation_attributes' => 'array',
-            'quantity_ordered' => 'decimal:2',
-            'quantity_received' => 'decimal:2',
-            'quantity_remaining' => 'decimal:2',
+            'quantity_ordered' => Quantity::class,
+            'quantity_received' => Quantity::class,
+            'quantity_remaining' => Quantity::class,
             'unit_cost' => 'decimal:2',
             'tax_rate' => 'decimal:2',
             'tax_amount' => 'decimal:2',

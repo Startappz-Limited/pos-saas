@@ -73,7 +73,7 @@
                                 <div class="row">
                                     <div class="col-6">
                                         <p class="text-muted mb-1">Stock:</p>
-                                        <p class="fw-medium">{{ $product->stock_quantity }} units</p>
+                                        <p class="fw-medium">{{ $product->stockLabel() }}</p>
                                     </div>
                                     <div class="col-6">
                                         <p class="text-muted mb-1">Low Stock Alert:</p>
@@ -150,7 +150,7 @@
                                     </tr>
                                     <tr>
                                         <th scope="row">Stock Quantity:</th>
-                                        <td>{{ $product->stock_quantity }} units</td>
+                                        <td>{{ $product->stockLabel() }}</td>
                                     </tr>
                                     <tr>
                                         <th scope="row">Low Stock Threshold:</th>
@@ -198,13 +198,13 @@
                                                 <td class="text-center">
                                                     @if ($shop->pivot->stock_quantity <= 0)
                                                         <span
-                                                            class="badge bg-danger-subtle text-danger">{{ $shop->pivot->stock_quantity }}</span>
+                                                            class="badge bg-danger-subtle text-danger">{{ \App\Models\Product::quantityLabel($shop->pivot->stock_quantity) }}</span>
                                                     @elseif ($shop->pivot->stock_quantity <= $shop->pivot->reorder_level)
                                                         <span
-                                                            class="badge bg-warning-subtle text-warning">{{ $shop->pivot->stock_quantity }}</span>
+                                                            class="badge bg-warning-subtle text-warning">{{ \App\Models\Product::quantityLabel($shop->pivot->stock_quantity) }}</span>
                                                     @else
                                                         <span
-                                                            class="badge bg-success-subtle text-success">{{ $shop->pivot->stock_quantity }}</span>
+                                                            class="badge bg-success-subtle text-success">{{ \App\Models\Product::quantityLabel($shop->pivot->stock_quantity) }}</span>
                                                     @endif
                                                 </td>
                                                 <td class="text-center">{{ $shop->pivot->reorder_level }}</td>
@@ -402,10 +402,10 @@
                                 <span class="text-muted">Current Stock:</span>
                                 @if ($product->stock_quantity > $product->reorder_level)
                                     <span
-                                        class="badge bg-success-subtle text-success">{{ $product->stock_quantity }}</span>
+                                        class="badge bg-success-subtle text-success">{{ $product->stockLabel() }}</span>
                                 @elseif($product->stock_quantity > 0)
                                     <span
-                                        class="badge bg-warning-subtle text-warning">{{ $product->stock_quantity }}</span>
+                                        class="badge bg-warning-subtle text-warning">{{ $product->stockLabel() }}</span>
                                 @else
                                     <span class="badge bg-danger-subtle text-danger">0</span>
                                 @endif

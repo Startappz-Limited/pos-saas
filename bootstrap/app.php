@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\EncodeFlatQuantities;
 use App\Http\Middleware\EnforceEmailVerification;
 use App\Http\Middleware\EnforceSubscription;
 use App\Http\Middleware\EnsureAccountActive;
@@ -44,6 +45,10 @@ return Application::configure(basePath: dirname(__DIR__))
         // (Phase 7, decision 4.8). First in the group so it also shapes the
         // throttle's and the auth middleware's refusals; the flat API is left alone.
         $middleware->api(prepend: [ShapeApiV1Response::class]);
+
+        // The flat API's quantity keys are JSON numbers, not the models' scale-3 strings (stage 11,
+        // step 8). Outermost, so every flat response, whatever middleware refused it, is encoded.
+        $middleware->api(prepend: [EncodeFlatQuantities::class]);
 
         // The business a signed-in request acts for (stage 1a, decision 4.3).
         // It needs the authenticated user, so it's ordered after

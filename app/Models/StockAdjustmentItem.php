@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Casts\Quantity;
 use App\Models\Concerns\BelongsToShop;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -23,14 +24,23 @@ class StockAdjustmentItem extends Model
         'quantity_change',
         'quantity_after',
         'item_notes',
+        'cost_layer_id',
+        'unit_id',
+        'unit_quantity',
+        'batch_number',
+        'expiry_date',
+        'unit_cost',
     ];
 
     protected function casts(): array
     {
         return [
-            'quantity_before' => 'integer',
-            'quantity_change' => 'integer',
-            'quantity_after' => 'integer',
+            'quantity_before' => Quantity::class,
+            'quantity_change' => Quantity::class,
+            'unit_quantity' => Quantity::class,
+            'quantity_after' => Quantity::class,
+            'expiry_date' => 'date',
+            'unit_cost' => Quantity::class.':4',
         ];
     }
 
@@ -71,5 +81,21 @@ class StockAdjustmentItem extends Model
     public function shop(): BelongsTo
     {
         return $this->belongsTo(Shop::class);
+    }
+
+    /**
+     * The batch a decrease line named, to take from (stage 11, step 5).
+     */
+    /**
+     * The unit the line was entered in (stage 11, step 4); null for a line entered in base units.
+     */
+    public function unit(): BelongsTo
+    {
+        return $this->belongsTo(ProductUnit::class, 'unit_id')->withTrashed();
+    }
+
+    public function costLayer(): BelongsTo
+    {
+        return $this->belongsTo(CostLayer::class);
     }
 }

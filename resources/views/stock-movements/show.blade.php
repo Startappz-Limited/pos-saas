@@ -58,7 +58,7 @@
                                 <table class="table table-sm table-borderless">
                                     <tr>
                                         <td class="text-muted" style="width: 150px;">Quantity:</td>
-                                        <td class="fw-medium">{{ number_format($stockMovement->quantity) }}</td>
+                                        <td class="fw-medium">{{ $stockMovement->quantityLabel() }}</td>
                                     </tr>
                                     <tr>
                                         <td class="text-muted">Created:</td>

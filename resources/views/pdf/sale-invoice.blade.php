@@ -390,7 +390,7 @@
                                 <div class="variation">{{ $item->variation->name }}</div>
                             @endif
                         </td>
-                        <td class="center">{{ $item->quantity }}</td>
+                        <td class="center">{{ \App\Support\Receipts\LineQuantity::for($item) }}</td>
                         <td class="num">{{ $currency }} {{ number_format((float) $item->unit_price, 2) }}</td>
                         <td class="num">{{ $currency }} {{ number_format((float) $item->line_total, 2) }}</td>
                     </tr>

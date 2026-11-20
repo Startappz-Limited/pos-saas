@@ -52,7 +52,7 @@ class NewAbandonedCartNotification extends Notification implements ShouldQueue
             ->line("**Items ({$cart->items->count()}):**");
 
         foreach ($cart->items as $item) {
-            $mail->line("- {$item->name} x{$item->quantity}");
+            $mail->line("- {$item->name} x".(int) $item->quantity);
         }
 
         return $mail

@@ -68,10 +68,10 @@
                                             <td>
                                                 @if ($product->stock_quantity <= 0)
                                                     <span
-                                                        class="badge bg-danger-subtle text-danger fs-14">{{ $product->stock_quantity }}</span>
+                                                        class="badge bg-danger-subtle text-danger fs-14">{{ $product->stockLabel() }}</span>
                                                 @else
                                                     <span
-                                                        class="badge bg-warning-subtle text-warning fs-14">{{ $product->stock_quantity }}</span>
+                                                        class="badge bg-warning-subtle text-warning fs-14">{{ $product->stockLabel() }}</span>
                                                 @endif
                                             </td>
                                             <td>

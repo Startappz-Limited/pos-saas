@@ -2,12 +2,16 @@
 
 namespace App\Services;
 
+use App\Casts\Quantity;
+use App\Enums\QuarantineStatus;
 use App\Enums\ReturnReason;
 use App\Enums\ReturnStatus;
 use App\Enums\StockMovementType;
 use App\Exceptions\BusinessRuleException;
+use App\Models\CostAllocation;
 use App\Models\CostLayer;
 use App\Models\Product;
+use App\Models\ProductUnit;
 use App\Models\ProductVariation;
 use App\Models\Refund;
 use App\Models\ReturnItem;
@@ -15,6 +19,8 @@ use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Models\SaleReturn;
 use App\Services\Stock\StockLedger;
+use App\Support\Stock\Expiry;
+use App\Support\Stock\QuarantinePolicy;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -91,7 +97,7 @@ class ReturnService
                 if (! $saleItem) {
                     throw new ModelNotFoundException("SaleItem [{$itemData['sale_item_id']}] not found.");
                 }
-                $quantity = (int) $itemData['quantity'];
+                $quantity = (float) $itemData['quantity'];
                 $unitPrice = $saleItem->unit_price ?? $saleItem->price ?? 0;
                 $totalPrice = $unitPrice * $quantity;
                 $totalAmount += $totalPrice;
@@ -100,7 +106,7 @@ class ReturnService
                     'return_id' => $saleReturn->id,
                     'sale_item_id' => $saleItem->id,
                     'product_id' => $saleItem->product_id,
-                    'quantity' => $quantity,
+                    ...$this->returnLineUnit($saleItem, $quantity),
                     'unit_price' => $unitPrice,
                     'total_price' => $totalPrice,
                     'condition' => $itemData['condition'] ?? null,
@@ -153,7 +159,7 @@ class ReturnService
                     if (! $saleItem) {
                         throw new ModelNotFoundException("SaleItem [{$itemData['sale_item_id']}] not found.");
                     }
-                    $quantity = (int) $itemData['quantity'];
+                    $quantity = (float) $itemData['quantity'];
                     $unitPrice = $saleItem->unit_price ?? $saleItem->price ?? 0;
                     $totalPrice = $unitPrice * $quantity;
                     $totalAmount += $totalPrice;
@@ -162,7 +168,7 @@ class ReturnService
                         'return_id' => $saleReturn->id,
                         'sale_item_id' => $saleItem->id,
                         'product_id' => $saleItem->product_id,
-                        'quantity' => $quantity,
+                        ...$this->returnLineUnit($saleItem, $quantity),
                         'unit_price' => $unitPrice,
                         'total_price' => $totalPrice,
                         'condition' => $itemData['condition'] ?? null,
@@ -185,6 +191,71 @@ class ReturnService
 
             return $saleReturn->fresh()->load(['sale', 'customer', 'shop', 'requestedBy', 'items.product']);
         });
+    }
+
+    /**
+     * A returned line takes the unit it was sold in (stage 11, step 3), else
+     * the variation's base unit; $quantity is in that unit.
+     *
+     * @return array{unit_id: ?int, quantity: float, base_quantity: string}
+     */
+    private function returnLineUnit(SaleItem $saleItem, float $quantity): array
+    {
+        $variation = $saleItem->variation ?? Product::find($saleItem->product_id)?->defaultVariation()->first();
+        $unit = $saleItem->unit ?? $variation?->baseUnit;
+
+        return [
+            'unit_id' => $unit?->id,
+            'quantity' => $quantity,
+            'base_quantity' => $this->returnBaseQuantity($saleItem, $quantity, $unit),
+        ];
+    }
+
+    /**
+     * The base units a returned quantity puts back: in the same proportion as the sold line
+     * (its recorded base quantity over its quantity). A till may have synced a line whose base
+     * figure differs from the unit's current factor, and returning it at the factor would
+     * restock more than the sale removed. Falls back to the factor only for a line with no
+     * recorded base quantity.
+     *
+     * The proportion is taken cumulatively: the base units owed for everything returned of the
+     * line so far (earlier live returns plus this one), less what those earlier returns already
+     * put back. Truncating each return on its own would lose a remainder every time (three
+     * returns of one from a line of three at 1.000 base would restock 0.999); cumulatively, the
+     * last return takes whatever is left, so the line's returns add up to its base quantity.
+     * A return that would put back nothing is refused.
+     */
+    private function returnBaseQuantity(SaleItem $saleItem, float $quantity, ?ProductUnit $unit): string
+    {
+        $soldQuantity = Quantity::normalize($saleItem->quantity ?? 0);
+        $returned = Quantity::normalize($quantity);
+
+        if (bccomp($soldQuantity, '0', 3) > 0 && $saleItem->base_quantity !== null) {
+            $soldBase = Quantity::normalize($saleItem->base_quantity);
+            $earlier = ReturnItem::query()
+                ->where('sale_item_id', $saleItem->id)
+                ->whereHas('saleReturn', fn ($query) => $query->where('status', '!=', ReturnStatus::REJECTED))
+                ->get(['quantity', 'base_quantity']);
+            $earlierQuantity = $earlier->reduce(fn (string $sum, ReturnItem $item): string => bcadd($sum, Quantity::normalize($item->quantity), 3), '0');
+            $earlierBase = $earlier->reduce(fn (string $sum, ReturnItem $item): string => bcadd($sum, Quantity::normalize($item->base_quantity), 3), '0');
+
+            $cumulative = bcadd($earlierQuantity, $returned, 3);
+            $owed = bccomp($cumulative, $soldQuantity, 3) === 0
+                ? $soldBase
+                : bcdiv(bcmul($cumulative, $soldBase, 6), $soldQuantity, 3);
+            $base = bcsub($owed, $earlierBase, 3);
+        } else {
+            $base = bcmul($returned, Quantity::normalize($unit?->factor ?? '1'), 3);
+        }
+
+        if (bccomp($base, '0', 3) <= 0) {
+            throw BusinessRuleException::because(
+                __('That quantity is too small to return on its own: it puts back less than the smallest stock figure. Return more of the line at once.'),
+                'return_quantity_too_small'
+            );
+        }
+
+        return $base;
     }
 
     public function approveReturn(SaleReturn $saleReturn, int $userId): SaleReturn
@@ -241,16 +312,86 @@ class ReturnService
                     ? ProductVariation::withoutGlobalScope(ProductVariation::HIDE_DEFAULT)->findOrFail($item->saleItem->variation_id)
                     : Product::findOrFail($item->product_id)->defaultVariation()->firstOrFail();
 
-                app(StockLedger::class)->receive((int) $saleReturn->shop_id, $variation, (int) $item->quantity, (float) $item->saleItem->unit_cost, StockMovementType::RETURN, [
-                    'source_type' => CostLayer::SOURCE_SALE_RETURN,
-                    'source_id' => $saleReturn->id,
-                    'reference' => $saleReturn,
-                    'notes' => "Customer return {$saleReturn->return_number}.",
-                ]);
+                // base_quantity (stage 11, step 3): the line's own quantity may be in a
+                // pack unit; restocking always moves base units, at the per-base-unit cost
+                // the original sale line was costed at (its own base_quantity, not this
+                // return's, since only part of the line may be coming back).
+                $baseQuantity = Quantity::normalize($item->base_quantity);
+                $saleItemBaseQuantity = Quantity::normalize($item->saleItem->base_quantity);
+                $costPerBaseUnit = bccomp($saleItemBaseQuantity, '0', 3) > 0
+                    ? round((float) $item->saleItem->total_cost / (float) $saleItemBaseQuantity, 4)
+                    : (float) $item->saleItem->unit_cost;
+
+                // Each piece goes back as the batch it was sold from, with that batch's expiry (review follow-up): an
+                // expired batch returns still expired, so it is never offered for sale again as if it were fresh.
+                $boundary = Expiry::firstSellableDate($saleReturn->shop)->toDateString();
+                foreach ($this->restockPieces($item->saleItem, $baseQuantity, $variation, $boundary, (string) $saleReturn->return_number) as $piece) {
+                    app(StockLedger::class)->receive((int) $saleReturn->shop_id, $variation, $piece['quantity'], $costPerBaseUnit, StockMovementType::RETURN, [
+                        'source_type' => CostLayer::SOURCE_SALE_RETURN,
+                        'source_id' => $saleReturn->id,
+                        'reference' => $saleReturn,
+                        'notes' => "Customer return {$saleReturn->return_number}.",
+                        'batch_number' => $piece['batch_number'],
+                        'expiry_date' => $piece['expiry_date'],
+                        'quarantine_status' => $piece['quarantine']?->value,
+                        'quarantine_reason' => $piece['reason'],
+                    ]);
+                }
             }
 
             return $saleReturn->fresh();
         });
+    }
+
+    /**
+     * The stock a returned base quantity goes back into, and whether it is quarantined (stage 11, quarantine policy).
+     *
+     * A sale line taken from one known batch goes back to that batch with its expiry, exactly. A line taken from
+     * several batches cannot say which one the returned item came from, so it goes back as one piece at the earliest
+     * expiry among them, with its batch unverified. A line with no recorded batch (a provisional or missing
+     * allocation, or a sale recorded before batches) is unverified too. Quarantine follows {@see QuarantinePolicy}.
+     *
+     * @return list<array{quantity: string, batch_number: ?string, expiry_date: ?string, quarantine: ?QuarantineStatus, reason: ?string}>
+     */
+    private function restockPieces(SaleItem $saleItem, string $baseQuantity, ProductVariation $variation, string $boundary, string $returnNumber): array
+    {
+        $allocations = CostAllocation::query()
+            ->where('consumer_type', CostAllocation::CONSUMER_SALE_ITEM)->where('sale_item_id', $saleItem->id)
+            ->orderBy('id')->get();
+
+        $layers = CostLayer::query()->whereIn('id', $allocations->pluck('cost_layer_id')->filter())->get()->keyBy('id');
+        $unrecorded = $allocations->isEmpty() || $allocations->contains(fn (CostAllocation $allocation): bool => $allocation->cost_layer_id === null || ! $layers->has($allocation->cost_layer_id));
+
+        $batches = $unrecorded ? collect() : $allocations->map(fn (CostAllocation $allocation): CostLayer => $layers->get($allocation->cost_layer_id));
+        $single = ! $unrecorded && $batches->unique('id')->count() === 1;
+
+        if ($single) {
+            $layer = $batches->first();
+
+            return [QuarantinePolicy::classify(
+                quantity: $baseQuantity,
+                batch: $layer->batch_number,
+                expiry: $layer->expiry_date?->toDateString(),
+                tracksBatches: (bool) $variation->track_batches,
+                medical: (bool) $variation->product?->is_medical,
+                boundary: $boundary,
+                returnNumber: $returnNumber,
+            )];
+        }
+
+        // Unknown or several batches: the batch cannot be established. The earliest expiry among them is kept
+        // (a batch with no expiry counts as the latest) so the verifier sees the most cautious date.
+        $earliest = $unrecorded ? null : $batches->sortBy(fn (CostLayer $layer): string => $layer->expiry_date?->toDateString() ?? '9999-12-31')->first();
+
+        return [QuarantinePolicy::classify(
+            quantity: $baseQuantity,
+            batch: null,
+            expiry: $earliest?->expiry_date?->toDateString(),
+            tracksBatches: true,
+            medical: (bool) $variation->product?->is_medical,
+            boundary: $boundary,
+            returnNumber: $returnNumber,
+        )];
     }
 
     public function inspectReturn(SaleReturn $saleReturn, int $userId, ?string $inspectionNotes = null): SaleReturn

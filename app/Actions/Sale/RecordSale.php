@@ -14,6 +14,7 @@ use App\Models\SaleItem;
 use App\Models\Shop;
 use App\Services\InvoiceNumberService;
 use App\Services\Stock\StockLedger;
+use App\Support\Stock\SaleLineUnit;
 use App\Support\Sync\SyncIssues;
 use App\Support\Tenancy\ViewerShop;
 use Carbon\CarbonInterface;
@@ -167,7 +168,11 @@ class RecordSale
             foreach ($validated['items'] as $index => $item) {
                 $product = $productsById[$item['product_id']];
                 $variation = isset($item['variation_id']) ? $variationsById[$item['variation_id']] ?? null : null;
+                $variation ??= $product->defaultVariation()->firstOrFail();
                 $line = $totals->line($index);
+                // The unit sold and its base quantity (stage 11, step 3): the till's own
+                // figure wins when it sends one (step 8 settles a mismatch with the factor).
+                $lineUnit = SaleLineUnit::resolve($variation, $item);
 
                 $saleItem = SaleItem::create([
                     'uuid' => (string) Str::uuid(),
@@ -175,7 +180,9 @@ class RecordSale
                     'product_id' => $item['product_id'],
                     'shop_id' => $shopId,
                     'variation_id' => $item['variation_id'] ?? null,
-                    'quantity' => $item['quantity'],
+                    'unit_id' => $lineUnit['unit']?->id,
+                    'quantity' => $lineUnit['quantity'],
+                    'base_quantity' => $lineUnit['base_quantity'],
                     'unit_price' => $item['price'],
                     'line_total' => $line['line_total'],
                     'tax_class' => $line['tax_class'],
@@ -189,8 +196,13 @@ class RecordSale
                     'status' => 'completed',
                 ]);
 
-                // Take the stock from the line's shop, costed oldest layers first.
-                app(StockLedger::class)->sellItem($saleItem, $variation ?? $product->defaultVariation()->firstOrFail());
+                // Take the stock from the line's shop, costed oldest layers first. A direct flat API
+                // sale refuses below stock unless sales.oversell overrode it; a till's push never does
+                // (stage 11 step 4 follow-up, decided 5 November 2026).
+                app(StockLedger::class)->sellItem($saleItem, $variation, [
+                    'enforce_stock' => $context->enforceStock,
+                    'oversell_reason' => $context->oversellReason,
+                ]);
             }
             // FIFO cost and profit onto the sale held in memory (a reload would
             // turn the response's money fields into strings on MySQL).
@@ -207,10 +219,14 @@ class RecordSale
 
         $register->updateSalesTotals();
 
-        // Sold below zero: on the till sync review (stage 10, step 1a). A till's push records it
+        // Sold below zero: on the till sync review (stage 10, step 1a), with who pushed it through
+        // and why when sales.oversell was used (stage 11 step 4 follow-up). A till's push records it
         // itself, with the till and its recorded time.
         if ($context->clientUuid === null) {
-            app(SyncIssues::class)->recordNegativeStock($sale);
+            app(SyncIssues::class)->recordNegativeStock($sale, override: $context->oversellReason !== null
+                ? ['by' => auth()->user()?->name ?? __('unknown'), 'reason' => $context->oversellReason] : null);
+            // Short only because sellable stock was expired (stage 11, step 5).
+            app(SyncIssues::class)->recordExpiredStock($sale);
         }
 
         // Notify the customer, exactly as the web POS does. COD sales stay

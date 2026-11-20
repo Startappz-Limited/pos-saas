@@ -1885,8 +1885,11 @@ open sessions today (gap 24). Stage 10 chooses as in step 4; stage 14 decides it
   `PriceResolver`, which this stage doesn't have. Until then the server records the price a till or the web POS
   sends.
 - ~~Use the `sales.deleted_at` column (soft deletes) or drop it.~~ Decided 28 October 2026: soft deletes (step 5).
-- **Block sales without stock** (decided 28 October 2026, ninth round, as a follow-up): a per-business setting, off by
-  default, for pharmacies and agro-vets, refusing an online sale (web, flat API, `/api/v1` online) that would take a
-  variation below zero. An offline till can't know other tills' sales, so the push still records them, flagged. It
-  reopens [TRACEABILITY-stock.md](./TRACEABILITY-stock.md) row 16 as an optional setting; stage 11's
-  `canBeSoldAt()` is where it would hook. Until then, step 1a shows every below-zero sale on the review.
+- ~~**Block sales without stock** (decided 28 October 2026, ninth round, as a follow-up): a per-business setting,
+  off by default, for pharmacies and agro-vets, refusing an online sale (web, flat API, `/api/v1` online) that
+  would take a variation below zero.~~ **Superseded 5 November 2026** by a stricter, non-optional policy: the web
+  POS and the flat API refuse by default (422 `insufficient_stock`), with a new `sales.oversell` permission to
+  override it, not a per-business toggle. Built in [stage 11](./11-units-quantities-and-batches.md), step 4's
+  second follow-up, next to `canBeSoldAt()` as this note anticipated. An offline till still can't know other
+  tills' sales, so the push still records them, flagged, unchanged from this note.
+  [TRACEABILITY-stock.md](./TRACEABILITY-stock.md) row 16 points there now.

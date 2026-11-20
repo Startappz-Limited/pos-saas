@@ -58,7 +58,7 @@ class ListUnappliedStockAdjustments extends Command
                     $adjustment->shop?->name ?? '-',
                     $adjustment->created_at?->toDateString(),
                     trim(($item->product?->name ?? 'Product deleted').($item->variation && ! $item->variation->is_default ? ' / '.$item->variation->name : '')),
-                    $this->signed((int) $item->quantity_change),
+                    $this->signed((float) $item->quantity_change),
                     $item->variation_id ? $ledger->quantity((int) $item->shop_id, (int) $item->variation_id) : '-',
                     $this->nextStep($adjustment),
                 ];
@@ -86,8 +86,8 @@ class ListUnappliedStockAdjustments extends Command
         };
     }
 
-    private function signed(int $change): string
+    private function signed(float $change): string
     {
-        return $change > 0 ? '+'.$change : (string) $change;
+        return $change > 0 ? '+'.rtrim(rtrim(number_format($change, 3, '.', ''), '0'), '.') : rtrim(rtrim(number_format($change, 3, '.', ''), '0'), '.');
     }
 }

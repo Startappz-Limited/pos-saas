@@ -3,8 +3,10 @@
 namespace App\Http\Requests;
 
 use App\Enums\ReturnReason;
+use App\Support\Stock\ReturnQuantities;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Validator;
 
 class StoreReturnRequest extends FormRequest
 {
@@ -28,7 +30,7 @@ class StoreReturnRequest extends FormRequest
             'restocking_fee' => ['nullable', 'numeric', 'min:0'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.sale_item_id' => ['required', 'exists:sale_items,id'],
-            'items.*.quantity' => ['required', 'integer', 'min:1'],
+            'items.*.quantity' => ['required', 'numeric', 'min:0.001'],
             'items.*.condition' => ['nullable', 'string', 'in:new,opened,damaged,defective'],
             'items.*.condition_notes' => ['nullable', 'string', 'max:500'],
             'items.*.return_to_supplier' => ['nullable', 'boolean'],
@@ -49,7 +51,22 @@ class StoreReturnRequest extends FormRequest
             'items.min' => 'At least one item must be selected for return.',
             'items.*.sale_item_id.required' => 'Each return item must reference a sale item.',
             'items.*.quantity.required' => 'Quantity is required for each return item.',
-            'items.*.quantity.min' => 'Return quantity must be at least 1.',
+            'items.*.quantity.min' => 'Return quantity must be greater than 0.',
         ];
+    }
+
+    /**
+     * A line's quantity is in the unit it was sold in, so its decimals are checked against that unit
+     * (stage 11): a whole-unit line refuses a fraction, a weight line takes its three decimals.
+     */
+    public function withValidator(Validator $validator): void
+    {
+        $validator->after(function (Validator $validator): void {
+            foreach (ReturnQuantities::errors((array) $this->input('items', [])) as $key => $messages) {
+                foreach ($messages as $message) {
+                    $validator->errors()->add($key, $message);
+                }
+            }
+        });
     }
 }

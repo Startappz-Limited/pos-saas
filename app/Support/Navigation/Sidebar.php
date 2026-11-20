@@ -200,6 +200,7 @@ final class Sidebar
                 self::group('stock', __('Stock'), 'solar:box-bold-duotone', [
                     self::link(__('Stock intake'), 'stock-intakes.index', self::canList(StockIntake::class), ['stock-intakes.*']),
                     self::link(__('Adjustments'), 'stock-adjustments.index', self::canList(StockAdjustment::class), ['stock-adjustments.*']),
+                    self::link(__('Expiring stock'), 'stock.expiring', self::holds('stock.view'), ['stock.expiring*']),
                     self::link(__('Movements'), 'stock-movements.index', self::canList(StockMovement::class), ['stock-movements.*']),
                     self::link(__('Snapshots'), 'inventory-snapshots.index', self::canList(InventorySnapshot::class), ['inventory-snapshots.*']),
                     self::link(__('Low-stock alerts'), 'low-stock-alerts.index', self::canList(LowStockAlert::class), ['low-stock-alerts.*']),

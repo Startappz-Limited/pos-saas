@@ -80,14 +80,18 @@ class SaleController extends Controller
         // and every line take this shop's stock, never a product's first shop (stage 10, step 1a).
         $shopId = $this->resolveShopId($request);
 
+        // sales.oversell (decided 5 November 2026, stage 11): a reason sent with no permission is
+        // simply ignored, so a sale over stock is always refused unless the user actually holds it.
+        $oversellReason = $request->user()->can('sales.oversell') ? ($validated['oversell_reason'] ?? null) : null;
+
         try {
             // Resolved here, not injected: the live-like dataset seeder calls store() directly.
-            $recorded = app(RecordSale::class)->execute($validated, new SaleContext(shopId: $shopId));
+            $recorded = app(RecordSale::class)->execute($validated, new SaleContext(shopId: $shopId, oversellReason: $oversellReason));
         } catch (\Exception $e) {
             return $this->failed($e, __('Failed to create sale:'));
         }
 
-        $sale = $recorded->sale->load(['customer', 'items.product', 'items.variation', 'source', 'createdBy']);
+        $sale = $recorded->sale->load(['customer', 'items.product', 'items.variation', 'items.unit', 'source', 'createdBy']);
 
         return response()->json([
             'success' => true,
@@ -103,7 +107,7 @@ class SaleController extends Controller
     {
         abort_unless(auth()->user()->canAccessShop($sale->shop_id), 403, __('This action is unauthorized.'));
 
-        $sale->load(['customer', 'shop', 'items.product', 'items.variation', 'createdBy', 'source', 'deliveryCompany', 'payments.receiver']);
+        $sale->load(['customer', 'shop', 'items.product', 'items.variation', 'items.unit', 'createdBy', 'source', 'deliveryCompany', 'payments.receiver']);
 
         return response()->json([
             'success' => true,

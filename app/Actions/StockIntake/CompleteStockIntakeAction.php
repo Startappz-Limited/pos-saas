@@ -2,6 +2,7 @@
 
 namespace App\Actions\StockIntake;
 
+use App\Casts\Quantity;
 use App\Enums\PurchaseOrderStatus;
 use App\Enums\StockIntakeStatus;
 use App\Enums\StockMovementType;
@@ -11,6 +12,7 @@ use App\Models\ProductVariation;
 use App\Models\PurchaseOrder;
 use App\Models\StockIntake;
 use App\Services\Stock\StockLedger;
+use App\Support\Stock\IntakeQuantities;
 use Illuminate\Support\Facades\DB;
 
 class CompleteStockIntakeAction
@@ -19,6 +21,20 @@ class CompleteStockIntakeAction
     {
         if (! $stockIntake->canComplete()) {
             throw new BusinessRuleException('Stock intake cannot be completed in current status.');
+        }
+
+        // The accepted quantity (the figure the ledger receives) must still fit the base unit (IntakeQuantities):
+        // an intake saved before the edit checks existed, or by any other path, can't put a fraction of a whole
+        // unit on the ledger.
+        $variation = $stockIntake->product_variation_id
+            ? ProductVariation::withoutGlobalScope(ProductVariation::HIDE_DEFAULT)->find($stockIntake->product_variation_id)
+            : $stockIntake->product?->defaultVariation()->first();
+        $errors = IntakeQuantities::errors($variation, $stockIntake->only(['quantity_accepted']), checkTotal: false);
+        if ($errors !== []) {
+            throw BusinessRuleException::because(
+                __('This intake\'s quantities don\'t fit the product\'s unit: :message Edit the intake, then complete it.', ['message' => collect($errors)->flatten()->first()]),
+                'intake_quantity_invalid'
+            );
         }
 
         return DB::transaction(function () use ($stockIntake, $userId) {
@@ -42,8 +58,9 @@ class CompleteStockIntakeAction
             // The accepted units join the intake's shop as a FIFO cost layer, at
             // the purchase order line's cost when there is one (stage 1b).
             $product = $stockIntake->product;
-            $quantity = (int) $stockIntake->quantity_accepted;
-            if ($product && $quantity > 0) {
+            // The accepted quantity at its three decimals (a 2.5 kg delivery adds 2.5, not 2).
+            $quantity = Quantity::normalize($stockIntake->quantity_accepted);
+            if ($product && bccomp($quantity, '0', 3) > 0) {
                 $variation = $stockIntake->product_variation_id
                     ? ProductVariation::withoutGlobalScope(ProductVariation::HIDE_DEFAULT)->findOrFail($stockIntake->product_variation_id)
                     : $product->defaultVariation()->firstOrFail();
@@ -59,6 +76,10 @@ class CompleteStockIntakeAction
                     'reference' => $stockIntake,
                     'notes' => "Stock intake {$stockIntake->intake_number}.",
                     'user_id' => $userId,
+                    // The batch this stock belongs to (stage 11, step 5); the request already
+                    // required both when the variation tracks batches.
+                    'batch_number' => $stockIntake->batch_number,
+                    'expiry_date' => $stockIntake->expiry_date,
                 ]);
             }
 

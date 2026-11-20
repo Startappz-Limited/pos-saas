@@ -45,7 +45,7 @@ class AbandonedCartDetailResource extends AbandonedCartResource
                 ] : null,
                 'variation_id' => $item->variation_id,
                 'is_matched' => $item->isSellable(),
-                'quantity' => $item->quantity,
+                'quantity' => (int) $item->quantity,
                 'unit_price' => (string) $item->unit_price,
                 'line_total' => (string) $item->line_total,
                 'image_url' => $item->image_url,

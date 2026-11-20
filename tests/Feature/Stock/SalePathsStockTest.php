@@ -128,10 +128,22 @@ it('takes stock when an abandoned cart becomes a sale', function () {
     expect((float) $sale->total_cost)->toBe(60.0);
 });
 
-it('accepts a sale beyond the shop\'s stock, costing the shortfall provisionally', function () {
+it('refuses a sale beyond the shop\'s stock by default (overselling, stage 11 step 4 follow-up)', function () {
     Sanctum::actingAs($this->owner, ['*']);
     $payload = salePayload();
     $payload['items'] = [['product_id' => $this->simple->id, 'quantity' => 12, 'price' => 100]];
+
+    $this->postJson('/api/sales', $payload)->assertStatus(422)->assertJsonPath('code', 'insufficient_stock');
+
+    expect(Sale::count())->toBe(0)
+        ->and($this->ledger->quantity($this->shop->id, $this->simple->defaultVariation->id))->toBe(10);
+});
+
+it('pushes an oversold sale through with sales.oversell and a reason, costing the shortfall provisionally', function () {
+    Sanctum::actingAs($this->owner, ['*']); // the owner holds sales.oversell by default
+    $payload = salePayload();
+    $payload['items'] = [['product_id' => $this->simple->id, 'quantity' => 12, 'price' => 100]];
+    $payload['oversell_reason'] = 'Customer is a regular, restocking tomorrow';
 
     $this->postJson('/api/sales', $payload)->assertCreated();
 

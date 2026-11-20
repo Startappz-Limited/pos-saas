@@ -15,6 +15,52 @@
 
     <div>
 
+        <div class="d-flex justify-content-end mb-2">
+            <a class="btn btn-outline-primary btn-sm" href="{{ route('products.units.index', $product) }}">{{ __('Units and pack sizes') }}</a>
+        </div>
+
+        @if ($waitingBarcodes->isNotEmpty())
+            <div class="card border-warning mb-3">
+                <div class="card-header bg-warning-subtle">
+                    <strong>{{ __('Barcode to assign') }}</strong>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted mb-3">
+                        {{ __('This product has variations, so its barcode belongs to one of their units. Scanning this barcode won\'t work until you assign it.') }}
+                    </p>
+                    @foreach ($waitingBarcodes as $waiting)
+                        <div class="d-flex flex-wrap align-items-end gap-2 mb-3">
+                            <div class="me-2">
+                                <span class="fw-medium">{{ $waiting->barcode }}</span>
+                            </div>
+                            <form method="POST" action="{{ route('products.barcodes.assign', [$product, $waiting]) }}" class="d-flex gap-2 align-items-end">
+                                @csrf
+                                @honeypot
+                                <div>
+                                    <label class="form-label" for="unit-{{ $waiting->id }}">{{ __('Unit') }}</label>
+                                    <select class="form-select" name="unit" id="unit-{{ $waiting->id }}" required>
+                                        @foreach ($product->units as $unit)
+                                            <option value="{{ $unit->uuid }}">{{ $unit->name }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                                <button type="submit" class="btn btn-primary">{{ __('Assign') }}</button>
+                            </form>
+                            <form method="POST" action="{{ route('products.barcodes.drop', [$product, $waiting]) }}" class="d-flex gap-2 align-items-end">
+                                @csrf
+                                @honeypot
+                                <div>
+                                    <label class="form-label" for="reason-{{ $waiting->id }}">{{ __('Reason') }}</label>
+                                    <input class="form-control" type="text" name="reason" id="reason-{{ $waiting->id }}" maxlength="500" required>
+                                </div>
+                                <button type="submit" class="btn btn-outline-danger">{{ __('Drop') }}</button>
+                            </form>
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+        @endif
+
         <form action="{{ route('products.update', $product) }}" method="POST" enctype="multipart/form-data">
             @csrf
             @method('PUT')
@@ -206,14 +252,25 @@
                                 <div class="col-md-6">
                                     <div class="mb-3">
                                         <label for="stock_quantity" class="form-label">{{ __('Stock in :shop', ['shop' => $stockShop?->name ?? __('the shop it was first stocked at')]) }}</label>
-                                        <input type="number" min="0"
-                                            class="form-control @error('stock_quantity') is-invalid @enderror"
-                                            id="stock_quantity" name="stock_quantity" aria-describedby="stock_quantity-help"
-                                            value="{{ old('stock_quantity', $stockInShop) }}">
-                                        <div class="form-text" id="stock_quantity-help">{{ __('Changing it records a stock adjustment. Other shops\' stock is changed through Stock adjustments.') }}</div>
-                                        @error('stock_quantity')
-                                            <div class="invalid-feedback">{{ $message }}</div>
-                                        @enderror
+                                        <input type="number" class="form-control" id="stock_quantity" name="stock_quantity"
+                                            aria-describedby="stock_quantity-help" value="{{ $stockInShop }}" disabled readonly>
+                                        <div class="form-text" id="stock_quantity-help">
+                                            {{ __('Change stock with a') }}
+                                            <a href="{{ route('stock-intakes.create') }}">{{ __('stock intake') }}</a>
+                                            {{ __('or an') }}
+                                            <a href="{{ route('stock-adjustments.create') }}">{{ __('adjustment') }}</a>.
+                                        </div>
+<div class="form-check form-switch mt-2">
+                                            <input class="form-check-input" type="checkbox" role="switch" id="is_medical" name="is_medical"
+                                                value="1" @checked(old('is_medical', $product->is_medical))>
+                                            <label class="form-check-label" for="is_medical">{{ __('Medical product') }}</label>
+                                        </div>
+                                        <div class="form-text">{{ __('Medical stock that is expired, or whose expiry is unverified, is never released for sale by approval.') }}</div>
+                                        <div class="form-check form-switch mt-2">
+                                            <input class="form-check-input" type="checkbox" role="switch" id="track_batches" name="track_batches"
+                                                value="1" @checked(old('track_batches', $trackBatches))>
+                                            <label class="form-check-label" for="track_batches">{{ __('Track batches and expiry') }}</label>
+                                        </div>
                                     </div>
                                 </div>
                                 <div class="col-md-6">
@@ -328,8 +385,8 @@
                                             <div class="{{ $variationPriceCols }}">
                                                 <label class="form-label">Stock Qty</label>
                                                 <input type="number" class="form-control form-control-sm"
-                                                    name="variations[{{ $index }}][stock_quantity]"
-                                                    value="{{ $variation['stock_quantity'] ?? 0 }}">
+                                                    value="{{ $variation['stock_quantity'] ?? 0 }}" disabled readonly>
+                                                <div class="form-text">{{ __('Use a stock intake or adjustment.') }}</div>
                                             </div>
                                         </div>
                                     </div>

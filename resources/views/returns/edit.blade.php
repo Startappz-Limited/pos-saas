@@ -107,7 +107,8 @@
                                                             name="items[{{ $index }}][sale_item_id]"
                                                             value="{{ $saleItem->id }}">
                                                         <input type="number" name="items[{{ $index }}][quantity]"
-                                                            class="form-control form-control-sm" min="1"
+                                                            class="form-control form-control-sm" min="{{ $saleItem->quantityStep() }}"
+                                                            step="{{ $saleItem->quantityStep() }}"
                                                             max="{{ $saleItem->quantity }}"
                                                             value="{{ old("items.{$index}.quantity", $existingReturnItem->quantity) }}">
                                                     </td>

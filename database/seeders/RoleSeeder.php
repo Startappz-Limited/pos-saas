@@ -252,6 +252,7 @@ class RoleSeeder extends Seeder
             // No sales.void: voiding is the owner's by default (stage 10, step 2).
             'sales.refund',
             'sales.restore',
+            'sales.oversell',
 
             // Refunds (full access including approval)
             'refunds.view',

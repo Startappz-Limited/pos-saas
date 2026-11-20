@@ -2,12 +2,12 @@
 
 namespace App\Actions\Product;
 
-use App\Enums\StockMovementType;
 use App\Models\Category;
-use App\Models\CostLayer;
 use App\Models\Product;
+use App\Models\ProductVariation;
 use App\Models\Shop;
 use App\Models\ShopVariation;
+use App\Rules\QuantityForUnit;
 use App\Services\ProductService;
 use App\Services\Stock\StockLedger;
 use Illuminate\Support\Collection;
@@ -57,9 +57,14 @@ class ImportProductsFromCsv
         'category' => ['required' => false, 'description' => 'A category name; created when new, "General" when empty.', 'example' => 'Accessories', 'aliases' => ['category_name']],
         'cost_price' => ['required' => false, 'description' => 'What one item costs you to buy.', 'example' => '900.00', 'aliases' => ['cost', 'buying_price', 'purchase_price']],
         'wholesale_price' => ['required' => false, 'description' => 'The price for wholesale customers.', 'example' => '1300.00', 'aliases' => ['wholesale']],
-        'stock' => ['required' => false, 'description' => 'How many items are in the chosen shop now. Empty is 0 for a new product, and no change for an existing one.', 'example' => '20', 'aliases' => ['stock_quantity', 'quantity', 'qty', 'opening_stock', 'stock_level', 'on_hand']],
+        'stock' => ['required' => false, 'description' => 'For reference only: shown against what\'s already in the shop, never applied. Receive stock afterwards with a stock intake.', 'example' => '20', 'aliases' => ['stock_quantity', 'quantity', 'qty', 'opening_stock', 'stock_level', 'on_hand']],
         'reorder_level' => ['required' => false, 'description' => 'The low-stock threshold: an alert when stock falls to this. Empty is 10 for a new product.', 'example' => '5', 'aliases' => ['low_stock_threshold', 'threshold', 'min_stock', 'minimum_stock', 'reorder_point', 'low_stock']],
         'unit' => ['required' => false, 'description' => 'How it is counted, e.g. piece, kg, box.', 'example' => 'piece', 'aliases' => ['uom', 'unit_of_measure']],
+        'unit_precision' => ['required' => false, 'description' => 'Decimals the base unit allows (0 to 3); guessed from "unit" when empty.', 'example' => '', 'aliases' => ['base_precision']],
+        'pack_unit' => ['required' => false, 'description' => 'One extra pack size, e.g. box, strip, crate.', 'example' => '', 'aliases' => ['pack']],
+        'pack_factor' => ['required' => false, 'description' => 'How many "unit" make one "pack_unit".', 'example' => '', 'aliases' => ['pack_size', 'units_per_pack']],
+        'pack_barcode' => ['required' => false, 'description' => 'The pack\'s own barcode, if different.', 'example' => '', 'aliases' => []],
+        'pack_price' => ['required' => false, 'description' => 'The pack\'s own selling price; "unit" price x factor when empty.', 'example' => '', 'aliases' => ['pack_selling_price']],
     ];
 
     public function __construct(private ProductService $products, private StockLedger $ledger) {}
@@ -128,7 +133,7 @@ class ImportProductsFromCsv
             return $result;
         }
 
-        DB::transaction(function () use ($analysis, $existing, $existingMode, $shop, $userId, &$result): void {
+        DB::transaction(function () use ($analysis, $existing, $existingMode, $shop, &$result): void {
             $categories = [];
 
             foreach ($analysis['rows'] as $row) {
@@ -141,13 +146,14 @@ class ImportProductsFromCsv
                         continue;
                     }
 
-                    $this->updateExisting($product, $row, $shop, $userId) ? $result['updated']++ : $result['unchanged']++;
+                    $this->updateExisting($product, $row, $shop) ? $result['updated']++ : $result['unchanged']++;
 
                     continue;
                 }
 
-                $this->create($row, $shop, $userId, $categories);
+                $this->create($row, $shop, $categories);
                 $result['created']++;
+                // Informational only: the file's figure, never applied (above).
                 $result['opening_stock'] += max(0, (int) $row['stock']);
             }
         });
@@ -195,7 +201,10 @@ class ImportProductsFromCsv
             'threshold' => $threshold,
             'file_threshold' => $fileThreshold,
             'has_variations' => (bool) $product->has_variations,
-            'changes' => ($fileStock !== null && $fileStock !== $stock) || ($fileThreshold !== null && $fileThreshold !== $threshold),
+            // Stock changes only through intakes, adjustments, stocktakes and sales
+            // (decided after stage 11, step 4): a stock mismatch is shown (above),
+            // never applied, so it isn't a "change" the import makes.
+            'changes' => $fileThreshold !== null && $fileThreshold !== $threshold,
         ];
     }
 
@@ -203,7 +212,7 @@ class ImportProductsFromCsv
      * @param  array<string, ?string>  $row
      * @param  array<string, Category>  $categories
      */
-    private function create(array $row, Shop $shop, ?int $userId, array &$categories): void
+    private function create(array $row, Shop $shop, array &$categories): void
     {
         $name = $row['category'] ?: 'General';
         $category = $categories[$name] ??= Category::query()->where('name', $name)->first()
@@ -223,17 +232,50 @@ class ImportProductsFromCsv
         ], fn ($value): bool => $value !== null && $value !== ''));
 
         $product->syncShopVariationRows();
+        $this->applyUnitColumns($product->createDefaultVariation(), $row);
 
-        if ((int) $row['stock'] > 0) {
-            $this->ledger->receive(
-                $shop->id,
-                $product->createDefaultVariation(),
-                (int) $row['stock'],
-                $row['cost_price'] !== null ? (float) $row['cost_price'] : null,
-                StockMovementType::ADJUSTMENT_ADD,
-                ['source_type' => CostLayer::SOURCE_ADJUSTMENT, 'user_id' => $userId, 'notes' => 'Opening stock (CSV import)'],
-            );
+        // Stock changes only through intakes, adjustments, stocktakes and
+        // sales (decided after stage 11, step 4): the file's "stock" column
+        // is read for the import summary only, never applied here. A stock
+        // intake receives the opening quantity afterwards.
+    }
+
+    /**
+     * A new product's units from the file (stage 11, step 2): an explicit
+     * precision for the base unit the row's "unit" name already created, and
+     * one optional extra pack unit.
+     *
+     * @param  array<string, ?string>  $row
+     */
+    private function applyUnitColumns(ProductVariation $variation, array $row): void
+    {
+        if ($row['unit_precision'] !== null && $row['unit_precision'] !== '') {
+            $variation->baseUnit?->update(['precision' => (int) $row['unit_precision']]);
         }
+
+        if ($row['pack_unit'] === null || $row['pack_unit'] === '') {
+            return;
+        }
+
+        $base = $variation->baseUnit;
+        $factor = (float) $row['pack_factor'];
+        $price = $row['pack_price'] !== null && $row['pack_price'] !== ''
+            ? (float) $row['pack_price']
+            : ($base?->selling_price !== null ? round((float) $base->selling_price * $factor, 2) : null);
+
+        $variation->units()->create([
+            'business_id' => $variation->business_id,
+            'name' => $row['pack_unit'],
+            'factor' => $factor,
+            'precision' => 0,
+            'barcode' => $row['pack_barcode'] ?: null,
+            'selling_price' => $price,
+            'wholesale_price' => $base?->wholesale_price !== null ? round((float) $base->wholesale_price * $factor, 2) : null,
+            'is_base' => false,
+            'can_sell' => true,
+            'can_buy' => true,
+            'is_default_purchase' => false,
+        ]);
     }
 
     /**
@@ -242,7 +284,7 @@ class ImportProductsFromCsv
      *
      * @param  array<string, ?string>  $row
      */
-    private function updateExisting(Product $product, array $row, Shop $shop, ?int $userId): bool
+    private function updateExisting(Product $product, array $row, Shop $shop): bool
     {
         $before = $this->preview($product, $row, $shop);
 
@@ -254,10 +296,6 @@ class ImportProductsFromCsv
         $product->shops()->syncWithoutDetaching([$shop->id]);
         $product->syncShopVariationRows();
         $variation = $product->createDefaultVariation();
-
-        if ($before['file_stock'] !== null && $before['file_stock'] !== $before['stock']) {
-            $this->ledger->setLevel($shop->id, $variation, $before['file_stock'], ['user_id' => $userId, 'notes' => 'Stock level set by CSV import']);
-        }
 
         if ($before['file_threshold'] !== null && $before['file_threshold'] !== $before['threshold']) {
             ShopVariation::query()->where('shop_id', $shop->id)->where('variation_id', $variation->id)
@@ -391,6 +429,11 @@ class ImportProductsFromCsv
                 'stock' => ['nullable', 'integer', 'min:0'],
                 'reorder_level' => ['nullable', 'integer', 'min:0'],
                 'unit' => ['nullable', 'string', 'max:255'],
+                'unit_precision' => ['nullable', 'integer', 'min:0', 'max:3'],
+                'pack_unit' => ['nullable', 'string', 'max:255'],
+                'pack_factor' => ['nullable', 'numeric', 'min:0.001', new QuantityForUnit(3), 'required_with:pack_unit'],
+                'pack_barcode' => ['nullable', 'string', 'max:255'],
+                'pack_price' => ['nullable', 'numeric', 'min:0'],
             ]);
 
             foreach ($validator->errors()->all() as $message) {
