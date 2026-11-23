@@ -204,6 +204,8 @@ it('rejects business B\'s ids on create', function (string $route, Closure $payl
     'product in B\'s shop' => ['products.store', fn ($b) => ['shop_id' => $b->shops[0]->id, 'name' => 'x', 'selling_price' => 10]],
     'purchase order from B\'s supplier' => ['purchase-orders.store', fn ($b) => ['supplier_id' => $b->supplier->id, 'shop_id' => $b->shops[0]->id]],
     'sale to B\'s customer of B\'s product' => ['sales.store', fn ($b) => ['customer_id' => $b->customer->id, 'items' => [['product_id' => $b->product->id, 'quantity' => 1, 'price' => 10]]]],
+    // The till's expected prices (stage 11b, step 1): B's product and B's customer are not found from A.
+    'quote for B\'s customer and product' => ['pos.quote', fn ($b) => ['customer_id' => $b->customer->id, 'items' => [['product_id' => $b->product->id, 'quantity' => 1]]]],
     // Stock → Low stock (stage 11c, step 1): B's supplier, B's shop and B's low line refused for A's owner.
     'draft order from B\'s low stock' => ['stock.low-stock.purchase-order', fn ($b) => app(TenantContext::class)->run($b->business, fn (): array => ['shop_id' => $b->shops[0]->id, 'supplier_id' => $b->supplier->id, 'lines' => [$b->product->id.':'.$b->product->defaultVariation->id]])],
 ]);

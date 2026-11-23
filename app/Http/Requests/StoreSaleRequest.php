@@ -64,7 +64,13 @@ class StoreSaleRequest extends FormRequest
             'items.*.quantity' => ['required', 'numeric', 'min:0.001', 'max:10000'],
             'items.*.unit_id' => ['nullable', 'string'],
             'items.*.price' => ['required', 'numeric', 'min:0', 'max:1000000'],
+            // Who allowed a price below the expected one, and when (stage 11b, step 3): a staff uuid, the seller by default online.
+            'items.*.price_overridden_by' => ['nullable', 'string', 'max:36'],
+            'items.*.override_approved_at' => ['nullable', 'date'],
             'discount_amount' => ['nullable', 'numeric', 'min:0', 'max:1000000'],
+            // Who approved a discount above the seller's limit, and when (stage 11b, step 4): a staff uuid.
+            'discount_approved_by' => ['nullable', 'string', 'max:36'],
+            'override_approved_at' => ['nullable', 'date'],
             // Only honoured for shops that are not VAT registered. For a
             // registered shop the server computes VAT from the lines and
             // ignores whatever is posted here — tax is not a client decision.

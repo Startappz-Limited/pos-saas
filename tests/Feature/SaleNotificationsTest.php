@@ -20,6 +20,8 @@ use Spatie\Permission\Models\Permission;
 beforeEach(function () {
     $this->shop = Shop::factory()->create();
     $this->user = User::factory()->create();
+    Permission::findOrCreate('sales.override-price', 'web');
+    $this->user->givePermissionTo('sales.override-price'); // the price check is tested in SalePriceCheckTest (stage 11b)
     $this->user->shops()->attach($this->shop);
     $this->customer = Customer::factory()->forShop($this->shop)->create([
         'phone' => '+254712345678',

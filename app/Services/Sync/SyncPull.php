@@ -11,6 +11,7 @@ use App\Models\ProductUnit;
 use App\Models\ProductVariation;
 use App\Models\Register;
 use App\Models\Sale;
+use App\Models\ShopUnitPrice;
 use App\Models\ShopVariation;
 use App\Models\StockAdjustmentItem;
 use App\Models\SyncDeletion;
@@ -52,7 +53,7 @@ use Illuminate\Support\Collection;
 class SyncPull
 {
     /** The paged entities, in the order the till should apply them. */
-    public const ENTITIES = ['categories', 'products', 'variations', 'units', 'pricing_rules', 'customers', 'stock', 'payment_requests', 'sale_voids', 'resolved_items'];
+    public const ENTITIES = ['categories', 'products', 'variations', 'units', 'unit_prices', 'pricing_rules', 'customers', 'stock', 'payment_requests', 'sale_voids', 'resolved_items'];
 
     /** Entities paged by a column other than `updated_at`. */
     private const PAGED_BY = ['sale_voids' => 'voided_at'];
@@ -193,12 +194,16 @@ class SyncPull
                 'status' => self::plain($variation->status),
                 'updated_at' => $variation->updated_at?->toIso8601String(),
             ]],
-            'pricing_rules' => [PricingRule::query()->with(['product:id,uuid', 'customer:id,uuid']), fn (PricingRule $rule): array => [
+            'pricing_rules' => [PricingRule::query()->with(['product:id,uuid', 'customer:id,uuid', 'variation:id,uuid,is_default', 'unit:id,uuid']), fn (PricingRule $rule): array => [
                 'id' => $rule->id,
                 'uuid' => $rule->uuid,
                 'name' => $rule->name,
                 'type' => self::plain($rule->type),
                 'product_uuid' => $rule->product?->uuid,
+                // The one variation and unit the rule names (stage 11b): null when it applies to all, and for the hidden
+                // default variation of a product without variations.
+                'variation_uuid' => $rule->variation?->is_default ? null : $rule->variation?->uuid,
+                'unit_uuid' => $rule->unit?->uuid,
                 'customer_uuid' => $rule->customer?->uuid,
                 'price' => self::money($rule->price),
                 'discount_percentage' => $rule->discount_percentage === null ? null : (string) $rule->discount_percentage,
@@ -245,6 +250,13 @@ class SyncPull
                 'sort_order' => (int) $unit->sort_order,
                 'deleted_at' => $unit->deleted_at?->toIso8601String(),
                 'updated_at' => $unit->updated_at?->toIso8601String(),
+            ]],
+            // The till's shop's own prices for units (stage 11b, step 6): an override of a unit's price at this shop.
+            'unit_prices' => [ShopUnitPrice::query()->where('shop_unit_prices.shop_id', $register->shop_id)->with(['unit:id,uuid']), fn (ShopUnitPrice $price): array => [
+                'unit_uuid' => $price->unit?->uuid,
+                'selling_price' => self::money($price->selling_price),
+                'wholesale_price' => self::money($price->wholesale_price),
+                'updated_at' => $price->updated_at?->toIso8601String(),
             ]],
             'stock' => [ShopVariation::query()->where('shop_variation.shop_id', $register->shop_id)->with(['product:id,uuid', 'variation:id,uuid,is_default']), fn (ShopVariation $stock): array => [
                 'product_uuid' => $stock->product?->uuid,

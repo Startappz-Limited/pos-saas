@@ -7,7 +7,6 @@ use App\Actions\PricingRule\DeletePricingRuleAction;
 use App\Actions\PricingRule\UpdatePricingRuleAction;
 use App\Enums\PricingType;
 use App\Models\PricingRule;
-use App\Models\Product;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
 
@@ -107,49 +106,6 @@ class PricingService
     public function deactivatePricingRule(PricingRule $pricingRule): PricingRule
     {
         return $this->updatePricingRule($pricingRule, ['is_active' => false]);
-    }
-
-    public function getBestPriceForProduct(
-        Product $product,
-        int $quantity = 1,
-        ?int $customerId = null
-    ): ?array {
-        $rules = PricingRule::forProduct($product->id)
-            ->currentlyValid()
-            ->forQuantity($quantity)
-            ->orderByPriority()
-            ->get();
-
-        $bestPrice = null;
-        $bestRule = null;
-
-        foreach ($rules as $rule) {
-            if (! $rule->isValidForCustomer($customerId)) {
-                continue;
-            }
-
-            $finalPrice = $rule->calculateFinalPrice($quantity);
-
-            if ($bestPrice === null || $finalPrice < $bestPrice) {
-                $bestPrice = $finalPrice;
-                $bestRule = $rule;
-            }
-        }
-
-        // Fallback to product's default selling price
-        if ($bestPrice === null) {
-            $bestPrice = (float) $product->selling_price * $quantity;
-        }
-
-        return [
-            'price' => $bestPrice,
-            'unit_price' => $bestPrice / $quantity,
-            'quantity' => $quantity,
-            'rule' => $bestRule,
-            'has_discount' => $bestRule !== null,
-            'original_price' => (float) $product->selling_price * $quantity,
-            'savings' => $bestRule ? ((float) $product->selling_price * $quantity) - $bestPrice : 0,
-        ];
     }
 
     public function getStatistics(): array

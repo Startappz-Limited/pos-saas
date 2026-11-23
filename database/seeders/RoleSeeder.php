@@ -15,6 +15,21 @@ class RoleSeeder extends Seeder
     /**
      * Run the database seeds.
      */
+    /**
+     * A template's discount limit, in percent of a sale (stage 11b, step 4). A cashier or a clerk discounts nothing
+     * without approval; the manager and the owner have no limit (NULL). Customer gets 0: it sells nothing.
+     *
+     * @var array<string, ?string>
+     */
+    private const DISCOUNT_LIMITS = [
+        'admin' => null,
+        'manager' => null,
+        'cashier' => '0.00',
+        'inventory-clerk' => '0.00',
+        'accountant' => '0.00',
+        'customer' => '0.00',
+    ];
+
     public function run(): void
     {
         // Reset cached roles and permissions
@@ -58,6 +73,11 @@ class RoleSeeder extends Seeder
                     ['name' => $roleData['name']],
                     ['guard_name' => 'web']
                 );
+            }
+
+            // The discount each template may give without approval (stage 11b, step 4): NULL is no limit.
+            foreach (self::DISCOUNT_LIMITS as $name => $limit) {
+                Role::query()->whereNull('business_id')->where('name', $name)->update(['max_discount_percent' => $limit]);
             }
 
             // Assign permissions to roles
@@ -112,6 +132,14 @@ class RoleSeeder extends Seeder
                 ->pluck('permission_id');
 
             DB::table('role_has_permissions')->insertOrIgnore($missing->map(fn ($id): array => ['permission_id' => $id, 'role_id' => $copy->id])->all());
+        }
+
+        // A copy takes its template's discount limit only while it has none: a limit the owner set is kept (stage 11b).
+        foreach (Role::query()->withoutGlobalScopes()->whereNotNull('template_id')->whereNotNull('business_id')->whereNull('max_discount_percent')->get() as $copy) {
+            $limit = Role::query()->withoutGlobalScopes()->whereKey($copy->template_id)->value('max_discount_percent');
+            if ($limit !== null) {
+                $copy->update(['max_discount_percent' => $limit]);
+            }
         }
 
         app(PermissionRegistrar::class)->forgetCachedPermissions();
@@ -253,6 +281,8 @@ class RoleSeeder extends Seeder
             'sales.refund',
             'sales.restore',
             'sales.oversell',
+            // Approves a price below the expected one, or a discount above a limit (stage 11b).
+            'sales.override-price',
 
             // Refunds (full access including approval)
             'refunds.view',

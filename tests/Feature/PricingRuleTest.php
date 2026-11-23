@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\PricingType;
+use App\Models\Customer;
 use App\Models\PricingRule;
 use App\Models\Product;
 use App\Models\Role;
@@ -275,11 +276,12 @@ test('pricing rule belongs to product', function () {
 });
 
 test('pricing rule can have customer', function () {
-    $customer = User::factory()->create();
+    // A customer-specific rule names a customer, not a staff user (stage 11b, step 2).
+    $customer = Customer::factory()->create();
     $pricingRule = PricingRule::factory()->customerSpecific()->create([
         'customer_id' => $customer->id,
     ]);
 
-    expect($pricingRule->customer)->toBeInstanceOf(User::class)
+    expect($pricingRule->customer)->toBeInstanceOf(Customer::class)
         ->and($pricingRule->customer->id)->toBe($customer->id);
 });

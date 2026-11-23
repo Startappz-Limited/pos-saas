@@ -29,6 +29,7 @@ class Role extends SpatieRole
         'name',
         'guard_name',
         'is_active',
+        'max_discount_percent',
     ];
 
     /**
@@ -36,6 +37,8 @@ class Role extends SpatieRole
      */
     protected $casts = [
         'is_active' => 'boolean',
+        // The most a person in this role may discount a sale without approval, in percent; NULL is no limit (stage 11b).
+        'max_discount_percent' => 'decimal:2',
     ];
 
     /**

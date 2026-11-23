@@ -41,6 +41,11 @@ enum ApiErrorCode: string
     /** A sale line names a unit the server never had for that product (stage 11, step 8). */
     case UnknownUnit = 'unknown_unit';
 
+    // Prices and discounts (stage 11b, step 3 and 4): online only. A push is never refused for price; it is recorded and
+    // reviewed as `price_mismatch`. The flat API answers without a code, as it always has.
+    case PriceBelowExpected = 'price_below_expected';
+    case DiscountAboveLimit = 'discount_above_limit';
+
     // Voids (stage 10, steps 2, 4 and 5c), online and in the push.
     case VoidWindowClosed = 'void_window_closed';
     case SaleHasReturns = 'sale_has_returns';
@@ -114,6 +119,8 @@ enum ApiErrorCode: string
             self::TillHasUnsyncedItems => 'The till being replaced last reported unsynced items; confirm to pair anyway.',
             self::UnknownItemType => 'The server does not know this kind of pushed item.',
             self::UnknownUnit => 'The server has no such unit for this product. The sale is kept on the till until someone discards it.',
+            self::PriceBelowExpected => 'A line is charged below the price the server expects. Someone who can override prices must allow it.',
+            self::DiscountAboveLimit => 'The discount is above the seller\'s limit. Someone who can override prices must approve it.',
             self::MpesaNotSetUp => 'The shop has no proven M-Pesa Till or Paybill, so it can\'t take M-Pesa at the till.',
             self::SubscriptionInactive => 'The subscription has lapsed or the business is over its shops; it is read-only.',
             self::PlanLimitReached => 'The plan allows no more of this (see `limit` and `allowed`).',

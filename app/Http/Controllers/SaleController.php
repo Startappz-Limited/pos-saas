@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Actions\CalculateSaleTotals;
 use App\Actions\GenerateSaleInvoicePdf;
 use App\Actions\RecordCreditSale;
+use App\Actions\Sale\CheckSalePrices;
 use App\Actions\Sale\DeleteSale;
 use App\Actions\Sale\VoidSale;
 use App\Actions\SendSaleNotifications;
@@ -29,6 +30,7 @@ use App\Models\User;
 use App\Rules\UniqueForTenant;
 use App\Services\InvoiceNumberService;
 use App\Services\Stock\StockLedger;
+use App\Support\Pricing\PriceResolver;
 use App\Support\Sales\VoidButton;
 use App\Support\Stock\SaleLineUnit;
 use App\Support\Sync\SyncIssues;
@@ -46,6 +48,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class SaleController extends Controller
@@ -254,6 +257,21 @@ class SaleController extends Controller
         // simply ignored, so a sale over stock is always refused unless the user actually holds it.
         $oversellReason = $request->user()->can('sales.oversell') ? ($validated['oversell_reason'] ?? null) : null;
 
+        // Stage 11b: the prices and the discount against what the server expects, before anything is written. A line
+        // below its expected price, or a discount above the seller's limit, needs someone allowed to approve it.
+        $priceCheck = app(CheckSalePrices::class)->execute(
+            Shop::query()->findOrFail($this->resolveActionShopId($request)),
+            isset($validated['customer_id']) ? Customer::query()->find($validated['customer_id']) : null,
+            $validated['items'],
+            $validated,
+            $request->user(),
+            now(),
+            online: true,
+        );
+        if ($priceCheck->refused()) {
+            throw ValidationException::withMessages($priceCheck->messages($validated['items']));
+        }
+
         DB::beginTransaction();
         try {
             $shopId = $this->resolveActionShopId($request);
@@ -358,6 +376,9 @@ class SaleController extends Controller
                 'notes' => $validated['notes'] ?? null,
                 'completed_at' => $completedAt,
                 'created_by' => auth()->id(),
+                // Who approved a discount above the seller's limit, and when (stage 11b, step 4).
+                'discount_approved_by' => $priceCheck->discountApproverId(),
+                'override_approved_at' => $priceCheck->discountApproverId() === null ? null : $priceCheck->discountApprovedAt(),
             ]);
 
             // Create sale items
@@ -379,6 +400,8 @@ class SaleController extends Controller
                     'quantity' => $lineUnit['quantity'],
                     'base_quantity' => $lineUnit['base_quantity'],
                     'unit_price' => $item['price'],
+                    // The expected price, and who allowed a lower one (stage 11b, step 3); NULL when none was short.
+                    ...$priceCheck->lineFields($index),
                     'line_total' => $line['line_total'],
                     'tax_class' => $line['tax_class'],
                     'tax_rate' => $line['tax_rate'],
@@ -449,6 +472,50 @@ class SaleController extends Controller
 
             return $this->failed($e, __('Failed to create sale:'));
         }
+    }
+
+    /**
+     * The expected price of each line of the cart, from PriceResolver (stage 11b, step 1): the till sends what is in the cart
+     * and takes the server's prices back, so quantity breaks and the shop's own prices are what it charges. Lines are
+     * answered in the order sent, as `lines`, each with its `unit_price` (null when the unit has no price) and `source`.
+     */
+    public function quote(Request $request): JsonResponse
+    {
+        $this->authorize('create', Sale::class);
+
+        $validated = $request->validate([
+            'customer_id' => ['nullable', 'exists:customers,id'],
+            'items' => ['required', 'array', 'min:1', 'max:200'],
+            'items.*.product_id' => ['required', 'exists:products,id'],
+            'items.*.variation_id' => ['nullable', 'exists:product_variations,id'],
+            'items.*.quantity' => ['required', 'numeric', 'min:0.001', 'max:10000'],
+            'items.*.unit_id' => ['nullable', 'string'],
+        ]);
+
+        $shop = Shop::query()->findOrFail($this->resolveActionShopId($request));
+        $customer = isset($validated['customer_id']) ? Customer::query()->find($validated['customer_id']) : null;
+
+        $lines = [];
+        foreach ($validated['items'] as $item) {
+            $product = Product::query()->findOrFail($item['product_id']);
+            $variation = isset($item['variation_id'])
+                ? ProductVariation::query()->withoutGlobalScope(ProductVariation::HIDE_DEFAULT)->findOrFail($item['variation_id'])
+                : $product->defaultVariation()->firstOrFail();
+            $resolved = SaleLineUnit::resolve($variation, $item);
+
+            $lines[] = [
+                'product_id' => (int) $product->id,
+                'variation_id' => (int) $variation->id,
+                'unit' => $resolved['unit'] ?? $variation->baseUnit,
+                'base_quantity' => $resolved['base_quantity'],
+            ];
+        }
+
+        $quotes = app(PriceResolver::class)->quote($shop, $customer, $lines, now());
+
+        return response()->json([
+            'lines' => array_map(fn (array $quote): array => ['unit_price' => $quote['unit_price'], 'source' => $quote['source']], $quotes),
+        ]);
     }
 
     /**

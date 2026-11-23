@@ -22,6 +22,10 @@ class SaleItem extends Model
         'quantity',
         'base_quantity',
         'unit_price',
+        // The expected price, and who allowed a lower one, and when (stage 11b, step 3).
+        'expected_unit_price',
+        'price_overridden_by',
+        'override_approved_at',
         'discount_amount',
         'line_total',
         'tax_class',
@@ -41,6 +45,8 @@ class SaleItem extends Model
     {
         return [
             'cost_known' => 'boolean',
+            'expected_unit_price' => 'decimal:2',
+            'override_approved_at' => 'datetime',
             'tax_class' => TaxClass::class,
             'quantity' => Quantity::class,
             'base_quantity' => Quantity::class,

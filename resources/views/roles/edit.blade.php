@@ -36,6 +36,13 @@
                                 :help="$role->isTemplateCopy() ? __('Shown as :name.', ['name' => $role->displayName()]) : __('Lowercase letters, numbers and hyphens.')" />
                         </div>
 
+                        {{-- The most a person in this role may discount a sale without approval (stage 11b). Blank: no limit. --}}
+                        <div class="col-lg-6">
+                            <x-ui-form-input name="max_discount_percent" type="number" label="Discount limit (%)" step="0.01" min="0" max="100"
+                                :value="old('max_discount_percent', $role->max_discount_percent)"
+                                placeholder="No limit"
+                                :help="__('The most a person in this role may discount a sale without someone approving it. Blank means no limit.')" />
+                        </div>
 
                         <div class="col-lg-6">
                             <div class="form-check form-switch mb-3">

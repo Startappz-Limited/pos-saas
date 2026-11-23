@@ -703,6 +703,48 @@
             renderCart();
         }
 
+        // Expected prices (stage 11b, step 1): the cart's lines are priced by the server (quantity breaks, the shop's own
+        // prices, the customer's). Asked after each change; a change to the cart's products, quantities or customer asks
+        // again, and applying the answer does not, so the cart never asks in a loop.
+        let quoteKey = null;
+        let quoteTimer = null;
+        function requestQuote() {
+            if (cart.length === 0) return;
+            const customerId = document.getElementById('customer_id').value || null;
+            const key = JSON.stringify([cart.map(i => [i.id, i.variationId || null, i.quantity]), customerId]);
+            if (key === quoteKey) return;
+            quoteKey = key;
+            clearTimeout(quoteTimer);
+            quoteTimer = setTimeout(async () => {
+                try {
+                    const response = await fetch('{{ route('pos.quote') }}', {
+                        method: 'POST',
+                        headers: {
+                            'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                            'Accept': 'application/json',
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            customer_id: customerId,
+                            items: cart.map(i => ({ product_id: i.id, variation_id: i.variationId || null, quantity: i.quantity }))
+                        })
+                    });
+                    if (!response.ok || key !== quoteKey) return;
+                    const data = await response.json();
+                    let changed = false;
+                    data.lines.forEach((line, index) => {
+                        if (line.unit_price !== null && cart[index] && Number(cart[index].price) !== Number(line.unit_price)) {
+                            cart[index].price = Number(line.unit_price);
+                            changed = true;
+                        }
+                    });
+                    if (changed) renderCart();
+                } catch (error) {
+                    // Keep the list prices; the server checks the sale again when it is taken.
+                }
+            }, 250);
+        }
+
         // Render cart
         function renderCart() {
             if (cart.length === 0) {
@@ -737,6 +779,7 @@
         `).join('');
 
             updateTotals();
+            requestQuote();
         }
 
         // Cart item actions

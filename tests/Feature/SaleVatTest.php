@@ -31,7 +31,8 @@ beforeEach(function () {
     $this->shop = Shop::factory()->create(['code' => 'NRB', 'vat_registered' => false]);
     $this->user = User::factory()->create();
     $this->user->shops()->attach($this->shop);
-    $this->user->givePermissionTo('sales.full-access');
+    Permission::findOrCreate('sales.override-price', 'web');
+    $this->user->givePermissionTo(['sales.full-access', 'sales.override-price']); // the price check is tested in SalePriceCheckTest (stage 11b)
     $this->source = SaleSource::create(['name' => 'Counter', 'is_active' => true, 'sort_order' => 1]);
 });
 

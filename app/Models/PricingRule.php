@@ -25,6 +25,8 @@ class PricingRule extends Model
         'description',
         'type',
         'product_id',
+        'variation_id',
+        'unit_id',
         'price',
         'discount_percentage',
         'discount_amount',
@@ -82,9 +84,22 @@ class PricingRule extends Model
         return $this->belongsTo(Product::class);
     }
 
+    /** The customer a customer-specific rule names (stage 11b: customers, not staff users). */
     public function customer(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'customer_id');
+        return $this->belongsTo(Customer::class, 'customer_id');
+    }
+
+    /** The one variation the rule applies to (NULL: every variation of its product). */
+    public function variation(): BelongsTo
+    {
+        return $this->belongsTo(ProductVariation::class, 'variation_id')->withoutGlobalScope(ProductVariation::HIDE_DEFAULT);
+    }
+
+    /** The one unit the rule applies to (NULL: any unit of the variation). */
+    public function unit(): BelongsTo
+    {
+        return $this->belongsTo(ProductUnit::class, 'unit_id');
     }
 
     public function creator(): BelongsTo
@@ -207,19 +222,23 @@ class PricingRule extends Model
         return true;
     }
 
+    /**
+     * The rule's price for $quantity units: its price less the percentage and amount discounts, in bcmath (stage 11b),
+     * never below zero. The float is for display only; PriceResolver prices from the decimal string.
+     */
     public function calculateFinalPrice(?int $quantity = 1): float
     {
-        $basePrice = (float) $this->price;
+        $basePrice = (string) ($this->price ?? '0');
 
         if ($this->discount_percentage) {
-            $basePrice -= ($basePrice * ((float) $this->discount_percentage / 100));
+            $basePrice = bcsub($basePrice, bcmul($basePrice, bcdiv((string) $this->discount_percentage, '100', 6), 6), 6);
         }
 
         if ($this->discount_amount) {
-            $basePrice -= (float) $this->discount_amount;
+            $basePrice = bcsub($basePrice, (string) $this->discount_amount, 6);
         }
 
-        return max(0, $basePrice * $quantity);
+        return max(0.0, (float) bcmul($basePrice, (string) ($quantity ?? 1), 6));
     }
 
     // Computed Attributes

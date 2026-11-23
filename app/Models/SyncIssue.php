@@ -60,6 +60,9 @@ class SyncIssue extends Model
     /** A till's base quantity differs from quantity x the unit's factor: the till's figure is kept, and this records both (stage 11, step 8). */
     public const UNIT_FACTOR_MISMATCH = 'unit_factor_mismatch';
 
+    /** A till charged below the expected price, or discounted beyond the person's limit: recorded, and reviewed (stage 11b). */
+    public const PRICE_MISMATCH = 'price_mismatch';
+
     protected $fillable = ['uuid', 'business_id', 'shop_id', 'register_id', 'type', 'key', 'details', 'resolved_at', 'resolved_by', 'resolution'];
 
     protected function casts(): array
@@ -118,6 +121,7 @@ class SyncIssue extends Model
             self::VOID_REFUSED => __('Void refused'),
             self::HELD_ITEM => __('Held till item'),
             self::OUTBOX_ITEM_DISCARDED => __('Till item discarded'),
+            self::PRICE_MISMATCH => __('Charged below the expected price, or discounted above the limit'),
             default => $this->type,
         };
     }
@@ -130,7 +134,7 @@ class SyncIssue extends Model
         return match ($this->type) {
             self::INVOICE_REPEAT, self::MPESA_CODE_REUSED, self::VOID_REFUSED, self::HELD_ITEM => 'danger',
             self::MPESA_UNMATCHED, self::MPESA_AMOUNT_MISMATCH, self::MPESA_NOT_NEEDED => 'warning',
-            self::INVOICE_GAP, self::NEGATIVE_STOCK, self::EXPIRED_STOCK => 'warning',
+            self::INVOICE_GAP, self::NEGATIVE_STOCK, self::EXPIRED_STOCK, self::PRICE_MISMATCH => 'warning',
             self::POSSIBLE_DUPLICATE_CUSTOMER => 'info',
             default => 'secondary',
         };

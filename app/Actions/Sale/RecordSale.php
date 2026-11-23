@@ -5,13 +5,16 @@ namespace App\Actions\Sale;
 use App\Actions\CalculateSaleTotals;
 use App\Actions\RecordCreditSale;
 use App\Actions\SendSaleNotifications;
+use App\Exceptions\BusinessRuleException;
 use App\Models\CashRegister;
 use App\Models\Customer;
 use App\Models\Product;
 use App\Models\ProductVariation;
+use App\Models\Register;
 use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Models\Shop;
+use App\Models\User;
 use App\Services\InvoiceNumberService;
 use App\Services\Stock\StockLedger;
 use App\Support\Stock\SaleLineUnit;
@@ -46,7 +49,11 @@ class RecordSale
 
         $adoption = null;
 
-        [$sale, $register, $overLimit] = DB::transaction(function () use ($validated, $context, &$adoption): array {
+        // What the sale charges against what the server expects (stage 11b): an online sale below its expected price, or
+        // discounted beyond the seller's limit without approval, is refused before anything is written.
+        $assessment = $this->assessPrices($validated, $context);
+
+        [$sale, $register, $overLimit] = DB::transaction(function () use ($validated, $context, &$adoption, $assessment): array {
             // Pre-fetch products and variations
             $productIds = collect($validated['items'])->pluck('product_id')->unique();
             $variationIds = collect($validated['items'])->pluck('variation_id')->filter()->unique();
@@ -157,6 +164,9 @@ class RecordSale
                 'notes' => $validated['notes'] ?? null,
                 'completed_at' => $completedAt,
                 'created_by' => $context->soldBy ?? auth()->id(),
+                // Who approved a discount above the seller's limit, and when (stage 11b, step 4): only when it was approved.
+                'discount_approved_by' => $assessment->discountApproverId(),
+                'override_approved_at' => $assessment->discountApproverId() === null ? null : $assessment->discountApprovedAt(),
             ]);
 
             // A till's offline sale keeps the time it was made.
@@ -184,6 +194,8 @@ class RecordSale
                     'quantity' => $lineUnit['quantity'],
                     'base_quantity' => $lineUnit['base_quantity'],
                     'unit_price' => $item['price'],
+                    // The expected price and who allowed a lower one (stage 11b, step 3); NULL when none was short.
+                    ...$assessment->lineFields($index),
                     'line_total' => $line['line_total'],
                     'tax_class' => $line['tax_class'],
                     'tax_rate' => $line['tax_rate'],
@@ -219,6 +231,13 @@ class RecordSale
 
         $register->updateSalesTotals();
 
+        // A till's push: what it charged below the expected price, or discounted beyond the limit, is recorded for review
+        // (stage 11b, step 5): open unless the approver a till named held sales.override-price on the server.
+        if ($context->clientUuid !== null) {
+            // The till that pushed the sale (its Register, not the cash session the sale was booked to).
+            app(RecordPriceIssues::class)->execute($sale, $assessment, $context->registerId !== null ? Register::query()->find($context->registerId) : null);
+        }
+
         // Sold below zero: on the till sync review (stage 10, step 1a), with who pushed it through
         // and why when sales.oversell was used (stage 11 step 4 follow-up). A till's push records it
         // itself, with the till and its recorded time.
@@ -236,6 +255,36 @@ class RecordSale
         }
 
         return new RecordedSale($sale, $overLimit, $adoption);
+    }
+
+    /**
+     * What the sale charges against what the server expects (stage 11b): see CheckSalePrices. An online sale refused on
+     * price or discount is turned away here, before a single row is written, with the reason for the person.
+     *
+     * @param  array<string, mixed>  $validated
+     */
+    private function assessPrices(array $validated, SaleContext $context): PriceAssessment
+    {
+        $shop = Shop::query()->findOrFail($context->shopId ?? ViewerShop::require());
+        $customer = isset($validated['customer_id']) ? Customer::query()->find($validated['customer_id']) : null;
+        $sellerId = $context->soldBy ?? auth()->id();
+        $seller = $sellerId === null ? null : User::query()->find($sellerId);
+
+        $assessment = app(CheckSalePrices::class)->execute(
+            $shop,
+            $customer,
+            $validated['items'],
+            $validated,
+            $seller,
+            $context->recordedAt ?? now(),
+            online: $context->clientUuid === null,
+        );
+
+        if ($assessment->online && $assessment->refused()) {
+            throw new BusinessRuleException(implode(' ', $assessment->messages($validated['items'])));
+        }
+
+        return $assessment;
     }
 
     /**

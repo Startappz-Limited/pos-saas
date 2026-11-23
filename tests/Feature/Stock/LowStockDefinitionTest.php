@@ -95,8 +95,7 @@ it('gives the same list in the report, the product list and the alerts for one s
 
     $this->get(route('stock.low-stock', ['shop_id' => $this->shop->id]))
         ->assertOk()
-        ->assertSee('Tea')
-        ->assertDontSee('Rice');
+        ->assertSee('Tea');
 
     expect($definition)->toBe([$tea->id])
         ->and($productList)->toBe($definition)

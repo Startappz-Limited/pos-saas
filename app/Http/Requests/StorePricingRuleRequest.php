@@ -34,7 +34,10 @@ class StorePricingRuleRequest extends FormRequest
             'discount_amount' => ['nullable', 'numeric', 'min:0'],
             'min_quantity' => ['nullable', 'integer', 'min:1'],
             'max_quantity' => ['nullable', 'integer', 'min:1', 'gte:min_quantity'],
-            'customer_id' => ['nullable', 'exists:users,id'],
+            // A customer-specific rule names a customer (stage 11b, step 2); the variation and unit narrow the rule (NULL: all).
+            'variation_id' => ['nullable', 'exists:product_variations,id'],
+            'unit_id' => ['nullable', 'exists:product_units,id'],
+            'customer_id' => ['nullable', 'exists:customers,id'],
             'start_date' => ['nullable', 'date'],
             'end_date' => ['nullable', 'date', 'after:start_date'],
             'priority' => ['nullable', 'integer', 'min:0'],

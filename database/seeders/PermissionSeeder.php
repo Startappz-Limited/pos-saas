@@ -179,6 +179,8 @@ class PermissionSeeder extends Seeder
             'sales.restore',
             // Pushes a sale through below the shop's stock, with a reason (decided 5 November 2026, stage 11).
             'sales.oversell',
+            // Charges below the expected price, and approves a discount above a person's limit (stage 11b, steps 3 to 5).
+            'sales.override-price',
             'sales.full-access',
 
             // Refunds Management

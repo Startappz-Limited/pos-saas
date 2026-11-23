@@ -110,6 +110,10 @@ class RoleController extends Controller
         $validated = $request->validated();
 
         $role->update(['name' => $validated['name']]);
+        if (array_key_exists('max_discount_percent', $validated)) {
+            // Audited as any role change is (stage 11b, step 4).
+            $role->update(['max_discount_percent' => $validated['max_discount_percent'] === null || $validated['max_discount_percent'] === '' ? null : $validated['max_discount_percent']]);
+        }
         $sync->execute($role, $request->user(), $validated['permissions'] ?? []);
 
         if (array_key_exists('is_active', $validated)) {

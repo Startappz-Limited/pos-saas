@@ -329,6 +329,8 @@ Route::middleware(['auth', 'business'])->group(function () {
     Route::get('sales/create', [SaleController::class, 'create'])->name('sales.create');
     Route::get('pos', [SaleController::class, 'pos'])->name('pos.index');
     Route::post('sales', [SaleController::class, 'store'])->name('sales.store')->middleware('throttle:20,1');
+    // The expected prices of a cart, before the sale is taken (stage 11b, step 1): the till takes its prices from here.
+    Route::post('pos/quote', [SaleController::class, 'quote'])->name('pos.quote')->middleware('throttle:60,1');
     Route::post('sales/sale-sources', [SaleController::class, 'storeSaleSource'])->name('sales.storeSaleSource');
 
     // E-Commerce Orders Routes

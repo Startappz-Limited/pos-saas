@@ -69,11 +69,15 @@ class Sale extends Model
         'void_recorded_at',
         // How a held till sale was accepted (stage 10, step 5c).
         'sync_flags',
+        // Who approved a discount above the seller's limit, and when (stage 11b, step 4).
+        'discount_approved_by',
+        'override_approved_at',
         'created_by',
     ];
 
     protected $casts = [
         'completed_at' => 'datetime',
+        'override_approved_at' => 'datetime',
         'voided_at' => 'datetime',
         'void_recorded_at' => 'datetime',
         'sync_flags' => 'array',
