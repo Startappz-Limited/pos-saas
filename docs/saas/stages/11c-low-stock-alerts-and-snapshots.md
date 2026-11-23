@@ -98,31 +98,36 @@ got how much back.
 
 ## Work
 
-> **Status (20 November 2026).** Steps 1 to 5 are built on `feat/low-stock-and-snapshots`, with targeted suites passing
-> and the full SQLite and MySQL runs still to do. Built: one low-stock definition (`LowStockQuery`) and its report,
-> the purchase-order draft, the inventory route; self-clearing alerts and expiring/expired stock alerts; daily snapshots
-> with kinds, sources, retention and the valuation report; movements that name their batches, the quarantine release
-> movement, the exact rebuild of past days, the nightly catch-up and `stock:ledger-start`; docs. Open: the migrations
-> have not run on UAT (rehearse on `rehearsal_testing` first); the till's offline low-stock view belongs to the app.
+> **Status (23 November 2026).** Built on `feat/low-stock-and-snapshots` in steps 1 to 5, then a review and fixes in
+> step 6. The full suites pass on the final tree: SQLite 2,743 passed, 0 failed; MySQL 8 2,755 passed, 0 failed; Pint
+> passes on the branch's changes. Built: one low-stock definition (`LowStockQuery`) and its report, the purchase-order
+> draft and the inventory route; self-clearing alerts and expiring/expired stock alerts; nightly snapshots with kinds,
+> sources, retention and the valuation report; movements that name their batches, the exact rebuild of past days, the
+> nightly catch-up and `stock:ledger-start`; docs. Not done here: the UAT rollout (a `db:snapshot` of UAT comes first,
+> then the user runs steps 2 and 3); the migration rehearsal on `rehearsal_testing`, which waits on that snapshot;
+> `isLowStockAt()` (nothing calls it); the low-stock `ReportType` and `WidgetType` cases (no code uses them); the till's
+> offline low-stock view (app side).
 
 Every part keeps to the tenancy rules: `BelongsToBusiness` / `BelongsToShop`, business-aware `exists:`, a
 `ResourceMatrixTest` row for every new route, a manager reaches only their shops.
 
 ### 1. Low stock: one definition
-- [ ] **Per-shop reorder levels:** `shop_variation.reorder_level` is the shop's, in base units; low stock reads it,
+- [x] **Per-shop reorder levels:** `shop_variation.reorder_level` is the shop's, in base units; low stock reads it,
       then the product's `reorder_level` (the default for new shops).
-- [ ] **`App\Services\Stock\LowStockQuery`** (beside `StockQuery`): for one shop, in base units, the variations whose
+- [x] **`App\Services\Stock\LowStockQuery`** (beside `StockQuery`): for one shop, in base units, the variations whose
       **sellable** stock (batches expired by stage 11's `Expiry` helper excluded) is at or below the shop's reorder
       level, else the product's; tracked products only; active in the shop (`shop_product.is_active`). Per variation:
       the sellable quantity, the reorder level, the shortfall (level − sellable, never below zero) and the sellable
       quantity in the largest sensible unit (`UnitBreakdown`). A manager's call is limited to their shops.
 - [ ] `isLowStockAt(Shop $shop)` on `Product` and `ProductVariation` asks the query; `Product::scopeLowStock()` and
-      `isLowStock()` are removed with stage 11's other shop-blind helpers.
-- [ ] **Stock → Low stock**, the single report: per shop (a shop picker; a manager sees only their shops), the query's
+      `isLowStock()` are removed with stage 11's other shop-blind helpers. **Not built:** nothing needs it. The unused
+      `LowStockQuery::isLow()` that was meant to sit beside it was removed in the stage 11c review.
+- [x] **Stock → Low stock**, the single report: per shop (a shop picker; a manager sees only their shops), the query's
       columns, sortable by shortfall; select rows and **"Create purchase order"**, which opens a draft purchase order
       for that shop with the shortfall per line (in base units here; stage 12 pre-fills the purchase unit and adds On
       order and In transit). `stock.view`. Its row in `ResourceMatrixTest`.
-- [ ] **Everything else moves onto the query or goes:**
+- [ ] **Everything else moves onto the query or goes** (open: `ReportType::LOW_STOCK` and the two low-stock
+      `WidgetType` cases are unchanged, as no code uses them; the till's offline view is app-side, not this stage):
   - `Product::scopeLowStock()`: removed;
   - `ProductService::getLowStockProducts()` and the `low_stock` statistic: the query, for the request's shop;
   - `products.lowStock` (`/products/low-stock/list`): redirects to Stock → Low stock; the sidebar's "Low stock" link
@@ -137,7 +142,7 @@ Every part keeps to the tenancy rules: `BelongsToBusiness` / `BelongsToShop`, bu
   - `ReportType::LOW_STOCK` and the `WidgetType` low-stock cases: point at the new page and query.
   - The till works low stock out offline from the pull (stage 11's `sellable_quantity` against `base_reorder_level`),
     by the same rule.
-- [ ] Tests:
+- [x] Tests:
   - the report, the product filter, the dashboard tile and the alerts give the same list for the same shop;
   - expired stock doesn't count: 50 tablets with 40 expired is low against a reorder level of 20;
   - another shop's stock doesn't count; an untracked product never appears;
@@ -147,52 +152,52 @@ Every part keeps to the tenancy rules: `BelongsToBusiness` / `BelongsToShop`, bu
   - a manager sees only their shops; another business's shop is a 404.
 
 ### 2. Alerts that clear themselves
-- [ ] **Low stock:** `CheckLowStockLevels` runs from stage 11's expiry touch for each shop it touches, and after any
+- [x] **Low stock:** `CheckLowStockLevels` runs from stage 11's expiry touch for each shop it touches, and after any
       stock change that crosses a reorder level (queued, per shop, coalesced), so alerts no longer wait for the "Check
       levels" button. An open alert (pending or acknowledged) whose variation is no longer on the list is marked
       `resolved` automatically ("Stock recovered", no user); it opens again if the variation drops back.
-- [ ] **No false user:** a system run records `created_by` NULL and `source = system` (`low_stock_alerts.source`:
+- [x] **No false user:** a system run records `created_by` NULL and `source = system` (`low_stock_alerts.source`:
       `system` or `user`); `current_quantity` and `threshold_quantity` are decimal, in base units.
-- [ ] **Expiring stock:** for each shop, a batch with stock left whose expiry falls within the business's window
+- [x] **Expiring stock:** for each shop, a batch with stock left whose expiry falls within the business's window
       (`businesses.settings['stock']['expiring_alert_days']`, default 30) raises one `AlertType::STOCK_EXPIRING` alert
       in `alerts` (`source = system`, `alertable` the batch, a dedupe key `expiring:{shop}:{batch}`). It resolves
       itself when the batch has no stock left, and becomes an "expired stock" alert when the batch expires, until it
       is written off. Raised from the expiry touch.
-- [ ] Tests: an alert resolves itself when the variation is no longer low, and opens again if it drops back; a system
+- [x] Tests: an alert resolves itself when the variation is no longer low, and opens again if it drops back; a system
       run records no user and `source = system`; a system alert in business B never names a user of business A; an
       expiring batch raises one alert, clears when sold out, and turns into an expired alert at the shop's midnight.
 
 ### 3. Inventory snapshots
-- [ ] `inventory_snapshots` keep per shop, variation (always set: a simple product's default variation, so the unique
+- [x] `inventory_snapshots` keep per shop, variation (always set: a simple product's default variation, so the unique
       key has no NULL that MySQL would let repeat) and date: the quantity (`decimal(15,3)`, base units), the cost value
       (Σ batches held, as `stockValueAt()`), the unknown-cost quantity, any shortfall below zero (no value), and the
       retail value (stage 11's `UnitPrice` for the base unit at that shop). `kind`: `daily`, `month_end` (the daily
       snapshot of a month's last day) or `manual`; `source`: `on_time`, `rebuilt` or `late`; unique on
       `(shop_id, variation_id, snapshot_date, kind)`.
-- [ ] `CreateInventorySnapshot` uses them; the snapshot screen shows quantities with `UnitBreakdown` and marks
+- [x] `CreateInventorySnapshot` uses them; the snapshot screen shows quantities with `UnitBreakdown` and marks
       rebuilt and late snapshots.
-- [ ] **Two snapshot routes name methods that don't exist** (review of `main`, 17 November 2026: both are a 500):
+- [x] **Two snapshot routes name methods that don't exist** (review of `main`, 17 November 2026: both are a 500):
       `POST inventory-snapshots/generate` (`InventorySnapshotController@generate`) and
       `GET inventory-snapshots/report/valuation` (`@valuationReport`). `generate` is built as the manual snapshot
       (`kind = manual`, through `CreateInventorySnapshot`); `valuationReport` shows a snapshot date's cost and retail
       value per shop from the rows above, or is removed if stage 20's stock value definition is the only valuation
       page wanted. Both leave `CanaryCrawlTest::BROKEN_ROUTES`
       ([stage 25](./25-broken-pages-dead-code-and-hardening.md) owns the other entries).
-- [ ] **Every night, per shop:** `stock:snapshot`, scheduled every 15 minutes (`withoutOverlapping`, `onOneServer`),
+- [x] **Every night, per shop:** `stock:snapshot`, scheduled every 15 minutes (`withoutOverlapping`, `onOneServer`),
       takes a shop's snapshot once its local midnight has passed since its last one (`shops.snapshot_taken_at`), dated
       the day that ended. Each missed day is taken on the next run (step 4).
-- [ ] **Retention:** `stock:prune-snapshots` (daily) deletes `daily` snapshots older than 13 months; `month_end` and
+- [x] **Retention:** `stock:prune-snapshots` (daily) deletes `daily` snapshots older than 13 months; `month_end` and
       `manual` ones are kept indefinitely. Manual snapshots stay possible from the snapshot screen.
-- [ ] Tests: a snapshot of a shop with two variations and a batch of unknown cost; taking it twice on one day keeps one
+- [x] Tests: a snapshot of a shop with two variations and a batch of unknown cost; taking it twice on one day keeps one
       row per variation; the retail value uses the shop's price for the base unit; a shop in another timezone is
       snapshotted at its own midnight; retention prunes a 14-month-old daily snapshot but keeps a month-end and a
       manual one.
 
 ### 4. Exact catch-up from the ledger
-- [ ] **Movements name their batches:** from this stage, every `StockMovement` that consumes, receives or releases
+- [x] **Movements name their batches:** from this stage, every `StockMovement` that consumes, receives or releases
       stock records `layers` (JSON: `layer_id`, signed quantity, and for a release the released allocation's
       `allocated_at`). `consume()`, `receive()` and stage 10's `release()` fill it; the ledger's tests check it.
-- [ ] **Rebuilding a missed day** for a shop, at its local midnight `M` (from `Expiry::localMidnight`, stage 11):
+- [x] **Rebuilding a missed day** for a shop, at its local midnight `M` (from `Expiry::localMidnight`, stage 11):
   - **quantity** per variation = current `shop_variation.stock_quantity` − Σ (`quantity_after − quantity_before`) of
     the variation's movements at the shop after `M`;
   - **FIFO value** per variation = Σ over the batches received at or before `M` of (remaining at `M`) × `unit_cost`,
@@ -202,10 +207,10 @@ Every part keeps to the tenancy rules: `BelongsToBusiness` / `BelongsToShop`, bu
     value;
   - the costs are each batch's current `unit_cost` (re-costing since `M` is reflected; the snapshot says so);
   - written with `source = rebuilt`.
-- [ ] **Before the ledger:** `businesses.ledger_started_at` (the first `cost_layers` row's time, filled by
+- [x] **Before the ledger:** `businesses.ledger_started_at` (the first `cost_layers` row's time, filled by
       `stock:ledger-start --business=<id>`, dry run, `--apply`). A missed date before it can't be rebuilt: the
       snapshot takes the current figures with `source = late`.
-- [ ] Tests:
+- [x] Tests:
   - a rebuilt snapshot equals one taken on time, given the same movements and no re-costing in between (quantity and
     value), with sales, a receipt, a void (release) and a supplier return after midnight;
   - a batch received after midnight is left out of the rebuilt value;
@@ -213,13 +218,13 @@ Every part keeps to the tenancy rules: `BelongsToBusiness` / `BelongsToShop`, bu
   - the scheduler skipping two midnights produces two rebuilt snapshots on the next run.
 
 ### 5. Housekeeping
-- [ ] Domain rules (`pos-domain-rules`) and CLAUDE.md: one low-stock definition, self-clearing system alerts,
+- [x] Domain rules (`pos-domain-rules`) and CLAUDE.md: one low-stock definition, self-clearing system alerts,
       snapshots and their catch-up.
-- [ ] **`docs/flutter/09-products.md`, "Low Stock Products"** (the behaviour step 1 changes). Exact correction:
+- [x] **`docs/flutter/09-products.md`, "Low Stock Products"** (the behaviour step 1 changes). Exact correction:
       "Returns the variations whose **sellable** stock at the request's shop (expired batches excluded) is at or below
       the shop's reorder level, else the product's; tracked products only." replaces "Returns products where
       `stock_quantity <= reorder_level`."
-- [ ] **Note on `docs/implementation/09-inventory-tracking.md`**, under its title, once the stage ships (why: the
+- [x] **Note on `docs/implementation/09-inventory-tracking.md`**, under its title, once the stage ships (why: the
       pre-SaaS inventory-tracking design was only partly built):
       > **Superseded (stage 11c).** Partly built. `stock_movements` are written by `StockLedger` (stage 1b). One
       > low-stock definition, alerts that clear themselves, and nightly snapshots in base units, rebuilt exactly when
@@ -246,15 +251,17 @@ changes to the new definition. App checks: [app-release-checklist.md](./app-rele
 
 ## Acceptance criteria
 
-- [ ] One query answers low stock for the report, the product filter, the dashboard, the alerts and both API endpoints,
+- [x] One query answers low stock for the report, the product filter, the dashboard, the alerts and both API endpoints,
       per shop, on sellable stock of tracked products, against the shop's reorder level; the old page redirects.
-- [ ] Alerts resolve themselves when stock recovers; system runs record no user (`source = system`); expiring batches
+- [x] Alerts resolve themselves when stock recovers; system runs record no user (`source = system`); expiring batches
       raise one alert each, which clears itself.
-- [ ] A snapshot is taken for every shop at its local midnight; a missed one is rebuilt exactly from the ledger, and
+- [x] A snapshot is taken for every shop at its local midnight; a missed one is rebuilt exactly from the ledger, and
       only dates before the ledger began are marked late; daily ones are kept 13 months, month-end and manual ones for
       good.
-- [ ] The app's recorded requests and the flat API contract tests still pass.
-- [ ] Pint, the full SQLite and MySQL suites, and the isolation suite pass.
+- [x] The app's recorded requests and the flat API contract tests still pass. (MySQL 8 run, 23 November 2026: the
+      contract test passes against the recorded routes and responses; the low-stock endpoints keep their shape.)
+- [x] Pint, the full SQLite and MySQL suites, and the isolation suite pass. (Pint on the changed files passes; SQLite
+      2,743 passed, 0 failed; MySQL 8 2,755 passed, 0 failed; the isolation suite runs in both.)
 
 ## Risks
 
