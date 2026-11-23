@@ -73,7 +73,7 @@ class CreateInventorySnapshot
             $rowSource = $at !== null && $state === null ? InventorySnapshot::SOURCE_LATE : $source;
 
             $quantity = $state['quantity'] ?? $current;
-            $totalValue = $state['total_value'] ?? round((float) ($held->value ?? 0), 2);
+            $totalValue = $state['total_value'] ?? $this->money($this->decimal($held->value ?? 0));
             $unknown = $state['unknown_cost_quantity'] ?? Quantity::normalize($held->unknown_quantity ?? 0);
             $shortfall = bccomp($quantity, '0', 3) < 0 ? bcmul($quantity, '-1', 3) : '0.000';
 
@@ -89,7 +89,7 @@ class CreateInventorySnapshot
                 'total_value' => $totalValue,
                 'unknown_cost_quantity' => $unknown,
                 'shortfall_quantity' => $shortfall,
-                'retail_value' => round((float) bcmul($inStock, (string) ($price ?? 0), 6), 2),
+                'retail_value' => $this->money(bcmul($inStock, $this->decimal($price ?? 0), 6)),
                 'snapshot_date' => $snapshotDate,
                 'kind' => $kind,
                 'source' => $rowSource,
@@ -113,7 +113,7 @@ class CreateInventorySnapshot
      * ledger did not record). The batches then must sum to the stock held (none when it is below zero), so a
      * rebuilt snapshot can't disagree with its own quantity.
      *
-     * @return array{quantity: string, total_value: float, unknown_cost_quantity: string, shortfall_quantity: string}|null
+     * @return array{quantity: string, total_value: string, unknown_cost_quantity: string, shortfall_quantity: string}|null
      */
     private function stateAt(Shop $shop, int $variationId, CarbonInterface $at, string $current): ?array
     {
@@ -152,11 +152,13 @@ class CreateInventorySnapshot
             }
         }
 
-        // Consumption after $at, still consumed: the units were in the batch at $at.
+        // Consumption after $at, still consumed: the units were in the batch at $at. Only an allocation made or settled
+        // after $at can have been consumed after it, so the query leaves the rest out (the check below stays exact).
         $consumedAfter = [];
         $allocations = DB::table('cost_allocations')
             ->where('shop_id', $shop->id)->where('variation_id', $variationId)
             ->where('is_provisional', false)->whereNotNull('cost_layer_id')
+            ->where(fn ($query) => $query->where('allocated_at', '>', $stamp)->orWhere('settled_at', '>', $stamp))
             ->get(['cost_layer_id', 'quantity_allocated', 'allocated_at', 'settled_at']);
 
         foreach ($allocations as $allocation) {
@@ -173,7 +175,7 @@ class CreateInventorySnapshot
             ->get(['id', 'remaining_quantity', 'unit_cost']);
 
         $sum = '0.000';
-        $value = 0.0;
+        $value = '0.000000';
         $unknown = '0.000';
 
         foreach ($existing as $layer) {
@@ -196,7 +198,7 @@ class CreateInventorySnapshot
             if ($layer->unit_cost === null) {
                 $unknown = bcadd($unknown, $remaining, 3);
             } else {
-                $value += (float) bcmul($remaining, (string) $layer->unit_cost, 6);
+                $value = bcadd($value, bcmul($remaining, $this->decimal($layer->unit_cost), 6), 6);
             }
         }
 
@@ -207,10 +209,26 @@ class CreateInventorySnapshot
 
         return [
             'quantity' => $quantity,
-            'total_value' => round($value, 2),
+            'total_value' => $this->money($value),
             'unknown_cost_quantity' => $unknown,
             'shortfall_quantity' => bccomp($quantity, '0', 3) < 0 ? bcmul($quantity, '-1', 3) : '0.000',
         ];
+    }
+
+    /**
+     * A money figure to the penny, rounded half up. bcmath only: a float never rounds a stored amount (CLAUDE.md).
+     */
+    private function money(string $amount): string
+    {
+        return bcadd($amount, bccomp($amount, '0', 6) < 0 ? '-0.005' : '0.005', 2);
+    }
+
+    /**
+     * A decimal from the database as a string: an exact string from MySQL, a fixed-point one from drivers that return floats.
+     */
+    private function decimal(mixed $value): string
+    {
+        return is_string($value) ? $value : sprintf('%.6F', (float) $value);
     }
 
     /**

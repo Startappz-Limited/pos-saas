@@ -28,7 +28,9 @@ class ProductFactory extends Factory
             'barcode' => fake()->optional()->ean13(),
             'cost_price' => $costPrice,
             'selling_price' => $sellingPrice,
-            'stock_quantity' => fake()->numberBetween(0, 100),
+            // Saving a product with a stock figure writes it to the shop's row (applyPendingStock), so a low random
+            // figure left a sale of a few units short at random. Stocked well above any test sale instead.
+            'stock_quantity' => fake()->numberBetween(100, 500),
             'reorder_level' => 10,
             'track_stock' => true,
             'has_variations' => false,

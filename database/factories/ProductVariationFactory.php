@@ -29,7 +29,8 @@ class ProductVariationFactory extends Factory
             ],
             'cost_price' => $costPrice,
             'selling_price' => $sellingPrice,
-            'stock_quantity' => fake()->numberBetween(0, 50),
+            // As for ProductFactory: written to the shop's row on save, so stocked above any test sale.
+            'stock_quantity' => fake()->numberBetween(100, 500),
             'image' => null,
             'status' => ProductStatus::ACTIVE,
         ];
