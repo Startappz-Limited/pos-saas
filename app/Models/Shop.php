@@ -54,6 +54,7 @@ class Shop extends Model
             'settings' => 'array',
             'vat_registered' => 'boolean',
             'expiry_touched_at' => 'datetime',
+            'snapshot_taken_at' => 'datetime',
             'latitude' => 'decimal:8',
             'longitude' => 'decimal:8',
         ];

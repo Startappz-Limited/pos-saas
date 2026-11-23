@@ -28,7 +28,9 @@ class ProductFactory extends Factory
             'barcode' => fake()->optional()->ean13(),
             'cost_price' => $costPrice,
             'selling_price' => $sellingPrice,
-            'stock_quantity' => fake()->numberBetween(0, 100),
+            // Saving a product with a stock figure writes it to the shop's row (applyPendingStock), so a low random
+            // figure left a sale of a few units short at random. Stocked well above any test sale instead.
+            'stock_quantity' => fake()->numberBetween(100, 500),
             'reorder_level' => 10,
             'track_stock' => true,
             'has_variations' => false,
@@ -107,5 +109,18 @@ class ProductFactory extends Factory
             'cost_price' => 2400,
             'selling_price' => 1999,
         ]);
+    }
+
+    /**
+     * A product saved against a shop is stocked there (CreateProductAction writes the shop_product row, which
+     * LowStockQuery reads as "active in the shop"): the factory does the same when given a shop.
+     */
+    public function configure(): static
+    {
+        return $this->afterCreating(function (Product $product): void {
+            if ($product->shop_id !== null && ! $product->shops()->whereKey($product->shop_id)->exists()) {
+                $product->shops()->attach($product->shop_id, ['is_active' => true, 'reorder_level' => $product->reorder_level]);
+            }
+        });
     }
 }

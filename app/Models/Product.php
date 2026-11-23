@@ -360,11 +360,6 @@ class Product extends Model
         return $query->where('status', ProductStatus::DISCONTINUED);
     }
 
-    public function scopeLowStock($query)
-    {
-        return $query->whereStock('<=', 'reorder_level');
-    }
-
     public function scopeByCategory($query, int $categoryId)
     {
         return $query->where('category_id', $categoryId);
@@ -399,11 +394,6 @@ class Product extends Model
     public function isActive(): bool
     {
         return $this->status === ProductStatus::ACTIVE;
-    }
-
-    public function isLowStock(): bool
-    {
-        return $this->stock_quantity <= $this->reorder_level;
     }
 
     /**

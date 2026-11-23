@@ -23,7 +23,6 @@ use Tests\Support\TwoBusinesses;
 
 /** Routes that fail before tenancy is involved: missing methods and views, already on main. */
 const BROKEN_ROUTES = [
-    '/inventory-snapshots/report/valuation' => 'InventorySnapshotController::valuationReport does not exist',
     '/stock-movements/additions/list' => 'StockMovementController::additions does not exist',
     '/stock-movements/deductions/list' => 'StockMovementController::deductions does not exist',
     '/stock-movements/stats/report' => 'StockMovementController::stats does not exist',
@@ -33,7 +32,6 @@ const BROKEN_ROUTES = [
     '/sales/report/daily' => 'view sales.daily-report does not exist',
     '/sales/report/profit' => 'view sales.profit-report does not exist',
     '/api/inventory' => 'Api\InventoryController::index does not exist',
-    '/api/inventory/low-stock' => 'Api\InventoryController::lowStock does not exist',
 ];
 
 /** Broken on SQLite only: MySQL's MONTH(); checked on MySQL. */

@@ -13,6 +13,7 @@ use Illuminate\Bus\Queueable;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -40,6 +41,9 @@ class RecordsItsBusiness implements ShouldQueue
 
 beforeEach(function () {
     $this->fixture = TwoBusinesses::create();
+    // Stock in the fixture queues the shops' low-stock re-checks (stage 11c, step 2) on the default queue; these
+    // tests drain that queue one job at a time, so they start from an empty one.
+    DB::table('jobs')->delete();
     RecordsItsBusiness::$seen = [];
     app(TenantContext::class)->forget();
 });
@@ -128,4 +132,21 @@ it('keys cached values by business, and refuses a key with no business', functio
 
     expect($key($this->fixture->a->business))->not->toBe($key($this->fixture->b->business))
         ->and(fn () => app(TenantContext::class)->cacheKey('sms_settings'))->toThrow(MissingTenantContext::class);
+});
+
+it('does not give a job dispatched with no business the business of an earlier dispatch in the same process', function () {
+    config(['queue.default' => 'database']);
+    $a = $this->fixture->a;
+
+    // An earlier run for business A leaves its business in Laravel's hidden context; the next job, dispatched with
+    // no business, must not carry it.
+    app(TenantContext::class)->run($a->business, function (): void {
+        RecordsItsBusiness::dispatch();
+    });
+    DB::table('jobs')->delete();
+    app(TenantContext::class)->forget();
+
+    RecordsItsBusiness::dispatch();
+
+    expect(DB::table('jobs')->value('payload'))->not->toContain('tenant.business_id');
 });

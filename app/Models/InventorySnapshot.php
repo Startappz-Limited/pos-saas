@@ -14,6 +14,24 @@ class InventorySnapshot extends Model
     use BelongsToShop;
     use HasFactory, HasUuids;
 
+    /** The day's own snapshot, taken by the nightly run. */
+    public const KIND_DAILY = 'daily';
+
+    /** The daily snapshot of a month's last day: kept indefinitely (stage 11c, step 3). */
+    public const KIND_MONTH_END = 'month_end';
+
+    /** Taken by hand from the snapshot screen: kept indefinitely. */
+    public const KIND_MANUAL = 'manual';
+
+    /** Taken when the day ended, by the nightly run. */
+    public const SOURCE_ON_TIME = 'on_time';
+
+    /** Rebuilt exactly from the ledger after the scheduler missed the day (stage 11c, step 4). */
+    public const SOURCE_REBUILT = 'rebuilt';
+
+    /** The day was before the business's ledger began, so the current figures stand in (stage 11c, step 4). */
+    public const SOURCE_LATE = 'late';
+
     protected $fillable = [
         'uuid',
         'shop_id',
@@ -21,8 +39,12 @@ class InventorySnapshot extends Model
         'variation_id',
         'quantity_on_hand',
         'total_value',
+        'unknown_cost_quantity',
+        'shortfall_quantity',
         'retail_value',
         'snapshot_date',
+        'kind',
+        'source',
         'created_by',
         'updated_by',
     ];
@@ -31,6 +53,8 @@ class InventorySnapshot extends Model
     {
         return [
             'quantity_on_hand' => Quantity::class,
+            'unknown_cost_quantity' => Quantity::class,
+            'shortfall_quantity' => Quantity::class,
             'total_value' => 'decimal:2',
             'retail_value' => 'decimal:2',
             'snapshot_date' => 'date',
@@ -74,6 +98,14 @@ class InventorySnapshot extends Model
     }
 
     // Scopes
+    /**
+     * Daily snapshots taken before $cutoff: the retention rule keeps month-end and manual ones (stage 11c, step 3).
+     */
+    public function scopeDailyBefore($query, string $cutoff)
+    {
+        return $query->where('kind', self::KIND_DAILY)->whereDate('snapshot_date', '<', $cutoff);
+    }
+
     public function scopeForShop($query, $shopId)
     {
         return $query->where('shop_id', $shopId);

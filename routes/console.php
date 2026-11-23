@@ -61,3 +61,9 @@ Schedule::command('mpesa:check-pending')->everyMinute()->name('check-pending-mpe
 
 // Batches that expired since each shop's last run: tills and stores pull their stock again (stage 11, step 5).
 Schedule::command('stock:touch-expiring')->everyFifteenMinutes()->name('touch-expiring-stock')->withoutOverlapping()->onOneServer();
+
+// Each shop's stock snapshot for the day that ended, once its own midnight has passed (stage 11c, step 3).
+Schedule::command('stock:snapshot')->everyFifteenMinutes()->name('stock-snapshot')->withoutOverlapping()->onOneServer();
+
+// Daily snapshots older than 13 months are deleted; month-end and manual ones are kept (stage 11c, step 3).
+Schedule::command('stock:prune-snapshots')->daily()->name('prune-stock-snapshots')->withoutOverlapping()->onOneServer();

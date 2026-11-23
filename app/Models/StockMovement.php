@@ -27,6 +27,7 @@ class StockMovement extends Model
         'quantity_before',
         'quantity_after',
         'unit_cost',
+        'layers',
         'reference_type',
         'reference_uuid',
         'notes',
@@ -38,6 +39,7 @@ class StockMovement extends Model
     {
         return [
             'movement_type' => StockMovementType::class,
+            'layers' => 'array',
             'quantity' => Quantity::class,
             'quantity_before' => Quantity::class,
             'quantity_after' => Quantity::class,

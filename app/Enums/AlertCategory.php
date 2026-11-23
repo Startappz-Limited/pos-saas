@@ -34,6 +34,7 @@ enum AlertCategory: string
                 AlertType::LOW_STOCK,
                 AlertType::OUT_OF_STOCK,
                 AlertType::STOCK_EXPIRING,
+                AlertType::STOCK_EXPIRED,
                 AlertType::REORDER_POINT,
             ],
             self::SALES => [

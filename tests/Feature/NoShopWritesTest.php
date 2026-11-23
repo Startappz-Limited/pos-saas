@@ -8,6 +8,7 @@ use App\Models\LowStockAlert;
 use App\Models\Product;
 use App\Models\Shop;
 use App\Models\User;
+use App\Services\Stock\StockLedger;
 use Illuminate\Support\Facades\DB;
 use Laravel\Sanctum\Sanctum;
 
@@ -71,9 +72,9 @@ it('never opens a register session without a shop', function () {
 
 it('records no creator for a low-stock alert raised without a user, never user 1', function () {
     $shop = Shop::factory()->create();
-    $product = Product::factory()->create(['shop_id' => $shop->id, 'reorder_level' => 5]);
-    DB::table('shop_variation')->where('variation_id', $product->defaultVariation->id)->where('shop_id', $shop->id)
-        ->update(['stock_quantity' => 1]);
+    $product = Product::factory()->create(['shop_id' => $shop->id, 'reorder_level' => 5, 'stock_quantity' => 0]);
+    // Through the ledger, as the app sets stock: sellable stock is judged from the batches.
+    app(StockLedger::class)->setLevel($shop->id, $product->defaultVariation, 1);
     $this->actingAs(tap(User::factory()->create(), fn (User $owner) => $owner->assignRole(ownerRole())));
 
     app(CheckLowStockLevels::class)->execute($shop->id);

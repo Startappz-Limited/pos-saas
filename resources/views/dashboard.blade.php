@@ -327,7 +327,7 @@
                     <div class="card">
                         <div class="card-header d-flex justify-content-between align-items-center">
                             <h4 class="card-title">Low Stock Products</h4>
-                            <a href="{{ route('products.lowStock') }}" class="btn btn-sm btn-light">
+                            <a href="{{ route('stock.low-stock') }}" class="btn btn-sm btn-light">
                                 View All
                             </a>
                         </div>

@@ -23,8 +23,11 @@ class LowStockAlert extends Model
         'current_quantity',
         'threshold_quantity',
         'status',
+        'source',
         'acknowledged_at',
         'acknowledged_by',
+        'resolution',
+        'resolved_at',
         'created_by',
         'updated_by',
     ];
@@ -36,6 +39,7 @@ class LowStockAlert extends Model
             'current_quantity' => Quantity::class,
             'threshold_quantity' => Quantity::class,
             'acknowledged_at' => 'datetime',
+            'resolved_at' => 'datetime',
         ];
     }
 
@@ -135,6 +139,20 @@ class LowStockAlert extends Model
     {
         return $this->update([
             'status' => AlertStatus::RESOLVED,
+            'resolved_at' => now(),
+        ]);
+    }
+
+    /**
+     * Resolved because the item's sellable stock is back above its reorder level: no person did it, so no user is named.
+     */
+    public function resolveRecovered(): bool
+    {
+        return $this->update([
+            'status' => AlertStatus::RESOLVED,
+            'resolution' => 'stock_recovered',
+            'resolved_at' => now(),
+            'updated_by' => null,
         ]);
     }
 

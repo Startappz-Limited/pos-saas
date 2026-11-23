@@ -111,7 +111,7 @@ Recorded in the contract as broken; fixing them later won't fail the contract te
 
 | Endpoint | Problem |
 |---|---|
-| `GET api/inventory`, `GET api/inventory/low-stock`, `GET api/inventory/shop/{shop}`, `GET api/inventory/product/{product}` | Routed to `Api\InventoryController` methods (`index`, `lowStock`, `byShop`, `byProduct`) that don't exist: always 500 |
+| `GET api/inventory`, `GET api/inventory/shop/{shop}`, `GET api/inventory/product/{product}` | Routed to `Api\InventoryController` methods (`index`, `byShop`, `byProduct`) that don't exist: always 500. `GET api/inventory/low-stock` works since stage 11c, step 1 (`lowStock` exists now) |
 | `GET api/users/{user}` | 500: `Call to undefined relationship [shop] on model [App\Models\User]` |
 | `GET api/expenses/{expense}` | 403 "Unauthorized access to this expense." even for the owner (super-admin) |
 
@@ -946,9 +946,9 @@ The stock stages that follow (stage files in [stages/](stages/)); none started.
 | Stage | File | Branch | Depends on | Status |
 |---|---|---|---|---|
 | 10a | [10a-access-and-tenancy.md](stages/10a-access-and-tenancy.md) | `fix/access-tenancy` | None; can ship any time | **Merged** (see below) |
-| 11 | [11-units-quantities-and-batches.md](stages/11-units-quantities-and-batches.md) | `feat/stock-units-batches` | 10 | **In progress** |
+| 11 | [11-units-quantities-and-batches.md](stages/11-units-quantities-and-batches.md) | `feat/stock-units-batches` | 10 | **Merged** (PR #29, 20 November 2026) |
 | 11b | [11b-prices-and-discounts.md](stages/11b-prices-and-discounts.md) | `feat/prices-and-discounts` | 11, 10 | Planned |
-| 11c | [11c-low-stock-alerts-and-snapshots.md](stages/11c-low-stock-alerts-and-snapshots.md) | `feat/low-stock-and-snapshots` | 11 | Planned |
+| 11c | [11c-low-stock-alerts-and-snapshots.md](stages/11c-low-stock-alerts-and-snapshots.md) | `feat/low-stock-and-snapshots` | 11 | **Built and verified; not merged** (see below; UAT rollout waits for a snapshot) |
 | 12 | [12-receiving-and-moving-stock.md](stages/12-receiving-and-moving-stock.md) | `feat/stock-receiving-transfers` | 11, 11c | Planned |
 | 13 | [13-stocktakes.md](stages/13-stocktakes.md) | `feat/stocktakes` | 12, 11 | Planned |
 | 14 | [14-returns-in-reports.md](stages/14-returns-in-reports.md) | `fix/returns-in-reports` | 10, 11, 12 | Planned; also takes the uncounted collected-cash gap (stage 10, step 4) |
@@ -991,7 +991,7 @@ PR #28, `fix/access-tenancy` → `main` at `0e288c4`.
 
 ## Stage 11: Units, quantities and batches
 
-Branch: `feat/stock-units-batches` (from `main`). In progress. The stage file is the plan:
+Branch: `feat/stock-units-batches` (from `main`). Merged as PR #29 on 20 November 2026. The stage file is the plan:
 [stages/11-units-quantities-and-batches.md](stages/11-units-quantities-and-batches.md).
 
 ### Steps
@@ -1029,3 +1029,72 @@ on a genuine conflict, before building step 5:
   the user's confirmation to port the newer branch's confirmed overselling decision now rather than defer it.
 - **Business types / FIFO-FEFO default**: no conflict — UAT stays `general_retail` → FIFO, unchanged by anything
   built so far.
+
+## Stage 11c: Low stock, alerts and snapshots
+
+Branch: `feat/low-stock-and-snapshots` (from `main` after stage 11 merged as PR #29). Built and verified; not merged.
+The stage file is the plan: [stages/11c-low-stock-alerts-and-snapshots.md](stages/11c-low-stock-alerts-and-snapshots.md).
+
+### Steps
+
+| Step | Commit | What |
+|---|---|---|
+| 1. One low-stock definition | `9d2d30a`, `654521b` | `LowStockQuery` (sellable stock, base units, the shop's reorder level before the product's; tracked products active in the shop). Stock → Low stock report with purchase-order drafts. `products.lowStock` redirects. Both low-stock API routes and the dashboard read the query. |
+| 2. Alerts that clear themselves | `be30873` | `CheckShopLowStockJob` (unique per shop, after commit; from stock changes that cross a reorder level and from the expiry touch). Recovered alerts resolve as "Stock recovered". System runs record no user (`source = system`). Expiring and expired stock alerts. Migration `2026_11_20_000001`. |
+| 3. Inventory snapshots | `dee2025` | `inventory_snapshots` by kind (daily, month_end, manual) and source (on_time, rebuilt, late). `stock:snapshot` every 15 minutes; `stock:prune-snapshots` daily. The two snapshot routes that were 500s work. Migration `2026_11_20_000002`. |
+| 4. Exact catch-up from the ledger | `73a9fcb` | Movements name their batches (`layers`). A missed day is rebuilt exactly from the ledger; days before the ledger began are marked late. `stock:ledger-start`. CLAUDE.md, `pos-domain-rules` and `docs/flutter/09-products.md` updated. Migration `2026_11_20_000003`. |
+| 4 (fixes) | `638f5f8` | Final suite failures. |
+| 5. Housekeeping | with step 4 | Docs as the stage lists them; the superseded note on `docs/implementation/09-inventory-tracking.md` is in place. |
+| 6. Review, fixes and verification | _this commit_ | See below. |
+
+### Review and fixes (step 6)
+
+- **Snapshot money in bcmath.** `CreateInventorySnapshot` rounded stored values through floats. It now uses bcmath
+  throughout (`money()`, `decimal()`), as CLAUDE.md requires.
+- **Snapshot allocation query bounded.** `stateAt()` read every allocation a variation ever had. It now reads only
+  those made or settled after the snapshot time; the existing check still decides.
+- **Canary broken routes.** Removed the valuation route and `/api/inventory/low-stock`; both work now. `/api/inventory`
+  stays listed.
+- **New tests for the stage's definition** (`tests/Feature/Stock/LowStockDefinitionTest.php`, 4): expired stock does not
+  count; the shop's reorder level beats the product's; another shop's stock and untracked products never appear; the
+  report, the product list and the alerts agree for one shop. The stage listed these cases and no test covered them.
+- **`LowStockQuery::isLow()`.** Removed as dead code, then restored: `ProductTest` calls it. The full suite caught the
+  removal. The caller search had covered `app/` and not `tests/`.
+- **Flaky sale tests, pre-existing, fixed.** `ProductFactory` drew a random stock of 0–100 and `ProductVariationFactory`
+  0–50. Saving a product with a stock figure writes it to the shop (`HasShopStock::applyPendingStock` →
+  `StockLedger::setLevel`), so a sale of more units than the draw failed: `RecordSaleTest` and `InvoiceSeriesTest`
+  failed in one full SQLite run (and in one of about ten runs of the sale and stock directories). Debug dumps across passing runs
+  showed the sale's starting stock as 89, 95, 82, 52, 42, 50, 47 and 25. Both factories now draw 100–500. The random
+  line dates from the initial commit: this stage did not cause it, and the MySQL run never failed on it.
+
+### Verification (the tree at this commit)
+
+| Check | Result |
+|---|---|
+| SQLite full suite | 2,743 passed, 0 failed, 62 skipped, 4 todo (exit 0) |
+| MySQL 8 full suite (`pos_saas_testing`) | 2,755 passed, 0 failed, 50 skipped, 4 todo (exit 0); includes the flat API contract test and the isolation suite |
+| `vendor/bin/pint --test --diff=origin/main` | pass |
+| Migration rehearsal on `rehearsal_testing` | **Not done.** It needs a UAT snapshot first, which the assistant's hook does not allow. |
+
+### Deviations from the stage file
+
+- `isLowStockAt()` is not built: nothing calls it.
+- `ReportType::LOW_STOCK` and the two low-stock `WidgetType` cases are unchanged: no code uses them.
+- The till's offline low-stock view is app-side, not in this stage.
+
+### Follow-ups (not this stage)
+
+- `UnitBreakdown::describe()` makes about three small queries per low variation on the report and in the alerts. Batch
+  it with the report later.
+- `StockLedger::changeStock()` reads the stock level twice per change to see whether it crosses a reorder level. Those
+  reads could fold into `lockStock()`.
+- `GET api/inventory`, `GET api/inventory/shop/{shop}` and `GET api/inventory/product/{product}` are still missing
+  (stage 25 owns them).
+
+### UAT rollout (the user runs it)
+
+1. `php artisan db:snapshot` on UAT. Then rehearse the migrations on `rehearsal_testing` from that snapshot, and run
+   them on UAT.
+2. `php artisan stock:ledger-start --business=<id>` for each business: dry run, then `--apply`.
+3. `php artisan stock:snapshot` once by hand; check `schedule:list` shows it every 15 minutes.
+4. Compare the report, the products filter, the dashboard and the two API endpoints for one shop: the same list.

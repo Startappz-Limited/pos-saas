@@ -21,6 +21,7 @@ beforeEach(function () {
 function productWithVariation(int $reorderLevel, int $variationStock, bool $trackStock = true): ProductVariation
 {
     $product = Product::factory()->create([
+        'shop_id' => test()->shop->id,
         'has_variations' => true,
         'track_stock' => $trackStock,
         'reorder_level' => $reorderLevel,
@@ -67,8 +68,8 @@ it('ignores variations of products that don\'t track stock', function () {
 });
 
 it('still checks simple products against their own reorder level', function () {
-    $low = Product::factory()->create(['has_variations' => false, 'track_stock' => true, 'reorder_level' => 5, 'stock_quantity' => 2]);
-    $fine = Product::factory()->create(['has_variations' => false, 'track_stock' => true, 'reorder_level' => 5, 'stock_quantity' => 50]);
+    $low = Product::factory()->create(['shop_id' => $this->shop->id, 'has_variations' => false, 'track_stock' => true, 'reorder_level' => 5, 'stock_quantity' => 2]);
+    $fine = Product::factory()->create(['shop_id' => $this->shop->id, 'has_variations' => false, 'track_stock' => true, 'reorder_level' => 5, 'stock_quantity' => 50]);
 
     checkLevels();
 

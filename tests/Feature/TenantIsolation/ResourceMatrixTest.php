@@ -204,7 +204,15 @@ it('rejects business B\'s ids on create', function (string $route, Closure $payl
     'product in B\'s shop' => ['products.store', fn ($b) => ['shop_id' => $b->shops[0]->id, 'name' => 'x', 'selling_price' => 10]],
     'purchase order from B\'s supplier' => ['purchase-orders.store', fn ($b) => ['supplier_id' => $b->supplier->id, 'shop_id' => $b->shops[0]->id]],
     'sale to B\'s customer of B\'s product' => ['sales.store', fn ($b) => ['customer_id' => $b->customer->id, 'items' => [['product_id' => $b->product->id, 'quantity' => 1, 'price' => 10]]]],
+    // Stock → Low stock (stage 11c, step 1): B's supplier, B's shop and B's low line refused for A's owner.
+    'draft order from B\'s low stock' => ['stock.low-stock.purchase-order', fn ($b) => app(TenantContext::class)->run($b->business, fn (): array => ['shop_id' => $b->shops[0]->id, 'supplier_id' => $b->supplier->id, 'lines' => [$b->product->id.':'.$b->product->defaultVariation->id]])],
 ]);
+
+it('refuses to take a manual stock snapshot of business B\'s shop for business A\'s owner (stage 11c, step 3)', function () {
+    $this->actingAs($this->fixture->a->owner)
+        ->post(route('inventory-snapshots.generate'), ['shop_id' => $this->fixture->b->shops[0]->id])
+        ->assertNotFound();
+});
 
 it('refuses to open business B, or make it the default, for business A\'s owner (stage 3)', function (string $route) {
     $owner = $this->fixture->a->owner;

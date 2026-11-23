@@ -47,7 +47,7 @@ true; planning rounds change only `docs/saas/stages/`.
 |---|---|---|---|---|
 | 1 | 05, §1 Products table | Products belonged to a shop (`shop_id`) | Business-wide catalogue (stage 1a); `products.shop_id` means "first stocked at": stage 10, step 1a | planned |
 | 2 | 05, §1 | `unit` was a label (`pcs`, `kg`) with no arithmetic | Units of measure: stage 11, step 2 | planned |
-| 3 | 05, §1 | `low_stock_threshold` per product only | Per-shop reorder level: stage 11c, step 1 | planned |
+| 3 | 05, §1 | `low_stock_threshold` per product only | Per-shop reorder level: stage 11c, step 1 | done (11c) |
 | 4 | 05, §1 | SKU and barcode unique across all businesses | Unique per business (stage 1a); barcodes on units: stage 11, step 2 | done / planned |
 | 5 | 05, §1 Attribute types and values | Two tables never built | `attributes` table (Phase 5 / module 29) | no work |
 | 6 | 05, §3 ProductVariationController | Variations edited on their own screen | Edited in the product form (exists) | no work |
@@ -67,16 +67,16 @@ true; planning rounds change only `docs/saas/stages/`.
 | 20 | 08, §2 `isExpired()` | Expiry by the server's clock | `Expiry` helper in the shop's timezone: stage 11, step 5 | planned |
 | 21 | 08, §2 `cost_per_unit` decimal(12,2) | Unit cost rounded to cents | Four decimals: stage 11, step 1 | planned |
 | 22 | 09, §2 `stock_movements` | Movements written outside a lock | `StockLedger`: stage 1b | done |
-| 23 | 09, §9 CheckLowStockJob | Daily low-stock check never scheduled | Runs from stage 11's expiry touch: stage 11c, step 2 | planned |
-| 24 | 09, §5 CheckLowStockAction | Alerts never resolve; system runs credited to user 1 | Self-resolving, `source = system`: stage 11c, step 2 | planned |
-| 25 | 09, §2 `inventory_snapshots` | Taken by hand only; integer; retail value from a column being dropped; NULL variation in a unique key | Nightly, decimal, valued through `UnitPrice`, exact catch-up: stage 11c, steps 3 and 4 | planned |
+| 23 | 09, §9 CheckLowStockJob | Daily low-stock check never scheduled | Runs from stage 11's expiry touch: stage 11c, step 2 | done (11c) |
+| 24 | 09, §5 CheckLowStockAction | Alerts never resolve; system runs credited to user 1 | Self-resolving, `source = system`: stage 11c, step 2 | done (11c) |
+| 25 | 09, §2 `inventory_snapshots` | Taken by hand only; integer; retail value from a column being dropped; NULL variation in a unique key | Nightly, decimal, valued through `UnitPrice`, exact catch-up: stage 11c, steps 3 and 4 | done (11c) |
 | 26 | 09, §10 permissions | `inventory.*` permissions never added | Dropped: the `stock.*` and `stock-adjustments.*` permissions are used (Phase 5) | dropped |
-| 27 | 09 and code | Low stock worked out in six places, three ways | One `LowStockQuery`: stage 11c, step 1; On order, In transit, To order: stage 12, step 6 | planned |
+| 27 | 09 and code | Low stock worked out in six places, three ways | One `LowStockQuery`: stage 11c, step 1; On order, In transit, To order: stage 12, step 6 | done (11c); On order and In transit: stage 12 |
 | 28 | 20, §3 `CostingMethod` | LIFO, average and specific identification offered, unused | Removed: stage 11, step 9 (LIFO not allowed under IAS 2; average a follow-up if a customer needs it) | planned |
 | 29 | 20, §6 `CostingService` | An empty stub | Removed: stage 11, step 9 | planned |
 | 30 | 20, §2; 10, Sale Item Stock Allocations | `sale_item_stock_allocations` unused | Dropped table: stage 11, step 9 | planned |
 | 31 | 20, §2 `cost_layers` | Layers per product, from intakes only | Per shop and variation, from any source: stage 1b | done |
-| 32 | 20, §6 "valuation at any point in time" | Never built | Nightly snapshots, month-ends kept, rebuilt exactly when missed: stage 11c, steps 3 and 4 | planned |
+| 32 | 20, §6 "valuation at any point in time" | Never built | Nightly snapshots, month-ends kept, rebuilt exactly when missed: stage 11c, steps 3 and 4 | done (11c) |
 | 33 | 20, §7 reports | COGS by period, cost variance, slow-moving by cost age never built | Slow movers and stock age: stage 12, step 5; cost variance: GRN re-costing list, stage 12, step 2; COGS by period: stage 14 (`SalesFigures`) | planned |
 | 34 | 20, Status | "COMPLETE" claimed; `CostLayerController` removed | Note on the document: stage 11, step 9 | planned |
 | 35 | 21, §2 items | Adjustments only move the default variation | Stage 10, step 1g | planned |
@@ -99,7 +99,7 @@ true; planning rounds change only `docs/saas/stages/`.
 | 52 | purchase-costs.md | Receiving doesn't set the purchase cost | Last purchase cost on receipt: stage 12, step 4; the document updated: stage 12, step 7 | planned |
 | 53 | purchase-costs.md commands | Commands read `products.cost_price`, which stage 11 drops | Readers moved: stage 11, step 7 | planned |
 | 54 | flutter/09-products, Create Product | Documents `variations`, `has_variations`, `status`, required `sku` and `category_id`; the API drops the first three silently | 422 instead of dropping, `status` accepted: stage 10, step 1f; document corrected: stage 10, step 8 | planned |
-| 55 | flutter/09-products, Low Stock | `stock_quantity <= reorder_level` | One definition (sellable, per shop): stage 11c, step 1; document: stage 11c, step 5 | planned |
+| 55 | flutter/09-products, Low Stock | `stock_quantity <= reorder_level` | One definition (sellable, per shop): stage 11c, step 1; document: stage 11c, step 5 | done (11c) |
 | 56 | flutter/10-enums, ProductStatus | `out_of_stock` listed | Removed: stage 11, step 6; document: stage 11, step 9 | planned |
 | 57 | flutter/08-purchase-orders | Lines without a unit | Units on purchase-order lines: stage 12, step 1; document corrected: stage 12, step 7 | planned |
 | 58 | pos-saas-plan, Deferred | "Stock transfers between shops" deferred | Transfers: stage 12, step 3; plan line: stage 12, step 7 | planned |

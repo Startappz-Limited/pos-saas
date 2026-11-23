@@ -7,6 +7,7 @@ use App\Actions\Product\DeleteProductAction;
 use App\Actions\Product\UpdateProductAction;
 use App\Enums\ProductStatus;
 use App\Models\Product;
+use App\Services\Stock\LowStockQuery;
 use App\Services\Stock\StockQuery;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
@@ -57,10 +58,15 @@ class ProductService
         return $query->latest()->paginate($perPage);
     }
 
-    public function getLowStockProducts(int $perPage = 15): LengthAwarePaginator
+    /**
+     * Products with a low variation (stage 11c, step 1), from LowStockQuery: the request's shop, else the viewer's.
+     */
+    public function getLowStockProducts(int $perPage = 15, ?int $shopId = null): LengthAwarePaginator
     {
+        $productIds = app(LowStockQuery::class)->forViewer($shopId)->pluck('product_id')->unique()->values();
+
         return Product::query()
-            ->lowStock()
+            ->whereIn('products.id', $productIds)
             ->active()
             ->with('category')
             ->withStockOnHand()
@@ -130,7 +136,7 @@ class ProductService
             'waiting_barcodes' => Product::query()->whereHas('unassignedBarcodes')->count(),
             'out_of_stock' => Product::active()->where('track_stock', true)->whereStock('<=', 0)->count(),
             'discontinued' => Product::discontinued()->count(),
-            'low_stock' => Product::lowStock()->count(),
+            'low_stock' => app(LowStockQuery::class)->forViewer()->pluck('product_id')->unique()->count(),
             // Units in the shops the viewer may access (per-shop stock, stage 1b).
             'total_stock_value' => (int) DB::table('shop_variation')
                 ->whereIn('product_id', Product::active()->select('products.id'))

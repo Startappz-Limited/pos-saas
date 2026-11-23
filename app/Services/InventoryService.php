@@ -119,7 +119,6 @@ class InventoryService
                     'sku' => $simple ? $product->sku : $variation->sku,
                     'quantity' => $row->stock_quantity,
                     'reorder_level' => $reorder,
-                    'is_low_stock' => $row->stock_quantity <= $reorder,
                     'cost_price' => $cost,
                     'selling_price' => $price,
                     'total_cost_value' => $row->stock_quantity * (float) $cost,

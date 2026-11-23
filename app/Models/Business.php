@@ -61,6 +61,7 @@ class Business extends Model
             'settings' => 'array',
             'trial_started_at' => 'datetime',
             'suspended_at' => 'datetime',
+            'ledger_started_at' => 'datetime',
         ];
     }
 

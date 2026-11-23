@@ -139,14 +139,13 @@ class ProductController extends Controller
         return back()->with('success', 'Product deactivated successfully.');
     }
 
-    public function lowStock(Request $request): View
+    /**
+     * The low-stock list moved to Stock → Low stock (stage 11c, step 1), the one report for it.
+     */
+    public function lowStock(Request $request): RedirectResponse
     {
         $this->authorize('viewAny', Product::class);
 
-        $products = $this->productService->getLowStockProducts(
-            perPage: $request->get('per_page', 15)
-        );
-
-        return view('products.low-stock', compact('products'));
+        return redirect()->route('stock.low-stock', $request->only('shop_id'));
     }
 }

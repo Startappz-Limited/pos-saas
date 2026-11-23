@@ -16,8 +16,8 @@ const SCOPED = 'restricted with TenantContext::restrictToShops()';
 
 const ALLOWED_RAW_QUERIES = [
     // Listing and aggregate reads, restricted to the viewer's shops.
-    'app/Actions/CheckLowStockLevels.php' => [1, SCOPED],
-    'app/Actions/CreateInventorySnapshot.php' => [2, SCOPED],
+    'app/Actions/CreateInventorySnapshot.php' => [3, SCOPED.' (the rebuild reads the allocations of the scoped shop\'s own variations, by its id)'],
+    'app/Services/Stock/LowStockQuery.php' => [1, SCOPED],
     'app/Console/Commands/AssignProductShopFromSales.php' => [2, SCOPED],
     'app/Http/Controllers/Api/EcommerceOrderController.php' => [1, SCOPED.' (applyShopFilter)'],
     'app/Http/Controllers/Api/ReportController.php' => [3, SCOPED],
@@ -55,7 +55,7 @@ const ALLOWED_RAW_QUERIES = [
     'app/Services/InvoiceNumberService.php' => [16, 'the invoice series of the sale\'s shop and register, adopting a number a till gave a sale offline (Phase 7), the shop\'s web series and the shop\'s local date (stage 10)'],
     'app/Services/Mpesa/TillPayments.php' => [1, 'an M-Pesa receipt pays once on the whole platform (the column is unique across businesses): reads only whether one is used (Phase 7)'],
     'app/Services/ProductService.php' => [1, 'per-shop stock of scoped products in the viewer\'s shops (StockQuery)'],
-    'app/Services/Stock/StockLedger.php' => [45, 'the medical flag of a product (whose released stock is the one exempt from expiry, and whose sales must have sellable stock), stock, layers and allocations of the shop and variation the caller passes (and the costs an adjustment would move at (costToConsume, in the order consume takes them), the allocations a consumer gives back, the voided sales whose units never settle, a stock row moved on for tills, and whether a line\'s cost is known)'],
+    'app/Services/Stock/StockLedger.php' => [46, 'the medical flag of a product (whose released stock is the one exempt from expiry, and whose sales must have sellable stock), stock, layers and allocations of the shop and variation the caller passes (and the costs an adjustment would move at (costToConsume, in the order consume takes them), the allocations a consumer gives back, the voided sales whose units never settle, a stock row moved on for tills, and whether a line\'s cost is known)'],
     'app/Services/Stock/StockQuery.php' => [4, 'correlated to a scoped product or variation; the viewer\'s shops'],
     'app/Support/Tenancy/TenantContext.php' => [2, 'builds the accessible-shops subquery itself'],
 

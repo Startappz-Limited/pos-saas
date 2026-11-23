@@ -5,6 +5,7 @@ namespace App\Services\Stock;
 use App\Casts\Quantity;
 use App\Enums\StockMovementType;
 use App\Exceptions\BusinessRuleException;
+use App\Jobs\CheckShopLowStockJob;
 use App\Jobs\PushShopStockJob;
 use App\Models\CostAllocation;
 use App\Models\CostLayer;
@@ -75,7 +76,8 @@ class StockLedger
             }
 
             $after = bcadd($before, $quantity, 3);
-            $movement = $this->recordMovement($shopId, $variation, $type, $quantity, $before, $after, $unitCost, $context);
+            $movement = $this->recordMovement($shopId, $variation, $type, $quantity, $before, $after, $unitCost, $context,
+                $layerId === null ? null : [['layer_id' => $layerId, 'quantity' => $quantity]]);
 
             // Stock back at zero or above resolves any open negative_stock review for this shop and
             // variation (stage 11 step 4 follow-up: the overselling policy's negative_stock review).
@@ -156,6 +158,7 @@ class StockLedger
             $needed = $quantity;
             $totalCost = 0.0;
             $costKnown = true;
+            $touched = [];
 
             foreach ($layers as $layer) {
                 if (bccomp($needed, '0', 3) <= 0) {
@@ -171,6 +174,7 @@ class StockLedger
                     'updated_at' => now(),
                 ]);
                 $this->allocate($shopId, $variation, $layer->id, $consumerType, $consumerId, $saleItemId, $take, $cost, false);
+                $touched[] = ['layer_id' => (int) $layer->id, 'quantity' => bcmul($take, '-1', 3)];
 
                 $totalCost += $this->multiply($take, $cost);
                 $costKnown = $costKnown && $cost !== null;
@@ -197,7 +201,7 @@ class StockLedger
             $totalCost = round($totalCost, 2);
             $unitCost = bccomp($quantity, '0', 3) > 0 ? round($totalCost / (float) $quantity, 2) : null;
             $after = bcsub($before, $quantity, 3);
-            $movement = $this->recordMovement($shopId, $variation, $type, $quantity, $before, $after, $costKnown ? $unitCost : null, $context);
+            $movement = $this->recordMovement($shopId, $variation, $type, $quantity, $before, $after, $costKnown ? $unitCost : null, $context, $touched);
 
             return new StockChange($movement, $quantity, $totalCost, $costKnown);
         });
@@ -241,6 +245,7 @@ class StockLedger
             $totalCost = 0.0;
             $costKnown = true;
             $batches = [];
+            $restored = [];
 
             foreach ($allocations as $allocation) {
                 $units = Quantity::normalize($allocation->quantity_allocated);
@@ -264,6 +269,9 @@ class StockLedger
                     $layerId = $this->createLayer($shopId, $variation, $units, $cost, ['source_type' => CostLayer::SOURCE_RELEASE, 'source_id' => $consumerId]);
                 }
                 $batches[$layerId] = true;
+                // When the allocation was consumed: a settled one, when it settled (what a past day's rebuild needs).
+                $consumedAt = $allocation->settled_at ?? $allocation->allocated_at;
+                $restored[] = ['layer_id' => $layerId, 'quantity' => $units, 'allocated_at' => Carbon::parse($consumedAt)->utc()->toIso8601String()];
             }
 
             DB::table('cost_allocations')->whereIn('id', $allocations->pluck('id'))->delete();
@@ -272,7 +280,7 @@ class StockLedger
             $totalCost = round($totalCost, 2);
             $unitCost = bccomp($quantity, '0', 3) > 0 && $costKnown ? round($totalCost / (float) $quantity, 2) : null;
             $after = bcadd($before, $quantity, 3);
-            $movement = $this->recordMovement($shopId, $variation, $type, $quantity, $before, $after, $unitCost, $context);
+            $movement = $this->recordMovement($shopId, $variation, $type, $quantity, $before, $after, $unitCost, $context, $restored);
 
             // Units given back to a batch settle sales made below zero, oldest batch first.
             $order = DB::table('cost_layers')->whereIn('id', array_keys($batches))->orderBy('received_at')->orderBy('id')->pluck('id');
@@ -448,7 +456,7 @@ class StockLedger
      * The caller must hold the variation's stock lock and the source layer's lock, and must call settleReleased() after
      * linking the new layer to its release record.
      */
-    public function addQuarantineRelease(CostLayer $source, string $quantity): CostLayer
+    public function addQuarantineRelease(CostLayer $source, string $quantity, array $context = []): CostLayer
     {
         $remaining = Quantity::normalize($source->remaining_quantity);
         $source->update([
@@ -456,6 +464,22 @@ class StockLedger
             'consumed_at' => bccomp($remaining, $quantity, 3) === 0 ? now() : null,
         ]);
 
+        $released = $this->createQuarantineTarget($source, $quantity);
+
+        // No stock moves (the units were held, and are now sellable), but the batches change: the movement names
+        // both, so a past day's value can be rebuilt (stage 11c, step 4).
+        $variation = ProductVariation::query()->withoutGlobalScope(ProductVariation::HIDE_DEFAULT)->findOrFail($source->variation_id);
+        $level = $this->exactQuantity((int) $source->shop_id, $variation->id);
+        $this->recordMovement((int) $source->shop_id, $variation, StockMovementType::QUARANTINE_RELEASE, '0.000', $level, $level, null, $context, [
+            ['layer_id' => (int) $source->id, 'quantity' => bcmul($quantity, '-1', 3), 'role' => 'quarantine_source'],
+            ['layer_id' => (int) $released->id, 'quantity' => $quantity, 'role' => 'quarantine_target'],
+        ]);
+
+        return $released;
+    }
+
+    private function createQuarantineTarget(CostLayer $source, string $quantity): CostLayer
+    {
         return CostLayer::query()->create([
             'uuid' => (string) Str::uuid(),
             'business_id' => $source->business_id,
@@ -610,11 +634,49 @@ class StockLedger
     private function changeStock(int $shopId, ProductVariation $variation, int|float|string $delta): void
     {
         $delta = Quantity::normalize($delta);
+        $before = $this->levelOf($shopId, $variation);
 
         DB::table('shop_variation')->where('shop_id', $shopId)->where('variation_id', $variation->id)
             ->update(['stock_quantity' => DB::raw('stock_quantity + ('.$delta.')'), 'updated_at' => now()]);
 
+        $after = $this->levelOf($shopId, $variation);
+        if ($before !== null && $after !== null && $this->crossesReorderLevel($before, $after)) {
+            // Stage 11c, step 2: the shop's low-stock and expiry alerts are re-judged, once the change commits.
+            CheckShopLowStockJob::dispatch($shopId)->afterCommit();
+        }
+
         $this->pushStock($shopId, $variation);
+    }
+
+    /**
+     * The shop's stock of a tracked variation and its reorder level, in base units; null when it isn't tracked.
+     *
+     * @return array{0: string, 1: string}|null
+     */
+    private function levelOf(int $shopId, ProductVariation $variation): ?array
+    {
+        $row = DB::table('shop_variation')
+            ->join('products', 'products.id', '=', 'shop_variation.product_id')
+            ->where('shop_variation.shop_id', $shopId)
+            ->where('shop_variation.variation_id', $variation->id)
+            ->where('products.track_stock', true)
+            ->first(['shop_variation.stock_quantity', DB::raw('coalesce(shop_variation.reorder_level, products.reorder_level) as threshold')]);
+
+        return $row === null ? null : [Quantity::normalize($row->stock_quantity), Quantity::normalize($row->threshold ?? 0)];
+    }
+
+    /**
+     * Whether a change moved the stock to or from its reorder level: at or below it on one side, above it on the other.
+     *
+     * @param  array{0: string, 1: string}  $before
+     * @param  array{0: string, 1: string}  $after
+     */
+    private function crossesReorderLevel(array $before, array $after): bool
+    {
+        $wasLow = bccomp($before[0], $before[1], 3) <= 0;
+        $isLow = bccomp($after[0], $after[1], 3) <= 0;
+
+        return $wasLow !== $isLow;
     }
 
     /**
@@ -842,7 +904,11 @@ class StockLedger
     /**
      * @param  array{reference?: Model|null, notes?: string|null, user_id?: int|null}  $context
      */
-    private function recordMovement(int $shopId, ProductVariation $variation, StockMovementType $type, string $quantity, string $before, string $after, ?float $unitCost, array $context): StockMovement
+    /**
+     * @param  list<array{layer_id: int, quantity: string, role?: string, allocated_at?: string}>|null  $layers  the batches
+     *                                                                                                           the movement changed (stage 11c, step 4); what a past day is rebuilt from
+     */
+    private function recordMovement(int $shopId, ProductVariation $variation, StockMovementType $type, string $quantity, string $before, string $after, ?float $unitCost, array $context, ?array $layers = null): StockMovement
     {
         $reference = $context['reference'] ?? null;
         $notes = $context['notes'] ?? null;
@@ -859,6 +925,7 @@ class StockLedger
             'quantity_before' => $before,
             'quantity_after' => $after,
             'unit_cost' => $unitCost,
+            'layers' => $layers,
             'reference_type' => $reference ? $reference::class : null,
             'reference_uuid' => $reference?->uuid,
             'notes' => $notes,

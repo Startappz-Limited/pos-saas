@@ -99,7 +99,10 @@ class QuarantineService
 
                 $this->assertReleasable($source, $quantity);
 
-                $released = $this->ledger()->addQuarantineRelease($source, $quantity);
+                $released = $this->ledger()->addQuarantineRelease($source, $quantity, [
+                    'user_id' => $user->id,
+                    'notes' => __('Released from quarantine: :reason', ['reason' => $reason]),
+                ]);
 
                 $release = StockRelease::query()->create([
                     'uuid' => (string) Str::uuid(),

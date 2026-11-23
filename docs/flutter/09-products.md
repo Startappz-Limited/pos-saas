@@ -284,15 +284,17 @@ Soft-deletes the product.
 
 ## Low Stock Products
 
-`GET /api/products/low-stock`
+`GET /api/products/low-stock` (also served as `GET /api/inventory/low-stock`)
 
-Returns products where `stock_quantity <= reorder_level`.
+Returns the variations whose **sellable** stock at the request's shop (expired batches excluded) is at or below the
+shop's reorder level, else the product's; tracked products only. The product list's shape is unchanged.
 
 ### Query Parameters
 
 | Param | Type | Description |
 |-------|------|-------------|
 | `per_page` | int | Items per page |
+| `shop_id` | int | The shop to judge; omitted, every shop the user can access |
 
 ### Success Response `200`
 

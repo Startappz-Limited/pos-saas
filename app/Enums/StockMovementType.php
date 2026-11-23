@@ -17,6 +17,8 @@ enum StockMovementType: string
     // A consumer's stock given back (stage 10, step 3): a voided or deleted sale's lines.
     case SALE_VOID = 'sale_void';
     case SALE_DELETE = 'sale_delete';
+    // A quarantined batch's units released to sale (stage 11c, step 4): no stock moves, but the batches change.
+    case QUARANTINE_RELEASE = 'quarantine_release';
 
     public function label(): string
     {
@@ -33,6 +35,7 @@ enum StockMovementType: string
             self::EXPIRED => 'Expired',
             self::SALE_VOID => 'Sale Voided',
             self::SALE_DELETE => 'Sale Deleted',
+            self::QUARANTINE_RELEASE => 'Quarantine Release',
         };
     }
 

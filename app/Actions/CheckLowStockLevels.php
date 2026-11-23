@@ -2,9 +2,11 @@
 
 namespace App\Actions;
 
-use App\Support\Tenancy\TenantContext;
+use App\Enums\AlertStatus;
+use App\Models\LowStockAlert;
+use App\Models\Shop;
+use App\Services\Stock\LowStockQuery;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\DB;
 
 class CheckLowStockLevels
 {
@@ -13,43 +15,56 @@ class CheckLowStockLevels
     ) {}
 
     /**
-     * Checks the shop's stock and raises an alert for every item at or below
-     * its reorder level (stage 1b: per-shop stock).
+     * Raises an alert for every item at or below its reorder level, and resolves the open alerts of items that
+     * have recovered (stage 11c, step 2): "Stock recovered", with no user named. A check with no user (the
+     * scheduler, a stock change) is the system's; one run by a person records that person.
      *
-     * A row's own reorder level (shop_variation) wins, else its product's. A
-     * simple product is checked through its default variation and alerted
-     * without a variation, as before; a product with variations is checked per
-     * variation. Only this shop's stock counts.
+     * The levels come from LowStockQuery, the one definition of low stock (sellable stock, base units).
      */
     public function execute(int $shopId, ?int $userId = null): Collection
     {
-        $low = DB::table('shop_variation')
-            ->tap(fn ($query) => app(TenantContext::class)->restrictToShops($query, 'shop_variation.shop_id'))
-            ->join('products', 'products.id', '=', 'shop_variation.product_id')
-            ->join('product_variations', 'product_variations.id', '=', 'shop_variation.variation_id')
-            ->where('shop_variation.shop_id', $shopId)
-            ->where('products.track_stock', true)
-            ->whereNull('products.deleted_at')
-            // Simple products through their default variation; the others per variation.
-            ->whereRaw('product_variations.is_default = case when products.has_variations = 1 then 0 else 1 end')
-            ->whereRaw('shop_variation.stock_quantity <= coalesce(shop_variation.reorder_level, products.reorder_level)')
-            ->orderBy('shop_variation.id')
-            ->get([
-                'shop_variation.product_id',
-                'shop_variation.variation_id',
-                'shop_variation.stock_quantity',
-                'product_variations.is_default',
-                DB::raw('coalesce(shop_variation.reorder_level, products.reorder_level) as threshold'),
-            ]);
+        // A shop outside the current business is not found, so it has no alerts (as the shop-scoped query had none).
+        $shop = Shop::query()->find($shopId);
+        if ($shop === null) {
+            return collect();
+        }
 
-        return $low->map(fn (object $row) => $this->createAlert->execute([
+        $low = app(LowStockQuery::class)->forShop($shop);
+
+        $alerts = $low->map(fn (array $row) => $this->createAlert->execute([
             'shop_id' => $shopId,
-            'product_id' => $row->product_id,
-            'variation_id' => $row->is_default ? null : $row->variation_id,
-            'current_quantity' => (int) $row->stock_quantity,
-            'threshold_quantity' => (int) $row->threshold,
-            // No user (a scheduled check) records no creator, never user 1, who may be another business's.
+            'product_id' => $row['product_id'],
+            'variation_id' => $row['is_default'] ? null : $row['variation_id'],
+            'current_quantity' => $row['sellable'],
+            'threshold_quantity' => $row['threshold'],
             'created_by' => $userId,
         ]));
+
+        $this->resolveRecovered($shopId, $low);
+
+        return $alerts;
+    }
+
+    /**
+     * An open alert whose item is no longer low is resolved ("Stock recovered"). A new alert opens again if the
+     * item drops back: resolved alerts are not reused.
+     *
+     * @param  Collection<int, array<string, mixed>>  $low
+     */
+    private function resolveRecovered(int $shopId, Collection $low): void
+    {
+        $lowKeys = $low->map(fn (array $row): string => $row['product_id'].':'.($row['is_default'] ? '' : $row['variation_id']))->all();
+
+        LowStockAlert::query()
+            ->where('shop_id', $shopId)
+            ->whereIn('status', [AlertStatus::PENDING, AlertStatus::ACKNOWLEDGED])
+            ->get()
+            ->each(function (LowStockAlert $alert) use ($lowKeys): void {
+                $key = $alert->product_id.':'.($alert->variation_id ?? '');
+
+                if (! in_array($key, $lowKeys, true)) {
+                    $alert->resolveRecovered();
+                }
+            });
     }
 }
