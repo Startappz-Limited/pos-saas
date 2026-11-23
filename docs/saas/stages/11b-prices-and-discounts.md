@@ -103,13 +103,13 @@ encoding helpers.
 > on the product page; the resolver in the flat API's product responses, the store sync and the rule preview; the
 > pricing-rule form's variation and unit choices; the CLAUDE.md, `pos-domain-rules` and `docs/flutter` unit-price notes;
 > the approver's PIN flow (till side); and the migration rehearsal on `rehearsal_testing` (it needs a UAT snapshot).
-> The acceptance criteria are not ticked.
+> Checklist items are ticked where they are fully met, and the rest stay open; the acceptance criteria are ticked where met.
 
 Every part keeps to the tenancy rules: `BelongsToBusiness` / `BelongsToShop`, business-aware `exists:`, a
 `ResourceMatrixTest` row for every new route.
 
 ### 1. `PriceResolver::quote()`
-- [ ] **`App\Support\Pricing\PriceResolver`** prices a whole cart, because quantity breaks sum across lines:
+- [x] **`App\Support\Pricing\PriceResolver`** prices a whole cart, because quantity breaks sum across lines:
       `quote(Shop $shop, ?Customer $customer, array $lines, ?CarbonInterface $at = null)` (each line a unit and a
       quantity) returns, per line, the price per unit and how it was found:
   1. **the unit's price:** `UnitPrice::for()` (stage 11): `shop_unit_prices` for that shop and unit, else the unit's own
@@ -127,13 +127,13 @@ Every part keeps to the tenancy rules: `BelongsToBusiness` / `BelongsToShop`, bu
   - `POST /pos/quote` answers for the shop's units only; another business's unit is a 404.
 
 ### 2. Quantity breaks in base units
-- [ ] `pricing_rules.variation_id` (nullable: one variation of the rule's product; NULL: every variation of it) and
+- [x] `pricing_rules.variation_id` (nullable: one variation of the rule's product; NULL: every variation of it) and
       `unit_id` (nullable: the rule applies only to lines in that unit; NULL: any unit).
-- [ ] A rule's `min_quantity` / `max_quantity` are whole base units (they stay integers: no existing rule has one on
+- [x] A rule's `min_quantity` / `max_quantity` are whole base units (they stay integers: no existing rule has one on
       UAT, and existing thresholds were already base units), compared with the sum of `base_quantity` over the sale's
       lines of that variation (of that unit only, for a unit-scoped rule).
-- [ ] A rule's `price` is per base unit; `calculateFinalPrice()` works per base unit with the money helper, not floats.
-- [ ] **Customer-specific rules name a customer:** `pricing_rules.customer_id` is re-pointed at `customers`
+- [x] A rule's `price` is per base unit; `calculateFinalPrice()` works per base unit with the money helper, not floats.
+- [x] **Customer-specific rules name a customer:** `pricing_rules.customer_id` is re-pointed at `customers`
       (validation `exists:customers,id`, foreign key moved). `php artisan pricing-rules:check-customers
       --business=<id>` (read-only) lists any rule whose `customer_id` isn't a customer of the business; the re-point
       migration runs the same check and refuses if one exists, as a safety net only (none on UAT).
@@ -145,16 +145,16 @@ Every part keeps to the tenancy rules: `BelongsToBusiness` / `BelongsToShop`, bu
   - a customer-specific rule applies to that customer only; the check command lists a rule naming a user.
 
 ### 3. The server checks every price it records
-- [ ] On every sale it records (the web POS `SaleController::store`, `RecordSale` for the flat API and the push, and
+- [x] On every sale it records (the web POS `SaleController::store`, `RecordSale` for the flat API and the push, and
       `/api/v1`), the server quotes each line with `quote()` for the sale's shop, customer, units and quantities, at
       the sale's completion time (the push item's `recorded_at` offline, so dated rules apply as they did at the till).
       Online-store orders and abandoned carts are priced by the store and aren't checked.
-- [ ] **Tolerance:** a line is below the expected price only when its charged total (unit price × quantity, rounded to
+- [x] **Tolerance:** a line is below the expected price only when its charged total (unit price × quantity, rounded to
       cents) is more than KES 0.01 below its expected total (expected unit price × quantity, rounded to cents once).
       One cent per line, whatever the quantity.
-- [ ] **Permission:** `sales.override-price` (new; the owner and the manager template, through `permissions:sync`).
+- [x] **Permission:** `sales.override-price` (new; the owner and the manager template, through `permissions:sync`).
       Nothing that exists fits (see "Relevant current state").
-- [ ] **Each line records** `expected_unit_price` (per the unit sold, `decimal(12,2)`, as `unit_price`) and
+- [x] **Each line records** `expected_unit_price` (per the unit sold, `decimal(12,2)`, as `unit_price`) and
       `price_overridden_by` (nullable user): who allowed a lower price. A line may name the person who authorised it
       (e.g. a manager at the till); it defaults to the person making the sale, and whoever it names must hold the
       permission.
@@ -164,7 +164,7 @@ Every part keeps to the tenancy rules: `BelongsToBusiness` / `BelongsToShop`, bu
       `expected_unit_price`; the flat API answers 422 `{success: false, message}` (its shape; no code). With the
       permission the line is accepted and `price_overridden_by` recorded. A line above the expected price is accepted
       and recorded, with its `expected_unit_price`.
-- [ ] **Offline** (push): the sale is recorded as charged. Each line below the expected price records a
+- [x] **Offline** (push): the sale is recorded as charged. Each line below the expected price records a
       `price_mismatch` issue on the till sync review: the line, the expected and charged prices, the person, the till,
       and whether the person named held `sales.override-price` on the server. Without it, the issue is open, even if
       the app let them. With it, the issue is recorded already resolved ("authorised override").
@@ -182,14 +182,14 @@ Every part keeps to the tenancy rules: `BelongsToBusiness` / `BelongsToShop`, bu
       (audited). Templates: cashier 0, manager and owner (`admin`) NULL; the inventory clerk and accountant 0. A
       person's limit is the highest of their roles' in the business. Business copies take their template's through
       `permissions:sync`; a limit the owner changed is kept.
-- [ ] A discount above the person's limit needs someone holding `sales.override-price` to approve it; the sale records
+- [x] A discount above the person's limit needs someone holding `sales.override-price` to approve it; the sale records
       `discount_approved_by`.
 - [ ] **The price check includes the discount:** the sale's charged total after its discount is compared with the
       expected total (Σ quoted lines), one cent per line of tolerance. A discount within the person's limit, or
       approved, is an allowed difference; any other shortfall is a mismatch.
 - [ ] **Online:** a discount above the limit without approval is refused with `discount_above_limit` (`/api/v1`; the
       flat API's `{success: false, message}`; under the field on the web), giving the limit.
-- [ ] **Offline:** recorded and flagged `price_mismatch` (with `kind = discount`).
+- [x] **Offline:** recorded and flagged `price_mismatch` (with `kind = discount`).
 - [ ] Tests: a discount within the cashier's limit is accepted; above it, refused online (`discount_above_limit`) and
       flagged offline; an approved discount is recorded with `discount_approved_by`; a discount taking the total below
       the expected one without being allowed is a mismatch; the owner changes a role's limit and it is audited.
@@ -215,7 +215,7 @@ Every part keeps to the tenancy rules: `BelongsToBusiness` / `BelongsToShop`, bu
   - `pricing_rules` gain `variation_uuid` and `unit_uuid` (null when the rule has none) and a customer's uuid from
     `customers`; `min_quantity` / `max_quantity` stay integers, in base units;
   - the staff list already carries each person's permissions (Phase 7), so `sales.override-price` reaches the till.
-- [ ] **Push:** sale lines may carry `price_overridden_by` (a staff uuid) and `override_approved_at`; the sale may carry
+- [x] **Push:** sale lines may carry `price_overridden_by` (a staff uuid) and `override_approved_at`; the sale may carry
       `discount_approved_by` and `override_approved_at`.
 - [ ] **`/api/v1`:** sale creation answers `price_below_expected` and `discount_above_limit` (422) with the expected
       prices or the limit.
@@ -226,7 +226,7 @@ Every part keeps to the tenancy rules: `BelongsToBusiness` / `BelongsToShop`, bu
 - [ ] Domain rules (`pos-domain-rules`) and CLAUDE.md: `PriceResolver`, quantity breaks in base units, the price check
       and its tolerance, discount limits, `sales.override-price`.
 - [ ] `docs/flutter/`: the `unit_prices` entity, the rules' new fields, the approval fields and the two refusal codes.
-- [ ] **Note on `docs/implementation/06-pricing-management.md`**, under its title, once the stage ships (why: the
+- [x] **Note on `docs/implementation/06-pricing-management.md`**, under its title, once the stage ships (why: the
       pre-SaaS pricing design was never built as written):
       > **Superseded (stage 11b).** Never built as written (no `product_pricing` table). Prices live on units (stage
       > 11) with per-shop prices, and pricing rules with dates and quantity breaks, all resolved by `PriceResolver`;
@@ -270,15 +270,15 @@ additions.
 
 ## Acceptance criteria
 
-- [ ] `PriceResolver` prices every unit as decided; quantity breaks count base units across lines, never raise a price,
+- [x] `PriceResolver` prices every unit as decided; quantity breaks count base units across lines, never raise a price,
       and respect a rule's unit and variation.
 - [ ] Every sale the server records is checked against `quote()`: online, a lower price needs `sales.override-price`
       and the override is recorded; offline, it is recorded and reviewed; one cent per line is tolerated.
 - [ ] Discounts above a role's limit need approval; the price check covers the total after discount; offline approvals
       are by the approver's till PIN and re-checked by the server.
-- [ ] Customer-specific rules name customers.
-- [ ] The app's recorded requests still succeed against the new server; the flat API and v1 contract tests pass.
-- [ ] Pint, the full SQLite and MySQL suites, and the isolation suite pass.
+- [x] Customer-specific rules name customers.
+- [x] The app's recorded requests still succeed against the new server; the flat API and v1 contract tests pass.
+- [x] Pint, the full SQLite and MySQL suites, and the isolation suite pass.
 
 ## Risks
 
