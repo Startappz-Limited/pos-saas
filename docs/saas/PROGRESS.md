@@ -947,7 +947,7 @@ The stock stages that follow (stage files in [stages/](stages/)); none started.
 |---|---|---|---|---|
 | 10a | [10a-access-and-tenancy.md](stages/10a-access-and-tenancy.md) | `fix/access-tenancy` | None; can ship any time | **Merged** (see below) |
 | 11 | [11-units-quantities-and-batches.md](stages/11-units-quantities-and-batches.md) | `feat/stock-units-batches` | 10 | **Merged** (PR #29, 20 November 2026) |
-| 11b | [11b-prices-and-discounts.md](stages/11b-prices-and-discounts.md) | `feat/prices-and-discounts` | 11, 10 | Planned |
+| 11b | [11b-prices-and-discounts.md](stages/11b-prices-and-discounts.md) | `feat/prices-and-discounts` | 11, 10 | **Partly built**; open items in its section |
 | 11c | [11c-low-stock-alerts-and-snapshots.md](stages/11c-low-stock-alerts-and-snapshots.md) | `feat/low-stock-and-snapshots` | 11 | **Built and verified; not merged** (see below; UAT rollout waits for a snapshot) |
 | 12 | [12-receiving-and-moving-stock.md](stages/12-receiving-and-moving-stock.md) | `feat/stock-receiving-transfers` | 11, 11c | Planned |
 | 13 | [13-stocktakes.md](stages/13-stocktakes.md) | `feat/stocktakes` | 12, 11 | Planned |
@@ -1098,3 +1098,67 @@ The stage file is the plan: [stages/11c-low-stock-alerts-and-snapshots.md](stage
 2. `php artisan stock:ledger-start --business=<id>` for each business: dry run, then `--apply`.
 3. `php artisan stock:snapshot` once by hand; check `schedule:list` shows it every 15 minutes.
 4. Compare the report, the products filter, the dashboard and the two API endpoints for one shop: the same list.
+
+## Stage 11b: Prices and discounts
+
+Branch: `feat/prices-and-discounts` (from `main` at `05fd515`, after stage 11c's PR #30). **Partly built**: the stage
+file is the plan ([stages/11b-prices-and-discounts.md](stages/11b-prices-and-discounts.md)), and its acceptance criteria
+are not all met. Stage 11b was skipped in the order, so this branch picks it up from the stage's own plan.
+
+### What is built
+
+| Part | What | Evidence |
+|---|---|---|
+| 1. `PriceResolver::quote()` | Unit price (shop price, else the unit's own, else base × factor) in bcmath, then the best applicable rule, then the lower of the two. A rule never raises a price. `UnitPrice::exact()` gives the figure and its source. `POST /pos/quote` answers for a cart; the web POS asks it after each cart change and takes its prices from the answer. `PricingService::getBestPriceForProduct()` (no caller) removed. | `PriceResolverTest` (9); matrix row for `pos.quote` |
+| 2. Quantity breaks in base units | `pricing_rules.variation_id` and `unit_id` (nullable). Thresholds count base quantity across the sale's lines of the variation (or of the unit, for a unit-scoped rule). `calculateFinalPrice()` in bcmath. Customer-specific rules name `customers`: the migration re-points the column and refuses while a rule names someone who isn't a customer. `pricing-rules:check-customers` (read-only). | `PriceResolverTest`; migrations `2026_11_23_000001` |
+| 3. The server checks every price it records | `CheckSalePrices` (the assessor, read-only) and `PriceAssessment`. A line is short only when more than a cent under its expected total. Online (the flat API via `RecordSale`, and the web POS): a short line needs `sales.override-price`, else refused before anything is written. The sale's lines record `expected_unit_price`, `price_overridden_by` and `override_approved_at`. | `SalePriceCheckTest` (flat API refusal, approval, tolerance, above expected, web refusal under the line) |
+| 4. Discount limits | `roles.max_discount_percent` (nullable: no limit), set by the owner on the role screen (`UpdateRoleRequest`, audited with the role). Templates: cashier, clerk, accountant and customer 0%; manager and owner NULL. A person's limit is the highest of their roles'. A discount above it needs approval by a holder of `sales.override-price`; the sale records `discount_approved_by`. | `DiscountLimitRoleTest`; `SalePriceCheckTest` (refusal above the limit; approval recorded) |
+| 5. Offline approval | A push's lines and sale carry the approver's uuid and time. A push is never refused for price: a short line or a discount above the limit is recorded and put on the sync review as `price_mismatch`, open unless the named approver held `sales.override-price` on the server (then resolved as an authorised override). An approval an app didn't send is flagged. | `SalePriceCheckTest` (push review, open and resolved) |
+| 6. Sync contract | The pull gains the entity `unit_prices` (the till's shop's `shop_unit_prices`), and `pricing_rules` gain `variation_uuid`, `unit_uuid` and the customer's uuid from `customers`. Push and API fields as in part 5. The flat API and v1 contract tests pass. | full suites (contract tests included) |
+| 7. Housekeeping (part) | `docs/flutter/03-sales.md`: the approval fields, the price check and the refusal shape. `docs/implementation/06-pricing-management.md`: the superseded note. | docs |
+
+Also: the role screen takes the discount limit (blank means no limit); `ApiErrorCode::PriceBelowExpected` and
+`DiscountAboveLimit` added (online only, the flat API answers without a code); `SyncIssue::PRICE_MISMATCH` added.
+
+### Verification (the tree at this commit)
+
+| Check | Result |
+|---|---|
+| SQLite full suite | 2,764 passed, 0 failed, 62 skipped, 4 todo (exit 0) |
+| MySQL 8 full suite (`pos_saas_testing`) | 2,776 passed, 0 failed, 50 skipped, 4 todo (exit 0) |
+| `vendor/bin/pint` on the changed files | pass |
+
+### Decisions taken where the stage and the code disagreed
+
+- **`/api/v1` has no sale-creation endpoint.** Every till's sale arrives through the sync push, online or offline, so
+  `/api/v1` cannot refuse a sale for price. The online refusal applies to the web POS and the flat API; a push is
+  recorded and reviewed, as part 5 says for offline. **Needs your decision** if an online v1 sale endpoint is wanted.
+- **The approver's permission is checked when the server takes the sale, not at `override_approved_at`.** No permission
+  history is kept; the audit trail holds role and permission changes. **Needs your decision** if history must be checked.
+- **Who approves by default:** online, the seller (if they hold the permission); in a push, only a named approver, so an
+  app that sends no approval fields gets its lower prices flagged.
+- **A person with no role has a 0% discount limit**, so a permission-only user can't discount without approval.
+- **Role copies:** a copy takes its template's discount limit only while it has none. An owner's value is kept, but a
+  copy the owner set to "no limit" (NULL) takes the template's value on the next `permissions:sync`.
+- **The discount check is a limit check.** A discount within the limit, or approved, is an allowed difference; the
+  stage's total-after-discount comparison is not a separate test on top of it.
+- **The web POS refusal** shows through the shared alert, one message per line, not under the line.
+
+### Test adaptations (existing tests, and why)
+
+- `PricingRuleTest`: a customer-specific rule names a `Customer`, not a staff `User` (part 2).
+- `SaleVatTest`, `SaleDiscountValidationTest`, `SaleNotificationsTest`: their seller holds `sales.override-price`. These
+  tests are about VAT, discounts and notifications; the price check itself is tested in `SalePriceCheckTest`.
+- `LowStockDefinitionTest` (stage 11c): dropped an over-strict `assertDontSee('Rice')`; the report page lists products
+  elsewhere, so the check that the report shows only low rows is the rows it shows, not the page text.
+
+### Open (not built)
+
+- Shop prices per unit on the product page (part 1, "Shop prices per unit on screen").
+- The resolver in the flat API's product responses, the store sync (base unit) and the pricing-rule preview (part 1).
+- The pricing-rule form does not show the variation and unit choices yet (the validation accepts them).
+- CLAUDE.md and `pos-domain-rules` (part 7); `docs/flutter` for the `unit_prices` entity and the rules' new fields.
+- The approver's till PIN and its lockout: the till side (the server records the approval and re-checks the permission).
+- The migration rehearsal on `rehearsal_testing` (needs a UAT snapshot from you, `php artisan db:snapshot`).
+- Pre-existing, not changed here: `LiveLikeDatasetTest` (MySQL) occasionally sees a one-day difference in a user's
+  date of birth between two builds; stage 1a recorded an intermittent `users` difference in the same test.

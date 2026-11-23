@@ -96,6 +96,15 @@ encoding helpers.
 
 ## Work
 
+> **Status (23 November 2026): partly built, not complete.** Built on `feat/prices-and-discounts`: the price resolver
+> and quantity breaks in base units (parts 1 and 2), the server's price check on every recorded sale (part 3), the
+> discount limits and their approval (part 4), the push's approval fields and review issues (part 5), and the pull's
+> `unit_prices` entity and rule fields (part 6). Open, listed in the PROGRESS section for this stage: shop prices per unit
+> on the product page; the resolver in the flat API's product responses, the store sync and the rule preview; the
+> pricing-rule form's variation and unit choices; the CLAUDE.md, `pos-domain-rules` and `docs/flutter` unit-price notes;
+> the approver's PIN flow (till side); and the migration rehearsal on `rehearsal_testing` (it needs a UAT snapshot).
+> The acceptance criteria are not ticked.
+
 Every part keeps to the tenancy rules: `BelongsToBusiness` / `BelongsToShop`, business-aware `exists:`, a
 `ResourceMatrixTest` row for every new route.
 

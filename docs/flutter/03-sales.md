@@ -223,6 +223,29 @@ Creates a new sale within the currently open register.
 | `payment_method` | required, in: `cash`, `card`, `bank_transfer`, `mobile_money`, `credit` |
 | `is_cod` | nullable, boolean |
 | `notes` | nullable, string, max:1000 |
+| `items.*.price_overridden_by` | nullable, string: the uuid of a staff member who allowed a price below the expected one (stage 11b) |
+| `items.*.override_approved_at` | nullable, date: when that approval was given |
+| `discount_approved_by` | nullable, string: the uuid of a staff member who approved a discount above the seller's limit (stage 11b) |
+| `override_approved_at` | nullable, date: when the discount approval was given |
+
+### Expected prices and approvals (stage 11b)
+
+The server checks each line against the price it expects (the unit's shop price, else its own price, else the base unit
+times the factor; then any quantity-break rule, as the lower of the two) and the discount against the seller's role
+limit. Within one cent on a line's total is not a difference.
+
+- A line charged **below** its expected price, or a discount **above** the seller's limit, is refused with `422` unless
+  the seller holds `sales.override-price`, or an approver named in the request does. The flat API answers
+  `{"success": false, "message": "..."}`, with the expected price or the limit in the message and no `code`.
+- The sale's line records `expected_unit_price`, `price_overridden_by` and `override_approved_at`; the sale records
+  `discount_approved_by` and `override_approved_at`. Approvals are made by staff uuid.
+- The web POS takes its prices from `POST /pos/quote`, so its normal path never trips the check. The till should take
+  its prices from the same place (or from the pull's `unit_prices` and the pricing rules), so a charged price matches
+  what the server expects.
+- A till's **push** is never refused for price. A line below its expected price, or a discount above the limit, is
+  recorded as charged and put on the sync review as `price_mismatch`: open unless the approver it names held
+  `sales.override-price` on the server when the sale arrived. An app that sends no approval fields gets its lower prices
+  flagged. The till asks for its approver's PIN on the same till before it sends the approval.
 
 ### Success Response `201`
 

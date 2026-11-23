@@ -1,4 +1,10 @@
 # Module 06: Pricing Management
+
+> **Superseded (stage 11b).** Never built as written (no `product_pricing` table). Prices live on units (stage 11) with
+> per-shop prices, and pricing rules with dates and quantity breaks, all resolved by `PriceResolver`; the CSV import
+> updates prices in bulk. Every finding and where it went:
+> [TRACEABILITY-stock.md](../saas/stages/TRACEABILITY-stock.md).
+
 ## Stock Taking & Sales Management System
 
 ### Module Overview
